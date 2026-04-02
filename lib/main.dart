@@ -20,7 +20,7 @@ class InspectaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Inspecta',
+      title: 'Inspecta App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primaryColor: const Color(0xFF00B5E4),

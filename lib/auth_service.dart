@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   final supabase = Supabase.instance.client;
@@ -43,10 +44,21 @@ class AuthService {
   // Login dengan Google (Supabase)
   Future<bool> signInWithGoogle() async {
     try {
+      final String redirectUrl;
+      if (kIsWeb) {
+        // URL redirect untuk web testing (sesuai port tetap)
+        redirectUrl = 'http://localhost:3000';
+      } else {
+        // URL redirect untuk mobile
+        redirectUrl = 'io.supabase.inspecta://login-callback/';
+      }
+
       await supabase.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'io.supabase.inspecta://login-callback/',
-        scopes: 'email profile', // Tambahan scopes
+        redirectTo: redirectUrl,
+        queryParams: {
+          'prompt': 'consent', // Paksa tampilan continue tanpa loading lama
+        },
       );
       return true;
     } catch (e) {

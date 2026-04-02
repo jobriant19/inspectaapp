@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'dart:ui';
-import 'dart:async';
 import 'auth_service.dart';
 import 'home_screen.dart';
 
@@ -13,20 +12,17 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   final AuthService _auth = AuthService();
-
-  StreamSubscription? _authStateSubscription;
-
+  
   // Controller Form
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController(); 
   final TextEditingController _passwordController = TextEditingController();
-  String? _selectedJabatan;
-
-  bool isLogin = true;
-  bool isRememberMe = false;
+  String? _selectedJabatan; 
+  
+  bool isLogin = true; 
+  bool isRememberMe = false; 
   bool isLoading = false;
   bool isPasswordVisible = false;
 
@@ -36,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   // --- FITUR LOKALISASI (TRANSLATE) ---
   String selectedLanguage = 'EN';
-
+  
   final Map<String, Map<String, String>> translations = {
     'EN': {
       'login': 'Login',
@@ -136,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen>
       'role_label': '职位',
       'role_hint': '选择职位',
       'err_role': '请先选择职位',
-    },
+    }
   };
 
   String getTxt(String key) => translations[selectedLanguage]![key] ?? key;
@@ -146,67 +142,6 @@ class _LoginScreenState extends State<LoginScreen>
     super.initState();
     _loadSavedCredentials();
     _passwordController.addListener(_checkPasswordStrength);
-    
-    _setupAuthListener();
-  }
-
-  @override
-  void dispose() {
-    _authStateSubscription?.cancel();
-    _emailController.dispose();
-    _nameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  void _setupAuthListener() {
-    _authStateSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
-      final AuthChangeEvent event = data.event;
-      final Session? session = data.session;
-
-      // Jika Event berhasil masuk (Signed In)
-      if (event == AuthChangeEvent.signedIn && session != null) {
-        if (!mounted) return;
-        
-        setState(() {
-          isLoading = true; // Munculkan indikator loading di UI
-        });
-
-        try {
-          // Cek apakah user sudah ada di database 'User'
-          final userData = await Supabase.instance.client
-              .from('User')
-              .select('id_user')
-              .eq('id_user', session.user.id)
-              .maybeSingle();
-
-          // Jika belum ada (User baru Google), buat datanya
-          if (userData == null) {
-            await Supabase.instance.client.from('User').insert({
-              'id_user': session.user.id,
-              'nama': session.user.userMetadata?['full_name'] ?? 'User Google',
-              'email': session.user.email,
-              'pass': 'google_auth',
-              'id_jabatan': 4, // Default Staff
-              'poin': 0,
-              'is_visitor': false,
-              'timestamp': DateTime.now().toIso8601String(),
-            });
-          }
-
-          // Otomatis pindah Ke Home Screen
-          if (mounted) {
-            Navigator.pushReplacement(
-              context, 
-              MaterialPageRoute(builder: (context) => const HomeScreen())
-            );
-          }
-        } catch (e) {
-          print("Error Insert User Google: $e");
-          if (mounted) setState(() => isLoading = false);
-        }
-      }
-    });
   }
 
   // FITUR: Pengecekan Password cerdas (Keragaman Karakter)
@@ -232,13 +167,13 @@ class _LoginScreenState extends State<LoginScreen>
 
         if (strengthScore <= 2) {
           _passStrengthText = getTxt('weak');
-          _passStrengthColor = const Color(0xFFFF4B4B);
+          _passStrengthColor = const Color(0xFFFF4B4B); 
         } else if (strengthScore <= 4) {
           _passStrengthText = getTxt('medium');
-          _passStrengthColor = Colors.orangeAccent;
+          _passStrengthColor = Colors.orangeAccent; 
         } else {
           _passStrengthText = getTxt('strong');
-          _passStrengthColor = const Color(0xFF4CD978);
+          _passStrengthColor = const Color(0xFF4CD978); 
         }
       }
     });
@@ -257,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   void _saveCredentials() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString('lang', selectedLanguage);
+    await prefs.setString('lang', selectedLanguage); 
     if (isRememberMe) {
       await prefs.setBool('remember_me', true);
       await prefs.setString('email', _emailController.text);
@@ -276,9 +211,7 @@ class _LoginScreenState extends State<LoginScreen>
       barrierDismissible: false,
       builder: (BuildContext context) {
         return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           backgroundColor: Colors.white,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
@@ -287,45 +220,23 @@ class _LoginScreenState extends State<LoginScreen>
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFF4B4B),
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: const BoxDecoration(color: Color(0xFFFF4B4B), shape: BoxShape.circle),
                   child: const Icon(Icons.close, color: Colors.white, size: 40),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
+                Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
                 const SizedBox(height: 25),
                 SizedBox(
-                  width: double.infinity,
-                  height: 40,
+                  width: double.infinity, height: 40,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00C9E4),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), elevation: 0,
                     ),
                     onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      getTxt('try_again'),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
+                    child: Text(getTxt('try_again'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                   ),
-                ),
+                )
               ],
             ),
           ),
@@ -340,24 +251,18 @@ class _LoginScreenState extends State<LoginScreen>
     String name = _nameController.text.trim();
 
     if (email.isEmpty && pass.isEmpty) {
-      _showCustomDialog(getTxt('err_email_pass'));
-      return;
+      _showCustomDialog(getTxt('err_email_pass')); return;
     } else if (email.isEmpty) {
-      _showCustomDialog(getTxt('err_email'));
-      return;
+      _showCustomDialog(getTxt('err_email')); return;
     } else if (pass.isEmpty) {
-      _showCustomDialog(getTxt('err_pass'));
-      return;
+      _showCustomDialog(getTxt('err_pass')); return;
     } else if (!isLogin) {
       if (name.isEmpty) {
-        _showCustomDialog(getTxt('err_name'));
-        return;
+        _showCustomDialog(getTxt('err_name')); return;
       } else if (_selectedJabatan == null) {
-        _showCustomDialog(getTxt('err_role'));
-        return;
+        _showCustomDialog(getTxt('err_role')); return;
       } else if (pass.length < 6) {
-        _showCustomDialog(getTxt('err_len'));
-        return;
+        _showCustomDialog(getTxt('err_len')); return;
       }
     }
 
@@ -370,31 +275,21 @@ class _LoginScreenState extends State<LoginScreen>
         // Log log_login (opsional)
         try {
           final user = Supabase.instance.client.auth.currentUser;
-          if (user != null) {
-            await Supabase.instance.client
-                .from('User')
-                .update({'log_login': DateTime.now().toIso8601String()})
-                .eq('id_user', user.id);
+          if(user != null) {
+            await Supabase.instance.client.from('User').update({'log_login': DateTime.now().toIso8601String()}).eq('id_user', user.id);
           }
-        } catch (e) {}
-        if (mounted)
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
+        } catch(e){}
+        if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
       } else {
         // Proses Sign Up
-        final AuthResponse res = await Supabase.instance.client.auth.signUp(
-          email: email,
-          password: pass,
-        );
-
+        final AuthResponse res = await Supabase.instance.client.auth.signUp(email: email, password: pass);
+        
         if (res.user != null) {
           // Mapping jabatan string ke ID sesuai script SQL
           int idJabatan = 4; // Default Staff
-          if (_selectedJabatan == 'Eksekutif') idJabatan = 1;
-          if (_selectedJabatan == 'Manager') idJabatan = 2;
-          if (_selectedJabatan == 'Kasie') idJabatan = 3;
+          if(_selectedJabatan == 'Eksekutif') idJabatan = 1;
+          if(_selectedJabatan == 'Manager') idJabatan = 2;
+          if(_selectedJabatan == 'Kasie') idJabatan = 3;
 
           // INSERT KE TABEL User
           await Supabase.instance.client.from('User').insert({
@@ -408,11 +303,7 @@ class _LoginScreenState extends State<LoginScreen>
             'timestamp': DateTime.now().toIso8601String(),
           });
         }
-        if (mounted)
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
+        if (mounted) Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
       }
     } catch (e) {
       _showCustomDialog(getTxt('err_wrong'));
@@ -422,23 +313,11 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   // KOMPONEN: Radial Glow Background
-  Widget _buildRadialGlow(
-    double? top,
-    double? left,
-    double? right,
-    double? bottom,
-    Color centerColor,
-    Color edgeColor,
-    double size,
-  ) {
+  Widget _buildRadialGlow(double? top, double? left, double? right, double? bottom, Color centerColor, Color edgeColor, double size) {
     return Positioned(
-      top: top,
-      left: left,
-      right: right,
-      bottom: bottom,
+      top: top, left: left, right: right, bottom: bottom,
       child: Container(
-        width: size,
-        height: size,
+        width: size, height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: RadialGradient(
@@ -453,37 +332,13 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFCBE5F6),
+      backgroundColor: const Color(0xFFCBE5F6), 
       body: Stack(
         children: [
           // --- 1. RADIAL EFEK BACKGROUND ---
-          _buildRadialGlow(
-            null,
-            -50,
-            null,
-            100,
-            const Color(0xFF4CD978),
-            const Color(0xFFD25A63),
-            300,
-          ),
-          _buildRadialGlow(
-            null,
-            null,
-            -50,
-            -50,
-            const Color(0xFF00B5E4),
-            const Color(0xFF360060),
-            350,
-          ),
-          _buildRadialGlow(
-            -50,
-            null,
-            -50,
-            null,
-            const Color(0xFFB379DF),
-            const Color(0xFF360060),
-            250,
-          ),
+          _buildRadialGlow(null, -50, null, 100, const Color(0xFF4CD978), const Color(0xFFD25A63), 300),
+          _buildRadialGlow(null, null, -50, -50, const Color(0xFF00B5E4), const Color(0xFF360060), 350),
+          _buildRadialGlow(-50, null, -50, null, const Color(0xFFB379DF), const Color(0xFF360060), 250),
 
           // --- 2. KONTEN UTAMA ---
           SafeArea(
@@ -491,7 +346,7 @@ class _LoginScreenState extends State<LoginScreen>
             child: CustomScrollView(
               slivers: [
                 SliverFillRemaining(
-                  hasScrollBody: false,
+                  hasScrollBody: false, 
                   child: Column(
                     children: [
                       // Dropdown Bahasa
@@ -509,10 +364,7 @@ class _LoginScreenState extends State<LoginScreen>
                             child: DropdownButton<String>(
                               value: selectedLanguage,
                               underline: const SizedBox(),
-                              icon: const Icon(
-                                Icons.arrow_drop_down,
-                                color: Colors.black87,
-                              ),
+                              icon: const Icon(Icons.arrow_drop_down, color: Colors.black87),
                               items: [
                                 _buildDropdownItem('EN', '🇬🇧', 'English'),
                                 _buildDropdownItem('ID', '🇮🇩', 'Indonesia'),
@@ -521,7 +373,7 @@ class _LoginScreenState extends State<LoginScreen>
                               onChanged: (value) {
                                 setState(() {
                                   selectedLanguage = value!;
-                                  _checkPasswordStrength();
+                                  _checkPasswordStrength(); 
                                 });
                               },
                             ),
@@ -538,34 +390,24 @@ class _LoginScreenState extends State<LoginScreen>
                           children: [
                             // Cube Kiri Atas (Tarik dari assets)
                             Positioned(
-                              top: 20,
-                              left: 40,
+                              top: 20, left: 40,
                               child: _buildEntranceAnim(
                                 child: Image.asset(
-                                  'assets/images/topcube.png',
-                                  width: 55,
-                                  errorBuilder: (c, e, s) => const Icon(
-                                    Icons.view_in_ar,
-                                    color: Colors.amber,
-                                    size: 30,
-                                  ), // Fallback jika gambar belum ada
+                                  'assets/images/topcube.png', 
+                                  width: 55, 
+                                  errorBuilder: (c,e,s) => const Icon(Icons.view_in_ar, color: Colors.amber, size: 30) // Fallback jika gambar belum ada
                                 ),
                                 delay: 200,
                               ),
                             ),
                             // Cube Kanan Bawah (Tarik dari assets)
                             Positioned(
-                              bottom: 30,
-                              right: 1,
+                              bottom: 30, right: 1,
                               child: _buildEntranceAnim(
                                 child: Image.asset(
-                                  'assets/images/bottomcube.png',
-                                  width: 45,
-                                  errorBuilder: (c, e, s) => const Icon(
-                                    Icons.view_in_ar,
-                                    color: Colors.pinkAccent,
-                                    size: 25,
-                                  ),
+                                  'assets/images/bottomcube.png', 
+                                  width: 45, 
+                                  errorBuilder: (c,e,s) => const Icon(Icons.view_in_ar, color: Colors.pinkAccent, size: 25)
                                 ),
                                 delay: 400,
                               ),
@@ -574,62 +416,42 @@ class _LoginScreenState extends State<LoginScreen>
                             // Ilustrasi Utama (Animasi Toggle)
                             AnimatedSwitcher(
                               duration: const Duration(milliseconds: 600),
-                              transitionBuilder:
-                                  (Widget child, Animation<double> animation) {
-                                    return ScaleTransition(
-                                      scale: Tween<double>(begin: 0.8, end: 1.0)
-                                          .animate(
-                                            CurvedAnimation(
-                                              parent: animation,
-                                              curve: Curves.easeOutBack,
-                                            ),
-                                          ),
-                                      child: FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                    );
-                                  },
-                              child: isLogin
+                              transitionBuilder: (Widget child, Animation<double> animation) {
+                                return ScaleTransition(
+                                  scale: Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutBack)),
+                                  child: FadeTransition(opacity: animation, child: child),
+                                );
+                              },
+                              child: isLogin 
                                   ? Image.asset(
-                                      'assets/images/login_illustration.png',
-                                      key: const ValueKey<bool>(true),
-                                      height: 190,
-                                      fit: BoxFit.contain,
+                                      'assets/images/login_illustration.png', 
+                                      key: const ValueKey<bool>(true), 
+                                      height: 190, fit: BoxFit.contain,
                                     )
                                   : Row(
                                       key: const ValueKey<bool>(false),
                                       children: [
                                         // Area Kiri: Logo Aplikasi
                                         Expanded(
-                                          flex: 4,
+                                          flex: 4, 
                                           child: Container(
-                                            alignment: Alignment
-                                                .centerRight, // Mendorong logo mentok ke kanan
-                                            padding: const EdgeInsets.only(
-                                              right: 5,
-                                            ), // Mendekatkan jarak dengan ilustrasi
+                                            alignment: Alignment.centerRight, // Mendorong logo mentok ke kanan
+                                            padding: const EdgeInsets.only(right: 5), // Mendekatkan jarak dengan ilustrasi
                                             child: Image.asset(
                                               'assets/images/logo.png',
-                                              width:
-                                                  180, // Logo diperbesar secara signifikan
-                                              errorBuilder: (c, e, s) => Icon(
-                                                Icons.shield_outlined,
-                                                size: 70,
-                                                color: Colors.blue.shade800,
-                                              ), // Fallback
+                                              width: 180, // Logo diperbesar secara signifikan
+                                              errorBuilder: (c,e,s) => Icon(Icons.shield_outlined, size: 70, color: Colors.blue.shade800), // Fallback
                                             ),
-                                          ),
+                                          )
                                         ),
                                         // Area Kanan: Ilustrasi Sign Up
                                         Expanded(
                                           flex: 5,
                                           child: Image.asset(
-                                            'assets/images/signup_illustration.png',
-                                            height: 190,
-                                            fit: BoxFit.contain,
-                                            alignment: Alignment
-                                                .centerLeft, // Mendekatkan ilustrasi mentok ke kiri (bertemu dengan logo)
+                                            'assets/images/signup_illustration.png', 
+                                            height: 190, 
+                                            fit: BoxFit.contain, 
+                                            alignment: Alignment.centerLeft, // Mendekatkan ilustrasi mentok ke kiri (bertemu dengan logo)
                                           ),
                                         ),
                                         const SizedBox(width: 15),
@@ -643,27 +465,17 @@ class _LoginScreenState extends State<LoginScreen>
                       // --- FORM Glassmorph ---
                       Expanded(
                         child: ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(40),
-                          ),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
                           child: BackdropFilter(
                             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                             child: Container(
                               width: double.infinity,
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.25),
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(40),
-                                ),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.5),
-                                  width: 1.5,
-                                ),
+                                color: Colors.white.withOpacity(0.25), 
+                                borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
+                                border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 30,
-                                vertical: 25,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 25),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -681,34 +493,20 @@ class _LoginScreenState extends State<LoginScreen>
                                   // Tagline
                                   Center(
                                     child: Text(
-                                      isLogin
-                                          ? getTxt('welcome')
-                                          : getTxt('get_started'),
+                                      isLogin ? getTxt('welcome') : getTxt('get_started'),
                                       style: const TextStyle(
                                         fontSize: 32,
                                         fontWeight: FontWeight.w900,
                                         color: Colors.white,
-                                        shadows: [
-                                          Shadow(
-                                            color: Colors.black26,
-                                            blurRadius: 8,
-                                            offset: Offset(0, 2),
-                                          ),
-                                        ],
+                                        shadows: [Shadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2))]
                                       ),
                                     ),
                                   ),
                                   const SizedBox(height: 4),
                                   Center(
                                     child: Text(
-                                      isLogin
-                                          ? getTxt('tagline_login')
-                                          : getTxt('tagline_signup'),
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.black87,
-                                      ),
+                                      isLogin ? getTxt('tagline_login') : getTxt('tagline_signup'),
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.black87),
                                     ),
                                   ),
                                   const SizedBox(height: 30),
@@ -721,8 +519,8 @@ class _LoginScreenState extends State<LoginScreen>
                                     icon: Icons.email_outlined,
                                     isPassword: false,
                                   ),
-
-                                  // 2. FORM NAME
+                                  
+                                  // 2. FORM NAME 
                                   if (!isLogin) ...[
                                     const SizedBox(height: 15),
                                     _buildInputLabel(getTxt('name_label')),
@@ -738,61 +536,27 @@ class _LoginScreenState extends State<LoginScreen>
                                     _buildInputLabel(getTxt('role_label')),
                                     Container(
                                       height: 50,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10),
                                       decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFFB6E3EF,
-                                        ).withOpacity(0.55),
+                                        color: const Color(0xFFB6E3EF).withOpacity(0.55), 
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.white.withOpacity(0.8),
-                                          width: 1.0,
-                                        ),
+                                        border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.0), 
                                       ),
                                       child: DropdownButtonHideUnderline(
                                         child: DropdownButton<String>(
                                           isExpanded: true,
-                                          dropdownColor: const Color(
-                                            0xFFB6E3EF,
-                                          ),
-                                          icon: const Icon(
-                                            Icons.arrow_drop_down,
-                                            color: Colors.white,
-                                          ),
+                                          dropdownColor: const Color(0xFFB6E3EF),
+                                          icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                                           value: _selectedJabatan,
-                                          hint: Text(
-                                            getTxt('role_hint'),
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          items:
-                                              [
-                                                'Eksekutif',
-                                                'Manager',
-                                                'Kasie',
-                                                'Staff',
-                                              ].map((String value) {
-                                                return DropdownMenuItem<String>(
-                                                  value: value,
-                                                  child: Text(
-                                                    value,
-                                                    style: const TextStyle(
-                                                      color: Colors.black87,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                );
-                                              }).toList(),
+                                          hint: Text(getTxt('role_hint'), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+                                          items: ['Eksekutif', 'Manager', 'Kasie', 'Staff'].map((String value) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text(value, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                                            );
+                                          }).toList(),
                                           onChanged: (newValue) {
-                                            setState(() {
-                                              _selectedJabatan = newValue;
-                                            });
+                                            setState(() { _selectedJabatan = newValue; });
                                           },
                                         ),
                                       ),
@@ -800,7 +564,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   ],
 
                                   const SizedBox(height: 15),
-
+                
                                   // 4. FORM PASSWORD
                                   _buildInputLabel(getTxt('pass_label')),
                                   _buildGlassTextField(
@@ -814,70 +578,36 @@ class _LoginScreenState extends State<LoginScreen>
 
                                   // LUPA PASSWORD & REMEMBER ME
                                   Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Row(
                                         children: [
                                           SizedBox(
-                                            width: 24,
-                                            height: 24,
+                                            width: 24, height: 24,
                                             child: Checkbox(
                                               value: isRememberMe,
-                                              activeColor: const Color(
-                                                0xFF00C9E4,
-                                              ),
-                                              side: const BorderSide(
-                                                color: Colors.black54,
-                                              ),
-                                              onChanged: (value) => setState(
-                                                () => isRememberMe = value!,
-                                              ),
+                                              activeColor: const Color(0xFF00C9E4),
+                                              side: const BorderSide(color: Colors.black54),
+                                              onChanged: (value) => setState(() => isRememberMe = value!),
                                             ),
                                           ),
                                           const SizedBox(width: 5),
-                                          Text(
-                                            getTxt('remember_me'),
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
+                                          Text(getTxt('remember_me'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
                                         ],
                                       ),
                                       if (isLogin)
                                         GestureDetector(
                                           onTap: () {
-                                            if (_emailController
-                                                .text
-                                                .isNotEmpty) {
-                                              _auth.resetPassword(
-                                                _emailController.text,
-                                              );
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    getTxt('reset_sent'),
-                                                  ),
-                                                  backgroundColor: Colors.green,
-                                                ),
-                                              );
+                                            if(_emailController.text.isNotEmpty){
+                                              _auth.resetPassword(_emailController.text);
+                                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(getTxt('reset_sent')), backgroundColor: Colors.green));
                                             } else {
-                                              _showCustomDialog(
-                                                getTxt('fill_email_reset'),
-                                              );
+                                              _showCustomDialog(getTxt('fill_email_reset'));
                                             }
                                           },
                                           child: Text(
                                             getTxt('forgot_pass'),
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w900,
-                                              color: Colors.black87,
-                                            ),
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.black87),
                                           ),
                                         ),
                                     ],
@@ -885,58 +615,34 @@ class _LoginScreenState extends State<LoginScreen>
 
                                   const SizedBox(height: 25),
 
-                                  // TOMBOL LOGIN / SIGN UP
+                                  // TOMBOL LOGIN / SIGN UP 
                                   Container(
                                     width: double.infinity,
                                     height: 50,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(12),
                                       gradient: const LinearGradient(
-                                        colors: [
-                                          Color(0xFF00C9E4),
-                                          Color(0xFF42E27A),
-                                        ],
+                                        colors: [Color(0xFF00C9E4), Color(0xFF42E27A)],
                                         begin: Alignment.centerLeft,
                                         end: Alignment.centerRight,
                                       ),
                                       boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(
-                                            0xFF42E27A,
-                                          ).withOpacity(0.4),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
+                                        BoxShadow(color: const Color(0xFF42E27A).withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4))
+                                      ]
                                     ),
                                     child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.transparent,
                                         shadowColor: Colors.transparent,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                       ),
                                       onPressed: isLoading ? null : _submitForm,
-                                      child: isLoading
-                                          ? const SizedBox(
-                                              height: 20,
-                                              width: 20,
-                                              child: CircularProgressIndicator(
-                                                color: Colors.white,
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : Text(
-                                              isLogin ? 'Sign in' : 'Sign up',
-                                              style: const TextStyle(
-                                                fontSize: 17,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.white,
-                                              ),
-                                            ),
+                                      child: isLoading 
+                                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                        : Text(
+                                            isLogin ? 'Sign in' : 'Sign up', 
+                                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white),
+                                          ),
                                     ),
                                   ),
 
@@ -945,33 +651,15 @@ class _LoginScreenState extends State<LoginScreen>
                                   // BUTTON CONTINUE WITH GOOGLE
                                   Row(
                                     children: [
-                                      Expanded(
-                                        child: Divider(
-                                          color: Colors.black.withOpacity(0.1),
-                                          thickness: 1,
-                                        ),
-                                      ),
+                                      Expanded(child: Divider(color: Colors.black.withOpacity(0.1), thickness: 1)),
                                       Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                        ),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10),
                                         child: Text(
-                                          isLogin
-                                              ? getTxt('or_login')
-                                              : getTxt('or_signup'),
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.black87,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                          isLogin ? getTxt('or_login') : getTxt('or_signup'),
+                                          style: const TextStyle(fontSize: 11, color: Colors.black87, fontWeight: FontWeight.bold),
                                         ),
                                       ),
-                                      Expanded(
-                                        child: Divider(
-                                          color: Colors.black.withOpacity(0.1),
-                                          thickness: 1,
-                                        ),
-                                      ),
+                                      Expanded(child: Divider(color: Colors.black.withOpacity(0.1), thickness: 1)),
                                     ],
                                   ),
 
@@ -992,12 +680,47 @@ class _LoginScreenState extends State<LoginScreen>
                                         ),
                                       ),
                                       onPressed: () async {
-                                        // Panggil fungsi auth, biarkan dia membuka browser
-                                        await _auth.signInWithGoogle();
-                                        
-                                        // JANGAN lakukan Navigator di sini. 
-                                        // Biarkan _checkInitialSession() di initState yang menangani navigasi 
-                                        // saat aplikasi dibuka kembali setelah login berhasil.
+                                        setState(() => isLoading = true); // Tampilkan loading
+                                        try {
+                                          // Panggil fungsi login Google
+                                          bool success = await _auth.signInWithGoogle();
+                                          
+                                          // Cek apakah user sudah login (session ada)
+                                          final session = Supabase.instance.client.auth.currentSession;
+                                          
+                                          if (success && session != null && mounted) {
+                                            // Jika Sign Up via Google, cek apakah data user sudah ada di tabel 'User'
+                                            // Jika belum, insert data default
+                                            final user = session.user;
+                                            final existingData = await Supabase.instance.client
+                                                .from('User')
+                                                .select('id_user')
+                                                .eq('id_user', user.id)
+                                                .maybeSingle();
+                                            
+                                            if (existingData == null) {
+                                              await Supabase.instance.client.from('User').insert({
+                                                'id_user': user.id,
+                                                'nama': user.userMetadata?['full_name'] ?? 'User Google',
+                                                'email': user.email,
+                                                'pass': 'google_auth', // Dummy password
+                                                'id_jabatan': 4, // Default Staff
+                                                'poin': 0,
+                                                'is_visitor': false,
+                                                'timestamp': DateTime.now().toIso8601String(),
+                                              });
+                                            }
+                                            
+                                            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+                                          } else {
+                                            // Jika gagal atau session null
+                                            _showCustomDialog("Google Sign-In Gagal atau Dibatalkan");
+                                          }
+                                        } catch (e) {
+                                          _showCustomDialog("Terjadi kesalahan: $e");
+                                        } finally {
+                                          if(mounted) setState(() => isLoading = false);
+                                        }
                                       },
                                       icon: Image.network('assets/images/Google.svg', height: 22, errorBuilder: (c,e,s) => const Icon(Icons.g_mobiledata, size: 30)), 
                                       label: Text(
@@ -1006,7 +729,7 @@ class _LoginScreenState extends State<LoginScreen>
                                       ),
                                     ),
                                   ),
-
+                                  
                                   const SizedBox(height: 20),
                                 ],
                               ),
@@ -1025,25 +748,14 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  DropdownMenuItem<String> _buildDropdownItem(
-    String value,
-    String flag,
-    String label,
-  ) {
+  DropdownMenuItem<String> _buildDropdownItem(String value, String flag, String label) {
     return DropdownMenuItem(
       value: value,
       child: Row(
         children: [
           Text(flag, style: const TextStyle(fontSize: 16)),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
         ],
       ),
     );
@@ -1054,49 +766,37 @@ class _LoginScreenState extends State<LoginScreen>
       padding: const EdgeInsets.only(bottom: 6, left: 2),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Colors.black87,
-          fontSize: 13,
-          fontWeight: FontWeight.w900,
-        ),
+        style: const TextStyle(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w900),
       ),
     );
   }
 
   // Text Field B6E3EF
   Widget _buildGlassTextField({
-    required String hint,
-    required TextEditingController controller,
-    required IconData icon,
-    required bool isPassword,
+    required String hint, 
+    required TextEditingController controller, 
+    required IconData icon, 
+    required bool isPassword
   }) {
     return Container(
       height: 50,
       decoration: BoxDecoration(
-        color: const Color(0xFFB6E3EF).withOpacity(0.55),
+        color: const Color(0xFFB6E3EF).withOpacity(0.55), 
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.0),
+        border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.0), 
       ),
       child: TextFormField(
         controller: controller,
         obscureText: isPassword ? !isPasswordVisible : false,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
-        ),
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+          hintStyle: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
           prefixIcon: Icon(icon, color: Colors.white, size: 20),
-
-          suffixIcon: isPassword
+          
+          suffixIcon: isPassword 
               ? Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.min, 
                   children: [
                     if (!isLogin && _passStrengthText.isNotEmpty)
                       Padding(
@@ -1105,34 +805,18 @@ class _LoginScreenState extends State<LoginScreen>
                           children: [
                             Text(
                               "―――  ",
-                              style: TextStyle(
-                                color: _passStrengthColor,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(color: _passStrengthColor, fontSize: 11, fontWeight: FontWeight.bold),
                             ),
                             Text(
                               _passStrengthText,
-                              style: TextStyle(
-                                color: _passStrengthColor,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(color: _passStrengthColor, fontSize: 11, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                       ),
                     IconButton(
-                      icon: Icon(
-                        isPasswordVisible
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () => setState(
-                        () => isPasswordVisible = !isPasswordVisible,
-                      ),
+                      icon: Icon(isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.white, size: 20),
+                      onPressed: () => setState(() => isPasswordVisible = !isPasswordVisible),
                     ),
                   ],
                 )
@@ -1150,7 +834,7 @@ class _LoginScreenState extends State<LoginScreen>
       onTap: () {
         setState(() {
           isLogin = isLoginTab;
-          _checkPasswordStrength();
+          _checkPasswordStrength(); 
         });
       },
       child: Column(
@@ -1161,15 +845,7 @@ class _LoginScreenState extends State<LoginScreen>
               fontSize: 16,
               fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
               color: isActive ? Colors.white : Colors.black54,
-              shadows: isActive
-                  ? [
-                      const Shadow(
-                        color: Colors.black26,
-                        blurRadius: 5,
-                        offset: Offset(0, 2),
-                      ),
-                    ]
-                  : [],
+              shadows: isActive ? [const Shadow(color: Colors.black26, blurRadius: 5, offset: Offset(0, 2))] : [],
             ),
           ),
           const SizedBox(height: 5),
@@ -1177,11 +853,8 @@ class _LoginScreenState extends State<LoginScreen>
             duration: const Duration(milliseconds: 300),
             height: 3,
             width: isActive ? 35 : 0,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(5),
-            ),
-          ),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
+          )
         ],
       ),
     );
@@ -1194,7 +867,10 @@ class _LoginScreenState extends State<LoginScreen>
       duration: const Duration(milliseconds: 800),
       curve: Curves.elasticOut,
       builder: (context, double value, childWidget) {
-        return Transform.scale(scale: value, child: childWidget);
+        return Transform.scale(
+          scale: value,
+          child: childWidget,
+        );
       },
       child: child,
     );
