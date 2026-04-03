@@ -57,7 +57,7 @@ class AuthService {
         OAuthProvider.google,
         redirectTo: redirectUrl,
         queryParams: {
-          'prompt': 'consent', // Paksa tampilan continue tanpa loading lama
+          'prompt': 'consent', 
         },
       );
       return true;
