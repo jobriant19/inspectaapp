@@ -229,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     child: const Icon(
                                       Icons.notifications_active_outlined, 
-                                      color: Color(0xFF00C9E4), 
+                                      color: Colors.white, 
                                       size: 20
                                     ),
                                   ),
@@ -270,63 +270,65 @@ class _HomeScreenState extends State<HomeScreen> {
                 // ==========================================
                 // --- BAGIAN 2: INFO CARD (NAMA, JABATAN, POIN) ---
                 // ==========================================
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                    decoration: BoxDecoration(
-                      color: Colors.white, // Warna latar belakang putih bersih
-                      borderRadius: BorderRadius.circular(20), // Radius 20 sesuai permintaan
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04), // Shadow sangat halus agar terlihat rapi
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Kiri: Nama dan Jabatan
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _userName,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _userRole,
-                              style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
-                        
-                        // Kanan: Poin
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(15),
+                if (_currentIndex == 0) // Hanya muncul jika berada di tab Home (index 0)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                      decoration: BoxDecoration(
+                        color: Colors.white, 
+                        borderRadius: BorderRadius.circular(20), 
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04), 
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
-                          child: Row(
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Kiri: Nama dan Jabatan
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.stars_rounded, color: Colors.orange, size: 20),
-                              const SizedBox(width: 5),
                               Text(
-                                "$_userPoin Pts", 
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14),
+                                _userName,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _userRole,
+                                style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                          
+                          // Kanan: Poin
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.stars_rounded, color: Colors.orange, size: 20),
+                                const SizedBox(width: 5),
+                                Text(
+                                  "$_userPoin Pts", 
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 10), // Jarak spasi sebelum konten halaman
+                if (_currentIndex == 0) // Jarak hanya jika Info Card muncul
+                  const SizedBox(height: 10),  // Jarak spasi sebelum konten halaman
 
                 // --- KONTEN HALAMAN (BERUBAH SESUAI TAB) ---
                 Expanded(child: pages[_currentIndex]),
@@ -336,21 +338,99 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
 
-      // --- BOTTOM NAVIGATION BAR ---
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF00C9E4),
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        elevation: 10,
-        items: [
-          BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), activeIcon: const Icon(Icons.home), label: getTxt('home')),
-          BottomNavigationBarItem(icon: const Icon(Icons.explore_outlined), activeIcon: const Icon(Icons.explore), label: getTxt('explore')),
-          BottomNavigationBarItem(icon: const Icon(Icons.bar_chart_outlined), activeIcon: const Icon(Icons.bar_chart), label: getTxt('analytics')),
-          BottomNavigationBarItem(icon: const Icon(Icons.leaderboard_outlined), activeIcon: const Icon(Icons.leaderboard), label: getTxt('ranking')),
-        ],
+      // --- TAMBAHAN: Agar konten berada di belakang nav bar (Efek Floating) ---
+      extendBody: true, 
+
+      // --- BOTTOM NAVIGATION BAR (CUSTOM PREMIUM FLOATING + FAB) ---
+      bottomNavigationBar: Container(
+        height: 100, // Total tinggi area (termasuk tombol + yang menyembul)
+        padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          clipBehavior: Clip.none,
+          children: [
+            // 1. Kotak Latar Belakang Putih Melayang
+            Container(
+              height: 65,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00C9E4).withOpacity(0.15), // Shadow biru tipis
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(Icons.home_outlined, Icons.home_rounded, 0),
+                  _buildNavItem(Icons.explore_outlined, Icons.explore, 1),
+                  const SizedBox(width: 50), // Jarak ruang kosong di tengah untuk tombol +
+                  _buildNavItem(Icons.pie_chart_outline, Icons.pie_chart, 2),
+                  _buildNavItem(Icons.emoji_events_outlined, Icons.emoji_events, 3),
+                ],
+              ),
+            ),
+
+            // 2. Tombol + Melayang di Tengah
+            Positioned(
+              top: 0, // Mengangkat tombol agar menyembul di atas kotak putih
+              child: GestureDetector(
+                onTap: () {
+                  // TODO: Aksi ketika tombol + diklik (Bisa navigasi ke layar tambah tugas)
+                  debugPrint("Tombol + diklik!");
+                },
+                child: Container(
+                  height: 60,
+                  width: 60,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00C9E4), // Warna biru cerah sama seperti header
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00C9E4).withOpacity(0.4),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 32),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGET HELPER: Untuk Ikon Navigasi Bawah Kustom ---
+  Widget _buildNavItem(IconData outlineIcon, IconData filledIcon, int index) {
+    bool isActive = _currentIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 50,
+        height: 65,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: EdgeInsets.all(isActive ? 10 : 0),
+            decoration: BoxDecoration(
+              color: isActive ? const Color(0xFF00C9E4).withOpacity(0.15) : Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isActive ? filledIcon : outlineIcon,
+              size: 28,
+              color: isActive ? const Color(0xFF00C9E4) : Colors.grey.shade400,
+            ),
+          ),
+        ),
       ),
     );
   }
