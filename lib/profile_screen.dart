@@ -74,47 +74,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (userAuth == null) return;
 
     try {
-      // 1) Ambil user tanpa join
       final userRow = await Supabase.instance.client
           .from('User')
           .select('nama, email, phone, gambar_user, id_jabatan')
           .eq('id_user', userAuth.id)
           .maybeSingle();
 
+      final String? metaName = userAuth.userMetadata?['full_name'] ?? userAuth.userMetadata?['name'];
+      final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
+
       if (userRow == null) {
         if (!mounted) return;
         setState(() {
-          _nameController.text = userAuth.userMetadata?['full_name'] ?? '';
+          _nameController.text = metaName ?? '';
           _emailController.text = userAuth.email ?? '';
           _phoneController.text = '';
-          _imageUrl = userAuth.userMetadata?['avatar_url'];
+          _imageUrl = metaImage;
           _selectedJabatan = 'Staff';
         });
         return;
       }
 
-      // 2) Ambil nama jabatan dari tabel jabatan
       String roleName = 'Staff';
       final int? idJabatan = userRow['id_jabatan'];
 
       if (idJabatan != null) {
         final jabatanRow = await Supabase.instance.client
-            .from('jabatan') // PENTING: gunakan nama tabel asli
+            .from('jabatan') 
             .select('nama_jabatan')
             .eq('id_jabatan', idJabatan)
             .maybeSingle();
-
         roleName = jabatanRow?['nama_jabatan'] ?? 'Staff';
       }
 
+      // --- PERBAIKAN: Cek string kosong ---
+      String? dbImage = userRow['gambar_user'];
+      if (dbImage != null && dbImage.trim().isEmpty) dbImage = null;
+
       if (!mounted) return;
       setState(() {
-        _nameController.text =
-            userRow['nama'] ?? userAuth.userMetadata?['full_name'] ?? '';
+        _nameController.text = userRow['nama'] ?? metaName ?? '';
         _emailController.text = userRow['email'] ?? userAuth.email ?? '';
         _phoneController.text = userRow['phone'] ?? '';
-        _imageUrl =
-            userRow['gambar_user'] ?? userAuth.userMetadata?['avatar_url'];
+        _imageUrl = dbImage ?? metaImage;
         _selectedJabatan = roleName;
       });
     } catch (e) {

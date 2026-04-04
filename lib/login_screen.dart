@@ -145,6 +145,9 @@ class _LoginScreenState extends State<LoginScreen>
   void initState() {
     super.initState();
     _loadSavedCredentials();
+    _emailController.addListener(() => setState(() {}));
+    _nameController.addListener(() => setState(() {}));
+    _passwordController.addListener(() => setState(() {}));
     _passwordController.addListener(_checkPasswordStrength);
     
     _setupAuthListener();
@@ -159,47 +162,51 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-  void _setupAuthListener() {
+    void _setupAuthListener() {
     _authStateSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final AuthChangeEvent event = data.event;
       final Session? session = data.session;
 
-      // Jika Event berhasil masuk (Signed In)
       if (event == AuthChangeEvent.signedIn && session != null) {
         if (!mounted) return;
         
         setState(() {
-          isLoading = true; // Munculkan indikator loading di UI
+          isLoading = true; 
         });
 
         try {
-          // Cek apakah user sudah ada di database 'User'
+          // Ambil nama & foto dari Google
+          final String googleName = session.user.userMetadata?['full_name'] ?? session.user.userMetadata?['name'] ?? 'User Google';
+          final String? googleImage = session.user.userMetadata?['avatar_url'] ?? session.user.userMetadata?['picture'];
+
           final userData = await Supabase.instance.client
               .from('User')
-              .select('id_user')
+              .select('id_user, gambar_user')
               .eq('id_user', session.user.id)
               .maybeSingle();
 
-          // Jika belum ada (User baru Google), buat datanya
           if (userData == null) {
+            // Jika user baru, masukkan gambar dari Google
             await Supabase.instance.client.from('User').insert({
               'id_user': session.user.id,
-              'nama': session.user.userMetadata?['full_name'] ?? 'User Google',
+              'nama': googleName,
               'email': session.user.email,
               'pass': 'google_auth',
-              'id_jabatan': 4, // Default Staff
+              'id_jabatan': 4,
               'poin': 0,
+              'gambar_user': googleImage, // <-- Simpan foto Google
               'is_visitor': false,
               'timestamp': DateTime.now().toIso8601String(),
             });
+          } else if ((userData['gambar_user'] == null || userData['gambar_user'] == "") && googleImage != null) {
+            // Jika user sudah ada tapi fotonya kosong, perbarui fotonya
+            await Supabase.instance.client.from('User').update({
+              'gambar_user': googleImage
+            }).eq('id_user', session.user.id);
           }
 
-          // Otomatis pindah Ke Home Screen
           if (mounted) {
-            Navigator.pushReplacement(
-              context, 
-              MaterialPageRoute(builder: (context) => const HomeScreen())
-            );
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
           }
         } catch (e) {
           print("Error Insert User Google: $e");
@@ -247,6 +254,12 @@ class _LoginScreenState extends State<LoginScreen>
   void _loadSavedCredentials() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
+      // Memuat bahasa yang dipilih dari Onboarding
+      String? savedLang = prefs.getString('lang');
+      if (savedLang != null && translations.containsKey(savedLang)) {
+        selectedLanguage = savedLang;
+      }
+
       isRememberMe = prefs.getBool('remember_me') ?? false;
       if (isRememberMe) {
         _emailController.text = prefs.getString('email') ?? '';
@@ -366,8 +379,14 @@ class _LoginScreenState extends State<LoginScreen>
       _saveCredentials(); // Simpan bahasa dan remember me
 
       if (isLogin) {
-        await _auth.signInWithEmail(email, pass);
-        // Log log_login (opsional)
+        // --- CEK HASIL LOGIN MANUAL ---
+        final authResponse = await _auth.signInWithEmail(email, pass);
+        
+        // Jika return null, berarti email/password salah. Lempar error agar ditangkap 'catch'
+        if (authResponse == null || authResponse.user == null) {
+          throw Exception("Wrong Email or Password"); 
+        }
+        
         try {
           final user = Supabase.instance.client.auth.currentUser;
           if (user != null) {
@@ -377,11 +396,10 @@ class _LoginScreenState extends State<LoginScreen>
                 .eq('id_user', user.id);
           }
         } catch (e) {}
-        if (mounted)
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
+        
+        if (mounted) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+        }
       } else {
         // Proses Sign Up
         final AuthResponse res = await Supabase.instance.client.auth.signUp(
@@ -398,7 +416,7 @@ class _LoginScreenState extends State<LoginScreen>
 
           // INSERT KE TABEL User
           await Supabase.instance.client.from('User').insert({
-            'id_user': res.user!.id, // Menggunakan ID yang sama dari Auth
+            'id_user': res.user!.id, 
             'nama': name,
             'email': email,
             'pass': pass,
@@ -408,11 +426,12 @@ class _LoginScreenState extends State<LoginScreen>
             'timestamp': DateTime.now().toIso8601String(),
           });
         }
-        if (mounted)
+        if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
+        }
       }
     } catch (e) {
       _showCustomDialog(getTxt('err_wrong'));
@@ -738,57 +757,44 @@ class _LoginScreenState extends State<LoginScreen>
                                     _buildInputLabel(getTxt('role_label')),
                                     Container(
                                       height: 50,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10),
                                       decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFFB6E3EF,
-                                        ).withOpacity(0.55),
+                                        color: const Color(0xFFB6E3EF).withOpacity(0.55),
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                          color: Colors.white.withOpacity(0.8),
+                                          // DIUBAH: Hitam jika diisi, Putih jika kosong
+                                          color: _selectedJabatan != null ? Colors.black87 : Colors.white.withOpacity(0.8), 
                                           width: 1.0,
                                         ),
                                       ),
                                       child: DropdownButtonHideUnderline(
                                         child: DropdownButton<String>(
                                           isExpanded: true,
-                                          dropdownColor: const Color(
-                                            0xFFB6E3EF,
-                                          ),
-                                          icon: const Icon(
+                                          dropdownColor: const Color(0xFFB6E3EF),
+                                          icon: Icon(
                                             Icons.arrow_drop_down,
-                                            color: Colors.white,
+                                            color: _selectedJabatan != null ? Colors.black87 : Colors.white, // DIUBAH
                                           ),
                                           value: _selectedJabatan,
+                                          style: TextStyle(
+                                            color: _selectedJabatan != null ? Colors.black87 : Colors.white, // DIUBAH
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                           hint: Text(
                                             getTxt('role_hint'),
                                             style: const TextStyle(
-                                              color: Colors.white,
+                                              color: Colors.white, // Hint tetap putih
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
-                                          items:
-                                              [
-                                                'Eksekutif',
-                                                'Manager',
-                                                'Kasie',
-                                                'Staff',
-                                              ].map((String value) {
-                                                return DropdownMenuItem<String>(
-                                                  value: value,
-                                                  child: Text(
-                                                    value,
-                                                    style: const TextStyle(
-                                                      color: Colors.black87,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                );
-                                              }).toList(),
+                                          items: ['Eksekutif', 'Manager', 'Kasie', 'Staff'].map((String value) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text(value, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                                            );
+                                          }).toList(),
                                           onChanged: (newValue) {
                                             setState(() {
                                               _selectedJabatan = newValue;
@@ -1070,29 +1076,33 @@ class _LoginScreenState extends State<LoginScreen>
     required IconData icon,
     required bool isPassword,
   }) {
+    bool isFilled = controller.text.isNotEmpty; // Cek apakah form sudah ada isinya
+    Color activeColor = isFilled ? Colors.black87 : Colors.white; // Hitam jika diisi, Putih jika kosong
+    Color borderColor = isFilled ? Colors.black87 : Colors.white.withOpacity(0.8);
+
     return Container(
       height: 50,
       decoration: BoxDecoration(
         color: const Color(0xFFB6E3EF).withOpacity(0.55),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.0),
+        border: Border.all(color: borderColor, width: 1.0), // DIUBAH
       ),
       child: TextFormField(
         controller: controller,
         obscureText: isPassword ? !isPasswordVisible : false,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: activeColor, // DIUBAH
           fontWeight: FontWeight.bold,
           fontSize: 14,
         ),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(
-            color: Colors.white,
+            color: Colors.white, // Hint tetap putih
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
-          prefixIcon: Icon(icon, color: Colors.white, size: 20),
+          prefixIcon: Icon(icon, color: activeColor, size: 20), // DIUBAH: Ikon mengikuti status isi
 
           suffixIcon: isPassword
               ? Row(
@@ -1103,36 +1113,18 @@ class _LoginScreenState extends State<LoginScreen>
                         padding: const EdgeInsets.only(right: 8.0),
                         child: Row(
                           children: [
-                            Text(
-                              "―――  ",
-                              style: TextStyle(
-                                color: _passStrengthColor,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              _passStrengthText,
-                              style: TextStyle(
-                                color: _passStrengthColor,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            Text("―――  ", style: TextStyle(color: _passStrengthColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                            Text(_passStrengthText, style: TextStyle(color: _passStrengthColor, fontSize: 11, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
                     IconButton(
                       icon: Icon(
-                        isPasswordVisible
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: Colors.white,
+                        isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        color: activeColor, // DIUBAH: Ikon mata mengikuti status isi
                         size: 20,
                       ),
-                      onPressed: () => setState(
-                        () => isPasswordVisible = !isPasswordVisible,
-                      ),
+                      onPressed: () => setState(() => isPasswordVisible = !isPasswordVisible),
                     ),
                   ],
                 )
@@ -1148,10 +1140,16 @@ class _LoginScreenState extends State<LoginScreen>
     bool isActive = isLogin == isLoginTab;
     return GestureDetector(
       onTap: () {
-        setState(() {
-          isLogin = isLoginTab;
-          _checkPasswordStrength();
-        });
+        if (isLogin != isLoginTab) {
+          setState(() {
+            isLogin = isLoginTab;
+            _emailController.clear();
+            _passwordController.clear();
+            _nameController.clear();
+            _selectedJabatan = null;
+            _checkPasswordStrength();
+          });
+        }
       },
       child: Column(
         children: [

@@ -21,7 +21,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // Data User
   String _userName = "Loading...";
   String _userRole = "Loading...";
-   String _userEmail = "";
   int _userPoin = 0;
   String? _userImage;
 
@@ -61,50 +60,55 @@ class _HomeScreenState extends State<HomeScreen> {
       final userAuth = Supabase.instance.client.auth.currentUser;
       if (userAuth == null) return;
 
-      // 1) Ambil user TANPA join dulu (menghindari error relasi)
-      final userRow = await Supabase.instance.client
-          .from('User')
-          .select('nama, email, poin, gambar_user, id_jabatan')
-          .eq('id_user', userAuth.id)
-          .maybeSingle();
+      Map<String, dynamic>? userRow;
+
+      for (int i = 0; i < 3; i++) {
+        userRow = await Supabase.instance.client
+            .from('User')
+            .select('nama, email, poin, gambar_user, id_jabatan')
+            .eq('id_user', userAuth.id)
+            .maybeSingle();
+
+        if (userRow != null) break; 
+        await Future.delayed(const Duration(milliseconds: 800)); 
+      }
+
+      // Ambil metadata dari Google (Sebagai cadangan jika foto di DB kosong)
+      final String? metaName = userAuth.userMetadata?['full_name'] ?? userAuth.userMetadata?['name'];
+      final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
 
       if (userRow == null) {
-        // Fallback jika row belum sempat terinsert
         if (!mounted) return;
         setState(() {
-          _userName = userAuth.userMetadata?['full_name'] ?? 'User';
-          _userEmail = userAuth.email ?? '';
+          _userName = metaName ?? 'User';
           _userPoin = 0;
-          _userImage = userAuth.userMetadata?['avatar_url'];
+          _userImage = metaImage;
           _userRole = 'Staff';
         });
         return;
       }
 
-      // 2) Ambil nama jabatan dari tabel jabatan berdasarkan id_jabatan
-      String roleName = '-';
+      String roleName = 'Staff';
       final int? idJabatan = userRow['id_jabatan'];
 
       if (idJabatan != null) {
         final jabatanRow = await Supabase.instance.client
-            .from(
-              'jabatan',
-            ) // PENTING: gunakan nama tabel asli di DB (umumnya lowercase)
+            .from('jabatan') 
             .select('nama_jabatan')
             .eq('id_jabatan', idJabatan)
             .maybeSingle();
-
-        roleName = jabatanRow?['nama_jabatan'] ?? '-';
+        roleName = jabatanRow?['nama_jabatan'] ?? 'Staff';
       }
+
+      // --- PERBAIKAN: Cek apakah string gambar dari DB kosong ("") ---
+      String? dbImage = userRow['gambar_user'];
+      if (dbImage != null && dbImage.trim().isEmpty) dbImage = null;
 
       if (!mounted) return;
       setState(() {
-        _userName =
-            userRow['nama'] ?? userAuth.userMetadata?['full_name'] ?? 'User';
-        _userEmail = userRow['email'] ?? userAuth.email ?? '';
-        _userPoin = userRow['poin'] ?? 0;
-        _userImage =
-            userRow['gambar_user'] ?? userAuth.userMetadata?['avatar_url'];
+        _userName = userRow?['nama'] ?? metaName ?? 'User';
+        _userPoin = userRow?['poin'] ?? 0;
+        _userImage = dbImage ?? metaImage; // Gunakan foto dari DB, jika kosong pakai Google
         _userRole = roleName;
       });
     } catch (e) {
@@ -125,137 +129,195 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // --- HEADER CUSTOM (GLASSMORPHISM) ---
-            Padding(
-              padding: const EdgeInsets.only(
-                left: 15,
-                right: 15,
-                top: 15,
-                bottom: 5,
+      backgroundColor: const Color(0xFFFAFAFA), // Warna dasar putih bersih
+      body: Stack(
+        children: [
+          // --- 1. EFEK BACKGROUND BERCAK BIRU CERAH (BLOB GRADIENT) ---
+          Positioned(
+            top: -100,
+            left: -50,
+            child: Container(
+              width: 350,
+              height: 350,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF00C9E4).withOpacity(0.25),
+                    Colors.transparent,
+                  ],
+                ),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(
-                        0.4,
-                      ), // Warna kaca semi transparan
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.5),
-                        width: 1.5,
+            ),
+          ),
+          Positioned(
+            bottom: 50,
+            right: -100,
+            child: Container(
+              width: 400,
+              height: 400,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF00C9E4).withOpacity(0.20),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // --- 2. KONTEN UTAMA APLIKASI ---
+          SafeArea(
+            child: Column(
+              children: [
+                // ==========================================
+                // --- BAGIAN 1: HEADER (LOGO, NOTIF, FOTO) ---
+                // ==========================================
+                Padding(
+                  padding: const EdgeInsets.only(left: 15, right: 15, top: 15, bottom: 10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.7),
+                              const Color(0xFF00C9E4).withOpacity(0.15),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white.withOpacity(0.9), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00C9E4).withOpacity(0.15),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // KIRI: Logo
+                            Image.asset(
+                              'assets/images/logo.png',
+                              height: 40,
+                              errorBuilder: (c, e, s) => const Icon(Icons.shield, color: Color(0xFF00C9E4), size: 35),
+                            ),
+
+                            // KANAN: Notifikasi & Foto Profil Saja
+                            Row(
+                              children: [
+                                // Tombol Notifikasi
+                                GestureDetector(
+                                  onTap: () {
+                                    // Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationScreen(lang: _lang)));
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00C9E4).withOpacity(0.15),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white.withOpacity(0.8), width: 1.5),
+                                    ),
+                                    child: const Icon(
+                                      Icons.notifications_active_outlined, 
+                                      color: Color(0xFF00C9E4), 
+                                      size: 20
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+
+                                // Foto Profil Saja (Bisa di-klik)
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => ProfileScreen(lang: _lang)),
+                                    ).then((_) => _fetchUserData());
+                                  },
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 2),
+                                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: const Color(0xFF00C9E4),
+                                      backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
+                                      child: _userImage == null ? const Icon(Icons.person, color: Colors.white, size: 20) : null,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
+                    ),
+                  ),
+                ),
+
+                // ==========================================
+                // --- BAGIAN 2: INFO CARD (NAMA, JABATAN, POIN) ---
+                // ==========================================
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    decoration: BoxDecoration(
+                      color: Colors.white, // Warna latar belakang putih bersih
+                      borderRadius: BorderRadius.circular(20), // Radius 20 sesuai permintaan
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withOpacity(0.04), // Shadow sangat halus agar terlihat rapi
                           blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // KIRI: Logo
-                        Image.asset(
-                          'assets/images/logo.png',
-                          height: 40,
-                          errorBuilder: (c, e, s) => const Icon(
-                            Icons.shield,
-                            color: Colors.blue,
-                            size: 35,
-                          ),
+                        // Kiri: Nama dan Jabatan
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _userName,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _userRole,
+                              style: const TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.w500),
+                            ),
+                          ],
                         ),
-
-                        const Spacer(),
-
-                        // TENGAH: Poin
+                        
+                        // Kanan: Poin
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.2),
+                            color: Colors.orange.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(15),
                           ),
                           child: Row(
                             children: [
-                              const Icon(
-                                Icons.stars,
-                                color: Colors.orange,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 4),
+                              const Icon(Icons.stars_rounded, color: Colors.orange, size: 20),
+                              const SizedBox(width: 5),
                               Text(
-                                "$_userPoin Pts",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-
-                        // KANAN: Notifikasi & Profil
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ProfileScreen(lang: _lang),
-                              ),
-                            ).then((_) => _fetchUserData());
-                          },
-                          child: Row(
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    _userName,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  Text(
-                                    _userRole,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 8),
-                              // FOTO PROFIL
-                              CircleAvatar(
-                                radius: 20,
-                                backgroundColor: const Color(0xFF00C9E4),
-                                backgroundImage: _userImage != null
-                                    ? NetworkImage(_userImage!)
-                                    : null,
-                                child: _userImage == null
-                                    ? const Icon(
-                                        Icons.person,
-                                        color: Colors.white,
-                                        size: 20,
-                                      )
-                                    : null,
+                                "$_userPoin Pts", 
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14),
                               ),
                             ],
                           ),
@@ -264,13 +326,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-              ),
-            ),
+                const SizedBox(height: 10), // Jarak spasi sebelum konten halaman
 
-            // --- KONTEN HALAMAN (BERUBAH SESUAI TAB) ---
-            Expanded(child: pages[_currentIndex]),
-          ],
-        ),
+                // --- KONTEN HALAMAN (BERUBAH SESUAI TAB) ---
+                Expanded(child: pages[_currentIndex]),
+              ],
+            ),
+          ),
+        ],
       ),
 
       // --- BOTTOM NAVIGATION BAR ---
@@ -280,27 +343,13 @@ class _HomeScreenState extends State<HomeScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF00C9E4),
         unselectedItemColor: Colors.grey,
+        backgroundColor: Colors.white,
+        elevation: 10,
         items: [
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.home_outlined),
-            activeIcon: const Icon(Icons.home),
-            label: getTxt('home'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.explore_outlined),
-            activeIcon: const Icon(Icons.explore),
-            label: getTxt('explore'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.bar_chart_outlined),
-            activeIcon: const Icon(Icons.bar_chart),
-            label: getTxt('analytics'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.leaderboard_outlined),
-            activeIcon: const Icon(Icons.leaderboard),
-            label: getTxt('ranking'),
-          ),
+          BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), activeIcon: const Icon(Icons.home), label: getTxt('home')),
+          BottomNavigationBarItem(icon: const Icon(Icons.explore_outlined), activeIcon: const Icon(Icons.explore), label: getTxt('explore')),
+          BottomNavigationBarItem(icon: const Icon(Icons.bar_chart_outlined), activeIcon: const Icon(Icons.bar_chart), label: getTxt('analytics')),
+          BottomNavigationBarItem(icon: const Icon(Icons.leaderboard_outlined), activeIcon: const Icon(Icons.leaderboard), label: getTxt('ranking')),
         ],
       ),
     );

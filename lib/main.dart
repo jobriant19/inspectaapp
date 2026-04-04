@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'login_screen.dart';
+import 'splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +27,7 @@ class InspectaApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF5F6FA),
         fontFamily: 'Poppins', 
       ),
-      home: const LoginScreen(),
+      home: const SplashScreen(),
     );
   }
 }

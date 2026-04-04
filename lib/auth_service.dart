@@ -57,7 +57,7 @@ class AuthService {
         OAuthProvider.google,
         redirectTo: redirectUrl,
         queryParams: {
-          'prompt': 'consent', 
+          'prompt': 'select_account', 
         },
       );
       return true;
