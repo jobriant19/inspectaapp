@@ -194,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen>
               'pass': 'google_auth',
               'id_jabatan': 4,
               'poin': 0,
-              'gambar_user': googleImage, // <-- Simpan foto Google
+              'gambar_user': googleImage,
               'is_visitor': false,
               'timestamp': DateTime.now().toIso8601String(),
             });
@@ -537,9 +537,11 @@ class _LoginScreenState extends State<LoginScreen>
                                 _buildDropdownItem('ID', '🇮🇩', 'Indonesia'),
                                 _buildDropdownItem('ZH', '🇨🇳', '中文'),
                               ],
-                              onChanged: (value) {
+                              onChanged: (value) async{
+                                SharedPreferences prefs = await SharedPreferences.getInstance();
+                                await prefs.setString('lang', value!);
                                 setState(() {
-                                  selectedLanguage = value!;
+                                  selectedLanguage = value;
                                   _checkPasswordStrength();
                                 });
                               },
@@ -623,15 +625,14 @@ class _LoginScreenState extends State<LoginScreen>
                                         Expanded(
                                           flex: 4,
                                           child: Container(
-                                            alignment: Alignment
-                                                .centerRight, // Mendorong logo mentok ke kanan
+                                            alignment: Alignment.centerRight, 
                                             padding: const EdgeInsets.only(
                                               right: 5,
-                                            ), // Mendekatkan jarak dengan ilustrasi
+                                            ),
                                             child: Image.asset(
                                               'assets/images/logo.png',
                                               width:
-                                                  180, // Logo diperbesar secara signifikan
+                                                  180,
                                               errorBuilder: (c, e, s) => Icon(
                                                 Icons.shield_outlined,
                                                 size: 70,
@@ -647,8 +648,7 @@ class _LoginScreenState extends State<LoginScreen>
                                             'assets/images/signup_illustration.png',
                                             height: 190,
                                             fit: BoxFit.contain,
-                                            alignment: Alignment
-                                                .centerLeft, // Mendekatkan ilustrasi mentok ke kiri (bertemu dengan logo)
+                                            alignment: Alignment.centerLeft,
                                           ),
                                         ),
                                         const SizedBox(width: 15),
@@ -762,7 +762,6 @@ class _LoginScreenState extends State<LoginScreen>
                                         color: const Color(0xFFB6E3EF).withOpacity(0.55),
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                          // DIUBAH: Hitam jika diisi, Putih jika kosong
                                           color: _selectedJabatan != null ? Colors.black87 : Colors.white.withOpacity(0.8), 
                                           width: 1.0,
                                         ),
@@ -784,7 +783,7 @@ class _LoginScreenState extends State<LoginScreen>
                                           hint: Text(
                                             getTxt('role_hint'),
                                             style: const TextStyle(
-                                              color: Colors.white, // Hint tetap putih
+                                              color: Colors.white,
                                               fontSize: 14,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -998,12 +997,7 @@ class _LoginScreenState extends State<LoginScreen>
                                         ),
                                       ),
                                       onPressed: () async {
-                                        // Panggil fungsi auth, biarkan dia membuka browser
                                         await _auth.signInWithGoogle();
-                                        
-                                        // JANGAN lakukan Navigator di sini. 
-                                        // Biarkan _checkInitialSession() di initState yang menangani navigasi 
-                                        // saat aplikasi dibuka kembali setelah login berhasil.
                                       },
                                       icon: Image.network('assets/images/Google.svg', height: 22, errorBuilder: (c,e,s) => const Icon(Icons.g_mobiledata, size: 30)), 
                                       label: Text(
@@ -1085,13 +1079,13 @@ class _LoginScreenState extends State<LoginScreen>
       decoration: BoxDecoration(
         color: const Color(0xFFB6E3EF).withOpacity(0.55),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: 1.0), // DIUBAH
+        border: Border.all(color: borderColor, width: 1.0),
       ),
       child: TextFormField(
         controller: controller,
         obscureText: isPassword ? !isPasswordVisible : false,
         style: TextStyle(
-          color: activeColor, // DIUBAH
+          color: activeColor,
           fontWeight: FontWeight.bold,
           fontSize: 14,
         ),
@@ -1102,7 +1096,7 @@ class _LoginScreenState extends State<LoginScreen>
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
-          prefixIcon: Icon(icon, color: activeColor, size: 20), // DIUBAH: Ikon mengikuti status isi
+          prefixIcon: Icon(icon, color: activeColor, size: 20),
 
           suffixIcon: isPassword
               ? Row(
@@ -1121,7 +1115,7 @@ class _LoginScreenState extends State<LoginScreen>
                     IconButton(
                       icon: Icon(
                         isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                        color: activeColor, // DIUBAH: Ikon mata mengikuti status isi
+                        color: activeColor,
                         size: 20,
                       ),
                       onPressed: () => setState(() => isPasswordVisible = !isPasswordVisible),

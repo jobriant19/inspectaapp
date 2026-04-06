@@ -37,7 +37,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel(); // Hentikan timer saat widget dihancurkan
+    _timer?.cancel();
     _pageController.dispose();
     super.dispose();
   }

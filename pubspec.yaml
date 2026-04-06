@@ -36,7 +36,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   supabase_flutter: ^2.12.2
   shared_preferences: ^2.5.3
+  
   image_picker: ^1.2.1
+  camera: ^0.10.5+5
+  path_provider: ^2.1.1
 
 dev_dependencies:
   flutter_test:

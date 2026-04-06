@@ -60,7 +60,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     return Scaffold(
       body: Container(
-        // --- 1. BACKGROUND GRADIENT (Putih ke Biru Muda) ---
+        // --- 1. BACKGROUND GRADIENT Putih ke Biru Muda ---
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -96,18 +96,18 @@ class _SplashScreenState extends State<SplashScreen> {
             _buildAnimatedItem(
               imagePath: 'assets/images/winner.png', 
               width: 80,
-              targetOffset: const Offset(0, -200), // <-- DIUBAH: Diturunkan agar tidak mepet ujung atas
+              targetOffset: const Offset(0, -200), 
             ),
             // Item 3: Regular (Kanan Atas)
             _buildAnimatedItem(
               imagePath: 'assets/images/regular.png', 
               width: 100,
-              targetOffset: const Offset(130, -140), // <-- DIUBAH: Diturunkan sedikit ke bawah
+              targetOffset: const Offset(130, -140),
             ),
 
             // --- 4. KARAKTER 3D (Animasi Meluncur dari Bawah) ---
-            Positioned( // <-- DIUBAH: Menggunakan Positioned agar posisi bawah bisa ditarik
-              bottom: -25, // <-- DIUBAH: Menarik karakter sedikit ke bawah layar
+            Positioned( 
+              bottom: -25, 
               left: 0,
               right: 0,
               child: TweenAnimationBuilder(
@@ -126,15 +126,15 @@ class _SplashScreenState extends State<SplashScreen> {
                 child: Image.asset(
                   'assets/images/character.png', 
                   fit: BoxFit.fitWidth,
-                  width: size.width * 0.78, // <-- DIUBAH: Diperkecil sedikit agar tidak menabrak tulisan logo
+                  width: size.width * 0.78,
                   errorBuilder: (c, e, s) => const SizedBox(),
                 ),
               ),
             ),
 
-            // --- 5. LOGO DI TENGAH (Animasi Sangat Kecil -> Besar Membal) ---
+            // --- 5. LOGO DI TENGAH ---
             Align(
-              alignment: const Alignment(0.0, -0.15), // <-- DIUBAH: Menggeser logo sedikit ke atas menjauhi kepala karakter
+              alignment: const Alignment(0.0, -0.15),
               child: TweenAnimationBuilder(
                 tween: Tween<double>(begin: 0.0, end: 1.0),
                 duration: const Duration(milliseconds: 2500),
@@ -172,11 +172,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
   // --- FUNGSI BANTUAN: Untuk Mengatur Animasi 3 Item Terbang ---
   Widget _buildAnimatedItem({required String imagePath, required double width, required Offset targetOffset}) {
-    return Center( // Mulai mutlak dari tengah layar
+    return Center( 
       child: TweenAnimationBuilder(
         tween: Tween<double>(begin: 0.0, end: 1.0),
         duration: const Duration(milliseconds: 2200),
-        curve: Curves.elasticOut, // Loncatan membal saat menyebar
+        curve: Curves.elasticOut,
         builder: (context, double value, child) {
           return Transform.translate(
             // Mendorong elemen dari Offset(0,0) ke titik target offset

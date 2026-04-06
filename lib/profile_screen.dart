@@ -198,7 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true, // Agar background menyatu dengan AppBar
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(
           getTxt('title'),
@@ -211,7 +211,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
-      // Background gradient yang estetik agar efek Glassmorphism terlihat menonjol
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -300,7 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           const SizedBox(height: 25),
 
-                          // FORM INPUT (Dengan gaya minimalis)
+                          // FORM INPUT
                           _buildTextField(
                             _nameController,
                             getTxt('name'),
@@ -416,7 +415,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Widget Helper untuk TextField yang seragam dan estetik
   Widget _buildTextField(
     TextEditingController controller,
     String label,

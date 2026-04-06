@@ -46,7 +46,7 @@ class AuthService {
     try {
       final String redirectUrl;
       if (kIsWeb) {
-        // URL redirect untuk web testing (sesuai port tetap)
+        // URL redirect untuk web testing
         redirectUrl = 'http://localhost:3000';
       } else {
         // URL redirect untuk mobile
