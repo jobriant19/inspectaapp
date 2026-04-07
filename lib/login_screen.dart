@@ -70,6 +70,7 @@ class _LoginScreenState extends State<LoginScreen>
       'role_label': 'Job Title',
       'role_hint': 'Select Job Title',
       'err_role': 'Select Job Title First',
+      'err_unknown': 'Unknown Email! Not registered.',
     },
     'ID': {
       'login': 'Masuk',
@@ -103,6 +104,7 @@ class _LoginScreenState extends State<LoginScreen>
       'role_label': 'Jabatan',
       'role_hint': 'Pilih Jabatan',
       'err_role': 'Pilih Jabatan Terlebih Dahulu',
+      'err_unknown': 'Email Tidak Terdaftar!',
     },
     'ZH': {
       'login': '登录',
@@ -136,6 +138,7 @@ class _LoginScreenState extends State<LoginScreen>
       'role_label': '职位',
       'role_hint': '选择职位',
       'err_role': '请先选择职位',
+      'err_unknown': '未知的电子邮件！',
     },
   };
 
@@ -162,56 +165,60 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
-    void _setupAuthListener() {
+  void _setupAuthListener() {
     _authStateSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final AuthChangeEvent event = data.event;
       final Session? session = data.session;
 
       if (event == AuthChangeEvent.signedIn && session != null) {
-        if (!mounted) return;
-        
-        setState(() {
-          isLoading = true; 
-        });
+        // Ambil nama provider secara aman (google atau email)
+        final String provider = session.user.appMetadata['provider'] ?? 'email';
 
-        try {
-          // Ambil nama & foto dari Google
-          final String googleName = session.user.userMetadata?['full_name'] ?? session.user.userMetadata?['name'] ?? 'User Google';
-          final String? googleImage = session.user.userMetadata?['avatar_url'] ?? session.user.userMetadata?['picture'];
+        // HANYA proses pengecekan database jika login lewat GOOGLE
+        if (provider == 'google') {
+          if (!mounted) return;
+          
+          setState(() {
+            isLoading = true; 
+          });
 
-          final userData = await Supabase.instance.client
-              .from('User')
-              .select('id_user, gambar_user')
-              .eq('id_user', session.user.id)
-              .maybeSingle();
+          try {
+            // Cek apakah email google tersebut ADA di database tabel User
+            final userData = await Supabase.instance.client
+                .from('User')
+                .select('id_user, email, gambar_user')
+                .eq('email', session.user.email!)
+                .maybeSingle();
 
-          if (userData == null) {
-            // Jika user baru, masukkan gambar dari Google
-            await Supabase.instance.client.from('User').insert({
-              'id_user': session.user.id,
-              'nama': googleName,
-              'email': session.user.email,
-              'pass': 'google_auth',
-              'id_jabatan': 4,
-              'poin': 0,
-              'gambar_user': googleImage,
-              'is_visitor': false,
-              'timestamp': DateTime.now().toIso8601String(),
-            });
-          } else if ((userData['gambar_user'] == null || userData['gambar_user'] == "") && googleImage != null) {
-            // Jika user sudah ada tapi fotonya kosong, perbarui fotonya
-            await Supabase.instance.client.from('User').update({
-              'gambar_user': googleImage
-            }).eq('id_user', session.user.id);
+            if (userData == null) {
+              // Jika email TIDAK DITEMUKAN di tabel User: Sign Out & Munculkan Pop up Error
+              await Supabase.instance.client.auth.signOut();
+              if (mounted) {
+                setState(() => isLoading = false);
+                _showCustomDialog(getTxt('err_unknown')); // Pastikan 'err_unknown' sudah ditambah di map translations
+              }
+              return; // Berhenti disini, jangan masuk ke HomeScreen
+            } else {
+              // Jika email DITEMUKAN: Lanjut cek dan perbarui foto profil jika kosong
+              final String? googleImage = session.user.userMetadata?['avatar_url'] ?? session.user.userMetadata?['picture'];
+
+              if ((userData['gambar_user'] == null || userData['gambar_user'] == "") && googleImage != null) {
+                await Supabase.instance.client.from('User').update({
+                  'gambar_user': googleImage
+                }).eq('id_user', userData['id_user']);
+              }
+
+              // Masuk ke HomeScreen
+              if (mounted) {
+                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+              }
+            }
+          } catch (e) {
+            print("Error Mengecek Google User: $e");
+            if (mounted) setState(() => isLoading = false);
           }
-
-          if (mounted) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
-          }
-        } catch (e) {
-          print("Error Insert User Google: $e");
-          if (mounted) setState(() => isLoading = false);
         }
+        // JIKA PROVIDER == EMAIL (Manual), abaikan. Biarkan _submitForm yang memproses navigasi.
       }
     });
   }
@@ -282,7 +289,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // FITUR: Pop-Up Kustom
+  // Pop-Up Notif
   void _showCustomDialog(String message) {
     showDialog(
       context: context,
@@ -352,6 +359,7 @@ class _LoginScreenState extends State<LoginScreen>
     String pass = _passwordController.text.trim();
     String name = _nameController.text.trim();
 
+    // --- Validasi Form ---
     if (email.isEmpty && pass.isEmpty) {
       _showCustomDialog(getTxt('err_email_pass'));
       return;
@@ -375,68 +383,106 @@ class _LoginScreenState extends State<LoginScreen>
     }
 
     setState(() => isLoading = true);
-    try {
-      _saveCredentials(); // Simpan bahasa dan remember me
+    _saveCredentials();
 
-      if (isLogin) {
-        // --- CEK HASIL LOGIN MANUAL ---
-        final authResponse = await _auth.signInWithEmail(email, pass);
+    // ==========================================
+    // PROSES HASHING PASSWORD MELALUI AUTH SERVICE
+    // ==========================================
+    String hashedPass = pass;
+    try {
+      // Memanggil AuthService untuk mengubah password mentah menjadi Argon2
+      hashedPass = await _auth.hashPassword(email, pass);
+    } catch (e) {
+      print("Argon2 Hashing Error: $e");
+      if (mounted) setState(() => isLoading = false);
+      _showCustomDialog("Terjadi kesalahan enkripsi keamanan password.");
+      return;
+    }
+
+    if (isLogin) {
+      // ==========================
+      // 1. PROSES LOGIN MANUAL
+      // ==========================
+      try {
+        // Memanggil fungsi dari AuthService dengan password yang sudah di-hash
+        final AuthResponse? res = await _auth.signInWithEmail(email, hashedPass);
         
-        // Jika return null, berarti email/password salah. Lempar error agar ditangkap 'catch'
-        if (authResponse == null || authResponse.user == null) {
-          throw Exception("Wrong Email or Password"); 
-        }
-        
-        try {
-          final user = Supabase.instance.client.auth.currentUser;
-          if (user != null) {
+        if (res != null && res.user != null) {
+          try {
             await Supabase.instance.client
                 .from('User')
                 .update({'log_login': DateTime.now().toIso8601String()})
-                .eq('id_user', user.id);
+                .eq('id_user', res.user!.id);
+          } catch (e) {
+             print("Gagal update log login: $e");
           }
-        } catch (e) {}
-        
-        if (mounted) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+          
+          if (mounted) {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+          }
+        } else {
+           _showCustomDialog(getTxt('err_wrong'));
         }
-      } else {
-        // Proses Sign Up
-        final AuthResponse res = await Supabase.instance.client.auth.signUp(
-          email: email,
-          password: pass,
-        );
+      } on AuthException catch (e) {
+        print("Login Auth Error: ${e.message}");
+        if (e.message.toLowerCase().contains("invalid login credentials")) {
+          _showCustomDialog(getTxt('err_wrong'));
+        } else if (e.message.toLowerCase().contains("email not confirmed")) {
+          _showCustomDialog("Email belum dikonfirmasi! Silakan cek inbox email Anda atau matikan 'Confirm Email'.");
+        } else {
+          _showCustomDialog("Gagal Login: ${e.message}");
+        }
+      } catch (e) {
+        print("Login System Error: $e");
+        _showCustomDialog("Terjadi kesalahan sistem saat login.");
+      } finally {
+        if (mounted) setState(() => isLoading = false);
+      }
 
-        if (res.user != null) {
-          // Mapping jabatan string ke ID sesuai script SQL
+    } else {
+      // ==========================
+      // 2. PROSES SIGN UP MANUAL
+      // ==========================
+      try {
+        // Memanggil fungsi dari AuthService dengan password yang sudah di-hash
+        final AuthResponse? res = await _auth.signUpWithEmail(email, hashedPass);
+
+        if (res != null && res.user != null) {
           int idJabatan = 4; // Default Staff
           if (_selectedJabatan == 'Eksekutif') idJabatan = 1;
           if (_selectedJabatan == 'Manager') idJabatan = 2;
           if (_selectedJabatan == 'Kasie') idJabatan = 3;
 
-          // INSERT KE TABEL User
+          // INSERT KE TABEL User Database Publik Anda
           await Supabase.instance.client.from('User').insert({
             'id_user': res.user!.id, 
             'nama': name,
             'email': email,
-            'pass': pass,
+            'pass': hashedPass, // Menyimpan format Argon2 ke Tabel
             'id_jabatan': idJabatan,
             'poin': 0,
             'is_visitor': false,
             'timestamp': DateTime.now().toIso8601String(),
           });
+
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          }
+        } else {
+           _showCustomDialog("Pendaftaran gagal, silakan coba lagi.");
         }
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
+      } on AuthException catch (e) {
+        print("SignUp Auth Error: ${e.message}");
+        _showCustomDialog("Pendaftaran Gagal: ${e.message}"); 
+      } catch (e) {
+        print("SignUp Database Error: $e");
+        _showCustomDialog("Gagal menyimpan data ke database. Cek Terminal / Debug Console.");
+      } finally {
+        if (mounted) setState(() => isLoading = false);
       }
-    } catch (e) {
-      _showCustomDialog(getTxt('err_wrong'));
-    } finally {
-      setState(() => isLoading = false);
     }
   }
 

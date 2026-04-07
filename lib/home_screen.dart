@@ -8,6 +8,7 @@ import 'qr_scanner_screen.dart';
 import 'ranking_screen.dart';
 import 'profile_screen.dart';
 import 'camera_finding_screen.dart';
+import 'location_screen.dart';
 import 'dart:ui';
 
 class HomeScreen extends StatefulWidget {
@@ -65,26 +66,15 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final userAuth = Supabase.instance.client.auth.currentUser;
       if (userAuth == null) return;
-
-      Map<String, dynamic>? userRow;
-
-      for (int i = 0; i < 3; i++) {
-        userRow = await Supabase.instance.client
-            .from('User')
-            .select('nama, email, poin, gambar_user, id_jabatan, id_unit')
-            .eq('id_user', userAuth.id)
-            .maybeSingle();
-
-        if (userRow != null) break;
-        await Future.delayed(const Duration(milliseconds: 800));
-      }
+      final userRow = await Supabase.instance.client
+          .from('User')
+          .select('nama, email, poin, gambar_user, id_unit, id_lokasi, jabatan(nama_jabatan)')
+          .eq('id_user', userAuth.id)
+          .maybeSingle();
 
       // Ambil metadata dari Google Sebagai cadangan jika foto di DB kosong
-      final String? metaName =
-          userAuth.userMetadata?['full_name'] ?? userAuth.userMetadata?['name'];
-      final String? metaImage =
-          userAuth.userMetadata?['avatar_url'] ??
-          userAuth.userMetadata?['picture'];
+      final String? metaName = userAuth.userMetadata?['full_name'] ?? userAuth.userMetadata?['name'];
+      final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
 
       if (userRow == null) {
         if (!mounted) return;
@@ -97,28 +87,10 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
+      // Parsing Jabatan dari relasi tabel
       String roleName = 'Staff';
-      final int? idJabatan = userRow['id_jabatan'];
-
-      if (idJabatan != null) {
-        final jabatanRow = await Supabase.instance.client
-            .from('jabatan')
-            .select('nama_jabatan')
-            .eq('id_jabatan', idJabatan)
-            .maybeSingle();
-        roleName = jabatanRow?['nama_jabatan'] ?? 'Staff';
-      }
-
-      // Ambil id_lokasi secara terpisah untuk mencegah error join
-      int? idLokasi;
-      final int? idUnit = userRow['id_unit'];
-      if (idUnit != null) {
-        final unitRow = await Supabase.instance.client
-            .from('unit')
-            .select('id_lokasi')
-            .eq('id_unit', idUnit)
-            .maybeSingle();
-        idLokasi = unitRow?['id_lokasi'];
+      if (userRow['jabatan'] != null && userRow['jabatan']['nama_jabatan'] != null) {
+        roleName = userRow['jabatan']['nama_jabatan'];
       }
 
       String? dbImage = userRow['gambar_user'];
@@ -126,12 +98,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!mounted) return;
       setState(() {
-        _userName = userRow?['nama'] ?? metaName ?? 'User';
-        _userPoin = userRow?['poin'] ?? 0;
+        _userName = userRow['nama'] ?? metaName ?? 'User';
+        _userPoin = userRow['poin'] ?? 0;
         _userImage = dbImage ?? metaImage;
         _userRole = roleName;
-        _userUnitId = idUnit;
-        _userLokasiId = idLokasi;
+        _userUnitId = userRow['id_unit'];
+        _userLokasiId = userRow['id_lokasi'];
       });
     } catch (e) {
       debugPrint("Error fetching user data: $e");
@@ -284,44 +256,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 const SizedBox(width: 12),
 
-                                // Foto Profil Saja Bisa Klik untuk ke Profile Screen (TODO: Halaman Khusus)
+                                // Foto Profil Saja Bisa Klik untuk ke Profile Screen
                                 GestureDetector(
                                   onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            ProfileScreen(lang: _lang),
-                                      ),
-                                    ).then((_) => _fetchUserData());
+                                    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(lang: _lang)))
+                                    .then((_) => _fetchUserData());
                                   },
                                   child: Container(
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
-                                      ),
-                                      boxShadow: const [
-                                        BoxShadow(
-                                          color: Colors.black12,
-                                          blurRadius: 4,
-                                        ),
-                                      ],
+                                      border: Border.all(color: Colors.white, width: 2),
+                                      boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
                                     ),
                                     child: CircleAvatar(
                                       radius: 18,
                                       backgroundColor: const Color(0xFF00C9E4),
-                                      backgroundImage: _userImage != null
-                                          ? NetworkImage(_userImage!)
-                                          : null,
-                                      child: _userImage == null
-                                          ? const Icon(
-                                              Icons.person,
-                                              color: Colors.white,
-                                              size: 20,
-                                            )
-                                          : null,
+                                      backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
+                                      child: _userImage == null ? const Icon(Icons.person, color: Colors.white, size: 20) : null,
                                     ),
                                   ),
                                 ),
@@ -887,7 +838,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Colors.black38,
               ),
               onTap: () {
-                // TODO: Navigasi ke Layar Lokasi
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LocationScreen(
+                      lang: _lang,
+                      isProMode: _isProMode,
+                      userRole: _userRole,
+                      userUnitId: _userUnitId,
+                      userLokasiId: _userLokasiId,
+                    ),
+                  ),
+                );
               },
             ),
           ),
@@ -1009,12 +971,16 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
   List<dynamic> _currentData = [];
   List<dynamic> _filteredData = [];
   String _searchQuery = "";
-  final Set<int> _favorites = {};
 
   List<Map<String, dynamic>> _navigationHistory = [];
 
-  // Getter untuk cek apakah user punya akses ke semua tempat (Eksekutif ATAU Pro Mode Aktif)
   bool get _hasFullAccess => widget.isProMode || widget.userRole == 'Eksekutif';
+
+  // --- HELPER METHODS UNTUK MENGAMBIL NAMA KOLOM SECARA DINAMIS ---
+  String _getTableName(int level) => ['lokasi', 'unit', 'subunit', 'area'][level];
+  String _getIdColumn(int level) => 'id_${_getTableName(level)}';
+  String _getNameColumn(int level) => 'nama_${_getTableName(level)}';
+  String _getChildColumn(int level) => level < 3 ? ['unit', 'subunit', 'area'][level] : '';
 
   @override
   void initState() {
@@ -1030,45 +996,19 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
       List<dynamic> data = [];
 
       if (_currentLevel == 0) {
-        // LEVEL 0: SEMUA USER (Eksekutif/Staff/Pro/Non-Pro) SELALU MELIHAT SEMUA LOKASI
-        data = await supabase
-            .from('lokasi')
-            .select('id_lokasi, nama_lokasi, unit(id_unit)');
-
+        data = await supabase.from('lokasi').select('id_lokasi, nama_lokasi, unit(id_unit), is_star');
       } else if (_currentLevel == 1) {
-        // LEVEL 1: FILTER UNIT BERDASARKAN LOKASI YANG DIPILIH
         if (_hasFullAccess) {
-          // Jika Eksekutif ATAU Pro Mode Aktif -> Ambil SEMUA Unit di Lokasi tersebut
-          data = await supabase
-              .from('unit')
-              .select('id_unit, nama_unit, subunit(id_subunit)')
-              .eq('id_lokasi', parentId!);
+          data = await supabase.from('unit').select('id_unit, nama_unit, subunit(id_subunit), is_star').eq('id_lokasi', parentId!);
         } else {
-          // Jika BUKAN Eksekutif DAN Pro Mode Tidak Aktif -> Ambil HANYA Unit milik User di Lokasi tersebut
           if (widget.userUnitId != null) {
-            data = await supabase
-                .from('unit')
-                .select('id_unit, nama_unit, subunit(id_subunit)')
-                .eq('id_lokasi', parentId!) // Harus di lokasi yang dipilih
-                .eq('id_unit', widget.userUnitId!); // Harus unit milik user
-          } else {
-            data = []; // Jika user tidak punya unit, list kosong
-          }
+            data = await supabase.from('unit').select('id_unit, nama_unit, subunit(id_subunit), is_star').eq('id_lokasi', parentId!).eq('id_unit', widget.userUnitId!);
+          } else { data = []; }
         }
-
       } else if (_currentLevel == 2) {
-        // LEVEL 2: SUBUNIT DARI UNIT YANG DIPILIH
-        data = await supabase
-            .from('subunit')
-            .select('id_subunit, nama_subunit, area(id_area)')
-            .eq('id_unit', parentId!);
-
+        data = await supabase.from('subunit').select('id_subunit, nama_subunit, area(id_area), is_star').eq('id_unit', parentId!);
       } else if (_currentLevel == 3) {
-        // LEVEL 3: AREA DARI SUBUNIT YANG DIPILIH
-        data = await supabase
-            .from('area')
-            .select('id_area, nama_area')
-            .eq('id_subunit', parentId!);
+        data = await supabase.from('area').select('id_area, nama_area, is_star').eq('id_subunit', parentId!);
       }
 
       if (mounted) {
@@ -1094,16 +1034,17 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     setState(() {
       _navigationHistory.add({
         'level': _currentLevel,
-        'id': item.values.first, 
-        'name': item.values.elementAt(1), 
+        'id': item[_getIdColumn(_currentLevel)], 
+        'name': item[_getNameColumn(_currentLevel)], 
       });
       _currentLevel++;
       _searchQuery = ""; 
     });
 
+    // Panggil ulang fetch data untuk level selanjutnya
     _fetchData(
-      parentId: item.values.first,
-      parentName: item.values.elementAt(1),
+      parentId: item[_getIdColumn(_currentLevel - 1)],
+      parentName: item[_getNameColumn(_currentLevel - 1)],
     );
   }
 
@@ -1129,29 +1070,24 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     setState(() {
       _searchQuery = query.toLowerCase();
       _filteredData = _currentData.where((item) {
-        String name = item.values.elementAt(1).toString().toLowerCase();
+        String name = item[_getNameColumn(_currentLevel)].toString().toLowerCase();
         return name.contains(_searchQuery);
       }).toList();
       _sortData();
     });
   }
 
-  // FUNGSI untuk mengurutkan favorit ke paling atas
   void _sortData() {
     _filteredData.sort((a, b) {
-      final idA = a.values.first as int;
-      final idB = b.values.first as int;
-      final isFavA = _favorites.contains(idA);
-      final isFavB = _favorites.contains(idB);
+      int isStarA = a['is_star'] ?? 0;
+      int isStarB = b['is_star'] ?? 0;
 
-      // Jika A favorit dan B bukan, A ke atas
-      if (isFavA && !isFavB) return -1;
-      // Jika B favorit dan A bukan, B ke atas
-      if (!isFavA && isFavB) return 1;
+      if (isStarA == 1 && isStarB == 0) return -1;
+      if (isStarA == 0 && isStarB == 1) return 1;
       
-      // Jika sama-sama favorit/bukan, urutkan abjad
-      final nameA = a.values.elementAt(1).toString().toLowerCase();
-      final nameB = b.values.elementAt(1).toString().toLowerCase();
+      final nameCol = _getNameColumn(_currentLevel);
+      final nameA = a[nameCol].toString().toLowerCase();
+      final nameB = b[nameCol].toString().toLowerCase();
       return nameA.compareTo(nameB);
     });
   }
@@ -1175,19 +1111,10 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
         'kosong': 'Data tidak ditemukan.',
         'sub': 'Sub-lokasi',
       },
-      'ZH': {
-        'pilih_lokasi': '选择发现地点', 
-        'cari': '搜索地点', 
-        'semua': '所有地点', 
-        'unit_saya': '我的单位',
-        'kosong': '未找到数据。', 
-        'sub': '子地点', 
-      },
     };
 
     String getBsTxt(String key) => bottomSheetTexts[widget.lang]?[key] ?? key;
 
-    // Menentukan tulisan Root Parent ("Semua Lokasi" atau "Unit Saya")
     String currentParentName = _navigationHistory.isEmpty
         ? (!_hasFullAccess ? getBsTxt('unit_saya') : getBsTxt('semua'))
         : _navigationHistory.last['name'];
@@ -1244,9 +1171,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                               hintText: getBsTxt('cari'),
                               border: InputBorder.none,
                               isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),
                         ),
@@ -1257,26 +1182,16 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                 const SizedBox(width: 12),
                 GestureDetector(
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const QRScannerScreen(),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const QRScannerScreen()));
                   },
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF3F8FC),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFF1E3A8A).withOpacity(0.2),
-                      ),
+                      border: Border.all(color: const Color(0xFF1E3A8A).withOpacity(0.2)),
                     ),
-                    child: const Icon(
-                      Icons.qr_code_scanner,
-                      color: Color(0xFF1E3A8A),
-                    ),
+                    child: const Icon(Icons.qr_code_scanner, color: Color(0xFF1E3A8A)),
                   ),
                 ),
               ],
@@ -1291,20 +1206,12 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                     onTap: _goBack,
                     child: const Padding(
                       padding: EdgeInsets.only(right: 10),
-                      child: Icon(
-                        Icons.arrow_back_ios,
-                        size: 18,
-                        color: Color(0xFF1E3A8A),
-                      ),
+                      child: Icon(Icons.arrow_back_ios, size: 18, color: Color(0xFF1E3A8A)),
                     ),
                   ),
                 Text(
                   currentParentName.toUpperCase(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E3A8A),
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A), fontSize: 13),
                 ),
               ],
             ),
@@ -1312,31 +1219,27 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
           const SizedBox(height: 5),
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF00C9E4)),
-                  )
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF00C9E4)))
                 : _filteredData.isEmpty
-                ? Center(
-                    child: Text(
-                      getBsTxt('kosong'),
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  )
+                ? Center(child: Text(getBsTxt('kosong'), style: const TextStyle(color: Colors.grey)))
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 15,
-                      vertical: 10,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                     physics: const BouncingScrollPhysics(),
                     itemCount: _filteredData.length,
                     itemBuilder: (context, index) {
                       final item = _filteredData[index];
-                      final itemName = item.values.elementAt(1);
+                      
+                      // AMBIL DATA DENGAN NAMA KOLOM (AMAN DARI ERROR)
+                      final String idCol = _getIdColumn(_currentLevel);
+                      final String nameCol = _getNameColumn(_currentLevel);
+                      final String childCol = _getChildColumn(_currentLevel);
+
+                      final int itemId = item[idCol] as int;
+                      final String itemName = item[nameCol].toString();
 
                       int subCount = 0;
                       if (_currentLevel < 3) {
-                        final listSub =
-                            item.values.elementAt(2) as List<dynamic>?;
+                        final listSub = item[childCol] as List<dynamic>?;
                         subCount = listSub?.length ?? 0;
                       }
 
@@ -1387,18 +1290,23 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                               // AREA TOMBOL AKSI (BINTANG & KAMERA)
                               Row(
                                 children: [
-                                  // TOMBOL BINTANG (FAVORIT)
+                                  // TOMBOL BINTANG
                                   GestureDetector(
-                                    onTap: () {
+                                    onTap: () async {
+                                      int currentStar = item['is_star'] ?? 0;
+                                      int newStar = currentStar == 1 ? 0 : 1;
+
+                                      String tableName = _getTableName(_currentLevel);
+
                                       setState(() {
-                                        final int id = item.values.first as int;
-                                        if (_favorites.contains(id)) {
-                                          _favorites.remove(id);
-                                        } else {
-                                          _favorites.add(id);
-                                        }
-                                        _sortData(); // Panggil sorting agar langsung naik ke atas!
+                                        item['is_star'] = newStar;
+                                        _sortData();
                                       });
+
+                                      await Supabase.instance.client
+                                          .from(tableName)
+                                          .update({'is_star': newStar})
+                                          .eq(idCol, itemId);
                                     },
                                     child: Container(
                                       padding: const EdgeInsets.all(8),
@@ -1407,7 +1315,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                         borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: Icon(
-                                        _favorites.contains(item.values.first as int)
+                                        (item['is_star'] ?? 0) == 1
                                             ? Icons.star_rounded
                                             : Icons.star_border_rounded,
                                         color: Colors.amber,
@@ -1421,12 +1329,11 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                   GestureDetector(
                                     onTap: () {
                                       int? idL, idU, idS, idA;
-                                      final selectedId = item.values.first as int;
 
-                                      if (_currentLevel == 0) { idL = selectedId; }
-                                      else if (_currentLevel == 1) { idL = _navigationHistory[0]['id']; idU = selectedId; }
-                                      else if (_currentLevel == 2) { idL = _navigationHistory[0]['id']; idU = _navigationHistory[1]['id']; idS = selectedId; }
-                                      else if (_currentLevel == 3) { idL = _navigationHistory[0]['id']; idU = _navigationHistory[1]['id']; idS = _navigationHistory[2]['id']; idA = selectedId; }
+                                      if (_currentLevel == 0) { idL = itemId; }
+                                      else if (_currentLevel == 1) { idL = _navigationHistory[0]['id']; idU = itemId; }
+                                      else if (_currentLevel == 2) { idL = _navigationHistory[0]['id']; idU = _navigationHistory[1]['id']; idS = itemId; }
+                                      else if (_currentLevel == 3) { idL = _navigationHistory[0]['id']; idU = _navigationHistory[1]['id']; idS = _navigationHistory[2]['id']; idA = itemId; }
 
                                       Navigator.pop(context);
                                       Navigator.push(
