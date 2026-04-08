@@ -2,29 +2,34 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'add_finding_flow_screen.dart'; // Pastikan path ini benar
 
 class CameraFindingScreen extends StatefulWidget {
-  final String locationName;
-  final int? idLokasi;
-  final int? idUnit;
-  final int? idSubunit;
-  final int? idArea;
+  final String lang;
+  final bool isProMode;
+  
+  final String selectedLocationName;
+  final int? selectedLocationId;
+  final int? selectedUnitId;
+  final int? selectedSubunitId;
+  final int? selectedAreaId;
 
   const CameraFindingScreen({
     super.key,
-    required this.locationName,
-    this.idLokasi,
-    this.idUnit,
-    this.idSubunit,
-    this.idArea,
+    required this.lang,
+    required this.isProMode,
+    required this.selectedLocationName,
+    this.selectedLocationId,
+    this.selectedUnitId,
+    this.selectedSubunitId,
+    this.selectedAreaId,
   });
 
   @override
   State<CameraFindingScreen> createState() => _CameraFindingScreenState();
 }
 
-class _CameraFindingScreenState extends State<CameraFindingScreen> {
+class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsBindingObserver {
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
@@ -34,204 +39,169 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initCamera();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _cameraController?.dispose();
+    super.dispose();
+  }
+  
+  // Menangani siklus hidup aplikasi (jika app ke background)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final CameraController? cameraController = _cameraController;
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return;
+    }
+    if (state == AppLifecycleState.inactive) {
+      cameraController.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initCamera();
+    }
+  }
+
   Future<void> _initCamera() async {
-    _cameras = await availableCameras();
-    if (_cameras != null && _cameras!.isNotEmpty) {
-      _setCamera(_selectedCameraIndex);
+    try {
+      _cameras = await availableCameras();
+      if (_cameras != null && _cameras!.isNotEmpty) {
+        await _setCamera(_selectedCameraIndex);
+      } else {
+        debugPrint("No camera found on this device.");
+      }
+    } catch (e) {
+      debugPrint("Error initializing camera discovery: $e");
     }
   }
 
   Future<void> _setCamera(int index) async {
+    // Hentikan controller lama jika ada
+    if (_cameraController != null) {
+      await _cameraController!.dispose();
+    }
+    
     _cameraController = CameraController(
       _cameras![index],
       ResolutionPreset.high,
       enableAudio: false,
     );
-    await _cameraController!.initialize();
-    if (mounted) setState(() => _isCameraInitialized = true);
+
+    try {
+      await _cameraController!.initialize();
+      if (mounted) setState(() => _isCameraInitialized = true);
+    } on CameraException catch (e) {
+      debugPrint("Error setting camera: ${e.code}\n${e.description}");
+      // Tambahkan umpan balik ke user jika perlu
+    }
   }
 
   void _switchCamera() {
     if (_cameras == null || _cameras!.length < 2) return;
-    _selectedCameraIndex = _selectedCameraIndex == 0 ? 1 : 0;
-    _isCameraInitialized = false;
+    
+    setState(() {
+      _isCameraInitialized = false;
+      _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras!.length;
+    });
+
     _setCamera(_selectedCameraIndex);
   }
 
-  Future<void> _takePicture() async {
-    if (!_cameraController!.value.isInitialized) return;
-    try {
-      final XFile picture = await _cameraController!.takePicture();
-      _showUploadDialog(File(picture.path));
-    } catch (e) {
-      debugPrint("Error taking picture: $e");
-    }
-  }
+  // FUNGSI UTAMA UNTUK NAVIGASI (DIPAKAI OLEH KEDUA SUMBER GAMBAR)
+  Future<void> _navigateToForm(XFile imageXFile) async {
+    if (!mounted) return;
 
-  Future<void> _pickFromGallery() async {
-    try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image == null) return;
-
-      final File file = File(image.path);
-      
-      // Validasi Maksimal 24 Jam
-      final DateTime lastModified = file.lastModifiedSync();
-      final difference = DateTime.now().difference(lastModified);
-
-      if (difference.inHours > 24) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Gambar tidak boleh lebih dari 24 jam yang lalu!"),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return;
-      }
-      _showUploadDialog(file);
-    } catch (e) {
-      debugPrint("Error picking image: $e");
-    }
-  }
-
-  void _showUploadDialog(File imageFile) {
-    final TextEditingController titleCtrl = TextEditingController();
-    final TextEditingController descCtrl = TextEditingController();
-    bool isUploading = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setStateModal) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              left: 20, right: 20, top: 20,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Detail Temuan",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
-                  ),
-                  const SizedBox(height: 15),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.file(imageFile, height: 150, width: double.infinity, fit: BoxFit.cover),
-                  ),
-                  const SizedBox(height: 15),
-                  TextField(
-                    controller: titleCtrl,
-                    decoration: const InputDecoration(labelText: "Judul Temuan", border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: descCtrl,
-                    maxLines: 3,
-                    decoration: const InputDecoration(labelText: "Deskripsi", border: OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C9E4),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: isUploading
-                          ? null
-                          : () async {
-                              if (titleCtrl.text.isEmpty) return;
-                              setStateModal(() => isUploading = true);
-
-                              try {
-                                final supabase = Supabase.instance.client;
-                                final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-                                
-                                // Upload ke Storage Supabase temuan_images
-                                await supabase.storage.from('temuan_images').upload(fileName, imageFile);
-                                final imageUrl = supabase.storage.from('temuan_images').getPublicUrl(fileName);
-
-                                // Insert ke Tabel Temuan
-                                await supabase.from('Temuan').insert({
-                                  'id_lokasi': widget.idLokasi,
-                                  'id_unit': widget.idUnit,
-                                  'id_subunit': widget.idSubunit,
-                                  'id_area': widget.idArea,
-                                  'judul_temuan': titleCtrl.text,
-                                  'deskripsi_temuan': descCtrl.text,
-                                  'gambar_temuan': imageUrl,
-                                  'status_temuan': 'Open',
-                                  'poin_temuan': 10, // Default Poin
-                                });
-
-                                if (!mounted) return;
-                                Navigator.pop(ctx); // Tutup Dialog
-                                Navigator.pop(context, true); // Kembali ke Home & Refetch
-                              } catch (e) {
-                                debugPrint("Upload error: $e");
-                                setStateModal(() => isUploading = false);
-                              }
-                            },
-                      child: isUploading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text("Upload Temuan", style: TextStyle(color: Colors.white, fontSize: 16)),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              ),
-            ),
-          );
-        }
+    // DIHAPUS: Validasi 24 jam dihapus karena file.lastModified() tidak berfungsi di web.
+    // Anda bisa menambahkan kembali validasi ini dengan logika yang lebih kompleks jika sangat dibutuhkan,
+    // tetapi untuk memperbaiki fungsionalitas inti, kita nonaktifkan dulu.
+    
+    // Langsung navigasi ke AddFindingFlowScreen dengan membawa XFile
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddFindingFlowScreen(
+          lang: widget.lang,
+          isProMode: widget.isProMode,
+          // DIUBAH: Mengirim XFile, bukan File. Nama parameter juga kita ubah.
+          initialImageXFile: imageXFile, 
+          preSelectedLocationName: widget.selectedLocationName,
+          preSelectedLocationId: widget.selectedLocationId,
+          preSelectedUnitId: widget.selectedUnitId,
+          preSelectedSubunitId: widget.selectedSubunitId,
+          preSelectedAreaId: widget.selectedAreaId,
+        ),
       ),
     );
+    
+    if (result == true) {
+      if (mounted) Navigator.pop(context, true);
+    }
   }
 
-  @override
-  void dispose() {
-    _cameraController?.dispose();
-    super.dispose();
+  // AKSI UNTUK MENGAMBIL FOTO DARI KAMERA
+  Future<void> _takePicture() async {
+    if (!_isCameraInitialized || _cameraController == null || _cameraController!.value.isTakingPicture) {
+      return;
+    }
+    
+    try {
+      // Ambil gambar
+      final XFile picture = await _cameraController!.takePicture();
+      // Panggil fungsi navigasi
+      await _navigateToForm(picture);
+    } on CameraException catch (e) {
+      debugPrint("Error taking picture: ${e.code}\n${e.description}");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: ${e.description}")));
+    }
   }
+
+  // AKSI UNTUK MEMILIH GAMBAR DARI GALERI
+  Future<void> _pickFromGallery() async {
+    try {
+      // Ambil gambar
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (image == null) return; // User membatalkan pemilihan
+
+      // Panggil fungsi navigasi yang sama
+      await _navigateToForm(image);
+    } catch (e) {
+      debugPrint("Error picking image: $e");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error picking image: $e")));
+    }
+  }
+
+  // TIDAK ADA LAGI FUNGSI _showUploadDialog, KARENA SUDAH DIHAPUS.
 
   @override
   Widget build(BuildContext context) {
-    if (!_isCameraInitialized) {
-      return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator()));
+    if (!_isCameraInitialized || _cameraController == null) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
     }
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Camera View
-          SizedBox(
-            width: double.infinity,
-            height: double.infinity,
+          Center(
             child: CameraPreview(_cameraController!),
           ),
 
-          // 2. Top Bar (Lokasi & Back Button)
+          // Top Bar (Lokasi & Back Button)
           Positioned(
             top: 0,
             left: 0,
             right: 0,
             child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 child: Row(
                   children: [
                     IconButton(
@@ -253,7 +223,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> {
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  widget.locationName.toUpperCase(),
+                                  widget.selectedLocationName.toUpperCase(),
                                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -263,14 +233,14 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 48),
+                    const SizedBox(width: 48), // Spacer untuk menyeimbangkan tombol back
                   ],
                 ),
               ),
             ),
           ),
 
-          // 3. Bottom Controls
+          // Bottom Controls
           Positioned(
             bottom: 40,
             left: 0,

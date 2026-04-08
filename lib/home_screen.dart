@@ -547,7 +547,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       userLokasiId: _userLokasiId,
                       userRole: _userRole,
                     ),
-                  );
+                  ).then((isSuccess) {
+                    // Logika ini tetap berguna untuk me-refresh data setelah temuan berhasil disimpan
+                    // dan semua layar (form, kamera, lokasi) sudah di-pop.
+                    if (isSuccess == true) {
+                      _fetchUserData(); // Refresh poin
+                      setState(() {}); // Untuk refresh list temuan di home jika ada
+                    }
+                  });
                 },
                 child: Container(
                   height: 60,
@@ -1328,23 +1335,51 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                   // TOMBOL KAMERA
                                   GestureDetector(
                                     onTap: () {
+                                      // --- MODIFIKASI DIMULAI DI SINI ---
                                       int? idL, idU, idS, idA;
+                                      String locationName = itemName;
 
+                                      // Logika untuk mendapatkan ID hierarki
                                       if (_currentLevel == 0) { idL = itemId; }
                                       else if (_currentLevel == 1) { idL = _navigationHistory[0]['id']; idU = itemId; }
                                       else if (_currentLevel == 2) { idL = _navigationHistory[0]['id']; idU = _navigationHistory[1]['id']; idS = itemId; }
                                       else if (_currentLevel == 3) { idL = _navigationHistory[0]['id']; idU = _navigationHistory[1]['id']; idS = _navigationHistory[2]['id']; idA = itemId; }
 
-                                      Navigator.pop(context);
+                                      // Gabungkan nama untuk ditampilkan di kamera (opsional, tapi bagus)
+                                      if (_navigationHistory.isNotEmpty) {
+                                          final path = _navigationHistory.map((e) => e['name']).join(' / ');
+                                          locationName = '$path / $itemName';
+                                      }
+
+                                      // Pop Bottom Sheet terlebih dahulu
+                                      Navigator.pop(context); 
+
+                                      // Navigasi ke CameraFindingScreen dengan membawa semua data yang diperlukan
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                           builder: (_) => CameraFindingScreen(
-                                            locationName: itemName,
-                                            idLokasi: idL, idUnit: idU, idSubunit: idS, idArea: idA,
+                                            lang: widget.lang,
+                                            isProMode: widget.isProMode,
+                                            // Teruskan lokasi yang DIPILIH di bottom sheet
+                                            selectedLocationName: locationName,
+                                            selectedLocationId: idL,
+                                            selectedUnitId: idU,
+                                            selectedSubunitId: idS,
+                                            selectedAreaId: idA,
                                           ),
                                         ),
-                                      );
+                                      ).then((isSuccess) {
+                                          // Jika temuan berhasil disimpan dari flow selanjutnya,
+                                          // kita teruskan sinyal 'true' ke atas (ke HomeScreen).
+                                          if (isSuccess == true) {
+                                            // Coba pop lagi untuk menutup bottom sheet (jika belum tertutup)
+                                            // dan kirim sinyal sukses ke home
+                                            if (Navigator.canPop(context)) {
+                                                Navigator.pop(context, true);
+                                            }
+                                          }
+                                      });
                                     },
                                     child: Container(
                                       padding: const EdgeInsets.all(8),
