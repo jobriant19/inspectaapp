@@ -22,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   String _lang = 'EN';
   bool _isProMode = false;
+  bool _isVisitorMode = false;
 
   // Data User
   String _userName = "Loading...";
@@ -249,8 +250,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     child: const Icon(
                                       Icons.notifications_active_outlined,
-                                      color: Colors.white,
-                                      size: 20,
+                                      color: Colors.black,
+                                      size: 25,
                                     ),
                                   ),
                                 ),
@@ -543,6 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (context) => LocationBottomSheet(
                       lang: _lang,
                       isProMode: _isProMode,
+                      isVisitorMode: _isVisitorMode,
                       userUnitId: _userUnitId,
                       userLokasiId: _userLokasiId,
                       userRole: _userRole,
@@ -728,7 +730,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ==========================================
-          // 1. BAGIAN: INSPEKSI (MODE PROFESIONAL)
+          // 1. BAGIAN INSPEKSI (MODE PROFESIONAL)
           // ==========================================
           if (_userRole == 'Eksekutif') ...[
             Text(
@@ -787,7 +789,64 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
 
           // ==========================================
-          // 2. BAGIAN: TELUSUR & ATUR
+          // 2. BAGIAN MODE VISITOR (UNTUK SEMUA USER)
+          // ==========================================
+          Text(
+            "Laporan Cepat", // atau sesuaikan teksnya
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6F7F9), // Warna berbeda (biru muda)
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.cyan.shade200, width: 1.5),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.visibility_outlined, // Ikon berbeda
+                      color: Color(0xFF1E3A8A),
+                      size: 28,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      "Mode Visitor", // Teks berbeda
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E3A8A),
+                      ),
+                    ),
+                  ],
+                ),
+                Switch.adaptive(
+                  value: _isVisitorMode, // Gunakan state _isVisitorMode
+                  activeColor: Colors.white,
+                  activeTrackColor: Colors.cyan.shade300,
+                  inactiveThumbColor: Colors.white,
+                  inactiveTrackColor: Colors.grey.shade300,
+                  onChanged: (value) {
+                    setState(() {
+                      _isVisitorMode = value; // Update state _isVisitorMode
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 25),
+
+          // ==========================================
+          // 3. BAGIAN TELUSUR & ATUR
           // ==========================================
           Text(
             getHomeTxt('telusur'),
@@ -954,7 +1013,8 @@ class _HomeScreenState extends State<HomeScreen> {
 // ============================================================================
 class LocationBottomSheet extends StatefulWidget {
   final String lang;
-  final bool isProMode; 
+  final bool isProMode;
+  final bool isVisitorMode;
   final int? userUnitId;
   final int? userLokasiId;
   final String userRole;
@@ -963,6 +1023,7 @@ class LocationBottomSheet extends StatefulWidget {
     super.key,
     required this.lang,
     required this.isProMode,
+    required this.isVisitorMode,
     required this.userRole,
     this.userUnitId,
     this.userLokasiId,
@@ -1361,6 +1422,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                           builder: (_) => CameraFindingScreen(
                                             lang: widget.lang,
                                             isProMode: widget.isProMode,
+                                            isVisitorMode: widget.isVisitorMode,
                                             // Teruskan lokasi yang DIPILIH di bottom sheet
                                             selectedLocationName: locationName,
                                             selectedLocationId: idL,

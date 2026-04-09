@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 class AddFindingFlowScreen extends StatefulWidget {
   final String lang;
   final bool isProMode;
+  final bool isVisitorMode;
   final XFile initialImageXFile;
 
   final String? preSelectedLocationName;
@@ -22,6 +23,7 @@ class AddFindingFlowScreen extends StatefulWidget {
     super.key,
       required this.lang,
       required this.isProMode,
+      required this.isVisitorMode,
       required this.initialImageXFile, 
       this.preSelectedLocationName,
       this.preSelectedLocationId,
@@ -208,6 +210,18 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       final user = supabase.auth.currentUser;
       if (user == null) throw 'User not logged in';
 
+      // --- LOGIKA BARU DIMULAI DI SINI ---
+      
+      // Cek apakah user adalah Eksekutif (id_jabatan = 1)
+      final userProfile = await supabase
+          .from('User')
+          .select('id_jabatan')
+          .eq('id_user', user.id)
+          .single();
+      final bool isExecutive = (userProfile['id_jabatan'] == 1);
+      
+      // --- AKHIR LOGIKA BARU ---
+
       // 1. Upload gambar
       final imageBytes = await _imageXFile!.readAsBytes();
       final fileName = '${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -226,7 +240,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'judul_temuan': _titleCtrl.text.trim(),
         'deskripsi_temuan': _notesCtrl.text.trim(),
         'gambar_temuan': imageUrl,
-        'status_temuan': 'Open',
+        'status_temuan': 'Belum Selesai',
         'id_lokasi': _selectedLocation?['id_lokasi'],
         'id_unit': _selectedLocation?['id_unit'],
         'id_subunit': _selectedLocation?['id_subunit'],
@@ -234,17 +248,23 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'id_kategoritemuan': _selectedCategory?['id_kategoritemuan'],
         'id_subkategoritemuan': _selectedCategory?['id_subkategoritemuan'],
         'poin_temuan': _selectedCategory?['poin'] ?? 10,
+        
+        // --- PENAMBAHAN KOLOM BOOLEAN ---
+        'is_pro': widget.isProMode,
+        'is_visitor': widget.isVisitorMode,
+        'is_eksekutif': isExecutive,
+        // --- AKHIR PENAMBAHAN ---
       };
 
       // Tambahkan data Pro Mode jika ada
       if(widget.isProMode) {
         dataToInsert['id_penanggung_jawab'] = _selectedAssignee?['id_user'];
         dataToInsert['target_waktu_selesai'] = _selectedDueDate?.toIso8601String();
-        dataToInsert['level_eskalasi'] = _selectedEscalation;
+        dataToInsert['eskalasi'] = _selectedEscalation;
       }
 
-      // 3. Insert ke tabel Temuan
-      await supabase.from('Temuan').insert(dataToInsert);
+      // 3. Insert ke tabel temuan
+      await supabase.from('temuan').insert(dataToInsert);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_texts['save_success']!), backgroundColor: Colors.green),
@@ -262,7 +282,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           _selectedEscalation = null;
           _isSaving = false;
         });
-        // Kamera akan otomatis re-init karena _imageFile jadi null
       } else {
         // Kembali ke layar sebelumnya (home) dengan status sukses
         if(mounted) Navigator.pop(context, true);
@@ -278,7 +297,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       }
     }
   }
-
 
   //================================================
   // Picker & Dialog Methods
@@ -327,7 +345,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       }
       return details;
   }
-
 
   void _showCategoryPicker() async {
     final result = await showModalBottomSheet<Map<String, dynamic>>(
@@ -778,76 +795,179 @@ class CategoryPickerBottomSheet extends StatefulWidget {
 }
 
 class _CategoryPickerBottomSheetState extends State<CategoryPickerBottomSheet> {
-  Future<List<Map<String, dynamic>>>? _categoriesFuture;
+  // State untuk data, loading, dan search
+  List<Map<String, dynamic>> _allCategories = [];
+  List<Map<String, dynamic>> _filteredCategories = [];
+  bool _isLoading = true;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _categoriesFuture = _fetchCategories();
+    _fetchCategories();
+    _searchController.addListener(_filterCategories);
   }
 
-  Future<List<Map<String, dynamic>>> _fetchCategories() async {
-    final response = await Supabase.instance.client
-        .from('kategoritemuan')
-        .select('*, subkategoritemuan(*)');
-    return List<Map<String, dynamic>>.from(response);
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Mengambil data dari Supabase
+  Future<void> _fetchCategories() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('kategoritemuan')
+          // Ambil data kategori beserta subkategorinya
+          .select('*, subkategoritemuan(*)');
+
+      final data = List<Map<String, dynamic>>.from(response);
+      setState(() {
+        _allCategories = data;
+        _filteredCategories = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Error fetching categories: $e");
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Fungsi untuk filtering berdasarkan input search
+  void _filterCategories() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredCategories = _allCategories.where((category) {
+        final categoryName = category['nama_kategoritemuan'].toString().toLowerCase();
+        final subcategories = List<Map<String, dynamic>>.from(category['subkategoritemuan']);
+        
+        // Tampilkan jika nama kategori utama cocok, ATAU jika salah satu subkategorinya cocok
+        return categoryName.contains(query) || 
+               subcategories.any((sub) => sub['nama_subkategoritemuan'].toString().toLowerCase().contains(query));
+      }).toList();
+    });
+  }
+
+  // BARU: Helper untuk mencocokkan NAMA KATEGORI dengan IKON
+  // Logika ikon sekarang ada di sini, bukan di database.
+  IconData _getIconForCategory(String categoryName) {
+    switch (categoryName) {
+      case 'Ringkas': return Icons.delete_sweep_outlined;
+      case 'Rapi': return Icons.fact_check_outlined;
+      case 'Resik': return Icons.cleaning_services_outlined;
+      case 'Rawat': return Icons.construction_outlined;
+      case 'Tindakan Tidak Aman': return Icons.warning_amber_rounded;
+      case 'Kondisi Tidak Aman': return Icons.dangerous_outlined;
+      case 'Lainnya': return Icons.more_horiz_outlined;
+      default: return Icons.category_outlined; // Ikon default jika tidak ada yang cocok
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // UI baru yang estetik dan fungsional
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.75,
+      height: MediaQuery.of(context).size.height * 0.85,
       child: Column(
         children: [
+          // Header
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: Text(
-              widget.lang == 'ID' ? 'Pilih Kategori Temuan' : 'Select Finding Category',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  widget.lang == 'ID' ? 'Pilih Kategori' : 'Select Category',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                ),
+                IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+              ],
             ),
           ),
-          const Divider(height: 1),
-          Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: _categoriesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(child: Text(widget.lang == 'ID' ? 'Gagal memuat kategori' : 'Failed to load categories'));
-                }
-
-                final categories = snapshot.data!;
-                return ListView.builder(
-                  itemCount: categories.length,
-                  itemBuilder: (context, index) {
-                    final category = categories[index];
-                    final subcategories = List<Map<String, dynamic>>.from(category['subkategoritemuan']);
-                    return ExpansionTile(
-                      leading: const Icon(Icons.label_important_outline),
-                      title: Text(
-                        category['nama_kategoritemuan'],
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      children: subcategories.map((sub) {
-                        return ListTile(
-                          title: Text(sub['nama_subkategoritemuan']),
-                          onTap: () {
-                            Navigator.pop(context, {
-                              'id_kategoritemuan': sub['id_kategoritemuan'],
-                              'id_subkategoritemuan': sub['id_subkategoritemuan'],
-                              'nama': sub['nama_subkategoritemuan'],
-                              'poin': sub['poin_subkategoritemuan'],
-                            });
-                          },
-                        );
-                      }).toList(),
-                    );
-                  },
-                );
-              },
+          
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: widget.lang == 'ID' ? 'Cari kategori...' : 'Search category...',
+                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 20),
+              ),
             ),
+          ),
+
+          // Konten List
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredCategories.isEmpty
+                    ? Center(child: Text(widget.lang == 'ID' ? 'Kategori tidak ditemukan' : 'Category not found'))
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _filteredCategories.length,
+                        itemBuilder: (context, index) {
+                          final category = _filteredCategories[index];
+                          final subcategories = List<Map<String, dynamic>>.from(category['subkategoritemuan']);
+                          
+                          // Custom Card untuk setiap kategori
+                          return Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shadowColor: Colors.blueGrey.withOpacity(0.2),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Header Kategori Utama
+                                  Row(
+                                    children: [
+                                      // Panggil helper untuk mendapatkan ikon berdasarkan nama
+                                      Icon(_getIconForCategory(category['nama_kategoritemuan']), color: const Color(0xFF1E3A8A)),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        category['nama_kategoritemuan'],
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E3A8A)),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(height: 20, thickness: 1),
+                                  
+                                  // List Subkategori
+                                  ...subcategories.map((sub) {
+                                    return ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                                      dense: true,
+                                      title: Text(sub['nama_subkategoritemuan']),
+                                      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                                      onTap: () {
+                                        Navigator.pop(context, {
+                                          'id_kategoritemuan': sub['id_kategoritemuan'],
+                                          'id_subkategoritemuan': sub['id_subkategoritemuan'],
+                                          'nama': sub['nama_subkategoritemuan'],
+                                          'poin': sub['poin_subkategoritemuan'],
+                                        });
+                                      },
+                                    );
+                                  }).toList(),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),

@@ -2,11 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
-import 'add_finding_flow_screen.dart'; // Pastikan path ini benar
+import 'add_finding_flow_screen.dart';
 
 class CameraFindingScreen extends StatefulWidget {
   final String lang;
   final bool isProMode;
+  final bool isVisitorMode;
   
   final String selectedLocationName;
   final int? selectedLocationId;
@@ -18,6 +19,7 @@ class CameraFindingScreen extends StatefulWidget {
     super.key,
     required this.lang,
     required this.isProMode,
+    required this.isVisitorMode,
     required this.selectedLocationName,
     this.selectedLocationId,
     this.selectedUnitId,
@@ -124,6 +126,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
         builder: (context) => AddFindingFlowScreen(
           lang: widget.lang,
           isProMode: widget.isProMode,
+          isVisitorMode: widget.isVisitorMode,
           // DIUBAH: Mengirim XFile, bukan File. Nama parameter juga kita ubah.
           initialImageXFile: imageXFile, 
           preSelectedLocationName: widget.selectedLocationName,
