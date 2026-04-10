@@ -20,6 +20,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   String? _currentUserId;
   int? _userLokasiId;
   int? _userUnitId;
+  int? _userSubunitId;
+  int? _userAreaId;
 
   // Filter yang Diterapkan dari BottomSheet
   Map<String, dynamic>? _appliedLocationFilter;
@@ -69,6 +71,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       'temuan_kosong': 'Belum ada temuan.',
       'temuan_kosong_filter': 'Temuan tidak ditemukan.',
       'memuat': 'Memuat temuan...',
+      'selesai_pada_label': 'Selesai pada',
     },
     'EN': {
       'belum_selesai': 'Unfinished',
@@ -104,6 +107,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       'temuan_kosong': 'No findings yet.',
       'temuan_kosong_filter': 'No findings found.',
       'memuat': 'Loading findings...',
+      'selesai_pada_label': 'Completed on',
     },
     'ZH': {
       'belum_selesai': '未完成',
@@ -139,6 +143,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       'temuan_kosong': '暂无发现。',
       'temuan_kosong_filter': '未找到任何发现。',
       'memuat': '正在加载发现...',
+      'selesai_pada_label': '完成于',
     },
   };
 
@@ -159,7 +164,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
       final response = await Supabase.instance.client
           .from('User')
-          .select('id_lokasi, id_unit')
+          .select('id_lokasi, id_unit, id_subunit, id_area')
           .eq('id_user', user.id)
           .maybeSingle();
 
@@ -168,6 +173,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
           _currentUserId = user.id;
           _userLokasiId = response['id_lokasi'];
           _userUnitId = response['id_unit'];
+          _userSubunitId = response['id_subunit']; 
+          _userAreaId = response['id_area'];
         });
       } else if (mounted) {
         setState(() {
@@ -963,13 +970,31 @@ class _ExploreScreenState extends State<ExploreScreen> {
           query = query.eq('id_penanggung_jawab', _currentUserId!);
           break;
         case 'location':
-          final orFilter = [
-            if (_userLokasiId != null) 'id_lokasi.eq.$_userLokasiId',
-            if (_userUnitId != null) 'id_unit.eq.$_userUnitId',
-          ].join(',');
+          if (_userLokasiId == null) {
+            query = query.filter('id_lokasi', 'is', 'null');
+          } else {
+            query = query.eq('id_lokasi', _userLokasiId!);
+          }
 
-          if (orFilter.isNotEmpty) {
-            query = query.or(orFilter);
+          // 2. Cocokkan id_unit
+          if (_userUnitId == null) {
+            query = query.filter('id_unit', 'is', 'null');
+          } else {
+            query = query.eq('id_unit', _userUnitId!);
+          }
+
+          // 3. Cocokkan id_subunit
+          if (_userSubunitId == null) {
+            query = query.filter('id_subunit', 'is', 'null');
+          } else {
+            query = query.eq('id_subunit', _userSubunitId!);
+          }
+
+          // 4. Cocokkan id_area
+          if (_userAreaId == null) {
+            query = query.filter('id_area', 'is', 'null');
+          } else {
+            query = query.eq('id_area', _userAreaId!);
           }
           break;
         case 'mine':
@@ -1051,15 +1076,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   Widget _buildFindingCard(Map<String, dynamic> data) {
     // --- A. PARSING DATA & VARIABEL DASAR ---
-    final idTemuan = data['id_temuan'];
     final imageUrl = (data['gambar_temuan'] ?? '').toString();
     final title = (data['judul_temuan'] ?? '-').toString();
-    final kategori = data['kategoritemuan']?['nama_kategoritemuan']?.toString() ?? '';
-    final subkategori = data['subkategoritemuan']?['nama_subkategoritemuan']?.toString() ?? '';
     final lokasi = _formatLocation(data);
     final tanggal = _formatDate(data['created_at']);
     final poin = int.tryParse((data['poin_temuan'] ?? 0).toString()) ?? 0;
-    final status = (data['status_temuan'] ?? 'Belum Selesai').toString();
+    final status = (data['status_temuan'] ?? '').toString();
 
     final isPro = data['is_pro'] == true;
     final isVisitor = data['is_visitor'] == true;
@@ -1068,22 +1090,28 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // --- B. LOGIKA STATUS: SELESAI vs BELUM SELESAI ---
     final s = status.toLowerCase();
     final isFinished = [
-      'Selesai',
+      'selesai',
       'done',
       'completed',
+      'closed'
     ].any((e) => s.contains(e));
+    
+    // Perbaikan: Gunakan teks dari kamus bahasa
+    final String statusText = isFinished ? getTxt('selesai') : getTxt('belum_selesai');
 
     late Color statusColor;
     late Color statusBg;
     late IconData statusIcon;
 
     if (isFinished) {
-      statusColor = const Color(0xFF16A34A); // Green-700
-      statusBg = const Color(0xFFF0FDF4); // Green-50
-      statusIcon = Icons.check_circle_rounded;
+      // Perbaikan: Style untuk status "Selesai"
+      statusColor = const Color(0xFF16A34A); // Hijau cerah
+      statusBg = const Color(0xFFF0FDF4); // Latar belakang hijau muda
+      statusIcon = Icons.check_circle_rounded; // Ikon centang
     } else {
-      statusColor = const Color(0xFFDC2626); // Red-600
-      statusBg = const Color(0xFFFEF2F2); // Red-50
+      // Style untuk status "Belum Selesai" (merah)
+      statusColor = const Color(0xFFDC2626);
+      statusBg = const Color(0xFFFEF2F2);
       statusIcon = Icons.pending_actions_rounded;
     }
 
@@ -1091,103 +1119,103 @@ class _ExploreScreenState extends State<ExploreScreen> {
     List<Widget> badges = [];
     List<String> inspectionTypes = [];
 
-    // Kuning untuk Pro
-    if (isPro) {
-      inspectionTypes.add('pro');
-      badges.add(
-        _buildInspectionBadge('PROFESIONAL', const Color.fromARGB(255, 255, 244, 45), Colors.black),
-      );
+    if (isPro) inspectionTypes.add('pro');
+    if (isVisitor) inspectionTypes.add('visitor');
+    if (isEksekutif) inspectionTypes.add('eksekutif');
+
+    if (inspectionTypes.contains('pro')) {
+      badges.add(_buildInspectionBadge('PROFESIONAL', const Color.fromARGB(255, 255, 244, 45), Colors.black));
     }
-    // Biru untuk Visitor
-    if (isVisitor) {
-      inspectionTypes.add('visitor');
-      badges.add(
-        _buildInspectionBadge('VISITOR', const Color(0xFF3B82F6), Colors.white),
-      );
+    if (inspectionTypes.contains('visitor')) {
+      badges.add(_buildInspectionBadge('VISITOR', const Color(0xFF3B82F6), Colors.white));
     }
-    // Merah untuk Eksekutif
-    if (isEksekutif) {
-      inspectionTypes.add('eksekutif');
-      badges.add(
-        _buildInspectionBadge(
-          'EKSEKUTIF',
-          const Color(0xFFEF4444),
-          Colors.white,
-        ),
-      );
+    if (inspectionTypes.contains('eksekutif')) {
+      badges.add(_buildInspectionBadge('EKSEKUTIF', const Color(0xFFEF4444), Colors.white));
     }
 
-    // Menentukan warna border berdasarkan kombinasi
-    final Color borderColor;
-    inspectionTypes
-        .sort(); // Urutkan agar kombinasi konsisten (cth: pro+visitor)
+    inspectionTypes.sort();
     String combinationKey = inspectionTypes.join('+');
 
+    final Color borderColor;
     switch (combinationKey) {
-      // Kombinasi 3
-      case 'eksekutif+pro+visitor':
-        borderColor = const Color(0xFF9333EA);
-        break; // Purple
-      // Kombinasi 2
-      case 'pro+visitor':
-        borderColor = const Color(0xFF16A34A);
-        break; // Green
-      case 'eksekutif+pro':
-        borderColor = const Color(0xFFEA580C);
-        break; // Orange
-      case 'eksekutif+visitor':
-        borderColor = const Color(0xFF2563EB);
-        break; // Indigo
-      // Tunggal
-      case 'pro':
-        borderColor = const Color(0xFFF59E0B);
-        break; // Amber (kuning)
-      case 'visitor':
-        borderColor = const Color(0xFF3B82F6);
-        break; // Blue (biru)
-      case 'eksekutif':
-        borderColor = const Color(0xFFEF4444);
-        break; // Red (merah)
-      // Default
-      default:
-        borderColor = const Color(0xFFF1F5F9); // Warna abu-abu netral
+      case 'eksekutif+pro+visitor': borderColor = const Color(0xFF9333EA); break;
+      case 'pro+visitor': borderColor = const Color(0xFF16A34A); break;
+      case 'eksekutif+pro': borderColor = const Color(0xFFEA580C); break;
+      case 'eksekutif+visitor': borderColor = const Color(0xFF2563EB); break;
+      case 'pro': borderColor = const Color(0xFFF59E0B); break;
+      case 'visitor': borderColor = const Color(0xFF3B82F6); break;
+      case 'eksekutif': borderColor = const Color(0xFFEF4444); break;
+      default: borderColor = const Color(0xFFF1F5F9);
     }
 
-    // --- D. LOGIKA INDIKATOR WAKTU (DEADLINE) ---
+    // --- D. LOGIKA INDIKATOR WAKTU (DEADLINE vs SELESAI) ---
     Widget? timeIndicator;
-    if (!isFinished) {
+
+    if (isFinished) {
+      // PERUBAHAN: Tampilan untuk temuan yang SUDAH selesai
+      String completionDateText = '-';
+      
+      // 1. Ambil data sebagai Map, bukan List. Bisa jadi null jika tidak ada data.
+      final penyelesaianData = data['penyelesaian'] as Map<String, dynamic>?; 
+
+      // 2. Cek apakah Map tersebut tidak null.
+      if (penyelesaianData != null) {
+        // 3. Langsung akses 'tanggal_selesai' dari Map tersebut.
+        completionDateText = _formatDate(penyelesaianData['tanggal_selesai']);
+      }
+      
+      timeIndicator = Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: statusBg, // Latar belakang hijau
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.event_available_rounded, size: 14, color: statusColor),
+            const SizedBox(width: 6),
+            Text(
+              "${getTxt('selesai_pada_label')} $completionDateText",
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: statusColor,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Logika lama (tetap dipertahankan) untuk temuan BELUM selesai
       final deadline = DateTime.tryParse(data['target_waktu_selesai']?.toString() ?? '');
       if (deadline != null) {
         final now = DateTime.now();
         final difference = deadline.difference(now);
-
         Color timeColor;
         String timeText;
         IconData timeIcon;
 
-        if (difference.isNegative) { // Terlewat (isNegative lebih akurat)
+        if (difference.isNegative) { 
           timeColor = Colors.red.shade700;
           timeIcon = Icons.warning_amber_rounded;
-          final selisihTerlewat = difference.abs(); // Ambil nilai absolut untuk perhitungan
-
-          if (selisihTerlewat.inDays > 0) {
-            timeText = "${selisihTerlewat.inDays} ${getTxt('hari_terlewat')}";
-          } else if (selisihTerlewat.inHours > 0) {
-            timeText = "${selisihTerlewat.inHours} ${getTxt('jam_terlewat') ?? 'hours overdue'}";
-          } else {
-            // Jika kurang dari 1 jam, tampilkan menit
-            timeText = "${selisihTerlewat.inMinutes} ${getTxt('menit_terlewat') ?? 'minutes overdue'}";
-          }
-        } else { // Belum terlewat (Tersisa)
+          final selisihTerlewat = difference.abs();
+          if (selisihTerlewat.inDays > 0) timeText = "${selisihTerlewat.inDays} ${getTxt('hari_terlewat')}";
+          else if (selisihTerlewat.inHours > 0) timeText = "${selisihTerlewat.inHours} ${getTxt('jam_terlewat')}";
+          else timeText = "${selisihTerlewat.inMinutes} ${getTxt('menit_terlewat')}";
+        } else {
           final sisaHari = difference.inDays;
-          if (sisaHari == 0) { // Deadline hari ini, tapi belum terlewat jamnya
+          if (sisaHari == 0) {
             timeColor = Colors.orange.shade800;
             timeIcon = Icons.today_rounded;
-            timeText = getTxt('deadline_hari_ini') ?? 'Deadline Today';
-          } else { // Tersisa lebih dari 1 hari
+            timeText = getTxt('deadline_hari_ini');
+          } else {
             timeColor = Colors.green.shade800;
             timeIcon = Icons.timer_outlined;
-            timeText = "$sisaHari ${getTxt('hari_tersisa') ?? 'days left'}";
+            timeText = "$sisaHari ${getTxt('hari_tersisa')}";
           }
         }
 
@@ -1220,24 +1248,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
 
     // --- E. BUILD WIDGET CARD ---
-    return GestureDetector( // <-- WIDGET PEMBUNGKUS BARU
+    return GestureDetector(
       onTap: () {
-        // Aksi navigasi ke halaman detail
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => FindingDetailScreen(
-              initialData: data,
-              lang: widget.lang, // Teruskan bahasa yang aktif
-            ),
-          ),
-        );
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (context) => FindingDetailScreen(initialData: data, lang: widget.lang),
+        ));
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          // Border dinamis berdasarkan tipe inspeksi
           border: Border.all(
             color: borderColor,
             width: borderColor == const Color(0xFFF1F5F9) ? 1.0 : 1.5,
@@ -1257,33 +1278,29 @@ class _ExploreScreenState extends State<ExploreScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // GAMBAR
-                  Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          width: 92,
-                          height: 92,
-                          color: const Color(0xFFF8FAFC),
-                          child: imageUrl.isNotEmpty
-                              ? Image.network(
-                                  imageUrl,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.broken_image_rounded,
-                                    color: Colors.grey,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.image_outlined,
-                                  color: Colors.grey,
-                                  size: 28,
-                                ),
-                        ),
+                  // PERBAIKAN: GAMBAR DENGAN BORDER
+                  Container(
+                    width: 92,
+                    height: 92,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      // Stroke hitam transparan agar tidak terlalu keras
+                      border: Border.all(color: Colors.black.withOpacity(0.15), width: 1.5),
+                    ),
+                    child: ClipRRect(
+                      // Radius lebih kecil agar border tidak tertutup
+                      borderRadius: BorderRadius.circular(12.5),
+                      child: Container(
+                        color: const Color(0xFFF8FAFC),
+                        child: imageUrl.isNotEmpty
+                            ? Image.network(
+                                imageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.grey),
+                              )
+                            : const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
                       ),
-                      // --- BADGE DIPINDAHKAN KE KONTEN KANAN ---
-                    ],
+                    ),
                   ),
                   const SizedBox(width: 12),
 
@@ -1292,7 +1309,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // JUDUL + POIN EKSKLUSIF (DIpertahankan)
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -1311,10 +1327,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
                                   colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)],
@@ -1322,42 +1335,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   end: Alignment.bottomRight,
                                 ),
                                 borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFFEF4444,
-                                    ).withOpacity(0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
+                                boxShadow: [BoxShadow(color: const Color(0xFFEF4444).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))],
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(
-                                    Icons.local_fire_department_rounded,
-                                    size: 14,
-                                    color: Colors.white,
-                                  ),
+                                  const Icon(Icons.local_fire_department_rounded, size: 14, color: Colors.white),
                                   const SizedBox(width: 4),
-                                  Text(
-                                    '$poin',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 13,
-                                    ),
-                                  ),
+                                  Text('$poin', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
                                   const SizedBox(width: 3),
-                                  const Text(
-                                    'Poin',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 10,
-                                    ),
-                                  ),
+                                  const Text('Poin', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 10)),
                                 ],
                               ),
                             ),
@@ -1365,35 +1352,23 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
 
                         const SizedBox(height: 6),
-
-                        // --- Kumpulan Badge Inspeksi DITARUH DI SINI ---
+                        
                         if (badges.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 6.0),
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: badges,
-                            ),
+                            child: Wrap(spacing: 6, runSpacing: 4, children: badges),
                           ),
 
                         Row(
                           children: [
-                            const Icon(
-                              Icons.place_rounded,
-                              size: 14,
-                              color: Color(0xFF94A3B8),
-                            ),
+                            const Icon(Icons.place_rounded, size: 14, color: Color(0xFF94A3B8)),
                             const SizedBox(width: 5),
                             Expanded(
                               child: Text(
                                 lokasi,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  color: Color(0xFF475569),
-                                ),
+                                style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
                               ),
                             ),
                           ],
@@ -1402,37 +1377,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
                         Row(
                           children: [
-                            const Icon(
-                              Icons.calendar_today_rounded,
-                              size: 13,
-                              color: Color(0xFF94A3B8),
-                            ),
+                            const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF94A3B8)),
                             const SizedBox(width: 5),
                             Text(
                               tanggal,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF64748B),
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                             ),
                             const Spacer(),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusBg,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                              decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(20)),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(statusIcon, size: 13, color: statusColor),
                                   const SizedBox(width: 4),
+                                  // PERBAIKAN: Gunakan statusText yang sudah dilokalisasi
                                   Text(
-                                    status,
+                                    statusText,
                                     style: TextStyle(
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w700,
@@ -1450,7 +1412,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ],
               ),
             ),
-            // --- Indikator Waktu (jika ada) ---
             if (timeIndicator != null) timeIndicator,
           ],
         ),

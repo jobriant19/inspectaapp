@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'account_screen.dart';
 import 'explore_screen.dart';
 import 'analytics_screen.dart';
 import 'notification_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'ranking_screen.dart';
-import 'profile_screen.dart';
 import 'camera_finding_screen.dart';
 import 'location_screen.dart';
 import 'dart:ui';
@@ -23,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _lang = 'EN';
   bool _isProMode = false;
   bool _isVisitorMode = false;
+  bool _isLoadingVisitorStatus = true;
 
   // Data User
   String _userName = "Loading...";
@@ -39,14 +40,28 @@ class _HomeScreenState extends State<HomeScreen> {
       'explore': 'Explore',
       'analytics': 'Analytics',
       'ranking': 'Ranking',
+      'visitor_on': 'Visitor Mode Activated',
+      'visitor_off': 'Visitor Mode Deactivated',
+      'update_failed': 'Update Failed',
     },
     'ID': {
       'home': 'Beranda',
       'explore': 'Telusuri',
       'analytics': 'Analitik',
       'ranking': 'Peringkat',
+      'visitor_on': 'Mode Pengunjung Diaktifkan',
+      'visitor_off': 'Mode Pengunjung Dinonaktifkan',
+      'update_failed': 'Gagal Memperbarui',
     },
-    'ZH': {'home': '主页', 'explore': '探索', 'analytics': '分析', 'ranking': '排名'},
+    'ZH': {
+      'home': '主页', 
+      'explore': '探索', 
+      'analytics': '分析', 
+      'ranking': '排名',
+      'visitor_on': '访客模式已激活',
+      'visitor_off': '访客模式已停用',
+      'update_failed': '更新失败',
+    },
   };
 
   @override
@@ -54,6 +69,61 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadLanguage();
     _fetchUserData();
+    _loadInitialVisitorStatus();
+  }
+
+  // Mode Visitor (is_visitor)
+  Future<void> _loadInitialVisitorStatus() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final data = await Supabase.instance.client
+          .from('User')
+          .select('is_visitor')
+          .eq('id_user', userId)
+          .single();
+      
+      if (mounted) {
+        setState(() {
+          _isVisitorMode = data['is_visitor'] ?? false;
+          _isLoadingVisitorStatus = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading visitor status: $e');
+      if (mounted) setState(() => _isLoadingVisitorStatus = false);
+    }
+  }
+
+  Future<void> _updateVisitorStatus(bool isVisitor) async {
+    setState(() {
+      _isVisitorMode = isVisitor;
+    });
+
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      await Supabase.instance.client
+          .from('User')
+          .update({'is_visitor': isVisitor})
+          .eq('id_user', userId);
+
+      _showCustomDialog(
+        title: isVisitor ? getTxt('visitor_on') : getTxt('visitor_off'),
+        imagePath: isVisitor 
+            ? 'assets/images/visitor_on.png'   
+            : 'assets/images/visitor_off.png',
+      );
+
+    } catch (e) {
+      debugPrint('Error updating visitor status: $e');
+      _showCustomDialog(
+        title: getTxt('update_failed'),
+        imagePath: 'assets/images/failed.png', 
+      );
+    }
   }
 
   Future<void> _loadLanguage() async {
@@ -260,8 +330,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                 // Foto Profil Saja Bisa Klik untuk ke Profile Screen
                                 GestureDetector(
                                   onTap: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(lang: _lang)))
-                                    .then((_) => _fetchUserData());
+                                    // PERUBAHAN: Arahkan ke AccountScreen yang baru
+                                    Navigator.push(context, MaterialPageRoute(builder: (_) => AccountScreen(lang: _lang)))
+                                    // Refresh data setelah kembali (jika ada perubahan nama/bahasa)
+                                    .then((_) {
+                                      _loadLanguage();
+                                      _fetchUserData();
+                                    });
                                   },
                                   child: Container(
                                     decoration: BoxDecoration(
@@ -621,6 +696,8 @@ class _HomeScreenState extends State<HomeScreen> {
       'EN': {
         'inspeksi': 'Inspection',
         'pro_mode': 'Professional Mode',
+        'visitor_mode': 'Visitor Mode',
+        'laporan_cepat': 'Quick Report',
         'telusur': 'Browse & Manage',
         'lokasi': 'Location',
         'laporan': 'Accident Report',
@@ -629,6 +706,8 @@ class _HomeScreenState extends State<HomeScreen> {
       'ID': {
         'inspeksi': 'Inspeksi',
         'pro_mode': 'Mode Profesional',
+        'visitor_mode': 'Mode Pengunjung',
+        'laporan_cepat': 'Laporan Cepat',
         'telusur': 'Telusur & Atur',
         'lokasi': 'Lokasi',
         'laporan': 'Laporan Kecelakaan',
@@ -637,6 +716,8 @@ class _HomeScreenState extends State<HomeScreen> {
       'ZH': {
         'inspeksi': '检查', // Jiǎnchá
         'pro_mode': '专业模式', // Zhuānyè móshì
+        'visitor_mode': '访客模式',
+        'laporan_cepat': '快速报告',
         'telusur': '浏览与管理', // Liúlǎn yǔ guǎnlǐ
         'lokasi': '地点', // Dìdiǎn
         'laporan': '事故报告', // Shìgù bàogào
@@ -649,7 +730,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Future Builder untuk mengambil daftar Temuan
     Widget recentFindingsWidget = FutureBuilder<List<dynamic>>(
       future: Supabase.instance.client
-          .from('Temuan')
+          .from('temuan')
           .select('judul_temuan, gambar_temuan, status_temuan, created_at, lokasi(nama_lokasi)')
           .order('created_at', ascending: false)
           .limit(5), 
@@ -792,7 +873,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // 2. BAGIAN MODE VISITOR (UNTUK SEMUA USER)
           // ==========================================
           Text(
-            "Laporan Cepat", // atau sesuaikan teksnya
+            getHomeTxt('laporan_cepat'),
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -810,7 +891,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
                     Icon(
                       Icons.visibility_outlined, // Ikon berbeda
@@ -819,7 +900,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     SizedBox(width: 12),
                     Text(
-                      "Mode Visitor", // Teks berbeda
+                      getHomeTxt('visitor_mode'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -829,15 +910,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 Switch.adaptive(
-                  value: _isVisitorMode, // Gunakan state _isVisitorMode
+                  value: _isVisitorMode,
                   activeColor: Colors.white,
                   activeTrackColor: Colors.cyan.shade300,
                   inactiveThumbColor: Colors.white,
                   inactiveTrackColor: Colors.grey.shade300,
                   onChanged: (value) {
-                    setState(() {
-                      _isVisitorMode = value; // Update state _isVisitorMode
-                    });
+                    _updateVisitorStatus(value);
                   },
                 ),
               ],
@@ -1004,6 +1083,61 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // Notifikasi Mode Visitor
+  void _showCustomDialog({required String title, required String imagePath}) {
+    showDialog(
+      context: context,
+      barrierDismissible: true, // Boleh ditutup dengan klik di luar dialog
+      builder: (BuildContext context) {
+        // Hilangkan dialog secara otomatis setelah beberapa detik
+        Future.delayed(const Duration(seconds: 2), () {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        });
+        
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset(
+                  imagePath,
+                  height: 100,
+                  width: 100,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      imagePath.contains('success') ? Icons.check_circle_outline : Icons.error_outline,
+                      size: 80,
+                      color: imagePath.contains('success') ? Colors.green : Colors.red,
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E3A8A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1423,7 +1557,6 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                             lang: widget.lang,
                                             isProMode: widget.isProMode,
                                             isVisitorMode: widget.isVisitorMode,
-                                            // Teruskan lokasi yang DIPILIH di bottom sheet
                                             selectedLocationName: locationName,
                                             selectedLocationId: idL,
                                             selectedUnitId: idU,

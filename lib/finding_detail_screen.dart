@@ -335,7 +335,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                       const SizedBox(height: 20),
                       _buildDetailedInfoSection(data),
                       const SizedBox(height: 24),
-                      _buildFindingInfoGrid(data), // <-- Sekarang sudah benar
+                      _buildFindingInfoGrid(data),
                       const SizedBox(height: 24),
                       
                       if (isFinished && resolutionData != null)
@@ -893,11 +893,11 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               child: ElevatedButton(
                 onPressed: () => _finishFinding(),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF16A34A),
+                  backgroundColor: const Color.fromARGB(255, 21, 252, 71),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: Text(_texts['finish']!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: Text(_texts['finish']!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
               ),
             ),
             const SizedBox(height: 8),
@@ -906,7 +906,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               child: OutlinedButton(
                 onPressed: () => _finishFinding(createNewAfter: true),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF16A34A)),
+                  side: const BorderSide(color: Color.fromARGB(255, 21, 252, 71)),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),

@@ -240,7 +240,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'judul_temuan': _titleCtrl.text.trim(),
         'deskripsi_temuan': _notesCtrl.text.trim(),
         'gambar_temuan': imageUrl,
-        'status_temuan': 'Belum Selesai',
+        'status_temuan': 'Belum',
         'id_lokasi': _selectedLocation?['id_lokasi'],
         'id_unit': _selectedLocation?['id_unit'],
         'id_subunit': _selectedLocation?['id_subunit'],
