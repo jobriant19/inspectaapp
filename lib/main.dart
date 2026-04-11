@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'splash_screen.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,6 +12,7 @@ Future<void> main() async {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtieGx5aXJpaHlwemV4Ymx5Z3pwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NzgyMjYsImV4cCI6MjA5MDU1NDIyNn0.fIML1z3tAT1ws5FyAPDXp7BFwGxRC_GuRtFyCJouYiA',
   );
 
+  await initializeDateFormatting('id_ID', null);
   runApp(const InspectaApp());
 }
 
