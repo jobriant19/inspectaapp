@@ -10,9 +10,9 @@ class ExploreScreen extends StatefulWidget {
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> {
-  // State untuk Tab Aktif (0: Belum Selesai, 1: Selesai)
-  int _activeTab = 0;
+class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProviderStateMixin {
+
+  late TabController _tabController;
 
   // State untuk Filter Chips
   String _activeChip = '';
@@ -152,9 +152,25 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    
+    // BARU: Listener yang paling andal
+    _tabController.addListener(() {
+      // Cek jika animasi sudah selesai DAN tab-nya bukan yang sebelumnya
+      if (!_tabController.indexIsChanging) {
+          _loadFindings(); // Panggil _loadFindings setiap kali tab selesai berpindah
+      }
+    });
+
     _fetchInitialUserData().then((_) {
       _loadFindings();
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchInitialUserData() async {
@@ -192,14 +208,25 @@ class _ExploreScreenState extends State<ExploreScreen> {
       children: [
         // 1. TABS: Belum Selesai | Selesai
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
-          ),
-          child: Row(
-            children: [
-              _buildTabItem(getTxt('belum_selesai'), 0),
-              _buildTabItem(getTxt('selesai'), 1),
+          color: Colors.white, // Latar belakang putih untuk TabBar
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+          child: TabBar(
+            controller: _tabController,
+            isScrollable: false, // Karena hanya ada 2 tab
+            tabAlignment: TabAlignment.fill,
+            indicator: BoxDecoration(
+              color: const Color(0xFF0EA5E9), // Warna biru dari AnalyticsScreen
+              borderRadius: BorderRadius.circular(8),
+            ),
+            indicatorSize: TabBarIndicatorSize.tab,
+            labelColor: Colors.white,
+            unselectedLabelColor: const Color(0xFF0EA5E9), // Warna biru
+            labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            dividerColor: Colors.transparent,
+            tabs: [
+              Tab(text: getTxt('belum_selesai')),
+              Tab(text: getTxt('selesai')),
             ],
           ),
         ),
@@ -343,43 +370,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  // --- WIDGET HELPER UNTUK TABS ---
-  Widget _buildTabItem(String title, int index) {
-    bool isActive = _activeTab == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _activeTab = index);
-          _loadFindings();
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isActive ? const Color(0xFF1E3A8A) : Colors.transparent,
-                width: 3,
-              ),
-            ),
-          ),
-          child: Center(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                color: isActive
-                    ? const Color(0xFF1E3A8A)
-                    : Colors.grey.shade500,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -931,10 +921,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _loadFindings() {
-    _findingsFuture = _fetchFindings();
+    setState(() {
+      _findingsFuture = _fetchFindings();
+    });
   }
 
-  Future<List<Map<String, dynamic>>> _fetchFindings() async {
+  // GANTI SELURUH FUNGSI _fetchFindings DENGAN INI
+Future<List<Map<String, dynamic>>> _fetchFindings() async {
+  try {
     // 1. Tentukan query dasar dengan select()
     var query = Supabase.instance.client.from('temuan').select('''
           id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan,
@@ -952,15 +946,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
     // 2. Terapkan semua filter satu per satu ke query
 
     // Filter Tab (Belum Selesai / Selesai)
-    final finishedStatus = ['Closed', 'Selesai', 'done', 'completed'];
-    if (_activeTab == 0) {
-      query = query.not('status_temuan', 'in', '(${finishedStatus.join(',')})');
+    if (_tabController.index == 0) {
+      query = query.neq('status_temuan', 'Selesai');
     } else {
-      query = query.filter(
-        'status_temuan',
-        'in',
-        '(${finishedStatus.join(',')})',
-      );
+      query = query.eq('status_temuan', 'Selesai');
     }
 
     // Filter Chips
@@ -969,34 +958,44 @@ class _ExploreScreenState extends State<ExploreScreen> {
         case 'assigned':
           query = query.eq('id_penanggung_jawab', _currentUserId!);
           break;
-        case 'location':
-          if (_userLokasiId == null) {
-            query = query.filter('id_lokasi', 'is', 'null');
-          } else {
-            query = query.eq('id_lokasi', _userLokasiId!);
-          }
+        // GANTI BLOK 'case location' DENGAN INI
+case 'location':
+  // Logika OR yang kompleks untuk mencocokkan hierarki lokasi.
+  // Pengguna level atas bisa melihat temuan di bawahnya yang tidak spesifik.
+  
+  final List<String> orFilters = [];
 
-          // 2. Cocokkan id_unit
-          if (_userUnitId == null) {
-            query = query.filter('id_unit', 'is', 'null');
-          } else {
-            query = query.eq('id_unit', _userUnitId!);
-          }
+  // Kondisi 1: Cocokkan temuan di level LOKASI
+  // Hanya berlaku jika temuan tersebut tidak punya unit/subunit/area spesifik.
+  if (_userLokasiId != null) {
+    orFilters.add('and(id_lokasi.eq.$_userLokasiId,id_unit.is.null,id_subunit.is.null,id_area.is.null)');
+  }
+  
+  // Kondisi 2: Cocokkan temuan di level UNIT
+  // Hanya berlaku jika temuan tersebut tidak punya subunit/area spesifik.
+  if (_userUnitId != null) {
+    orFilters.add('and(id_unit.eq.$_userUnitId,id_subunit.is.null,id_area.is.null)');
+  }
+  
+  // Kondisi 3: Cocokkan temuan di level SUBUNIT
+  // Hanya berlaku jika temuan tersebut tidak punya area spesifik.
+  if (_userSubunitId != null) {
+    orFilters.add('and(id_subunit.eq.$_userSubunitId,id_area.is.null)');
+  }
+  
+  // Kondisi 4: Cocokkan temuan di level AREA (paling spesifik)
+  if (_userAreaId != null) {
+    orFilters.add('id_area.eq.$_userAreaId');
+  }
 
-          // 3. Cocokkan id_subunit
-          if (_userSubunitId == null) {
-            query = query.filter('id_subunit', 'is', 'null');
-          } else {
-            query = query.eq('id_subunit', _userSubunitId!);
-          }
-
-          // 4. Cocokkan id_area
-          if (_userAreaId == null) {
-            query = query.filter('id_area', 'is', 'null');
-          } else {
-            query = query.eq('id_area', _userAreaId!);
-          }
-          break;
+  // Terapkan filter OR jika ada kondisi yang bisa diterapkan
+  if (orFilters.isNotEmpty) {
+    query = query.or(orFilters.join(','));
+  } else {
+    // Jika pengguna tidak punya info lokasi sama sekali, jangan tampilkan apa-apa.
+    query = query.eq('id_temuan', -1);
+  }
+  break;
         case 'mine':
           query = query.eq('id_user', _currentUserId!);
           break;
@@ -1029,16 +1028,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
 
     // 3. Terapkan Urutan (Sorting)
-    // NullsLast penting untuk deadline agar temuan tanpa deadline tidak muncul di atas
     switch (_appliedSortOrder) {
       case 'terlama':
         query.order('created_at', ascending: true);
         break;
-
       case 'deadline':
         query.order('target_waktu_selesai', ascending: true, nullsFirst: false);
         break;
-
       case 'terbaru':
       default:
         query.order('created_at', ascending: false);
@@ -1046,10 +1042,29 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
 
     // 4. Eksekusi query final
-    // Hasil dari eksekusi adalah List<Map<String, dynamic>>
     final response = await query;
+
+    // --- BLOK DEBUGGING YANG AMAN ---
+    // Cek apakah kita sedang memfilter untuk user level atas di tab Finished
+    if (_tabController.index == 1 && _activeChip == 'location' && _userUnitId == null) {
+      print("--- DEBUG: HASIL QUERY UNTUK USER LOKASI DI TAB FINISHED ---");
+      print("Jumlah data yang kembali: ${response.length}");
+      if (response.isNotEmpty) {
+        print("Contoh data: ${response.first}");
+      }
+      print("---------------------------------------------------------");
+    }
+    // --- AKHIR BLOK DEBUGGING ---
+
+    // 5. Kembalikan hasil yang sudah pasti
     return response;
+
+  } catch (error) {
+    // Jika terjadi error saat query, print error dan kembalikan list kosong
+    debugPrint("Terjadi kesalahan saat fetch findings: $error");
+    return []; // Mengembalikan list kosong adalah cara aman menangani error
   }
+}
 
   String _formatLocation(Map<String, dynamic> item) {
     if (item['area'] != null && item['area']['nama_area'] != null) {
@@ -1467,12 +1482,6 @@ class _FilterLocationBottomSheetState extends State<FilterLocationBottomSheet> {
   String _getNameColumn(int level) => 'nama_${_getTableName(level)}';
   String _getChildColumn(int level) =>
       level < 3 ? ['unit', 'subunit', 'area'][level] : '';
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchData();
-  }
 
   Future<void> _fetchData({int? parentId}) async {
     setState(() => _isLoading = true);

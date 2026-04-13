@@ -56,5 +56,9 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Aplikasi ini memerlukan akses kamera untuk memindai QR code lokasi.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Aplikasi ini memerlukan akses galeri untuk memilih gambar QR code.</string>
 </dict>
 </plist>

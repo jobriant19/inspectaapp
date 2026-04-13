@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'qr_generator_screen.dart';
 
 class LocationScreen extends StatefulWidget {
   final String lang;
@@ -47,7 +49,7 @@ class _LocationScreenState extends State<LocationScreen> {
       List<dynamic> data = [];
 
       if (_currentLevel == 0) {
-        var query = supabase.from('lokasi').select('id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, kategori, is_star, id_pic, User!id_pic(nama), unit(id_unit)');
+        var query = supabase.from('lokasi').select('id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, kategori, is_star, id_pic, User!id_pic(nama), unit(id_unit), qrcode');
         
         if (_isLokasiSaya && widget.userLokasiId != null) {
           query = query.eq('id_lokasi', widget.userLokasiId!);
@@ -57,19 +59,19 @@ class _LocationScreenState extends State<LocationScreen> {
       else if (_currentLevel == 1) {
         if (_isLokasiSaya || !_hasFullAccess) {
           if (widget.userUnitId != null) {
-            data = await supabase.from('unit').select('id_unit, nama_unit, gambar_unit, deskripsi_unit, kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit)').eq('id_lokasi', parentId!).eq('id_unit', widget.userUnitId!);
+            data = await supabase.from('unit').select('id_unit, nama_unit, gambar_unit, deskripsi_unit, kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), qrcode').eq('id_lokasi', parentId!).eq('id_unit', widget.userUnitId!);
           } else {
             data = [];
           }
         } else {
-          data = await supabase.from('unit').select('id_unit, nama_unit, gambar_unit, deskripsi_unit, kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit)').eq('id_lokasi', parentId!);
+          data = await supabase.from('unit').select('id_unit, nama_unit, gambar_unit, deskripsi_unit, kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), qrcode').eq('id_lokasi', parentId!);
         }
       } 
       else if (_currentLevel == 2) {
-        data = await supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, kategori, is_star, id_pic, User!id_pic(nama), area(id_area)').eq('id_unit', parentId!);
+        data = await supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, kategori, is_star, id_pic, User!id_pic(nama), area(id_area), qrcode').eq('id_unit', parentId!);
       } 
       else if (_currentLevel == 3) {
-        data = await supabase.from('area').select('id_area, nama_area, gambar_area, deskripsi_area, kategori, is_star, id_pic, User!id_pic(nama)').eq('id_subunit', parentId!);
+        data = await supabase.from('area').select('id_area, nama_area, gambar_area, deskripsi_area, kategori, is_star, id_pic, User!id_pic(nama), qrcode').eq('id_subunit', parentId!);
       }
 
       if (mounted) {
@@ -545,9 +547,9 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
 
   // Kamus Bahasa Lokal
   final Map<String, Map<String, String>> bsTxt = {
-    'EN': {'info': 'Info', 'anggota': 'Members', 'cari_anggota': 'Search member...', 'kategori': 'Category', 'pic': 'Person in Charge', 'deskripsi': 'Description', 'tdk_ada': 'No description available', 'kosong': 'No members found'},
-    'ID': {'info': 'Info', 'anggota': 'Anggota', 'cari_anggota': 'Cari anggota...', 'kategori': 'Kategori', 'pic': 'Penanggung Jawab', 'deskripsi': 'Deskripsi', 'tdk_ada': 'Tidak ada deskripsi tersedia', 'kosong': 'Belum ada anggota'},
-    'ZH': {'info': '信息', 'anggota': '成员', 'cari_anggota': '搜索成员...', 'kategori': '类别', 'pic': '负责人', 'deskripsi': '描述', 'tdk_ada': '没有可用描述', 'kosong': '未找到成员'},
+    'EN': {'info': 'Info', 'anggota': 'Members', 'cari_anggota': 'Search member...', 'kategori': 'Category', 'pic': 'Person in Charge', 'deskripsi': 'Description', 'tdk_ada': 'No description available', 'kosong': 'No members found', 'generate_qr': 'Generate QR Code', 'qr_not_generated': 'QR Code has not been generated yet.'},
+    'ID': {'info': 'Info', 'anggota': 'Anggota', 'cari_anggota': 'Cari anggota...', 'kategori': 'Kategori', 'pic': 'Penanggung Jawab', 'deskripsi': 'Deskripsi', 'tdk_ada': 'Tidak ada deskripsi tersedia', 'kosong': 'Belum ada anggota', 'generate_qr': 'Buat Kode QR', 'qr_not_generated': 'Kode QR belum dibuat.'},
+    'ZH': {'info': '信息', 'anggota': '成员', 'cari_anggota': '搜索成员...', 'kategori': '类别', 'pic': '负责人', 'deskripsi': '描述', 'tdk_ada': '没有可用描述', 'kosong': '未找到成员', 'generate_qr': '生成二维码', 'qr_not_generated': '二维码尚未生成。'},
   };
   String getTxt(String key) => bsTxt[widget.lang]?[key] ?? key;
 
@@ -621,49 +623,125 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
             color: Colors.white,
             child: Row(
               children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _tabIndex = 0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _tabIndex == 0 ? const Color(0xFF00C9E4) : Colors.transparent, width: 3))),
-                      child: Center(
-                        child: Text(
-                          getTxt('info'), 
-                          style: TextStyle(fontSize: 15, fontWeight: _tabIndex == 0 ? FontWeight.w800 : FontWeight.w600, color: _tabIndex == 0 ? const Color(0xFF1E3A8A) : Colors.grey.shade500)
-                        )
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _tabIndex = 1),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _tabIndex == 1 ? const Color(0xFF00C9E4) : Colors.transparent, width: 3))),
-                      child: Center(
-                        child: Text(
-                          getTxt('anggota'), 
-                          style: TextStyle(fontSize: 15, fontWeight: _tabIndex == 1 ? FontWeight.w800 : FontWeight.w600, color: _tabIndex == 1 ? const Color(0xFF1E3A8A) : Colors.grey.shade500)
-                        )
-                      ),
-                    ),
-                  ),
-                ),
+                _buildTabItem(getTxt('info'), 0),
+                _buildTabItem(getTxt('anggota'), 1),
+                _buildTabItem(getTxt('qrcode'), 2),
               ],
             ),
           ),
 
           // Konten Tab
           Expanded(
-            child: _tabIndex == 0 
-              ? _buildInfoTab(tName) 
-              : _buildAnggotaTab(idCol, widget.data[idCol]),
+            child: IndexedStack(
+              index: _tabIndex,
+              children: [
+                _buildInfoTab(tName),
+                _buildAnggotaTab(idCol, widget.data[idCol]),
+                _buildQrTab(tName), 
+              ],
+            )
           )
         ],
       ),
     );
+  }
+
+  Widget _buildTabItem(String title, int index) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _tabIndex = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _tabIndex == index ? const Color(0xFF00C9E4) : Colors.transparent, width: 3))),
+          child: Center(
+            child: Text(
+              title, 
+              style: TextStyle(fontSize: 15, fontWeight: _tabIndex == index ? FontWeight.w800 : FontWeight.w600, color: _tabIndex == index ? const Color(0xFF1E3A8A) : Colors.grey.shade500)
+            )
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQrTab(String tName) {
+      final qrCodeData = widget.data['qrcode'];
+
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(30.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (qrCodeData != null && qrCodeData.isNotEmpty)
+                // Jika QR code sudah ada, tampilkan
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(color: Colors.grey.withOpacity(0.2), spreadRadius: 2, blurRadius: 8),
+                    ],
+                  ),
+                  child: QrImageView(
+                    data: qrCodeData,
+                    version: QrVersions.auto,
+                    size: 220.0,
+                  ),
+                )
+              else
+                // Jika QR code belum ada, tampilkan tombol generate
+                Column(
+                  children: [
+                    const Icon(Icons.qr_code_scanner, size: 80, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    Text(
+                      getTxt('qr_not_generated'),
+                      style: const TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add_circle_outline),
+                      label: Text(getTxt('generate_qr')),
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => QRGeneratorScreen(
+                              lang: widget.lang,
+                              levelName: tName,
+                              levelId: widget.data['id_$tName'],
+                              itemName: widget.data['nama_$tName'],
+                            ),
+                          ),
+                        );
+                        // Jika generator berhasil menyimpan, refresh data
+                        if (result == true && mounted) {
+                          final refreshedData = await Supabase.instance.client
+                              .from(tName)
+                              .select('*, User!id_pic(nama)')
+                              .eq('id_$tName', widget.data['id_$tName'])
+                              .single();
+                          setState(() {
+                            // Update data lokal dengan data baru dari DB
+                            widget.data.addAll(refreshedData);
+                          });
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C9E4),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                    )
+                  ],
+                ),
+            ],
+          ),
+        ),
+      );
   }
 
   Widget _buildInfoTab(String tName) {

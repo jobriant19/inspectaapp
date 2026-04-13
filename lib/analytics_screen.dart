@@ -82,6 +82,105 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   late TabController _tabController;
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  final Map<String, Map<String, String>> _texts = {
+    'ID': {
+      'anggota': 'Anggota',
+      'inspeksi': 'Inspeksi',
+      'lokasi': 'Lokasi',
+      'temuan_berulang': 'Temuan Berulang',
+      'memuat_data': 'Memuat data...',
+      'diperbarui_pada': 'Terakhir diperbarui pada',
+      'semua_grup': 'Semua Grup',
+      'gagal_muat_anggota': 'Gagal memuat data Anggota',
+      'gagal_muat_inspeksi': 'Gagal memuat data Inspeksi',
+      'gagal_muat_lokasi': 'Gagal memuat data Lokasi',
+      'tidak_ada_data_anggota': 'Tidak ada data anggota.',
+      'tidak_ada_temuan_role': 'Tidak ada temuan untuk role',
+      'tidak_ada_data_level': 'Tidak ada data untuk level',
+      'nama': 'Nama',
+      'temuan': 'Temuan',
+      'selesai': 'Selesai',
+      'target_bulanan': 'Target Bulanan',
+      'saya': 'Saya',
+      'rank': 'Rank',
+      'periode_audit': 'Periode audit: ',
+      'topik': 'Topik',
+      'belum_memiliki_temuan': 'belum\nmemiliki temuan berulang',
+      'eksekutif': 'Eksekutif',
+      'profesional': 'Profesional',
+      'visitor': 'Visitor',
+      'level_lokasi': 'Lokasi',
+      'level_unit': 'Unit',
+      'level_subunit': 'Subunit',
+      'level_area': 'Area',
+    },
+    'EN': {
+      'anggota': 'Members',
+      'inspeksi': 'Inspection',
+      'lokasi': 'Location',
+      'temuan_berulang': 'Recurring Findings',
+      'memuat_data': 'Loading data...',
+      'diperbarui_pada': 'Last updated at',
+      'semua_grup': 'All Groups',
+      'gagal_muat_anggota': 'Failed to load Member data',
+      'gagal_muat_inspeksi': 'Failed to load Inspection data',
+      'gagal_muat_lokasi': 'Failed to load Location data',
+      'tidak_ada_data_anggota': 'No member data available.',
+      'tidak_ada_temuan_role': 'No findings for role',
+      'tidak_ada_data_level': 'No data for level',
+      'nama': 'Name',
+      'temuan': 'Findings',
+      'selesai': 'Completed',
+      'target_bulanan': 'Monthly Target',
+      'saya': 'Me',
+      'rank': 'Rank',
+      'periode_audit': 'Audit period: ',
+      'topik': 'Topic',
+      'belum_memiliki_temuan': 'does not have\nrecurring findings yet',
+      'eksekutif': 'Executive',
+      'profesional': 'Professional',
+      'visitor': 'Visitor',
+      'level_lokasi': 'Location',
+      'level_unit': 'Unit',
+      'level_subunit': 'Sub-unit',
+      'level_area': 'Area',
+    },
+    'ZH': {
+      'anggota': '成员',
+      'inspeksi': '检查',
+      'lokasi': '位置',
+      'temuan_berulang': '重复发现',
+      'memuat_data': '加载数据...',
+      'diperbarui_pada': '最后更新于',
+      'semua_grup': '所有组',
+      'gagal_muat_anggota': '加载成员数据失败',
+      'gagal_muat_inspeksi': '加载检查数据失败',
+      'gagal_muat_lokasi': '加载位置数据失败',
+      'tidak_ada_data_anggota': '没有成员数据。',
+      'tidak_ada_temuan_role': '没有角色的发现',
+      'tidak_ada_data_level': '没有级别的数据',
+      'nama': '名称',
+      'temuan': '发现',
+      'selesai': '已完成',
+      'target_bulanan': '每月目标',
+      'saya': '我',
+      'rank': '排名',
+      'periode_audit': '审计期间: ',
+      'topik': '话题',
+      'belum_memiliki_temuan': '还没有\n重复的发现',
+      'eksekutif': '行政',
+      'profesional': '专业',
+      'visitor': '访客',
+      'level_lokasi': '位置',
+      'level_unit': '单元',
+      'level_subunit': '子单元',
+      'level_area': '区域',
+    },
+  };
+
+  // BARU: Tambahkan fungsi helper getTxt
+  String getTxt(String key) => _texts[widget.lang]?[key] ?? key;
+
   // ─── State untuk Filter ──────────────────────────────────────────────────
   String _selectedMonth = 'Apr';
   int _selectedUnitId = 0;
@@ -95,14 +194,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Future<List<LocationData>>? _lokasiFuture;
   List<Map<String, dynamic>> _unitList = [];
 
-  // ─── Pilihan Filter ──────────────────────────────────────────────────────
-  final List<String> _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
-  ];
-  final List<String> _groups = ['Semua Grup', 'Support', 'Engineering', 'Produksi'];
-  final List<String> _roles = ['Eksekutif', 'Profesional', 'Visitor'];
-  final List<String> _locationLevels = ['Lokasi', 'Unit', 'Subunit', 'Area']; // Opsi baru
+  late List<String> _translatedMonths;
+  late List<String> _translatedRoles;
+  late List<String> _translatedLocationLevels;
 
   @override
   void initState() {
@@ -112,6 +206,52 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       // Setelah daftar unit didapat, baru ambil data lainnya
       _fetchAllData();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _initLocaleDependentLists();
+  }
+
+  void _initLocaleDependentLists() {
+    final locale = widget.lang == 'ID' ? 'id_ID' : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
+
+    // Inisialisasi daftar bulan
+    _translatedMonths = List.generate(12, (i) {
+      return DateFormat.MMM(locale).format(DateTime(2000, i + 1));
+    });
+    // Set bulan terpilih ke bulan saat ini jika belum di-set
+    if (!_translatedMonths.contains(_selectedMonth)) {
+      _selectedMonth = DateFormat.MMM(locale).format(DateTime.now());
+    }
+
+    // Inisialisasi daftar role
+    final rolesBackend = ['Eksekutif', 'Profesional', 'Visitor'];
+    _translatedRoles = [
+      getTxt('eksekutif'),
+      getTxt('profesional'),
+      getTxt('visitor'),
+    ];
+    // Cocokkan _selectedInspectionRole dengan versi terjemahan
+    final selectedRoleIndex = rolesBackend.indexOf(_selectedInspectionRole);
+    if(selectedRoleIndex != -1) {
+      _selectedInspectionRole = _translatedRoles[selectedRoleIndex];
+    }
+
+    // Inisialisasi daftar level lokasi
+    final locationLevelsBackend = ['Lokasi', 'Unit', 'Subunit', 'Area'];
+    _translatedLocationLevels = [
+      getTxt('level_lokasi'),
+      getTxt('level_unit'),
+      getTxt('level_subunit'),
+      getTxt('level_area'),
+    ];
+    // Cocokkan _selectedLocationLevel dengan versi terjemahan
+    final selectedLevelIndex = locationLevelsBackend.indexOf(_selectedLocationLevel);
+    if(selectedLevelIndex != -1) {
+      _selectedLocationLevel = _translatedLocationLevels[selectedLevelIndex];
+    }
   }
 
   Future<void> _fetchUnits() async {
@@ -130,19 +270,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   // Helper untuk mengubah nama bulan menjadi angka
   int _monthNameToNumber(String monthName) {
-    return _months.indexOf(monthName) + 1;
+    return _translatedMonths.indexOf(monthName) + 1;
   }
 
   void _fetchAllData() {
+    final roleBackendValue = ['Eksekutif', 'Profesional', 'Visitor'][_translatedRoles.indexOf(_selectedInspectionRole)];
+    final levelBackendValue = ['Lokasi', 'Unit', 'Subunit', 'Area'][_translatedLocationLevels.indexOf(_selectedLocationLevel)];
+
     setState(() {
       _lastUpdated = DateTime.now();
       final month = _monthNameToNumber(_selectedMonth);
       final year = DateTime.now().year;
 
-      // BERUBAH: Pastikan SEMUA pemanggilan menyertakan 'year'
       _anggotaFuture = _fetchAnggotaData(month, year, _selectedUnitId);
-      _inspeksiFuture = _fetchInspeksiData(month, year, _selectedInspectionRole); // Tambahkan 'year'
-      _lokasiFuture = _fetchLokasiData(month, year, _selectedLocationLevel);     // Tambahkan 'year'
+      _inspeksiFuture = _fetchInspeksiData(month, year, roleBackendValue);
+      _lokasiFuture = _fetchLokasiData(month, year, levelBackendValue);
     });
   }
 
@@ -168,7 +310,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
     } catch (e) {
       debugPrint('Error fetching Anggota: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal memuat data Anggota: $e'), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${getTxt('gagal_muat_anggota')}: $e'), backgroundColor: Colors.red));
       return [];
     }
   }
@@ -189,7 +331,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
     } catch (e) {
       debugPrint('Error fetching Inspeksi: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal memuat data Inspeksi: $e'), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${getTxt('gagal_muat_inspeksi')}: $e'), backgroundColor: Colors.red));
       return [];
     }
   }
@@ -211,7 +353,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
     } catch (e) {
       debugPrint('Error fetching Lokasi: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal memuat data Lokasi: $e'), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${getTxt('gagal_muat_lokasi')}: $e'), backgroundColor: Colors.red));
       return [];
     }
   }
@@ -224,11 +366,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   String get _lastUpdatedText {
     if (_lastUpdated == null) {
-      return 'Memuat data...';
+      return getTxt('memuat_data'); 
     }
-    // Format tanggal dan waktu agar lebih mudah dibaca
-    final formattedDate = DateFormat('d MMM yyyy HH:mm', 'id_ID').format(_lastUpdated!);
-    return 'Terakhir diperbarui pada $formattedDate (GMT+7)';
+    final formattedDate = DateFormat('d MMM yyyy HH:mm', widget.lang == 'ID' ? 'id_ID' : 'en_US').format(_lastUpdated!);
+    return '${getTxt('diperbarui_pada')} $formattedDate (GMT+7)';
   }
 
   @override
@@ -256,7 +397,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   // ── Tab Bar ────────────────────────────────────────────────────────────────
   Widget _buildTabBar() {
-    final tabs = ['Anggota', 'Inspeksi', 'Lokasi', 'Temuan Berulang'];
+    final tabs = [
+      getTxt('anggota'), 
+      getTxt('inspeksi'), 
+      getTxt('lokasi'), 
+      getTxt('temuan_berulang')
+    ];
     return Container(
       color: Colors.white,
       child: TabBar(
@@ -282,11 +428,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Widget _buildMonthDropdown() {
     return _StyledDropdown(
       value: _selectedMonth,
-      items: _months,
+      items: _translatedMonths,
       onChanged: (v) {
         if (v != null) {
           setState(() => _selectedMonth = v);
-          _fetchAllData(); // Ambil data baru saat bulan berubah
+          _fetchAllData();
         }
       },
       isDark: false,
@@ -297,7 +443,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Widget _buildGroupDropdown() {
     // Buat item dropdown secara dinamis dari _unitList
     List<DropdownMenuItem<int>> dropdownItems = [
-      const DropdownMenuItem(value: 0, child: Text('Semua Grup')),
+      DropdownMenuItem(value: 0, child: Text(getTxt('semua_grup'))),
     ];
 
     dropdownItems.addAll(_unitList.map((unit) {
@@ -365,19 +511,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Center(child: Text('Tidak ada data anggota.'));
+                return Center(child: Text(getTxt('tidak_ada_data_anggota')));
               }
 
               final memberList = snapshot.data!;
               final self = memberList.firstWhere(
                 (m) => m.isSelf,
-                orElse: () => MemberData(name: 'Saya', findings: 0, completed: 0, isSelf: true),
+                orElse: () => MemberData(name: getTxt('saya'), findings: 0, completed: 0, isSelf: true),
               );
 
               return Column(
                 children: [
-                  _buildTableHeader(['Nama', 'Temuan', 'Selesai'], flex: [3, 1, 1]),
-                  _buildTargetRow(['Target Bulanan', '30', '30']),
+                  _buildTableHeader([getTxt('nama'), getTxt('temuan'), getTxt('selesai')], flex: [3, 1, 1]),
+                  _buildTargetRow([getTxt('target_bulanan'), '30', '30']),
                   Expanded(
                     child: ListView.separated(
                       padding: EdgeInsets.zero,
@@ -554,7 +700,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             children: [
               _buildMonthDropdown(),
               const SizedBox(width: 10),
-              ..._roles.map((r) => Padding(
+              ..._translatedRoles.map((r) => Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: _RoleChip(
                   label: r,
@@ -569,8 +715,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           ),
         ),
         _buildLastUpdatedTextWidget(),
-        _buildTableHeader(['Nama', 'Temuan'], flex: [3, 1]),
-        _buildTargetRow(['Target Bulanan', '2']),
+        _buildTableHeader([getTxt('nama'), getTxt('temuan')], flex: [3, 1]),
+        _buildTargetRow([getTxt('target_bulanan'), '2']),
         Expanded(
           child: FutureBuilder<List<InspectionData>>(
             future: _inspeksiFuture,
@@ -579,7 +725,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                return Center(child: Text('Tidak ada temuan untuk role "$_selectedInspectionRole".'));
+                return Center(child: Text('${getTxt('tidak_ada_temuan_role')} "$_selectedInspectionRole".'));
               }
               final inspectionList = snapshot.data!;
               return ListView.separated(
@@ -639,7 +785,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 // PERUBAHAN DI SINI: Dropdown untuk level lokasi
                 child: _StyledDropdown(
                   value: _selectedLocationLevel,
-                  items: _locationLevels,
+                  items: _translatedLocationLevels,
                   onChanged: (v) {
                     if (v != null) {
                       setState(() => _selectedLocationLevel = v);
@@ -654,7 +800,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         ),
         _buildAuditPeriodBanner(),
         _buildLastUpdatedTextWidget(),
-        _buildTableHeader(['Rank', 'Lokasi', 'Temuan'], flex: [1, 3, 1]), // 'Nilai' diubah jadi 'Temuan'
+        _buildTableHeader([getTxt('rank'), getTxt('lokasi'), getTxt('temuan')], flex: [1, 3, 1]),
         Expanded(
           child: FutureBuilder<List<LocationData>>(
             future: _lokasiFuture,
@@ -663,7 +809,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                return Center(child: Text('Tidak ada data untuk level "$_selectedLocationLevel".'));
+                return Center(child: Text('${getTxt('tidak_ada_data_level')} "$_selectedLocationLevel".'));
               }
               final locationList = snapshot.data!;
               return ListView.separated(
@@ -693,7 +839,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         children: [
           Icon(Icons.calendar_today_rounded, size: 15, color: _AppColors.primary),
           const SizedBox(width: 8),
-          const Text('Periode audit: ', style: TextStyle(fontSize: 13, color: _AppColors.textSecondary)),
+          Text(getTxt('periode_audit'), style: TextStyle(fontSize: 13, color: _AppColors.textSecondary)),
           const Text('13 Apr - 19 Apr 2026', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.primaryDark)),
         ],
       ),
@@ -777,7 +923,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Align(alignment: Alignment.centerLeft, child: Text('Topik', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _AppColors.textPrimary))),
+          child: Align(alignment: Alignment.centerLeft, child: Text(getTxt('topik'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _AppColors.textPrimary))),
         ),
         const Divider(height: 1, color: _AppColors.divider),
         Expanded(
@@ -791,7 +937,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   child: Icon(Icons.search_off_rounded, size: 36, color: _AppColors.primary.withOpacity(0.5)),
                 ),
                 const SizedBox(height: 16),
-                const Text('Adi Widya Wasana belum\nmemiliki temuan berulang', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: _AppColors.textSecondary, height: 1.5)),
+                Text('Adi Widya Wasana ${getTxt('belum_memiliki_temuan')}', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: _AppColors.textSecondary, height: 1.5)),
               ],
             ),
           ),

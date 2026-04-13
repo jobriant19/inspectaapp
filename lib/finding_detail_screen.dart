@@ -57,6 +57,7 @@ class FindingDetailScreen extends StatefulWidget {
 class _FindingDetailScreenState extends State<FindingDetailScreen> {
   // Data State
   late Future<Map<String, dynamic>> _findingDetailFuture;
+  Map<String, dynamic>? _currentFindingData;
   late Future<List<Comment>> _commentsFuture;
   
   // Resolution State
@@ -232,10 +233,23 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   }
 
   void _showUserMentionPicker() async {
+    // Guard clause untuk memastikan data sudah dimuat
+    if (_currentFindingData == null) {
+      _showErrorSnackbar('Data temuan belum dimuat sepenuhnya.');
+      return;
+    }
+
     final selectedUser = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
-      builder: (context) => UserPickerBottomSheet(lang: widget.lang),
+      builder: (context) => UserPickerBottomSheet(
+        lang: widget.lang,
+        // Kirim ID lokasi dari data temuan saat ini
+        idArea: _currentFindingData!['id_area'],
+        idSubunit: _currentFindingData!['id_subunit'],
+        idUnit: _currentFindingData!['id_unit'],
+        idLokasi: _currentFindingData!['id_lokasi'],
+      ),
     );
 
     if (selectedUser != null) {
@@ -311,6 +325,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           }
 
           final data = snapshot.data!;
+          _currentFindingData = data;
           final b = (data['status_temuan'] as String? ?? '').toLowerCase();
           final isNotFinished = ['belum'].any((e) => b.contains(e));
           final s = (data['status_temuan'] as String? ?? '').toLowerCase();

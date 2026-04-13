@@ -64,6 +64,68 @@ class _RankingScreenState extends State<RankingScreen> {
   _RankMember? _selfData;
   final String _currentMonthString = DateFormat('MMM', 'id_ID').format(DateTime.now());
 
+  final Map<String, Map<String, String>> _texts = {
+    'ID': {
+      'loading': 'Memuat...',
+      'last_updated_prefix': 'Terakhir diperbarui pada',
+      'season': 'Musim',
+      'history': 'Riwayat',
+      'time_left_label': 'Sisa waktu:',
+      'days_left_suffix': 'hari',
+      'no_podium_data': 'Belum ada data peringkat\nuntuk bulan ini.',
+      'error_prefix': 'Terjadi Kesalahan:',
+      'no_rank_data': 'Belum ada peringkat bulan ini.',
+      'rank_col': 'Rank',
+      'name_col': 'Nama',
+      'alt_col': 'Ketinggian',
+      'score_col': 'Poin',
+      'monthly_target': 'Target Bulanan',
+      'badge_1': '✈  Kelas Utama',
+      'badge_2': '✈  Kelas Bisnis',
+      'badge_3': '✈  Kelas Premium',
+    },
+    'EN': {
+      'loading': 'Loading...',
+      'last_updated_prefix': 'Last updated at',
+      'season': 'Season',
+      'history': 'History',
+      'time_left_label': 'Time left:',
+      'days_left_suffix': 'days',
+      'no_podium_data': 'No ranking data available\nfor this month yet.',
+      'error_prefix': 'An Error Occurred:',
+      'no_rank_data': 'No rankings for this month yet.',
+      'rank_col': 'Rank',
+      'name_col': 'Name',
+      'alt_col': 'Altitude',
+      'score_col': 'Score',
+      'monthly_target': 'Monthly Target',
+      'badge_1': '✈  First Class',
+      'badge_2': '✈  Business Class',
+      'badge_3': '✈  Premium Class',
+    },
+    'ZH': {
+      'loading': '正在加载...',
+      'last_updated_prefix': '最后更新于',
+      'season': '赛季',
+      'history': '历史',
+      'time_left_label': '剩余时间:',
+      'days_left_suffix': '天',
+      'no_podium_data': '本月暂无\n排名数据。',
+      'error_prefix': '发生错误:',
+      'no_rank_data': '本月暂无排名。',
+      'rank_col': '排名',
+      'name_col': '姓名',
+      'alt_col': '高度',
+      'score_col': '积分',
+      'monthly_target': '月度目标',
+      'badge_1': '✈  头等舱',
+      'badge_2': '✈  商务舱',
+      'badge_3': '✈  高级舱',
+    },
+  };
+
+  String getTxt(String key) => _texts[widget.lang]?[key] ?? key;
+
   @override
   void initState() {
     super.initState();
@@ -119,10 +181,10 @@ class _RankingScreenState extends State<RankingScreen> {
 
   String get _lastUpdatedText {
     if (_lastUpdated == null) {
-      return 'Memuat...';
+      return getTxt('loading');
     }
     final formattedDate = DateFormat('d MMM yyyy HH:mm', 'id_ID').format(_lastUpdated!);
-    return 'Terakhir diperbarui pada $formattedDate (GMT+7)';
+    return '${getTxt('last_updated_prefix')} $formattedDate (GMT+7)';
   }
 
   @override
@@ -284,35 +346,34 @@ class _RankingScreenState extends State<RankingScreen> {
   Widget _buildSkySection() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      height: 250, // Sedikit lebih tinggi untuk memberi ruang
+      height: 250,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [Color(0xFF0369A1), Color(0xFF0EA5E9), Color(0xFF7DD3FC)],
         ),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-              color: _AppColors.primary.withOpacity(0.2),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
+              color: _AppColors.primary.withOpacity(0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6))
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         child: FutureBuilder<List<_RankMember>>(
           future: _leaderboardFuture,
           builder: (context, snapshot) {
-            // Bagian loading dan error handling tetap sama
             if (!snapshot.hasData && snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator(color: Colors.white));
             }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(
-                child: Text('Belum ada data peringkat\nuntuk bulan ini.',
+              return Center(
+                child: Text(getTxt('no_podium_data'),
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white70)),
+                    style: const TextStyle(color: Colors.white70, height: 1.5)),
               );
             }
 
@@ -323,33 +384,48 @@ class _RankingScreenState extends State<RankingScreen> {
             try { top3 = members.firstWhere((m) => m.rank == 3); } catch (e) { top3 = null; }
 
             return Stack(
+              alignment: Alignment.center,
               children: [
-                // Latar belakang (jika ada, seperti awan/bintang, bisa ditaruh di sini)
+                // Efek Sunburst di belakang juara 1
+                if(top1 != null)
+                  Positioned(
+                    top: -80,
+                    child: Container(
+                      height: 250,
+                      width: 250,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            Colors.white.withOpacity(0.2),
+                            Colors.white.withOpacity(0.0),
+                          ]
+                        )
+                      ),
+                    ),
+                  ),
 
-                // Bagian Podium
+                // Barisan Podium
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    crossAxisAlignment: CrossAxisAlignment.end, // Kunci untuk membuat efek podium
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Juara 2 (Kiri)
                       if (top2 != null)
                         _PodiumMember(member: top2, position: 2)
                       else
-                        const SizedBox(width: 90), // Placeholder jika tidak ada
+                        const SizedBox(width: 90),
                       
-                      // Juara 1 (Tengah)
                       if (top1 != null)
                         _PodiumMember(member: top1, position: 1)
                       else
-                        const SizedBox(width: 90), // Placeholder jika tidak ada
+                        const SizedBox(width: 90),
                         
-                      // Juara 3 (Kanan)
                       if (top3 != null)
                         _PodiumMember(member: top3, position: 3)
                       else
-                        const SizedBox(width: 90), // Placeholder jika tidak ada
+                        const SizedBox(width: 90),
                     ],
                   ),
                 ),
@@ -618,70 +694,104 @@ class _RankingScreenState extends State<RankingScreen> {
 
 class _PodiumMember extends StatelessWidget {
   final _RankMember member;
-  final int position; // 1=tengah, 2=kiri, 3=kanan
+  final int position;
 
   const _PodiumMember({required this.member, required this.position});
 
   @override
   Widget build(BuildContext context) {
     final bool isFirst = position == 1;
-    final double boxHeight = isFirst ? 130 : 100;
-    final double avatarSize = isFirst ? 64 : 56;
-    final Color podiumColor = isFirst ? _AppColors.gold : (position == 2 ? _AppColors.silver : _AppColors.bronze);
+    final double baseHeight = isFirst ? 130 : 100;
+    final double avatarSize = isFirst ? 68 : 58;
+    final Color medalColor = isFirst ? _AppColors.gold : (position == 2 ? _AppColors.silver : _AppColors.bronze);
     
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        // Nama dan Skor
+        // Avatar dan Mahkota
         if(isFirst)
-          Text('👑', style: TextStyle(fontSize: 24, shadows: [Shadow(color: podiumColor.withOpacity(0.5), blurRadius: 8)])),
-        if(isFirst) const SizedBox(height: 4),
+          Text('👑', style: TextStyle(fontSize: 28, shadows: [Shadow(color: medalColor.withOpacity(0.7), blurRadius: 10)])),
+        if(isFirst) const SizedBox(height: 2),
+
         _Avatar(
           name: member.name,
           avatarUrl: member.avatarUrl,
           size: avatarSize,
           showRing: true,
-          ringColor: podiumColor,
+          ringColor: medalColor,
         ),
-        const SizedBox(height: 8),
-        // Podium Box
+        const SizedBox(height: 10),
+
+        // Podium Block dengan Efek Mewah
         Container(
-          height: boxHeight,
-          width: 90,
+          height: baseHeight,
+          width: 95,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                medalColor.withOpacity(0.3),
+                medalColor.withOpacity(0.1),
+              ],
+            ),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            border: Border.all(color: podiumColor.withOpacity(0.5)),
+            boxShadow: [
+              BoxShadow(
+                color: medalColor.withOpacity(0.4),
+                blurRadius: 15,
+                spreadRadius: 2,
+                offset: const Offset(0, 5),
+              )
+            ],
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                '${member.rank}',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: podiumColor,
-                  shadows: [Shadow(color: Colors.black.withOpacity(0.2), blurRadius: 4)]
+              // Bagian atas podium (efek 3D)
+              Container(
+                height: 10,
+                decoration: BoxDecoration(
+                  color: medalColor.withOpacity(0.5),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                member.name.split(' ').first,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${member.score}',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                     Text(
+                      '${member.rank}',
+                      style: TextStyle(
+                        fontSize: isFirst ? 32 : 28,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(color: Colors.black.withOpacity(0.3), blurRadius: 5, offset: const Offset(0,2)),
+                          Shadow(color: medalColor.withOpacity(0.8), blurRadius: 10),
+                        ]
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      member.name.split(' ').first,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        shadows: [Shadow(color: Colors.black38, blurRadius: 2)],
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${member.score} Pts',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

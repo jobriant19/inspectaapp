@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'account_screen.dart';
 import 'explore_screen.dart';
 import 'analytics_screen.dart';
+import 'finding_detail_screen.dart';
 import 'notification_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'ranking_screen.dart';
@@ -33,6 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int? _userUnitId;
   int? _userLokasiId;
 
+  int _notificationCount = 0;
+
   // Dictionary Translate untuk Navigation Bar
   final Map<String, Map<String, String>> _navText = {
     'EN': {
@@ -43,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'visitor_on': 'Visitor Mode Activated',
       'visitor_off': 'Visitor Mode Deactivated',
       'update_failed': 'Update Failed',
+      'recent_findings': 'Recent Findings',
     },
     'ID': {
       'home': 'Beranda',
@@ -52,6 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'visitor_on': 'Mode Pengunjung Diaktifkan',
       'visitor_off': 'Mode Pengunjung Dinonaktifkan',
       'update_failed': 'Gagal Memperbarui',
+      'recent_findings': 'Temuan Terbaru',
     },
     'ZH': {
       'home': '主页', 
@@ -61,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
       'visitor_on': '访客模式已激活',
       'visitor_off': '访客模式已停用',
       'update_failed': '更新失败',
+      'recent_findings': '最新发现',
     },
   };
 
@@ -68,8 +74,35 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadLanguage();
+    _fetchInitialData();
+  }
+
+  void _fetchInitialData() {
     _fetchUserData();
+    _fetchNotificationCount();
     _loadInitialVisitorStatus();
+  }
+
+  Future<void> _fetchNotificationCount() async {
+    if (!mounted) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final count = await Supabase.instance.client
+          .from('temuan')
+          .count(CountOption.exact)
+          .eq('id_penanggung_jawab', user.id)
+          .neq('status_temuan', 'Selesai');
+      
+      if (mounted) {
+        setState(() {
+          _notificationCount = count;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching notification count: $e");
+    }
   }
 
   // Mode Visitor (is_visitor)
@@ -278,23 +311,39 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      NotificationScreen(lang: _lang),
-                                ),
-                              );
+                                MaterialPageRoute(builder: (_) => NotificationScreen(lang: _lang)),
+                              ).then((_) => _fetchNotificationCount()); // Refresh count saat kembali
                             },
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.15),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.mail_outlined,
-                                color: Colors.black,
-                                size: 25,
-                              ),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.15), shape: BoxShape.circle),
+                                  child: const Icon(Icons.mail_outlined, color: Colors.black, size: 25),
+                                ),
+                                if (_notificationCount > 0)
+                                  Positioned(
+                                    top: 4,
+                                    right: 4,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white, width: 1.5),
+                                      ),
+                                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                      child: Center(
+                                        child: Text(
+                                          _notificationCount > 9 ? '9+' : _notificationCount.toString(),
+                                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -309,7 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ).then((_) {
                                 _loadLanguage();
-                                _fetchUserData();
+                                _fetchInitialData();
                               });
                             },
                             child: Container(
@@ -608,8 +657,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     // Logika ini tetap berguna untuk me-refresh data setelah temuan berhasil disimpan
                     // dan semua layar (form, kamera, lokasi) sudah di-pop.
                     if (isSuccess == true) {
-                      _fetchUserData(); // Refresh poin
-                      setState(() {}); // Untuk refresh list temuan di home jika ada
+                      _fetchInitialData();
                     }
                   });
                 },
@@ -682,6 +730,9 @@ class _HomeScreenState extends State<HomeScreen> {
         'lokasi': 'Location',
         'laporan': 'Accident Report',
         'hint': 'Click the + button to add a new finding.',
+        'no_findings_title': 'No Recent Findings',
+        'no_findings_subtitle': 'Recent findings you create or are involved in will appear here.',
+        'recent_findings': 'Recent Findings', // TAMBAHKAN KEMBALI KUNCI INI
       },
       'ID': {
         'inspeksi': 'Inspeksi',
@@ -692,97 +743,26 @@ class _HomeScreenState extends State<HomeScreen> {
         'lokasi': 'Lokasi',
         'laporan': 'Laporan Kecelakaan',
         'hint': 'Klik tombol + untuk memasukkan temuan baru.',
+        'no_findings_title': 'Belum Ada Temuan',
+        'no_findings_subtitle': 'Temuan terbaru yang Anda buat atau terlibat di dalamnya akan muncul di sini.',
+        'recent_findings': 'Temuan Terbaru', // TAMBAHKAN KEMBALI KUNCI INI
       },
       'ZH': {
-        'inspeksi': '检查', // Jiǎnchá
-        'pro_mode': '专业模式', // Zhuānyè móshì
+        'inspeksi': '检查',
+        'pro_mode': '专业模式',
         'visitor_mode': '访客模式',
         'laporan_cepat': '快速报告',
-        'telusur': '浏览与管理', // Liúlǎn yǔ guǎnlǐ
-        'lokasi': '地点', // Dìdiǎn
-        'laporan': '事故报告', // Shìgù bàogào
-        'hint': '点击 + 按钮添加新发现。', // Diǎnjī + ànniǔ...
+        'telusur': '浏览与管理',
+        'lokasi': '地点',
+        'laporan': '事故报告',
+        'hint': '点击 + 按钮添加新发现。',
+        'no_findings_title': '暂无最新发现',
+        'no_findings_subtitle': '您创建或参与的最新发现将显示在此处。',
+        'recent_findings': '最新发现', // TAMBAHKAN KEMBALI KUNCI INI
       },
     };
 
     String getHomeTxt(String key) => homeTexts[_lang]?[key] ?? key;
-
-    // Future Builder untuk mengambil daftar Temuan
-    Widget recentFindingsWidget = FutureBuilder<List<dynamic>>(
-      future: Supabase.instance.client
-          .from('temuan')
-          .select('judul_temuan, gambar_temuan, status_temuan, created_at, lokasi(nama_lokasi)')
-          .order('created_at', ascending: false)
-          .limit(5), 
-      builder: (context, snapshot) {
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return const SizedBox.shrink(); 
-        }
-        
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Temuan Terbaru",
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black54),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 160,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: snapshot.data!.length,
-                itemBuilder: (context, index) {
-                  final temuan = snapshot.data![index];
-                  return Container(
-                    width: 140,
-                    margin: const EdgeInsets.only(right: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                          child: Image.network(
-                            temuan['gambar_temuan'] ?? '',
-                            height: 90, width: double.infinity, fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Container(height: 90, color: Colors.grey.shade300, child: const Icon(Icons.image_not_supported)),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                temuan['judul_temuan'],
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E3A8A)),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                temuan['lokasi'] != null ? temuan['lokasi']['nama_lokasi'] : 'Unknown',
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 11, color: Colors.black54),
-                              )
-                            ],
-                          ),
-                        )
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 30),
-          ],
-        );
-      },
-    );
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -1030,37 +1010,90 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 25),
 
-          recentFindingsWidget,
-
-          // ==========================================
-          // 3. BAGIAN: ILUSTRASI & TEKS PETUNJUK BAWAH
-          // ==========================================
-          Center(
-            child: Column(
-              children: [
-                Image.asset(
-                  'assets/images/team_illustration.png',
-                  height: 180,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.people_alt_outlined,
-                    size: 100,
-                    color: Colors.black12,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  getHomeTxt('hint'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black45,
-                  ),
-                ),
-              ],
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12.0),
+            child: Text(
+              getHomeTxt('recent_findings'),
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black54,
+              ),
             ),
           ),
+
+          FutureBuilder<List<Map<String, dynamic>>>(
+            // Query diubah untuk mengambil semua data yang dibutuhkan oleh _buildFindingCard
+            future: Supabase.instance.client
+                .from('temuan')
+                .select('''
+                  id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan,
+                  poin_temuan, target_waktu_selesai,
+                  id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab,
+                  lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area),
+                  is_pro, is_visitor, is_eksekutif
+                ''')
+                .order('created_at', ascending: false)
+                .limit(3), // Batasi menjadi 3 untuk awal
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator(color: Color(0xFF00C9E4))));
+              }
+
+              // Jika tidak ada data atau error, tampilkan ilustrasi
+              if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20.0),
+                    child: Column(
+                      children: [
+                        Image.asset(
+                          'assets/images/team_illustration.png',
+                          height: 180,
+                          fit: BoxFit.contain,
+                          errorBuilder: (c, e, s) => const Icon(Icons.search_off, size: 100, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          getHomeTxt('no_findings_title'),
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          getHomeTxt('no_findings_subtitle'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 14, color: Colors.grey),
+                        ),
+                         const SizedBox(height: 20),
+                         Text(
+                          getHomeTxt('hint'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black45,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              
+              // Jika ada data, tampilkan ListView dari kartu temuan
+              final findings = snapshot.data!;
+              return ListView.builder(
+                shrinkWrap: true, // Penting agar ListView tidak mengambil tinggi tak terbatas
+                physics: const NeverScrollableScrollPhysics(), // Nonaktifkan scroll internal
+                itemCount: findings.length,
+                itemBuilder: (context, index) {
+                  return _buildFindingCard(findings[index]); // Gunakan widget baru
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 20), // Beri jarak di bawah untuk BottomNavBar
         ],
       ),
     );
@@ -1118,6 +1151,220 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+
+  String _formatLocation(Map<String, dynamic> item) {
+    if (item['area'] != null && item['area']['nama_area'] != null) {
+      return item['area']['nama_area'].toString();
+    }
+    if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
+      return item['subunit']['nama_subunit'].toString();
+    }
+    if (item['unit'] != null && item['unit']['nama_unit'] != null) {
+      return item['unit']['nama_unit'].toString();
+    }
+    if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
+      return item['lokasi']['nama_lokasi'].toString();
+    }
+    return '-';
+  }
+
+  String _formatDate(dynamic value) {
+    if (value == null) return '-';
+    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
+    if (dt == null) return '-';
+    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+  }
+
+  Widget _buildFindingCard(Map<String, dynamic> data) {
+    final imageUrl = (data['gambar_temuan'] ?? '').toString();
+    final title = (data['judul_temuan'] ?? '-').toString();
+    final lokasi = _formatLocation(data);
+    final tanggal = _formatDate(data['created_at']);
+    final poin = int.tryParse((data['poin_temuan'] ?? 0).toString()) ?? 0;
+    final status = (data['status_temuan'] ?? '').toString();
+
+    final isPro = data['is_pro'] == true;
+    final isVisitor = data['is_visitor'] == true;
+    final isEksekutif = data['is_eksekutif'] == true;
+
+    final s = status.toLowerCase();
+    final isFinished = ['selesai', 'done', 'completed', 'closed'].any((e) => s.contains(e));
+    
+    final String statusText = isFinished ? 'Selesai' : 'Belum Selesai';
+
+    late Color statusColor;
+    late Color statusBg;
+    late IconData statusIcon;
+
+    if (isFinished) {
+      statusColor = const Color(0xFF16A34A);
+      statusBg = const Color(0xFFF0FDF4);
+      statusIcon = Icons.check_circle_rounded;
+    } else {
+      statusColor = const Color(0xFFDC2626);
+      statusBg = const Color(0xFFFEF2F2);
+      statusIcon = Icons.pending_actions_rounded;
+    }
+
+    List<Widget> badges = [];
+    List<String> inspectionTypes = [];
+
+    if (isPro) inspectionTypes.add('pro');
+    if (isVisitor) inspectionTypes.add('visitor');
+    if (isEksekutif) inspectionTypes.add('eksekutif');
+
+    if (inspectionTypes.contains('pro')) {
+      badges.add(_buildInspectionBadge('PROFESIONAL', const Color.fromARGB(255, 255, 244, 45), Colors.black));
+    }
+    if (inspectionTypes.contains('visitor')) {
+      badges.add(_buildInspectionBadge('VISITOR', const Color(0xFF3B82F6), Colors.white));
+    }
+    if (inspectionTypes.contains('eksekutif')) {
+      badges.add(_buildInspectionBadge('EKSEKUTIF', const Color(0xFFEF4444), Colors.white));
+    }
+
+    inspectionTypes.sort();
+    String combinationKey = inspectionTypes.join('+');
+
+    final Color borderColor;
+    switch (combinationKey) {
+      case 'eksekutif+pro+visitor': borderColor = const Color(0xFF9333EA); break;
+      case 'pro+visitor': borderColor = const Color(0xFF16A34A); break;
+      case 'eksekutif+pro': borderColor = const Color(0xFFEA580C); break;
+      case 'eksekutif+visitor': borderColor = const Color(0xFF2563EB); break;
+      case 'pro': borderColor = const Color(0xFFF59E0B); break;
+      case 'visitor': borderColor = const Color(0xFF3B82F6); break;
+      case 'eksekutif': borderColor = const Color(0xFFEF4444); break;
+      default: borderColor = const Color(0xFFF1F5F9);
+    }
+    
+    Widget? timeIndicator;
+    // Time indicator logic tidak diperlukan untuk home, jadi kita biarkan null
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (context) => FindingDetailScreen(initialData: data, lang: _lang),
+        )).then((_) => _fetchInitialData()); // Refresh data saat kembali
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: borderColor, width: borderColor == const Color(0xFFF1F5F9) ? 1.0 : 1.5),
+          boxShadow: [BoxShadow(color: borderColor.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 6))],
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 92,
+                    height: 92,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.black.withOpacity(0.15), width: 1.5),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12.5),
+                      child: Container(
+                        color: const Color(0xFFF8FAFC),
+                        child: imageUrl.isNotEmpty
+                            ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.grey))
+                            : const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, height: 1.3, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [BoxShadow(color: const Color(0xFFEF4444).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.local_fire_department_rounded, size: 14, color: Colors.white),
+                                  const SizedBox(width: 4),
+                                  Text('$poin', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
+                                  const SizedBox(width: 3),
+                                  const Text('Poin', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 10)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        if (badges.isNotEmpty)
+                          Padding(padding: const EdgeInsets.only(bottom: 6.0), child: Wrap(spacing: 6, runSpacing: 4, children: badges)),
+                        Row(
+                          children: [
+                            const Icon(Icons.place_rounded, size: 14, color: Color(0xFF94A3B8)),
+                            const SizedBox(width: 5),
+                            Expanded(child: Text(lokasi, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)))),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF94A3B8)),
+                            const SizedBox(width: 5),
+                            Text(tanggal, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                              decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(20)),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(statusIcon, size: 13, color: statusColor),
+                                  const SizedBox(width: 4),
+                                  Text(statusText, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: statusColor)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (timeIndicator != null) timeIndicator,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInspectionBadge(String text, Color bgColor, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(6)),
+      child: Text(
+        text,
+        style: TextStyle(color: textColor, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+      ),
     );
   }
 }
@@ -1364,7 +1611,11 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                 const SizedBox(width: 12),
                 GestureDetector(
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const QRScannerScreen()));
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => QRScannerScreen(
+                      lang: widget.lang,
+                      isProMode: widget.isProMode,
+                      isVisitorMode: widget.isVisitorMode,
+                    )));
                   },
                   child: Container(
                     padding: const EdgeInsets.all(12),

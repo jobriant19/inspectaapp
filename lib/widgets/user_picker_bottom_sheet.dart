@@ -3,7 +3,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UserPickerBottomSheet extends StatefulWidget {
   final String lang;
-  const UserPickerBottomSheet({super.key, required this.lang});
+  final int? idLokasi;
+  final int? idUnit;
+  final int? idSubunit;
+  final int? idArea;
+  const UserPickerBottomSheet({
+    super.key,
+    required this.lang,
+    this.idLokasi,
+    this.idUnit,
+    this.idSubunit,
+    this.idArea,
+  });
 
   @override
   State<UserPickerBottomSheet> createState() => _UserPickerBottomSheetState();
@@ -20,9 +31,24 @@ class _UserPickerBottomSheetState extends State<UserPickerBottomSheet> {
   }
 
   Future<List<Map<String, dynamic>>> _fetchUsers() async {
-    final response = await Supabase.instance.client
+    // Mulai query dasar
+    var query = Supabase.instance.client
         .from('User')
         .select('id_user, nama, gambar_user');
+
+    // Terapkan filter secara hirarkis dari yang paling spesifik
+    if (widget.idArea != null) {
+      query = query.eq('id_area', widget.idArea!);
+    } else if (widget.idSubunit != null) {
+      query = query.eq('id_subunit', widget.idSubunit!);
+    } else if (widget.idUnit != null) {
+      query = query.eq('id_unit', widget.idUnit!);
+    } else if (widget.idLokasi != null) {
+      query = query.eq('id_lokasi', widget.idLokasi!);
+    }
+    // Jika tidak ada ID lokasi yang cocok, query akan mengambil semua pengguna (sebagai fallback).
+
+    final response = await query;
     return List<Map<String, dynamic>>.from(response);
   }
 
