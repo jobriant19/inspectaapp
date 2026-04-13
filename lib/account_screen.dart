@@ -39,6 +39,7 @@ class _AccountScreenState extends State<AccountScreen> {
       'logout_desc': 'End your session on this device',
       'select_lang': 'Select Language',
       'visitor': 'Visitor',
+      'verifier_role': 'Verifier',
     },
     'ID': {
       'title': 'Akun Saya',
@@ -53,6 +54,7 @@ class _AccountScreenState extends State<AccountScreen> {
       'logout_desc': 'Akhiri sesi Anda di perangkat ini',
       'select_lang': 'Pilih Bahasa',
       'visitor': 'Pengunjung',
+      'verifier_role': 'Verifier',
     },
     'ZH': {
       'title': '我的账户',
@@ -67,6 +69,7 @@ class _AccountScreenState extends State<AccountScreen> {
       'logout_desc': '在此设备上结束您的会话',
       'select_lang': '选择语言',
       'visitor': '访客',
+      'verifier_role': '验证者',
     },
   };
 
@@ -87,10 +90,10 @@ class _AccountScreenState extends State<AccountScreen> {
     }
 
     try {
-      // Ambil data utama user terlebih dahulu
+      final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
       final userRow = await Supabase.instance.client
           .from('User')
-          .select('nama, gambar_user, id_jabatan, is_visitor, id_lokasi, id_unit, id_subunit, id_area')
+          .select('nama, gambar_user, id_jabatan, is_visitor, is_verificator, id_lokasi, id_unit, id_subunit, id_area')
           .eq('id_user', userAuth.id)
           .maybeSingle();
 
@@ -100,6 +103,7 @@ class _AccountScreenState extends State<AccountScreen> {
       }
 
       final isVisitor = userRow['is_visitor'] ?? false;
+      final isVerificator = userRow['is_verificator'] ?? false;
       final idJabatan = userRow['id_jabatan'];
       final idLokasi = userRow['id_lokasi'];
       final idUnit = userRow['id_unit'];
@@ -110,7 +114,7 @@ class _AccountScreenState extends State<AccountScreen> {
       List<Future<PostgrestResponse>> futures = [];
 
       // Query 0: Jabatan (hanya jika bukan visitor dan punya id_jabatan)
-      if (!isVisitor && idJabatan != null) {
+      if (!isVisitor && !isVerificator && idJabatan != null) {
         futures.add(
           Supabase.instance.client
               .from('jabatan')
@@ -136,18 +140,16 @@ class _AccountScreenState extends State<AccountScreen> {
         futures.add(Future.value(PostgrestResponse(data: null, count: 0))); // Future kosong
       }
 
-      // --- Jalankan semua query secara bersamaan ---
       final results = await Future.wait(futures);
 
-      // --- Proses hasil setelah semua selesai ---
-      String jabatanName = 'Staff';
-      if(isVisitor) {
+      String jabatanName;
+      if(isVerificator) {
+        jabatanName = getTxt('verifier_role');
+      } else if (isVisitor) {
         jabatanName = getTxt('visitor');
       } else {
         final jabatanRow = results[0].data;
-        if (jabatanRow != null) {
-          jabatanName = jabatanRow['nama_jabatan'] ?? 'Staff';
-        }
+        jabatanName = jabatanRow?['nama_jabatan'] ?? 'Staff';
       }
 
       String lokasiSpesifik = "Tidak Terdefinisi";
@@ -157,17 +159,20 @@ class _AccountScreenState extends State<AccountScreen> {
         lokasiSpesifik = lokasiRow.values.first ?? "Tidak Terdefinisi";
       }
 
-      // Update state sekali saja di akhir
+      String? dbImage = userRow['gambar_user'];
+      if (dbImage != null && dbImage.trim().isEmpty) dbImage = null;
+
       if (mounted) {
         setState(() {
           _userName = userRow['nama'] ?? 'User';
-          _userImage = userRow['gambar_user'];
+          _userImage = dbImage ?? metaImage;
           _userJabatan = jabatanName;
           _userLokasiSpesifik = lokasiSpesifik;
           _isVisitor = isVisitor;
           _userJabatanId = idJabatan;
         });
       }
+
 
     } catch (e) {
       debugPrint("Error fetching user data for account: $e");

@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'dart:async';
 import 'auth_service.dart';
 import 'home_screen.dart';
+import 'verificator_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -408,17 +409,26 @@ class _LoginScreenState extends State<LoginScreen>
         final AuthResponse? res = await _auth.signInWithEmail(email, hashedPass);
         
         if (res != null && res.user != null) {
-          try {
-            await Supabase.instance.client
-                .from('User')
-                .update({'log_login': DateTime.now().toIso8601String()})
-                .eq('id_user', res.user!.id);
-          } catch (e) {
-             print("Gagal update log login: $e");
-          }
+          // MODIFIKASI: Setelah login berhasil, ambil data dari tabel "User".
+          final userProfile = await Supabase.instance.client
+              .from('User')
+              .select('id_user, is_verificator')
+              .eq('id_user', res.user!.id)
+              .single();
+
+          // Update log login
+          await Supabase.instance.client
+              .from('User')
+              .update({'log_login': DateTime.now().toIso8601String()})
+              .eq('id_user', res.user!.id);
           
           if (mounted) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+            // BARU: Logika pengalihan halaman berdasarkan is_verificator
+            if (userProfile['is_verificator'] == true) {
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const VerificatorHomeScreen()));
+            } else {
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+            }
           }
         } else {
            _showCustomDialog(getTxt('err_wrong'));

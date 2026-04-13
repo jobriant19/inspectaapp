@@ -29,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'save': 'Save Changes',
       'success': 'Profile Updated',
       'edit': 'Edit',
+      'verifier': 'Verifier',
     },
     'ID': {
       'profile_title': 'Profil Saya',
@@ -40,6 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'save': 'Simpan Perubahan',
       'success': 'Profil Diperbarui',
       'edit': 'Ubah',
+      'verifier': 'Verifier',
     },
     'ZH': {
       'profile_title': '我的资料',
@@ -51,6 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'save': '保存更改',
       'success': '资料已更新',
       'edit': '编辑',
+      'verifier': '验证者',
     },
   };
   String getTxt(String key) => _txt[widget.lang]?[key] ?? key;
@@ -73,21 +76,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final row = await Supabase.instance.client
         .from('User')
         .select(
-          'nama, email, gambar_user, id_jabatan, id_lokasi, id_unit, id_subunit, id_area',
+          'nama, email, gambar_user, id_jabatan, is_verificator, id_lokasi, id_unit, id_subunit, id_area',
         )
         .eq('id_user', user.id)
         .maybeSingle();
     if (row == null) return;
 
-    String jabatan = 'Staff';
-    if (row['id_jabatan'] != null) {
+    String jabatan;
+    final isVerificator = row['is_verificator'] ?? false;
+
+    if (isVerificator) {
+      jabatan = getTxt('verifier');
+    } else if (row['id_jabatan'] != null) {
       final j = await Supabase.instance.client
           .from('jabatan')
           .select('nama_jabatan')
           .eq('id_jabatan', row['id_jabatan'])
           .maybeSingle();
       jabatan = j?['nama_jabatan'] ?? 'Staff';
+    } else {
+      jabatan = 'Staff';
     }
+    
     String lokasi = "N/A";
     if (row['id_area'] != null) {
       lokasi =

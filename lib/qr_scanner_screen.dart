@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'camera_finding_screen.dart';
@@ -26,7 +25,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     torchEnabled: false,
     facing: CameraFacing.back,
   );
-  final ImagePicker _picker = ImagePicker();
   bool _isProcessing = false;
 
   // Kamus Bahasa
@@ -37,7 +35,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       'gallery_error': 'Could not scan image from gallery.',
       'invalid_qr': 'Invalid or unsupported QR Code.',
       'fetching_data': 'Fetching location data...',
-      'location_not_found': 'Location not found.'
+      'location_not_found': 'Location not found.',
+      'error_title': 'Scan Failed',
+      'ok_button': 'OK',
     },
     'ID': {
       'title': 'Pindai QR Lokasi',
@@ -45,7 +45,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       'gallery_error': 'Tidak dapat memindai gambar dari galeri.',
       'invalid_qr': 'Kode QR tidak valid atau tidak didukung.',
       'fetching_data': 'Mengambil data lokasi...',
-      'location_not_found': 'Lokasi tidak ditemukan.'
+      'location_not_found': 'Lokasi tidak ditemukan.',
+      'error_title': 'Gagal Memindai',
+      'ok_button': 'Tutup',
     },
     'ZH': {
       'title': '扫描位置二维码',
@@ -53,7 +55,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       'gallery_error': '无法从图库中扫描图像。',
       'invalid_qr': '无效或不支持的二维码。',
       'fetching_data': '正在获取位置数据...',
-      'location_not_found': '未找到位置。'
+      'location_not_found': '未找到位置。',
+      'error_title': '扫描失败',
+      'ok_button': '好的',
     },
   };
 
@@ -160,34 +164,32 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   void _showError(String message) {
-    if (mounted) {
-      _cameraController.start();
-      ScaffoldMessenger.of(context).removeCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ));
-      setState(() => _isProcessing = false);
-    }
-  }
+    if (!mounted) return;
 
-  Future<void> _scanFromGallery() async {
-    await _cameraController.stop();
+    setState(() => _isProcessing = false);
+    ScaffoldMessenger.of(context).removeCurrentSnackBar();
 
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image == null) {
-      if (mounted) await _cameraController.start();
-      return;
-    }
-
-    // Versi lama mobile_scanner mengembalikan BarcodeCapture?
-    final BarcodeCapture? barcodeCapture = await _cameraController.analyzeImage(image.path);
-
-    if (barcodeCapture != null && barcodeCapture.barcodes.isNotEmpty) {
-      await _handleBarcode(barcodeCapture);
-    } else {
-      _showError(getTxt('gallery_error'));
-    }
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(getTxt('error_title')),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              child: Text(getTxt('ok_button')),
+              onPressed: () {
+                Navigator.of(context).pop();
+                if (mounted) {
+                  _cameraController.start();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -231,42 +233,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
           ),
-          Positioned(
-            bottom: 40,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildRoundButton(Icons.photo_library, _scanFromGallery),
-                _buildRoundButton(Icons.flip_camera_ios, () => _cameraController.switchCamera()),
-                _buildRoundButton(
-                  Icons.flashlight_on,
-                  () => _cameraController.toggleTorch(),
-                ),
-              ],
-            ),
-          ),
           if (_isProcessing)
             Container(
               color: Colors.black.withOpacity(0.6),
               child: const Center(child: CircularProgressIndicator(color: Colors.white)),
             ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRoundButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 28),
       ),
     );
   }
