@@ -11,6 +11,7 @@ import 'ranking_screen.dart';
 import 'camera_finding_screen.dart';
 import 'location_screen.dart';
 import 'dart:ui';
+import 'package:shimmer/shimmer.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +25,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _lang = 'EN';
   bool _isProMode = false;
   bool _isVisitorMode = false;
+  String _userLocationName = "...";
+  int? _userJabatanId;
   bool _isLoadingVisitorStatus = true;
 
   // Data User
@@ -73,14 +76,126 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadLanguage();
-    _fetchInitialData();
+    _checkVerificationStatus().then((_) {
+      if (mounted) {
+        _loadLanguage();
+        _fetchInitialData();
+      }
+    });
   }
 
   void _fetchInitialData() {
     _fetchUserData();
     _fetchNotificationCount();
     _loadInitialVisitorStatus();
+  }
+
+  Future<void> _checkVerificationStatus() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final data = await Supabase.instance.client
+          .from('User')
+          .select('is_verificator')
+          .eq('id_user', userId)
+          .single();
+
+      final isVerifier = data['is_verificator'] as bool?;
+
+      if (isVerifier == true && mounted) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Akses Ditolak'),
+            content: const Text('Akun verifikator tidak dapat mengakses halaman ini. Anda akan diarahkan keluar.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        await Supabase.instance.client.auth.signOut();
+      }
+    } catch (e) {
+      debugPrint("Error checking verifier status: $e");
+    }
+  }
+
+  Widget _buildShimmerPlaceholder({double width = double.infinity, double height = 14}) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade300,
+        borderRadius: BorderRadius.circular(8),
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeletonCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 92,
+              height: 92,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 5),
+                  _buildShimmerPlaceholder(height: 16), // Placeholder Judul baris 1
+                  const SizedBox(height: 6),
+                  _buildShimmerPlaceholder(height: 16, width: 120), // Placeholder Judul baris 2
+                  const SizedBox(height: 12),
+                  _buildShimmerPlaceholder(height: 12, width: 150), // Placeholder Lokasi
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildShimmerPlaceholder(height: 12, width: 80), // Placeholder Tanggal
+                      _buildShimmerPlaceholder(height: 28, width: 90), // Placeholder Status
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentFindingsLoader() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 3, // Jumlah kartu skeleton yang ditampilkan
+        itemBuilder: (_, __) => _buildLoadingSkeletonCard(),
+      ),
+    );
   }
 
   Future<void> _fetchNotificationCount() async {
@@ -170,13 +285,13 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final userAuth = Supabase.instance.client.auth.currentUser;
       if (userAuth == null) return;
+
       final userRow = await Supabase.instance.client
           .from('User')
-          .select('nama, email, poin, gambar_user, id_unit, id_lokasi, jabatan(nama_jabatan)')
+          .select('nama, email, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, jabatan(nama_jabatan)')
           .eq('id_user', userAuth.id)
           .maybeSingle();
 
-      // Ambil metadata dari Google Sebagai cadangan jika foto di DB kosong
       final String? metaName = userAuth.userMetadata?['full_name'] ?? userAuth.userMetadata?['name'];
       final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
 
@@ -187,11 +302,31 @@ class _HomeScreenState extends State<HomeScreen> {
           _userPoin = 0;
           _userImage = metaImage;
           _userRole = 'Staff';
+          _userLocationName = 'Tidak Terdefinisi';
         });
         return;
       }
+      
+      String locationName = 'Tidak Terdefinisi';
+      final idArea = userRow['id_area'];
+      final idSubunit = userRow['id_subunit'];
+      final idUnit = userRow['id_unit'];
+      final idLokasi = userRow['id_lokasi'];
 
-      // Parsing Jabatan dari relasi tabel
+      if (idArea != null) {
+        final data = await Supabase.instance.client.from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
+        locationName = data?['nama_area'] ?? locationName;
+      } else if (idSubunit != null) {
+        final data = await Supabase.instance.client.from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
+        locationName = data?['nama_subunit'] ?? locationName;
+      } else if (idUnit != null) {
+        final data = await Supabase.instance.client.from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
+        locationName = data?['nama_unit'] ?? locationName;
+      } else if (idLokasi != null) {
+        final data = await Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
+        locationName = data?['nama_lokasi'] ?? locationName;
+      }
+
       String roleName = 'Staff';
       if (userRow['jabatan'] != null && userRow['jabatan']['nama_jabatan'] != null) {
         roleName = userRow['jabatan']['nama_jabatan'];
@@ -206,11 +341,18 @@ class _HomeScreenState extends State<HomeScreen> {
         _userPoin = userRow['poin'] ?? 0;
         _userImage = dbImage ?? metaImage;
         _userRole = roleName;
+        _userJabatanId = userRow['id_jabatan']; // Simpan id jabatan
         _userUnitId = userRow['id_unit'];
         _userLokasiId = userRow['id_lokasi'];
+        _userLocationName = locationName; // Simpan nama lokasi yang sudah jadi
       });
     } catch (e) {
       debugPrint("Error fetching user data: $e");
+      if(mounted) {
+        setState(() {
+          _userLocationName = 'Gagal memuat';
+        });
+      }
     }
   }
 
@@ -354,7 +496,15 @@ class _HomeScreenState extends State<HomeScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => AccountScreen(lang: _lang),
+                                  builder: (_) => AccountScreen(
+                                    lang: _lang,
+                                    initialUserName: _userName,
+                                    initialUserImage: _userImage,
+                                    initialUserRole: _userRole,
+                                    initialIsVisitor: _isVisitorMode,
+                                    initialUserJabatanId: _userJabatanId,
+                                    initialUserLocation: _userLocationName,
+                                  ),
                                 ),
                               ).then((_) {
                                 _loadLanguage();
@@ -1037,7 +1187,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 .limit(3), // Batasi menjadi 3 untuk awal
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: Padding(padding: EdgeInsets.all(32.0), child: CircularProgressIndicator(color: Color(0xFF00C9E4))));
+                return _buildRecentFindingsLoader();
               }
 
               // Jika tidak ada data atau error, tampilkan ilustrasi

@@ -9,8 +9,8 @@ import 'package:inspectaapp/verificator_home_screen.dart';
 // =======================================================
 
 class VerificationDetailScreen extends StatefulWidget {
-  // Tidak perlu temuanId lagi, screen ini akan mencari sendiri
-  const VerificationDetailScreen({super.key});
+  final String lang;
+  const VerificationDetailScreen({super.key, required this.lang});
 
   @override
   State<VerificationDetailScreen> createState() =>
@@ -20,6 +20,91 @@ class VerificationDetailScreen extends StatefulWidget {
 class _VerificationDetailScreenState extends State<VerificationDetailScreen>
     with TickerProviderStateMixin { // Tambahkan TickerProviderStateMixin di sini
   final SupabaseClient _client = Supabase.instance.client;
+
+  String _lang = 'EN';
+
+  final Map<String, Map<String, String>> _text = {
+    'EN': {
+      'title': 'Verify Report',
+      'subtitle': 'Check the following finding and completion data. Is this report valid and appropriate?',
+      'finding_image': 'Finding',
+      'completion_image': 'Completion',
+      'finding_notes': 'Finding Notes',
+      'completion_notes': 'Completion Notes',
+      'category_prefix': 'Category',
+      'location_prefix': 'Location',
+      'swipe_if_correct': 'SWIPE IF CORRECT',
+      'swipe_if_incorrect': 'SWIPE IF INCORRECT',
+      'can_answer_prefix': 'You can answer in',
+      'can_answer_suffix': 'seconds',
+      'please_swipe': 'PLEASE SWIPE TO ANSWER',
+      'no_report_title': 'Excellent!',
+      'no_report_body': 'There are currently no new reports to verify. Thank you for your hard work!',
+      'back_to_home': 'Back to Home',
+      'success_title': 'Verification Sent',
+      'success_body': 'Thank you! Continue to the next verification?',
+      'continue_verification': 'Continue Verification Now',
+      'auto_continue_prefix': 'Auto-continue in',
+      'auto_continue_suffix': 'seconds (or exit)',
+      'error_loading': 'Error loading data:',
+      'already_verified': 'You have already verified this finding.',
+      'error_submitting': 'Error during submission:',
+    },
+    'ID': {
+      'title': 'Verifikasi Laporan',
+      'subtitle': 'Periksa data temuan dan penyelesaian berikut. Apakah laporan ini valid dan sesuai?',
+      'finding_image': 'Temuan',
+      'completion_image': 'Penyelesaian',
+      'finding_notes': 'Catatan Temuan',
+      'completion_notes': 'Catatan Penyelesaian',
+      'category_prefix': 'Kategori',
+      'location_prefix': 'Lokasi',
+      'swipe_if_correct': 'GESER JIKA SESUAI',
+      'swipe_if_incorrect': 'GESER JIKA TIDAK',
+      'can_answer_prefix': 'Anda dapat menjawab dalam',
+      'can_answer_suffix': 'detik',
+      'please_swipe': 'SILAKAN GESER UNTUK MENJAWAB',
+      'no_report_title': 'Luar Biasa!',
+      'no_report_body': 'Saat ini tidak ada laporan baru yang perlu diverifikasi. Terima kasih atas kerja keras Anda!',
+      'back_to_home': 'Kembali ke Beranda',
+      'success_title': 'Verifikasi Terkirim',
+      'success_body': 'Terima kasih! Lanjut verifikasi laporan berikutnya?',
+      'continue_verification': 'Lanjut Verifikasi Sekarang',
+      'auto_continue_prefix': 'Otomatis lanjut dalam',
+      'auto_continue_suffix': 'detik (atau keluar)',
+      'error_loading': 'Error memuat data:',
+      'already_verified': 'Anda sudah pernah memverifikasi temuan ini.',
+      'error_submitting': 'Error saat submit:',
+    },
+    'ZH': {
+      'title': '验证报告',
+      'subtitle': '请检查以下发现和完成数据。此报告是否有效且适当？',
+      'finding_image': '发现',
+      'completion_image': '完成',
+      'finding_notes': '发现说明',
+      'completion_notes': '完成说明',
+      'category_prefix': '类别',
+      'location_prefix': '地点',
+      'swipe_if_correct': '如果正确请滑动',
+      'swipe_if_incorrect': '如果不符请滑动',
+      'can_answer_prefix': '您可以在',
+      'can_answer_suffix': '秒后回答',
+      'please_swipe': '请滑动以回答',
+      'no_report_title': '太棒了!',
+      'no_report_body': '目前没有新的报告需要验证。感谢您的辛勤工作！',
+      'back_to_home': '返回首页',
+      'success_title': '验证已发送',
+      'success_body': '谢谢！要继续下一个验证吗？',
+      'continue_verification': '立即继续验证',
+      'auto_continue_prefix': '将在',
+      'auto_continue_suffix': '秒后自动继续 (或退出)',
+      'error_loading': '加载数据时出错：',
+      'already_verified': '您已经验证过此发现。',
+      'error_submitting': '提交时出错：',
+    },
+  };
+
+  String getTxt(String key) => _text[_lang]?[key] ?? key;
 
   // State untuk mengelola UI
   bool _isLoading = true;
@@ -33,7 +118,7 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
   @override
   void initState() {
     super.initState();
-    // Memulai proses pencarian dan pemuatan temuan
+    _lang = widget.lang;
     _findAndLoadTemuan();
   }
 
@@ -125,7 +210,7 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Error memuat data: ${e.toString()}'),
+            content: Text('${getTxt("error_loading")} ${e.toString()}'),
             backgroundColor: Colors.red));
       }
     }
@@ -155,13 +240,13 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
     } catch (e) {
       if (mounted) {
         if (e is PostgrestException && e.code == '23505') {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Anda sudah pernah memverifikasi temuan ini.'),
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(getTxt('already_verified')),
               backgroundColor: Colors.orange));
           _findAndLoadTemuan();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('Error saat submit: ${e.toString()}'),
+              content: Text('${getTxt("error_submitting")} ${e.toString()}'),
               backgroundColor: Colors.red));
           setState(() {
             _isLoading = false;
@@ -225,11 +310,11 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Verifikasi Laporan",
+            Text(getTxt('title'),
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 5),
-            const Text(
-              'Periksa data temuan dan penyelesaian berikut. Apakah laporan ini valid dan sesuai?',
+            Text(
+              getTxt('subtitle'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15, color: Colors.grey),
             ),
@@ -237,38 +322,35 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildImageContainer("Temuan", temuan['gambar_temuan']),
+                _buildImageContainer(getTxt('finding_image'), temuan['gambar_temuan']),
                 const SizedBox(width: 10),
-                _buildImageContainer("Penyelesaian",
+                _buildImageContainer(getTxt('completion_image'),
                     temuan['penyelesaian']?['gambar_penyelesaian']),
               ],
             ),
             const SizedBox(height: 15),
-            _buildNoteCard("Catatan Temuan", temuan['deskripsi_temuan']),
+            _buildNoteCard(getTxt('finding_notes'), temuan['deskripsi_temuan']),
             const SizedBox(height: 8),
-            _buildNoteCard("Catatan Penyelesaian",
+            _buildNoteCard(getTxt('completion_notes'),
                 temuan['penyelesaian']?['catatan_penyelesaian']),
             const SizedBox(height: 8),
             _buildInfoRow(Icons.category_outlined,
-                "Kategori: ${temuan['kategoritemuan']?['nama_kategoritemuan'] ?? 'N/A'}"),
+                "${getTxt('category_prefix')}: ${temuan['kategoritemuan']?['nama_kategoritemuan'] ?? 'N/A'}"),
             _buildInfoRow(Icons.location_on_outlined,
-                "Lokasi: ${temuan['lokasi']?['nama_lokasi'] ?? 'N/A'} - ${temuan['area']?['nama_area'] ?? 'N/A'}"),
+                "${getTxt('location_prefix')}: ${temuan['lokasi']?['nama_lokasi'] ?? 'N/A'} - ${temuan['area']?['nama_area'] ?? 'N/A'}"),
             const SizedBox(height: 20),
 
-            // --- PERUBAHAN UTAMA DI SINI ---
-            // Mengubah teks menjadi lebih pendek agar pas.
-            _buildSwipeActionButton("GESER JIKA SESUAI", Colors.green,
+            _buildSwipeActionButton(getTxt('swipe_if_correct'), Colors.green,
                 Icons.arrow_forward, () => _submitVerification(true)),
             const SizedBox(height: 10),
-            _buildSwipeActionButton("GESER JIKA TIDAK", Colors.red, // Teks diperpendek
+            _buildSwipeActionButton(getTxt('swipe_if_incorrect'), Colors.red,
                 Icons.arrow_back, () => _submitVerification(false)),
-            // ------------------------------------
 
             const SizedBox(height: 15),
             Text(
               _secondsToAccess > 0
-                  ? "Anda dapat menjawab dalam $_secondsToAccess detik"
-                  : "SILAKAN GESER UNTUK MENJAWAB",
+                  ? "${getTxt('can_answer_prefix')} $_secondsToAccess ${getTxt('can_answer_suffix')}"
+                  : getTxt('please_swipe'),
               style: TextStyle(
                 color: _secondsToAccess > 0
                     ? Colors.orange.shade700
@@ -401,17 +483,17 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
         children: [
           const Icon(Icons.task_alt_rounded, size: 80, color: Colors.green),
           const SizedBox(height: 20),
-          const Text('Luar Biasa!',
+          Text(getTxt('no_report_title'),
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
-          const Text(
-              'Saat ini tidak ada laporan baru yang perlu diverifikasi. Terima kasih atas kerja keras Anda!',
+          Text(
+              getTxt('no_report_body'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 30),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Kembali ke Beranda'),
+            child: Text(getTxt('back_to_home')),
           )
         ],
       ),
@@ -431,11 +513,11 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
             children: [
               const Icon(Icons.check_circle, color: Colors.blue, size: 60),
               const SizedBox(height: 20),
-              const Text('Verifikasi Terkirim',
+              Text(getTxt('success_title'),
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              const Text(
-                  'Terima kasih! Lanjut verifikasi laporan berikutnya?',
+              Text(
+                  getTxt('success_body'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 25),
@@ -449,7 +531,7 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
                   onPressed: () {
                     _findAndLoadTemuan();
                   },
-                  child: const Text('Lanjut Verifikasi Sekarang'),
+                  child: Text(getTxt('continue_verification')),
                 ),
               ),
               const SizedBox(height: 10),
@@ -459,6 +541,8 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
                     _findAndLoadTemuan();
                   }
                 },
+                textPrefix: getTxt('auto_continue_prefix'),
+                textSuffix: getTxt('auto_continue_suffix'),
               ),
             ],
           ),
@@ -467,10 +551,6 @@ class _VerificationDetailScreenState extends State<VerificationDetailScreen>
     );
   }
 }
-
-// =======================================================
-// SEMUA KELAS HELPER DI BAWAH SINI (DI LUAR KELAS STATE)
-// =======================================================
 
 enum SwipeDirection { leftToRight, rightToLeft }
 
@@ -633,7 +713,15 @@ class _InteractiveSwipeButtonState extends State<_InteractiveSwipeButton>
 
 class CountdownButton extends StatefulWidget {
   final VoidCallback onFinished;
-  const CountdownButton({super.key, required this.onFinished});
+  final String textPrefix;
+  final String textSuffix;
+
+  const CountdownButton({
+    super.key,
+    required this.onFinished,
+    required this.textPrefix,
+    required this.textSuffix,
+  });
 
   @override
   _CountdownButtonState createState() => _CountdownButtonState();
@@ -679,11 +767,11 @@ class _CountdownButtonState extends State<CountdownButton> {
         _timer?.cancel();
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-              builder: (context) => const VerificatorHomeScreen()),
+              builder: (context) => VerificatorHomeScreen()),
           (Route<dynamic> route) => false,
         );
       },
-      child: Text('Otomatis lanjut dalam $_countdown detik (atau keluar)'),
+      child: Text('${widget.textPrefix} $_countdown ${widget.textSuffix}'),
     );
   }
 }

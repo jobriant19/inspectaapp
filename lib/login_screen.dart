@@ -187,7 +187,7 @@ class _LoginScreenState extends State<LoginScreen>
             // Cek apakah email google tersebut ADA di database tabel User
             final userData = await Supabase.instance.client
                 .from('User')
-                .select('id_user, email, gambar_user')
+                .select('id_user, email, gambar_user, is_verificator')
                 .eq('email', session.user.email!)
                 .maybeSingle();
 
@@ -209,9 +209,20 @@ class _LoginScreenState extends State<LoginScreen>
                 }).eq('id_user', userData['id_user']);
               }
 
-              // Masuk ke HomeScreen
               if (mounted) {
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+                final isVerificator = userData['is_verificator'] as bool? ?? false;
+
+                if (isVerificator) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const VerificatorHomeScreen()),
+                  );
+                } else {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  );
+                }
               }
             }
           } catch (e) {

@@ -16,10 +16,13 @@ class _VerificatorHomeScreenState extends State<VerificatorHomeScreen> {
   int _currentIndex = 0;
 
   // Data User
-  String _userName = "Loading...";
-  String _userRole = "Verifier";
+  String _userName = "...";
+  String _userRole = "...";
   int _userPoin = 0;
   String? _userImage;
+  String _userLocationName = "...";
+  int? _userJabatanId;
+  bool _isVisitor = false;
 
   int _notificationCount = 0;
 
@@ -97,7 +100,7 @@ class _VerificatorHomeScreenState extends State<VerificatorHomeScreen> {
       
       final userRow = await Supabase.instance.client
           .from('User')
-          .select('nama, poin, gambar_user, jabatan(nama_jabatan)')
+          .select('nama, poin, gambar_user, id_jabatan, is_visitor, id_lokasi, id_unit, id_subunit, id_area, jabatan(nama_jabatan)')
           .eq('id_user', userAuth.id)
           .maybeSingle();
 
@@ -107,15 +110,44 @@ class _VerificatorHomeScreenState extends State<VerificatorHomeScreen> {
         setState(() {
           _userName = userAuth.userMetadata?['full_name'] ?? 'Verifier';
           _userImage = metaImage;
+          _userLocationName = "Tidak Terdefinisi";
         });
         return;
+      }
+
+      String locationName = 'Tidak Terdefinisi';
+      final idArea = userRow['id_area'];
+      final idSubunit = userRow['id_subunit'];
+      final idUnit = userRow['id_unit'];
+      final idLokasi = userRow['id_lokasi'];
+
+      if (idArea != null) {
+        final data = await Supabase.instance.client.from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
+        locationName = data?['nama_area'] ?? locationName;
+      } else if (idSubunit != null) {
+        final data = await Supabase.instance.client.from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
+        locationName = data?['nama_subunit'] ?? locationName;
+      } else if (idUnit != null) {
+        final data = await Supabase.instance.client.from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
+        locationName = data?['nama_unit'] ?? locationName;
+      } else if (idLokasi != null) {
+        final data = await Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
+        locationName = data?['nama_lokasi'] ?? locationName;
+      }
+      
+      String roleName = 'Verifier';
+      if (userRow['jabatan'] != null && userRow['jabatan']['nama_jabatan'] != null) {
+        roleName = userRow['jabatan']['nama_jabatan'];
       }
 
       setState(() {
         _userName = userRow['nama'] ?? 'Verifier';
         _userPoin = userRow['poin'] ?? 0;
         _userImage = userRow['gambar_user'] ?? metaImage;
-        _userRole = userRow['jabatan']?['nama_jabatan'] ?? 'Verifier';
+        _userRole = roleName;
+        _userJabatanId = userRow['id_jabatan'];
+        _userLocationName = locationName;
+        _isVisitor = userRow['is_visitor'] ?? false;
       });
     } catch (e) {
       debugPrint("Error fetching user data: $e");
@@ -188,10 +220,19 @@ class _VerificatorHomeScreenState extends State<VerificatorHomeScreen> {
                         onTap: () {
                           Navigator.push(
                             context,
-                            // FIX: Tambahkan parameter 'lang' yang wajib
-                            MaterialPageRoute(builder: (_) => AccountScreen(lang: _lang)),
+                            MaterialPageRoute(
+                              builder: (_) => AccountScreen(
+                                lang: _lang,
+                                initialUserName: _userName,
+                                initialUserImage: _userImage,
+                                initialUserRole: getTxt('role'),
+                                initialUserLocation: _userLocationName,
+                                initialIsVisitor: _isVisitor,
+                                initialUserJabatanId: _userJabatanId,
+                              ),
+                            ),
                           ).then((_) {
-                            _loadLanguage(); // Muat ulang bahasa jika ada perubahan
+                            _loadLanguage();
                             _fetchInitialData();
                           });
                         },
@@ -322,8 +363,7 @@ class _VerificatorHomeScreenState extends State<VerificatorHomeScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    // Sebaiknya VerificationDetailScreen juga menerima 'lang'
-                    MaterialPageRoute(builder: (context) => const VerificationDetailScreen()),
+                    MaterialPageRoute(builder: (context) => VerificationDetailScreen(lang: _lang)),
                   );
                 },
                 child: Container(

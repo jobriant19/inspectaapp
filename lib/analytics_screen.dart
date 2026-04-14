@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 
 // ─── Warna & Tema ──────────────────────────────────────────────────────────
 class _AppColors {
@@ -212,6 +213,133 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _initLocaleDependentLists();
+  }
+
+  Widget _buildShimmerBox({double? width, required double height, bool isCircle = false, double borderRadius = 8}) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white, // Warna dasar untuk shimmer
+        borderRadius: BorderRadius.circular(isCircle ? height / 2 : borderRadius),
+      ),
+    );
+  }
+
+  /// Shimmer untuk Tab Anggota.
+  Widget _buildAnggotaShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[200]!,
+      highlightColor: Colors.grey[50]!,
+      child: ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: 10,
+        separatorBuilder: (_, __) => Divider(height: 1, color: _AppColors.divider, indent: 16),
+        itemBuilder: (_, __) => Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: Row(
+                  children: [
+                    _buildShimmerBox(height: 34, width: 34, isCircle: true),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildShimmerBox(height: 14, width: 120),
+                          const SizedBox(height: 4),
+                          _buildShimmerBox(height: 12, width: 80),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(flex: 1, child: Center(child: _buildShimmerBox(height: 14, width: 20))),
+              Expanded(flex: 1, child: Center(child: _buildShimmerBox(height: 14, width: 20))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Shimmer untuk Tab Inspeksi.
+  Widget _buildInspeksiShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[200]!,
+      highlightColor: Colors.grey[50]!,
+      child: ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: 10,
+        separatorBuilder: (_, __) => Divider(height: 1, color: _AppColors.divider, indent: 16),
+        itemBuilder: (_, __) => Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: Row(
+                  children: [
+                    _buildShimmerBox(height: 34, width: 34, isCircle: true),
+                    const SizedBox(width: 10),
+                    Expanded(child: _buildShimmerBox(height: 14)),
+                  ],
+                ),
+              ),
+              Expanded(flex: 1, child: Center(child: _buildShimmerBox(height: 14, width: 20))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Shimmer untuk Tab Lokasi.
+  Widget _buildLokasiShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[200]!,
+      highlightColor: Colors.grey[50]!,
+      child: ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: 8,
+        separatorBuilder: (_, __) => Divider(height: 1, color: _AppColors.divider, indent: 16),
+        itemBuilder: (_, __) => Container(
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              SizedBox(width: 40, child: Center(child: _buildShimmerBox(height: 14, width: 20))),
+              Expanded(
+                flex: 3,
+                child: Row(
+                  children: [
+                    _buildShimmerBox(height: 38, width: 38, borderRadius: 10),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildShimmerBox(height: 14, width: double.infinity),
+                          const SizedBox(height: 4),
+                          _buildShimmerBox(height: 12, width: 100),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: 50, child: Center(child: _buildShimmerBox(height: 14, width: 20))),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _initLocaleDependentLists() {
@@ -507,8 +635,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           child: FutureBuilder<List<MemberData>>(
             future: _anggotaFuture,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+              if (_anggotaFuture == null || snapshot.connectionState == ConnectionState.waiting) {
+                return _buildAnggotaShimmer();
               }
               if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
                 return Center(child: Text(getTxt('tidak_ada_data_anggota')));
@@ -721,8 +849,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           child: FutureBuilder<List<InspectionData>>(
             future: _inspeksiFuture,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+              if (_inspeksiFuture == null || snapshot.connectionState == ConnectionState.waiting) {
+                return _buildInspeksiShimmer();
               }
               if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
                 return Center(child: Text('${getTxt('tidak_ada_temuan_role')} "$_selectedInspectionRole".'));
@@ -782,14 +910,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               _buildMonthDropdown(),
               const SizedBox(width: 10),
               Expanded(
-                // PERUBAHAN DI SINI: Dropdown untuk level lokasi
                 child: _StyledDropdown(
                   value: _selectedLocationLevel,
                   items: _translatedLocationLevels,
                   onChanged: (v) {
                     if (v != null) {
                       setState(() => _selectedLocationLevel = v);
-                      _fetchAllData(); // Ambil data baru
+                      _fetchAllData();
                     }
                   },
                   isDark: false,
@@ -805,8 +932,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           child: FutureBuilder<List<LocationData>>(
             future: _lokasiFuture,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+              if (_lokasiFuture == null || snapshot.connectionState == ConnectionState.waiting) {
+                return _buildLokasiShimmer(); 
               }
               if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
                 return Center(child: Text('${getTxt('tidak_ada_data_level')} "$_selectedLocationLevel".'));

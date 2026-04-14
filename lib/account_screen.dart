@@ -3,10 +3,31 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
+import 'about_inspecta_screen.dart';
+import 'help_center_screen.dart';
+import 'privacy_security_screen.dart';
+import 'news_screen.dart';
+import 'package:shimmer/shimmer.dart';
 
 class AccountScreen extends StatefulWidget {
   final String lang;
-  const AccountScreen({super.key, required this.lang});
+  final String? initialUserName;
+  final String? initialUserImage;
+  final String? initialUserRole;
+  final String? initialUserLocation;
+  final bool? initialIsVisitor;
+  final int? initialUserJabatanId;
+  
+  const AccountScreen({
+    super.key, 
+    required this.lang,
+    this.initialUserName,
+    this.initialUserImage,
+    this.initialUserRole,
+    this.initialUserLocation,
+    this.initialIsVisitor,
+    this.initialUserJabatanId,
+  });
 
   @override
   State<AccountScreen> createState() => _AccountScreenState();
@@ -14,7 +35,7 @@ class AccountScreen extends StatefulWidget {
 
 class _AccountScreenState extends State<AccountScreen> {
   late String _currentLang;
-  bool _isLoading = false;
+  bool _isLoading = true;
 
   // Data User
   String _userName = "Loading...";
@@ -35,6 +56,9 @@ class _AccountScreenState extends State<AccountScreen> {
       'help': 'Help Center',
       'privacy': 'Privacy & Security',
       'news': 'Latest News',
+      'news_title': 'Latest News',
+      'update_notes': 'Update Notes',
+      'maintenance_notices': 'Maintenance Notices',
       'logout': 'Logout',
       'logout_desc': 'End your session on this device',
       'select_lang': 'Select Language',
@@ -50,6 +74,9 @@ class _AccountScreenState extends State<AccountScreen> {
       'help': 'Pusat Bantuan',
       'privacy': 'Privasi dan Keamanan',
       'news': 'Kabar Terbaru',
+      'news_title': 'Kabar Terbaru',
+      'update_notes': 'Catatan Pembaruan',
+      'maintenance_notices': 'Pemberitahuan Pemeliharaan',
       'logout': 'Keluar Akun',
       'logout_desc': 'Akhiri sesi Anda di perangkat ini',
       'select_lang': 'Pilih Bahasa',
@@ -65,6 +92,9 @@ class _AccountScreenState extends State<AccountScreen> {
       'help': '帮助中心',
       'privacy': '隐私与安全',
       'news': '最新消息',
+      'news_title': '最新消息',
+      'update_notes': '更新记录',
+      'maintenance_notices': '维护通知',
       'logout': '登出',
       'logout_desc': '在此设备上结束您的会话',
       'select_lang': '选择语言',
@@ -79,7 +109,51 @@ class _AccountScreenState extends State<AccountScreen> {
   void initState() {
     super.initState();
     _currentLang = widget.lang;
+    _userName = widget.initialUserName ?? "...";
+    _userImage = widget.initialUserImage;
+    _userJabatan = widget.initialUserRole ?? "...";
+    _userLokasiSpesifik = widget.initialUserLocation ?? "...";
+    _isVisitor = widget.initialIsVisitor ?? false;
+    _userJabatanId = widget.initialUserJabatanId;
+    _isLoading = widget.initialUserName == null || widget.initialUserName == "...";
     _fetchUserData();
+  }
+
+  Widget _buildSkeletonProfileCard() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: Row(
+          children: [
+            // Placeholder Gambar
+            const CircleAvatar(radius: 35, backgroundColor: Colors.white),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Placeholder Nama
+                  Container(height: 20, width: 150, color: Colors.white),
+                  const SizedBox(height: 10),
+                  // Placeholder Jabatan
+                  Container(height: 14, width: 80, color: Colors.white),
+                  const SizedBox(height: 10),
+                  // Placeholder Lokasi
+                  Container(height: 14, width: 120, color: Colors.white),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _fetchUserData() async {
@@ -90,10 +164,9 @@ class _AccountScreenState extends State<AccountScreen> {
     }
 
     try {
-      final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
       final userRow = await Supabase.instance.client
           .from('User')
-          .select('nama, gambar_user, id_jabatan, is_visitor, is_verificator, id_lokasi, id_unit, id_subunit, id_area')
+          .select('nama, gambar_user, id_jabatan, is_visitor, is_verificator, id_lokasi, id_unit, id_subunit, id_area, jabatan(nama_jabatan)')
           .eq('id_user', userAuth.id)
           .maybeSingle();
 
@@ -102,61 +175,48 @@ class _AccountScreenState extends State<AccountScreen> {
         return;
       }
 
-      final isVisitor = userRow['is_visitor'] ?? false;
-      final isVerificator = userRow['is_verificator'] ?? false;
+      final isVerificator = userRow['is_verificator'] as bool? ?? false;
+
+      if (isVerificator) {
+        if (mounted) {
+          setState(() {
+            _userName = userRow['nama'] ?? 'User';
+            final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
+            _userImage = userRow['gambar_user'] ?? metaImage;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+      
+      final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
+      final isVisitor = userRow['is_visitor'] as bool? ?? false;
       final idJabatan = userRow['id_jabatan'];
       final idLokasi = userRow['id_lokasi'];
       final idUnit = userRow['id_unit'];
       final idSubunit = userRow['id_subunit'];
       final idArea = userRow['id_area'];
 
-      // --- OPTIMISASI: Siapkan semua query yang mungkin diperlukan ---
-      List<Future<PostgrestResponse>> futures = [];
-
-      // Query 0: Jabatan (hanya jika bukan visitor dan punya id_jabatan)
-      if (!isVisitor && !isVerificator && idJabatan != null) {
-        futures.add(
-          Supabase.instance.client
-              .from('jabatan')
-              .select('nama_jabatan')
-              .eq('id_jabatan', idJabatan)
-              .maybeSingle()
-              .then((value) => PostgrestResponse(data: value, count: 0)), // Bungkus untuk tipe data
-        );
-      } else {
-        futures.add(Future.value(PostgrestResponse(data: null, count: 0))); // Future kosong
-      }
-
-      // Query 1: Lokasi spesifik (pilih satu query berdasarkan prioritas)
+      String locationName = "Tidak Terdefinisi";
       if (idArea != null) {
-        futures.add(Supabase.instance.client.from('area').select('nama_area').eq('id_area', idArea).maybeSingle().then((value) => PostgrestResponse(data: value, count: 0)));
+        final data = await Supabase.instance.client.from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
+        locationName = data?['nama_area'] ?? locationName;
       } else if (idSubunit != null) {
-        futures.add(Supabase.instance.client.from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle().then((value) => PostgrestResponse(data: value, count: 0)));
+        final data = await Supabase.instance.client.from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
+        locationName = data?['nama_subunit'] ?? locationName;
       } else if (idUnit != null) {
-        futures.add(Supabase.instance.client.from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle().then((value) => PostgrestResponse(data: value, count: 0)));
+        final data = await Supabase.instance.client.from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
+        locationName = data?['nama_unit'] ?? locationName;
       } else if (idLokasi != null) {
-        futures.add(Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle().then((value) => PostgrestResponse(data: value, count: 0)));
-      } else {
-        futures.add(Future.value(PostgrestResponse(data: null, count: 0))); // Future kosong
+        final data = await Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
+        locationName = data?['nama_lokasi'] ?? locationName;
       }
-
-      final results = await Future.wait(futures);
 
       String jabatanName;
-      if(isVerificator) {
-        jabatanName = getTxt('verifier_role');
-      } else if (isVisitor) {
+      if (isVisitor) {
         jabatanName = getTxt('visitor');
       } else {
-        final jabatanRow = results[0].data;
-        jabatanName = jabatanRow?['nama_jabatan'] ?? 'Staff';
-      }
-
-      String lokasiSpesifik = "Tidak Terdefinisi";
-      final lokasiRow = results[1].data;
-      if (lokasiRow != null) {
-        // Ambil nilai dari map, tidak peduli apa key-nya
-        lokasiSpesifik = lokasiRow.values.first ?? "Tidak Terdefinisi";
+        jabatanName = userRow['jabatan']?['nama_jabatan'] ?? 'Staff';
       }
 
       String? dbImage = userRow['gambar_user'];
@@ -167,16 +227,15 @@ class _AccountScreenState extends State<AccountScreen> {
           _userName = userRow['nama'] ?? 'User';
           _userImage = dbImage ?? metaImage;
           _userJabatan = jabatanName;
-          _userLokasiSpesifik = lokasiSpesifik;
+          _userLokasiSpesifik = locationName;
           _isVisitor = isVisitor;
           _userJabatanId = idJabatan;
+          _isLoading = false;
         });
       }
 
-
     } catch (e) {
       debugPrint("Error fetching user data for account: $e");
-    } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -251,15 +310,56 @@ class _AccountScreenState extends State<AccountScreen> {
               child: Column(
                 children: [
                   // --- KARTU PROFIL UTAMA ---
-                  _buildProfileCard(),
+                  _isLoading ? _buildSkeletonProfileCard() : _buildProfileCard(),
                   const SizedBox(height: 30),
 
                   // --- MENU PENGATURAN ---
                   _buildMenuTile(Icons.translate, getTxt('change_lang'), onTap: _showLanguagePicker, trailing: Text(getTxt('current_lang'), style: const TextStyle(color: Colors.grey))),
-                  _buildMenuTile(Icons.info_outline, getTxt('about'), onTap: () {}),
-                  _buildMenuTile(Icons.help_outline, getTxt('help'), onTap: () {}),
-                  _buildMenuTile(Icons.shield_outlined, getTxt('privacy'), onTap: () {}),
-                  _buildMenuTile(Icons.campaign_outlined, getTxt('news'), onTap: () {}),
+                  _buildMenuTile(
+                    Icons.info_outline, 
+                    getTxt('about'), 
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AboutInspectaScreen(lang: _currentLang),
+                        ),
+                      );
+                    }
+                  ),
+                  _buildMenuTile(
+                    Icons.help_outline, 
+                    getTxt('help'), 
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => HelpCenterScreen(lang: _currentLang),
+                        ),
+                      );
+                    }
+                  ),
+                  _buildMenuTile(
+                    Icons.shield_outlined, 
+                    getTxt('privacy'), 
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => PrivacySecurityScreen(lang: _currentLang)),
+                      );
+                    },
+                  ),
+                  _buildMenuTile(Icons.campaign_outlined, getTxt('news'), onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => NewsScreen(
+                          lang: _currentLang, 
+                          translations: _txt,
+                        ),
+                      ),
+                    );
+                  }),
 
                   const SizedBox(height: 40),
 
@@ -338,8 +438,18 @@ Widget _buildProfileCard() {
 
   return GestureDetector(
     onTap: () {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(lang: _currentLang)))
-          .then((_) => _fetchUserData());
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ProfileScreen(
+            lang: _currentLang,
+            initialUserName: _userName,
+            initialUserImage: _userImage,
+            initialUserRole: _userJabatan,
+            initialUserLocation: _userLokasiSpesifik,
+          ),
+        ),
+      ).then((_) => _fetchUserData());
     },
     child: Container(
       height: 140, // Tinggi konsisten

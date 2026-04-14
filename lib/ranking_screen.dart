@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import './riwayat_musim_screen.dart';
+import 'package:shimmer/shimmer.dart';
 
 // ─── Warna & Tema ──────────────────────────────────────────────────────────
 class _AppColors {
@@ -211,10 +212,10 @@ class _RankingScreenState extends State<RankingScreen> {
                     future: _leaderboardFuture,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting && snapshot.data == null) {
-                        return const SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.all(32.0),
-                            child: Center(child: CircularProgressIndicator()),
+                        return SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => const _RankRowShimmerPlaceholder(),
+                            childCount: 8, // Tampilkan 8 baris shimmer
                           ),
                         );
                       }
@@ -227,10 +228,10 @@ class _RankingScreenState extends State<RankingScreen> {
                         );
                       }
                       if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const SliverToBoxAdapter(
+                        return SliverToBoxAdapter(
                           child: Padding(
-                            padding: EdgeInsets.all(32.0),
-                            child: Center(child: Text('Belum ada peringkat bulan ini.')),
+                            padding: const EdgeInsets.all(32.0),
+                            child: Center(child: Text(getTxt('no_rank_data'))),
                           ),
                         );
                       }
@@ -244,7 +245,7 @@ class _RankingScreenState extends State<RankingScreen> {
                       );
                     },
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 80)), // Ruang di bawah
+                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
                 ],
               ),
             ),
@@ -346,92 +347,307 @@ class _RankingScreenState extends State<RankingScreen> {
   Widget _buildSkySection() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      height: 250,
+      height: 300,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF0369A1), Color(0xFF0EA5E9), Color(0xFF7DD3FC)],
-        ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-              color: _AppColors.primary.withOpacity(0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 6))
+            color: const Color(0xFF0EA5E9).withOpacity(0.4),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: FutureBuilder<List<_RankMember>>(
-          future: _leaderboardFuture,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData && snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Colors.white));
-            }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Center(
-                child: Text(getTxt('no_podium_data'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white70, height: 1.5)),
-              );
-            }
-
-            final members = snapshot.data!;
-            _RankMember? top1, top2, top3;
-            try { top1 = members.firstWhere((m) => m.rank == 1); } catch (e) { top1 = null; }
-            try { top2 = members.firstWhere((m) => m.rank == 2); } catch (e) { top2 = null; }
-            try { top3 = members.firstWhere((m) => m.rank == 3); } catch (e) { top3 = null; }
-
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                // Efek Sunburst di belakang juara 1
-                if(top1 != null)
-                  Positioned(
-                    top: -80,
-                    child: Container(
-                      height: 250,
-                      width: 250,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            Colors.white.withOpacity(0.2),
-                            Colors.white.withOpacity(0.0),
-                          ]
-                        )
-                      ),
-                    ),
+        child: Stack(
+          children: [
+            // ── LAYER 1: Gradien langit biru cerah ──────────────────
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF1E90FF), // biru langit cerah atas
+                      Color(0xFF41B8F5), // biru tengah
+                      Color(0xFF7DD3FC), // biru muda
+                      Color(0xFFBAE6FD), // cakrawala
+                    ],
+                    stops: [0.0, 0.35, 0.65, 1.0],
                   ),
+                ),
+              ),
+            ),
 
-                // Barisan Podium
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      if (top2 != null)
-                        _PodiumMember(member: top2, position: 2)
-                      else
-                        const SizedBox(width: 90),
-                      
-                      if (top1 != null)
-                        _PodiumMember(member: top1, position: 1)
-                      else
-                        const SizedBox(width: 90),
-                        
-                      if (top3 != null)
-                        _PodiumMember(member: top3, position: 3)
-                      else
-                        const SizedBox(width: 90),
+            // ── LAYER 2: Matahari / cahaya ─────────────────────────
+            Positioned(
+              top: -30,
+              right: 30,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.35),
+                      Colors.white.withOpacity(0.12),
+                      Colors.transparent,
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
+                ),
+              ),
+            ),
+
+            // ── LAYER 3: Awan besar kiri bawah ─────────────────────
+            Positioned(
+              left: -20,
+              bottom: 40,
+              child: _buildFantasyCloud(160, 0.92),
+            ),
+
+            // ── LAYER 4: Awan besar kanan bawah ────────────────────
+            Positioned(
+              right: -30,
+              bottom: 30,
+              child: _buildFantasyCloud(140, 0.85),
+            ),
+
+            // ── LAYER 5: Awan kecil kiri atas ───────────────────────
+            Positioned(
+              left: 10,
+              top: 30,
+              child: _buildFantasyCloud(80, 0.65),
+            ),
+
+            // ── LAYER 6: Awan kecil kanan atas ──────────────────────
+            Positioned(
+              right: 20,
+              top: 15,
+              child: _buildFantasyCloud(65, 0.55),
+            ),
+
+            // ── LAYER 7: Awan tipis tengah ──────────────────────────
+            Positioned(
+              left: 80,
+              top: 55,
+              child: _buildFantasyCloud(90, 0.45),
+            ),
+
+            // ── LAYER 8: Pesawat mini dekoratif kanan ───────────────
+            Positioned(
+              right: 28,
+              top: 52,
+              child: Transform.rotate(
+                angle: -0.15,
+                child: const Text('✈', style: TextStyle(fontSize: 16, color: Colors.white70)),
+              ),
+            ),
+
+            // ── LAYER 9: Pesawat mini dekoratif kiri ────────────────
+            Positioned(
+              left: 48,
+              top: 90,
+              child: Transform.rotate(
+                angle: 0.1,
+                child: const Text('✈', style: TextStyle(fontSize: 11, color: Colors.white54)),
+              ),
+            ),
+
+            // ── LAYER 10: Garis runway / landasan bawah ─────────────
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      Colors.white.withOpacity(0.3),
+                      Colors.white.withOpacity(0.5),
+                      Colors.white.withOpacity(0.3),
+                      Colors.transparent,
                     ],
                   ),
                 ),
-              ],
-            );
-          },
+              ),
+            ),
+
+            // ── LAYER 11: Konten Podium ──────────────────────────────
+            FutureBuilder<List<_RankMember>>(
+              future: _leaderboardFuture,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData &&
+                    snapshot.connectionState == ConnectionState.waiting) {
+                  return const _PodiumShimmerPlaceholder();
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Center(
+                    child: Text(
+                      getTxt('no_podium_data'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70, height: 1.5),
+                    ),
+                  );
+                }
+
+                final members = snapshot.data!;
+                _RankMember? top1, top2, top3;
+                try { top1 = members.firstWhere((m) => m.rank == 1); } catch (_) {}
+                try { top2 = members.firstWhere((m) => m.rank == 2); } catch (_) {}
+                try { top3 = members.firstWhere((m) => m.rank == 3); } catch (_) {}
+
+                return Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (top2 != null)
+                          _PodiumMember(member: top2, position: 2)
+                        else
+                          const SizedBox(width: 95),
+                        if (top1 != null)
+                          _PodiumMember(member: top1, position: 1)
+                        else
+                          const SizedBox(width: 105),
+                        if (top3 != null)
+                          _PodiumMember(member: top3, position: 3)
+                        else
+                          const SizedBox(width: 95),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Awan bergaya anime/fantasy — tumpukan lingkaran putih lembut
+  Widget _buildFantasyCloud(double width, double opacity) {
+    final h = width * 0.5;
+    return Opacity(
+      opacity: opacity,
+      child: SizedBox(
+        width: width,
+        height: h + 10,
+        child: Stack(
+          children: [
+            // Badan utama bawah
+            Positioned(
+              left: 0,
+              bottom: 0,
+              child: Container(
+                width: width,
+                height: h * 0.55,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(100),
+                ),
+              ),
+            ),
+            // Gundukan kiri
+            Positioned(
+              left: width * 0.05,
+              bottom: h * 0.35,
+              child: Container(
+                width: width * 0.38,
+                height: width * 0.38,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            // Gundukan tengah (paling tinggi)
+            Positioned(
+              left: width * 0.28,
+              bottom: h * 0.42,
+              child: Container(
+                width: width * 0.44,
+                height: width * 0.44,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            // Gundukan kanan
+            Positioned(
+              right: width * 0.05,
+              bottom: h * 0.3,
+              child: Container(
+                width: width * 0.32,
+                height: width * 0.32,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Helper: gambar awan sederhana dari lingkaran-lingkaran putih
+  Widget _buildCloud(double width, double opacity) {
+    return Opacity(
+      opacity: opacity,
+      child: SizedBox(
+        width: width,
+        height: width * 0.45,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 0,
+              bottom: 0,
+              child: Container(
+                width: width * 0.55,
+                height: width * 0.35,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(100)),
+                ),
+              ),
+            ),
+            Positioned(
+              left: width * 0.2,
+              bottom: width * 0.1,
+              child: Container(
+                width: width * 0.45,
+                height: width * 0.4,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(100)),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: width * 0.4,
+                height: width * 0.3,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(100)),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -698,106 +914,297 @@ class _PodiumMember extends StatelessWidget {
 
   const _PodiumMember({required this.member, required this.position});
 
+  // Tinggi platform podium: #1 paling menjulang
+  double get _platformHeight => position == 1 ? 115.0 : position == 2 ? 82.0 : 66.0;
+  double get _avatarSize      => position == 1 ? 66.0  : position == 2 ? 54.0  : 50.0;
+  double get _columnWidth     => position == 1 ? 108.0 : 92.0;
+
+  // Warna platform: kristal/kaca berwarna medali
+  Color get _platformColor => member.medalColor;
+
   @override
   Widget build(BuildContext context) {
     final bool isFirst = position == 1;
-    final double baseHeight = isFirst ? 130 : 100;
-    final double avatarSize = isFirst ? 68 : 58;
-    final Color medalColor = isFirst ? _AppColors.gold : (position == 2 ? _AppColors.silver : _AppColors.bronze);
-    
+
+    return SizedBox(
+      width: _columnWidth,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // ── Mahkota animasi juara 1 ──────────────────────────
+          if (isFirst) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFD700).withOpacity(0.25),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: const Color(0xFFFFD700).withOpacity(0.6),
+                  width: 1,
+                ),
+              ),
+              child: const Text(
+                '👑  #1',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFFFD700),
+                  shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+
+          // ── Lingkaran Avatar + Glow ──────────────────────────
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              // Lingkaran glow luar
+              Container(
+                width: _avatarSize + 14,
+                height: _avatarSize + 14,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _platformColor.withOpacity(isFirst ? 0.25 : 0.18),
+                ),
+              ),
+              // Ring border medali
+              Container(
+                width: _avatarSize + 5,
+                height: _avatarSize + 5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _platformColor,
+                    width: isFirst ? 2.5 : 2.0,
+                  ),
+                ),
+              ),
+              // Avatar
+              _Avatar(
+                name: member.name,
+                avatarUrl: member.avatarUrl,
+                color: member.avatarColor,
+                size: _avatarSize,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 5),
+
+          // ── Nama (di atas platform, di luar blok) ───────────
+          Text(
+            member.name.split(' ').first,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: isFirst ? 13.5 : 12.0,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+              shadows: const [
+                Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 1)),
+              ],
+            ),
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+          ),
+
+          const SizedBox(height: 5),
+
+          // ── Platform Podium bergaya kristal ──────────────────
+          Container(
+            height: _platformHeight,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(14)),
+              // Lapisan kaca berwarna
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _platformColor.withOpacity(0.70),
+                  _platformColor.withOpacity(0.45),
+                  _platformColor.withOpacity(0.25),
+                ],
+              ),
+              border: Border(
+                top: BorderSide(color: Colors.white.withOpacity(0.7), width: 1.5),
+                left: BorderSide(color: Colors.white.withOpacity(0.3), width: 1),
+                right: BorderSide(color: _platformColor.withOpacity(0.5), width: 1),
+              ),
+              // Bayangan bawah agar tidak menyatu dengan langit
+              boxShadow: [
+                BoxShadow(
+                  color: _platformColor.withOpacity(0.45),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                // Kilap kiri (efek kaca)
+                Positioned(
+                  left: 6,
+                  top: 8,
+                  bottom: 8,
+                  child: Container(
+                    width: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.35),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                // Konten dalam platform
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Nomor peringkat besar
+                      Text(
+                        '${member.rank}',
+                        style: TextStyle(
+                          fontSize: isFirst ? 36 : 28,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.0,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.35),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // Pill poin
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.22),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.45),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          '${member.score} Pts',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: isFirst ? 12.5 : 11.0,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PodiumShimmerPlaceholder extends StatelessWidget {
+  const _PodiumShimmerPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: _AppColors.primaryDark.withOpacity(0.5),
+      highlightColor: _AppColors.primary.withOpacity(0.5),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            _buildShimmerBlock(height: 100, avatarSize: 58), // Peringkat 2
+            _buildShimmerBlock(height: 130, avatarSize: 68), // Peringkat 1
+            _buildShimmerBlock(height: 100, avatarSize: 58), // Peringkat 3
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildShimmerBlock({required double height, required double avatarSize}) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        // Avatar dan Mahkota
-        if(isFirst)
-          Text('👑', style: TextStyle(fontSize: 28, shadows: [Shadow(color: medalColor.withOpacity(0.7), blurRadius: 10)])),
-        if(isFirst) const SizedBox(height: 2),
-
-        _Avatar(
-          name: member.name,
-          avatarUrl: member.avatarUrl,
-          size: avatarSize,
-          showRing: true,
-          ringColor: medalColor,
+        Container(
+          height: avatarSize,
+          width: avatarSize,
+          decoration:
+              const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
         ),
         const SizedBox(height: 10),
-
-        // Podium Block dengan Efek Mewah
         Container(
-          height: baseHeight,
+          height: height,
           width: 95,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                medalColor.withOpacity(0.3),
-                medalColor.withOpacity(0.1),
-              ],
-            ),
+            color: Colors.white,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            boxShadow: [
-              BoxShadow(
-                color: medalColor.withOpacity(0.4),
-                blurRadius: 15,
-                spreadRadius: 2,
-                offset: const Offset(0, 5),
-              )
-            ],
-          ),
-          child: Column(
-            children: [
-              // Bagian atas podium (efek 3D)
-              Container(
-                height: 10,
-                decoration: BoxDecoration(
-                  color: medalColor.withOpacity(0.5),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                     Text(
-                      '${member.rank}',
-                      style: TextStyle(
-                        fontSize: isFirst ? 32 : 28,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(color: Colors.black.withOpacity(0.3), blurRadius: 5, offset: const Offset(0,2)),
-                          Shadow(color: medalColor.withOpacity(0.8), blurRadius: 10),
-                        ]
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      member.name.split(' ').first,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        shadows: [Shadow(color: Colors.black38, blurRadius: 2)],
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${member.score} Pts',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.85),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _RankRowShimmerPlaceholder extends StatelessWidget {
+  const _RankRowShimmerPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[200]!,
+      highlightColor: Colors.grey[50]!,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: _AppColors.divider, width: 1)),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 48, child: SizedBox.shrink()),
+            Container(
+              height: 34,
+              width: 34,
+              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 14, width: 120, color: Colors.white),
+                  const SizedBox(height: 5),
+                  Container(height: 10, width: 80, color: Colors.white),
+                ],
+              ),
+            ),
+            Container(height: 14, width: 60, color: Colors.white),
+            const SizedBox(width: 20),
+            Container(height: 16, width: 36, color: Colors.white),
+          ],
+        ),
+      ),
     );
   }
 }

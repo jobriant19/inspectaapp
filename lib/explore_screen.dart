@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'finding_detail_screen.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ExploreScreen extends StatefulWidget {
   final String lang;
@@ -13,6 +15,8 @@ class ExploreScreen extends StatefulWidget {
 class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProviderStateMixin {
 
   late TabController _tabController;
+
+  final Map<String, Future<List<Map<String, dynamic>>>> _findingsCache = {};
 
   // State untuk Filter Chips
   String _activeChip = '';
@@ -173,6 +177,120 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     super.dispose();
   }
 
+  Widget _buildShimmerLoader() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+        itemCount: 5,
+        itemBuilder: (_, __) => Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Placeholder Gambar
+                    Container(
+                      width: 92,
+                      height: 92,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Placeholder Teks
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 5),
+                          Container(height: 16, width: double.infinity, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8))),
+                          const SizedBox(height: 6),
+                          Container(height: 16, width: 150, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8))),
+                          const SizedBox(height: 12),
+                          Container(height: 12, width: 180, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8))),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(height: 12, width: 80, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8))),
+                              Container(height: 28, width: 100, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Placeholder Deadline Bar
+              Container(
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(18),
+                    bottomRight: Radius.circular(18),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getTransformedImageUrl(String originalUrl) {
+    if (originalUrl.isEmpty) {
+      return '';
+    }
+
+    try {
+      final uri = Uri.parse(originalUrl);
+      
+      // Cek apakah ini URL Supabase Storage yang valid.
+      // Jika path-nya mengandung '/storage/v1/object/public/',
+      // kita bisa melakukan transformasi.
+      if (uri.path.contains('/storage/v1/object/public/')) {
+        // Ganti '/public/' menjadi '/render/image/public/' untuk mengaktifkan API transformasi.
+        final newPath = uri.path.replaceFirst(
+          '/storage/v1/object/public/', 
+          '/storage/v1/render/image/public/'
+        );
+
+        // Buat URL baru dengan path yang sudah diubah dan tambahkan parameter transformasi.
+        // width=200 & height=200: Minta gambar ukuran 200x200 pixel. Cukup untuk thumbnail.
+        // resize=cover: Potong gambar agar pas dengan ukuran 200x200 tanpa distorsi.
+        final transformedUri = uri.replace(
+          path: newPath,
+          queryParameters: {
+            'width': '200',
+            'height': '200',
+            'resize': 'cover',
+          },
+        );
+        return transformedUri.toString();
+      } else {
+        // Jika bukan URL Supabase Storage, kembalikan URL aslinya.
+        return originalUrl;
+      }
+    } catch (e) {
+      // Jika terjadi error saat parsing URL, kembalikan URL asli sebagai fallback.
+      debugPrint("Error transforming image URL: $e");
+      return originalUrl;
+    }
+  }
+
   Future<void> _fetchInitialUserData() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -301,10 +419,8 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             future: _findingsFuture,
             builder: (context, snapshot) {
               // 1. Tampilkan loading indicator saat menunggu
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF00C9E4)),
-                );
+              if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                return _buildShimmerLoader();
               }
 
               // 2. Tampilkan pesan error jika terjadi kesalahan
@@ -388,8 +504,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             _appliedInspectionType = '';
           }
 
-          // --- TAMBAHAN PENTING ---
-          // Panggil _loadFindings() untuk memuat ulang data sesuai filter baru
           _loadFindings();
         });
       },
@@ -683,14 +797,14 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                           flex: 1,
                           child: OutlinedButton(
                             onPressed: () {
-                              // Reset state utama, lalu tutup dan refresh
+                              _findingsCache.clear();
+
                               setState(() {
                                 _appliedLocationFilter = null;
                                 _appliedInspectionType = '';
                                 _appliedSortOrder = 'terbaru';
-                                _selectedLokasiName =
-                                    ''; // Reset juga nama di UI utama
-                                _activeChip = ''; // Reset juga filter chip
+                                _selectedLokasiName = ''; 
+                                _activeChip = ''; 
                               });
                               Navigator.pop(context);
                               _loadFindings();
@@ -921,9 +1035,27 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   }
 
   void _loadFindings() {
-    setState(() {
-      _findingsFuture = _fetchFindings();
-    });
+    String cacheKey = 
+      'tab:${_tabController.index}_' +
+      'chip:${_activeChip}_' +
+      'loc:${_appliedLocationFilter?['id']}_' + 
+      'type:${_appliedInspectionType}_' + 
+      'sort:${_appliedSortOrder}';
+
+    // 2. Cek apakah hasil untuk kunci ini sudah ada di cache
+    if (_findingsCache.containsKey(cacheKey)) {
+      // Jika ADA, langsung gunakan Future dari cache
+      setState(() {
+        _findingsFuture = _findingsCache[cacheKey];
+      });
+    } else {
+      // Jika TIDAK ADA, fetch data baru dan simpan hasilnya ke cache
+      final newFuture = _fetchFindings();
+      _findingsCache[cacheKey] = newFuture; // Simpan Future-nya, bukan hasilnya
+      setState(() {
+        _findingsFuture = newFuture;
+      });
+    }
   }
 
   // GANTI SELURUH FUNGSI _fetchFindings DENGAN INI
@@ -1091,7 +1223,7 @@ case 'location':
 
   Widget _buildFindingCard(Map<String, dynamic> data) {
     // --- A. PARSING DATA & VARIABEL DASAR ---
-    final imageUrl = (data['gambar_temuan'] ?? '').toString();
+    final transformedImageUrl = _getTransformedImageUrl((data['gambar_temuan'] ?? '').toString());
     final title = (data['judul_temuan'] ?? '-').toString();
     final lokasi = _formatLocation(data);
     final tanggal = _formatDate(data['created_at']);
@@ -1307,13 +1439,14 @@ case 'location':
                       borderRadius: BorderRadius.circular(12.5),
                       child: Container(
                         color: const Color(0xFFF8FAFC),
-                        child: imageUrl.isNotEmpty
-                            ? Image.network(
-                                imageUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.grey),
-                              )
-                            : const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+                        child: transformedImageUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: transformedImageUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(color: const Color(0xFFF0F4F8)),
+                              errorWidget: (context, url, error) => const Icon(Icons.broken_image_rounded, color: Colors.grey),
+                            )
+                          : const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
                       ),
                     ),
                   ),

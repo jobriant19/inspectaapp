@@ -42,11 +42,12 @@ dependencies:
   path_provider: ^2.1.1
   dargon2_flutter: ^3.3.0
   intl: ^0.20.2
-  dotted_border: ^3.1.0
+  dotted_border: ^2.1.0
   flutter_animate: ^4.5.2
   shimmer: ^3.0.0
   mobile_scanner: ^5.1.0
   qr_flutter: ^4.1.0
+  cached_network_image: ^3.3.1
 
 dev_dependencies:
   flutter_test:

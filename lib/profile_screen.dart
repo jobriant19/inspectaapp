@@ -2,10 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:shimmer/shimmer.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String lang;
-  const ProfileScreen({super.key, required this.lang});
+  final String? initialUserName;
+  final String? initialUserImage;
+  final String? initialUserRole;
+  final String? initialUserLocation;
+
+  const ProfileScreen({
+    super.key, 
+    required this.lang,
+    this.initialUserName,
+    this.initialUserImage,
+    this.initialUserRole,
+    this.initialUserLocation,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -15,46 +28,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   String _email = '', _jabatan = '', _lokasi = '';
   String? _initialName, _imageUrl;
-  File? _imageFile;
-  bool _isLoading = false, _isEditMode = false, _hasChanges = false;
+  File? _imageFile; // Variabel ini kunci untuk preview gambar baru
+  bool _isSaving = false;
+  bool _isScreenLoading = true;
+  bool _isEditMode = false;
+  bool _hasChanges = false;
 
   final Map<String, Map<String, String>> _txt = {
-    'EN': {
-      'profile_title': 'My Profile',
-      'edit_title': 'Edit Profile',
-      'name': 'Name',
-      'email': 'Email Address',
-      'role': 'Job Title',
-      'location': 'Location',
-      'save': 'Save Changes',
-      'success': 'Profile Updated',
-      'edit': 'Edit',
-      'verifier': 'Verifier',
-    },
-    'ID': {
-      'profile_title': 'Profil Saya',
-      'edit_title': 'Ubah Profil',
-      'name': 'Nama',
-      'email': 'Alamat Email',
-      'role': 'Jabatan',
-      'location': 'Lokasi',
-      'save': 'Simpan Perubahan',
-      'success': 'Profil Diperbarui',
-      'edit': 'Ubah',
-      'verifier': 'Verifier',
-    },
-    'ZH': {
-      'profile_title': '我的资料',
-      'edit_title': '编辑资料',
-      'name': '姓名',
-      'email': '电子邮件',
-      'role': '职位',
-      'location': '地点',
-      'save': '保存更改',
-      'success': '资料已更新',
-      'edit': '编辑',
-      'verifier': '验证者',
-    },
+    'EN': { 'profile_title': 'My Profile', 'edit_title': 'Edit Profile', 'name': 'Name', 'email': 'Email Address', 'role': 'Job Title', 'location': 'Location', 'save': 'Save Changes', 'success': 'Profile Updated', 'edit': 'Edit', 'verifier': 'Verifier', 'error_update': 'Failed to update profile. Please try again.' },
+    'ID': { 'profile_title': 'Profil Saya', 'edit_title': 'Ubah Profil', 'name': 'Nama', 'email': 'Alamat Email', 'role': 'Jabatan', 'location': 'Lokasi', 'save': 'Simpan Perubahan', 'success': 'Profil Diperbarui', 'edit': 'Ubah', 'verifier': 'Verifier', 'error_update': 'Gagal memperbarui profil. Silakan coba lagi.' },
+    'ZH': { 'profile_title': '我的资料', 'edit_title': '编辑资料', 'name': '姓名', 'email': '电子邮件', 'role': '职位', 'location': '地点', 'save': '保存更改', 'success': '资料已更新', 'edit': '编辑', 'verifier': '验证者', 'error_update': '无法更新资料，请重试.' },
   };
   String getTxt(String key) => _txt[widget.lang]?[key] ?? key;
 
@@ -63,128 +46,152 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _loadProfile();
     _nameController.addListener(() {
-      if (_isEditMode)
-        setState(
-          () => _hasChanges =
-              _nameController.text != _initialName || _imageFile != null,
-        );
+      if (_isEditMode) {
+        setState(() => _hasChanges = _nameController.text != _initialName || _imageFile != null);
+      }
     });
   }
 
   Future<void> _loadProfile() async {
+    if (widget.initialUserName != null && widget.initialUserName != "Loading...") {
+      setState(() {
+        _nameController.text = widget.initialUserName!;
+        _initialName = widget.initialUserName!;
+        _imageUrl = widget.initialUserImage;
+        _jabatan = widget.initialUserRole!;
+        _lokasi = widget.initialUserLocation!;
+        _email = Supabase.instance.client.auth.currentUser?.email ?? '';
+        _isScreenLoading = false;
+      });
+      return;
+    }
+
+    setState(() => _isScreenLoading = true);
     final user = Supabase.instance.client.auth.currentUser!;
-    final row = await Supabase.instance.client
-        .from('User')
-        .select(
-          'nama, email, gambar_user, id_jabatan, is_verificator, id_lokasi, id_unit, id_subunit, id_area',
-        )
-        .eq('id_user', user.id)
-        .maybeSingle();
-    if (row == null) return;
-
-    String jabatan;
-    final isVerificator = row['is_verificator'] ?? false;
-
-    if (isVerificator) {
-      jabatan = getTxt('verifier');
-    } else if (row['id_jabatan'] != null) {
-      final j = await Supabase.instance.client
-          .from('jabatan')
-          .select('nama_jabatan')
-          .eq('id_jabatan', row['id_jabatan'])
+    try {
+      final row = await Supabase.instance.client
+          .from('User')
+          .select('nama, email, gambar_user, id_jabatan, is_verificator, id_lokasi, id_unit, id_subunit, id_area')
+          .eq('id_user', user.id)
           .maybeSingle();
-      jabatan = j?['nama_jabatan'] ?? 'Staff';
-    } else {
-      jabatan = 'Staff';
-    }
-    
-    String lokasi = "N/A";
-    if (row['id_area'] != null) {
-      lokasi =
-          (await Supabase.instance.client
-              .from('area')
-              .select('nama_area')
-              .eq('id_area', row['id_area'])
-              .maybeSingle())?['nama_area'] ??
-          lokasi;
-    } else if (row['id_subunit'] != null) {
-      lokasi =
-          (await Supabase.instance.client
-              .from('subunit')
-              .select('nama_subunit')
-              .eq('id_subunit', row['id_subunit'])
-              .maybeSingle())?['nama_subunit'] ??
-          lokasi;
-    } else if (row['id_unit'] != null) {
-      lokasi =
-          (await Supabase.instance.client
-              .from('unit')
-              .select('nama_unit')
-              .eq('id_unit', row['id_unit'])
-              .maybeSingle())?['nama_unit'] ??
-          lokasi;
-    } else if (row['id_lokasi'] != null) {
-      lokasi =
-          (await Supabase.instance.client
-              .from('lokasi')
-              .select('nama_lokasi')
-              .eq('id_lokasi', row['id_lokasi'])
-              .maybeSingle())?['nama_lokasi'] ??
-          lokasi;
-    }
 
-    setState(() {
-      _initialName = row['nama'];
-      _nameController.text = row['nama'] ?? '';
-      _email = row['email'] ?? '';
-      _jabatan = jabatan;
-      _lokasi = lokasi;
-      _imageUrl = row['gambar_user'];
-    });
+      if (row == null || !mounted) return;
+
+      String jabatan;
+      final isVerificator = row['is_verificator'] ?? false;
+      if (isVerificator) {
+        jabatan = getTxt('verifier');
+      } else if (row['id_jabatan'] != null) {
+        final j = await Supabase.instance.client.from('jabatan').select('nama_jabatan').eq('id_jabatan', row['id_jabatan']).maybeSingle();
+        jabatan = j?['nama_jabatan'] ?? 'Staff';
+      } else {
+        jabatan = 'Staff';
+      }
+      
+      String lokasi = "N/A";
+      if (row['id_area'] != null) {
+        lokasi = (await Supabase.instance.client.from('area').select('nama_area').eq('id_area', row['id_area']).maybeSingle())?['nama_area'] ?? lokasi;
+      } else if (row['id_subunit'] != null) {
+        lokasi = (await Supabase.instance.client.from('subunit').select('nama_subunit').eq('id_subunit', row['id_subunit']).maybeSingle())?['nama_subunit'] ?? lokasi;
+      } else if (row['id_unit'] != null) {
+        lokasi = (await Supabase.instance.client.from('unit').select('nama_unit').eq('id_unit', row['id_unit']).maybeSingle())?['nama_unit'] ?? lokasi;
+      } else if (row['id_lokasi'] != null) {
+        lokasi = (await Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', row['id_lokasi']).maybeSingle())?['nama_lokasi'] ?? lokasi;
+      }
+      
+      final String? metaImage = user.userMetadata?['avatar_url'] ?? user.userMetadata?['picture'];
+      String? dbImage = row['gambar_user'];
+      if (dbImage != null && dbImage.trim().isEmpty) dbImage = null;
+
+      if(mounted) {
+        setState(() {
+          _initialName = row['nama'];
+          _nameController.text = row['nama'] ?? '';
+          _email = row['email'] ?? '';
+          _jabatan = jabatan;
+          _lokasi = lokasi;
+          _imageUrl = dbImage ?? metaImage;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading profile: $e");
+    } finally {
+      if(mounted) setState(() => _isScreenLoading = false);
+    }
   }
 
   Future<void> _pickImage() async {
     if (!_isEditMode) return;
-    final file = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 70,
-    );
-    if (file != null)
+    final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 800, maxHeight: 800);
+    if (file != null) {
       setState(() {
+        // Simpan file gambar yang dipilih ke _imageFile
         _imageFile = File(file.path);
+        // Tandai bahwa ada perubahan
         _hasChanges = true;
       });
-  }
-
-  Future<void> _updateProfile() async {
-    setState(() => _isLoading = true);
-    final user = Supabase.instance.client.auth.currentUser!;
-    String? finalImageUrl = _imageUrl;
-    if (_imageFile != null) {
-      final name =
-          '${user.id}-${DateTime.now().millisecondsSinceEpoch}.${_imageFile!.path.split('.').last}';
-      await Supabase.instance.client.storage
-          .from('avatars')
-          .upload(name, _imageFile!);
-      finalImageUrl = Supabase.instance.client.storage
-          .from('avatars')
-          .getPublicUrl(name);
     }
-    await Supabase.instance.client
-        .from('User')
-        .update({'nama': _nameController.text, 'gambar_user': finalImageUrl})
-        .eq('id_user', user.id);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(getTxt('success')), backgroundColor: Colors.green),
-    );
-    setState(() {
-      _isEditMode = false;
-      _hasChanges = false;
-      _initialName = _nameController.text;
-      _isLoading = false;
-    });
   }
 
+  // --- BAGIAN UTAMA PERBAIKAN: METHOD UNTUK MENYIMPAN PROFIL ---
+  Future<void> _updateProfile() async {
+    setState(() => _isSaving = true);
+    
+    final user = Supabase.instance.client.auth.currentUser!;
+    String? finalImageUrl = _imageUrl; // Mulai dengan URL gambar yang lama
+
+    try {
+      // 1. Cek apakah pengguna memilih gambar baru (_imageFile tidak null)
+      if (_imageFile != null) {
+        // Buat nama file yang unik untuk menghindari konflik
+        final fileName = '${user.id}-${DateTime.now().millisecondsSinceEpoch}.${_imageFile!.path.split('.').last}';
+        final filePath = 'avatars/$fileName';
+
+        // 2. Upload gambar baru ke Supabase Storage di bucket 'avatars'
+        await Supabase.instance.client.storage
+            .from('avatars')
+            .upload(filePath, _imageFile!);
+
+        // 3. Dapatkan URL publik dari gambar yang baru di-upload
+        finalImageUrl = Supabase.instance.client.storage
+            .from('avatars')
+            .getPublicUrl(filePath);
+      }
+
+      // 4. Siapkan data yang akan di-update ke tabel 'User'
+      final updates = {
+        'nama': _nameController.text,
+        'gambar_user': finalImageUrl, // Gunakan URL gambar yang final (bisa baru atau lama)
+      };
+
+      // 5. Lakukan update ke database
+      await Supabase.instance.client.from('User')
+          .update(updates)
+          .eq('id_user', user.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(getTxt('success')), backgroundColor: Colors.green));
+        setState(() {
+          // 6. Perbarui state lokal setelah berhasil menyimpan
+          _initialName = _nameController.text;
+          _imageUrl = finalImageUrl;
+          _imageFile = null; // Kosongkan file preview
+          _isEditMode = false;
+          _hasChanges = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(getTxt('error_update')), backgroundColor: Colors.red));
+      }
+      debugPrint("Error updating profile: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -194,150 +201,142 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1E3A8A)),
           onPressed: () {
             if (_isEditMode) {
-              // Jika sedang dalam mode edit, matikan mode edit
-              setState(() => _isEditMode = false);
+              setState(() {
+                _isEditMode = false;
+                _nameController.text = _initialName ?? '';
+                _imageFile = null;
+                _hasChanges = false;
+              });
             } else {
-              // Jika tidak, kembali ke halaman sebelumnya (AccountScreen)
               Navigator.pop(context);
             }
           },
         ),
-        title: Text(
-          getTxt(_isEditMode ? 'edit_title' : 'profile_title'),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1E3A8A),
-          ),
-        ),
-        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+        title: Text(getTxt(_isEditMode ? 'edit_title' : 'profile_title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        shadowColor: Colors.black.withOpacity(0.1),
         iconTheme: const IconThemeData(color: Color(0xFF1E3A8A)),
         actions: [
-          if (!_isEditMode)
+          if (!_isEditMode && !_isScreenLoading)
             TextButton.icon(
               icon: const Icon(Icons.edit_rounded, color: Color(0xFF1E3A8A), size: 20),
-              label: Text(
-                getTxt('edit'),
-                style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
-              ),
+              label: Text(getTxt('edit'), style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
               onPressed: () => setState(() => _isEditMode = true),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              ),
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
             ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: _pickImage,
-              child: Stack(
-                alignment: Alignment.bottomRight,
+      body: _isScreenLoading
+          ? _buildSkeletonBody()
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.white,
-                    backgroundImage: _imageFile != null
-                        ? FileImage(_imageFile!)
-                        : (_imageUrl != null ? NetworkImage(_imageUrl!) : null)
-                              as ImageProvider?,
-                    child: (_imageFile == null && _imageUrl == null)
-                        ? const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: Color(0xFF00C9E4),
-                          )
-                        : null,
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: _pickImage,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        // --- BAGIAN UTAMA PERBAIKAN: LOGIKA TAMPIL GAMBAR ---
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundColor: Colors.grey.shade200,
+                          // Logika ini yang membuat preview bekerja:
+                          // 1. Jika _imageFile ada (gambar baru dipilih), tampilkan dari file lokal.
+                          // 2. Jika tidak, coba tampilkan dari _imageUrl (gambar dari server).
+                          // 3. Jika keduanya null, tampilkan ikon default.
+                          backgroundImage: _imageFile != null
+                              ? FileImage(_imageFile!) as ImageProvider
+                              : (_imageUrl != null && _imageUrl!.isNotEmpty ? NetworkImage(_imageUrl!) : null),
+                          child: (_imageFile == null && (_imageUrl == null || _imageUrl!.isEmpty))
+                              ? const Icon(Icons.person, size: 60, color: Color(0xFF00C9E4))
+                              : null,
+                        ),
+                        if (_isEditMode)
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: Color(0xFF00C9E4), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                          ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 30),
+                  _buildField(_nameController, getTxt('name'), Icons.person_outline, enabled: _isEditMode),
+                  _buildInfoField(_email, getTxt('email'), Icons.email_outlined),
+                  _buildInfoField(_jabatan, getTxt('role'), Icons.work_outline),
+                  _buildInfoField(_lokasi, getTxt('location'), Icons.location_on_outlined),
+                  const SizedBox(height: 30),
                   if (_isEditMode)
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF00C9E4),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt,
-                        color: Colors.white,
-                        size: 18,
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00C9E4),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          disabledBackgroundColor: Colors.grey.shade300,
+                        ),
+                        onPressed: _hasChanges && !_isSaving ? _updateProfile : null,
+                        child: _isSaving
+                            ? const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white))
+                            : Text(getTxt('save'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                       ),
                     ),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildSkeletonBody() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            const CircleAvatar(radius: 60, backgroundColor: Colors.white),
             const SizedBox(height: 30),
-            _buildField(
-              _nameController,
-              getTxt('name'),
-              Icons.person_outline,
-              enabled: _isEditMode,
-            ),
-            _buildInfoField(_email, getTxt('email'), Icons.email_outlined),
-            _buildInfoField(_jabatan, getTxt('role'), Icons.work_outline),
-            _buildInfoField(
-              _lokasi,
-              getTxt('location'),
-              Icons.location_on_outlined,
-            ),
-            const SizedBox(height: 30),
-            if (_isEditMode)
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C9E4),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
-                  onPressed: _hasChanges && !_isLoading ? _updateProfile : null,
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          getTxt('save'),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
+            _buildSkeletonField(),
+            _buildSkeletonField(),
+            _buildSkeletonField(),
+            _buildSkeletonField(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildField(
-    TextEditingController c,
-    String label,
-    IconData icon, {
-    bool enabled = false,
-  }) {
+  Widget _buildSkeletonField() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      height: 60,
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+    );
+  }
+
+  Widget _buildField(TextEditingController c, String label, IconData icon, {bool enabled = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: enabled ? Colors.white : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
-        ],
+        boxShadow: [if (enabled) BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
       ),
       child: TextField(
         controller: c,
         enabled: enabled,
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(icon, color: Colors.grey),
+          prefixIcon: Icon(icon, color: Colors.grey.shade600),
+          labelStyle: TextStyle(color: Colors.grey.shade600),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 15,
-            vertical: 15,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
         ),
       ),
     );
@@ -346,27 +345,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildInfoField(String value, String label, IconData icon) {
     return Container(
       margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.grey),
+          Icon(icon, color: Colors.grey.shade600),
           const SizedBox(width: 15),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              Text(value, style: const TextStyle(fontSize: 16)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
         ],
       ),

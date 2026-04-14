@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:inspectaapp/verificator_home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'home_screen.dart';
@@ -34,11 +35,38 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (session != null) {
-      // Jika sudah login, langsung ke HomeScreen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      try {
+        final userData = await Supabase.instance.client
+            .from('User')
+            .select('is_verificator')
+            .eq('id_user', session.user.id)
+            .single();
+
+        final isVerificator = userData['is_verificator'] as bool? ?? false;
+
+        if (!mounted) return;
+
+        if (isVerificator) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const VerificatorHomeScreen()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        }
+      } catch (e) {
+        debugPrint("Error cek verifikator di splash: $e");
+        // Jika gagal ambil data, arahkan ke login untuk keamanan
+        await Supabase.instance.client.auth.signOut();
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
     } else if (onboardingComplete) {
       // Jika sudah lihat onboarding tapi belum login, ke LoginScreen
       Navigator.pushReplacement(
