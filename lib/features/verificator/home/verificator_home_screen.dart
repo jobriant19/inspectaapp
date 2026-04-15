@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'account_screen.dart';
-import 'verification_detail_screen.dart';
-import 'verification_history_screen.dart';
+import '../../shared/account/account_screen.dart';
+import '../verification/verification_detail_screen.dart';
+import '../verification/verification_history_screen.dart';
 
 class VerificatorHomeScreen extends StatefulWidget {
   const VerificatorHomeScreen({super.key});

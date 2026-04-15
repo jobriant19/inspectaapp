@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'qr_generator_screen.dart';
+import '../../shared/code/qr_generator_screen.dart';
 
 class LocationScreen extends StatefulWidget {
   final String lang;

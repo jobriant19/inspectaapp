@@ -2,10 +2,10 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../screens/resolution_camera_screen.dart';
+import 'resolution_camera_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../widgets/user_picker_bottom_sheet.dart';
+import '../../../core/widgets/user_picker_bottom_sheet.dart';
 import 'camera_finding_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb; 
 

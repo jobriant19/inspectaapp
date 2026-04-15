@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:inspectaapp/verificator_home_screen.dart';
+import 'package:inspectaapp/features/verificator/home/verificator_home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'home_screen.dart';
-import 'login_screen.dart';
+import '../user/home/home_screen.dart';
+import '../auth/login_screen.dart';
 import 'onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {

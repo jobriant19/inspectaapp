@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:inspectaapp/verificator_home_screen.dart';
+import 'package:inspectaapp/features/verificator/home/verificator_home_screen.dart';
 
 // =======================================================
 // KELAS UTAMA

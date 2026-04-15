@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'finding_detail_screen.dart';
+import '../../user/finding/finding_detail_screen.dart';
 
 class VerificationHistoryScreen extends StatefulWidget {
   final String lang;

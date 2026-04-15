@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'camera_finding_screen.dart';
+import '../../user/finding/camera_finding_screen.dart';
 
 class QRScannerScreen extends StatefulWidget {
   final String lang;

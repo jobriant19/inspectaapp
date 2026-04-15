@@ -4,7 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'explore_screen.dart';
+import '../explore/explore_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AddFindingFlowScreen extends StatefulWidget {

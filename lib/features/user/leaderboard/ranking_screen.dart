@@ -1,10 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
-import './riwayat_musim_screen.dart';
+import 'riwayat_musim_screen.dart';
 import 'package:shimmer/shimmer.dart';
 
-// ─── Warna & Tema ──────────────────────────────────────────────────────────
+// Warna & Tema
 class _AppColors {
   static const primary = Color(0xFF0EA5E9);
   static const primaryDark = Color(0xFF0369A1);
@@ -20,7 +20,7 @@ class _AppColors {
   static const bronze = Color(0xFFCD7F32);
 }
 
-// ─── Model Data ──────────────────────────────────────────────────────────────
+// Model Data
 class _RankMember {
   final int rank;
   final String name;
@@ -49,7 +49,7 @@ class _RankMember {
   }
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// Main Screen 
 class RankingScreen extends StatefulWidget {
   final String lang;
   const RankingScreen({super.key, required this.lang});
@@ -63,7 +63,6 @@ class _RankingScreenState extends State<RankingScreen> {
   Future<List<_RankMember>>? _leaderboardFuture;
   DateTime? _lastUpdated;
   _RankMember? _selfData;
-  final String _currentMonthString = DateFormat('MMM', 'id_ID').format(DateTime.now());
 
   final Map<String, Map<String, String>> _texts = {
     'ID': {
@@ -137,12 +136,11 @@ class _RankingScreenState extends State<RankingScreen> {
     final now = DateTime.now();
     setState(() {
       _lastUpdated = now;
-      // PERBAIKAN: Mengubah Future<List<dynamic>> menjadi Future<List<_RankMember>>
       _leaderboardFuture = _supabase
           .rpc('get_monthly_leaderboard', params: {
         'selected_month': now.month,
         'selected_year': now.year,
-        'selected_unit_id': 0, // Ganti 0 dengan _selectedUnitId jika filter sudah ada
+        'selected_unit_id': 0,
       }).then((response) {
         final List<dynamic> data = response;
         if (!mounted) return <_RankMember>[];
@@ -158,7 +156,6 @@ class _RankingScreenState extends State<RankingScreen> {
           );
         }).toList();
 
-        // Menggunakan try-catch untuk firstWhere agar tidak error jika tidak ditemukan
         try {
           _selfData = members.firstWhere((m) => m.isSelf);
         } catch (e) {
@@ -175,7 +172,7 @@ class _RankingScreenState extends State<RankingScreen> {
                 backgroundColor: Colors.red),
           );
         }
-        return <_RankMember>[]; // Kembalikan list kosong jika error
+        return <_RankMember>[];
       });
     });
   }
@@ -207,7 +204,6 @@ class _RankingScreenState extends State<RankingScreen> {
                   SliverToBoxAdapter(child: _buildSeasonBanner()),
                   SliverToBoxAdapter(child: _buildTableHeader()),
                   SliverToBoxAdapter(child: _buildTargetRow()),
-                  // PERBAIKAN: Hanya satu FutureBuilder
                   FutureBuilder<List<_RankMember>>(
                     future: _leaderboardFuture,
                     builder: (context, snapshot) {
@@ -215,7 +211,7 @@ class _RankingScreenState extends State<RankingScreen> {
                         return SliverList(
                           delegate: SliverChildBuilderDelegate(
                             (context, index) => const _RankRowShimmerPlaceholder(),
-                            childCount: 8, // Tampilkan 8 baris shimmer
+                            childCount: 8,
                           ),
                         );
                       }
@@ -256,7 +252,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ── Season Banner ──────────────────────────────────────────────────────────
+  // Season Banner
   Widget _buildSeasonBanner() {
     final String seasonText =
         widget.lang == 'ID' ? 'Musim' : widget.lang == 'ZH' ? '赛季' : 'Season';
@@ -343,7 +339,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ── Sky Section (Podium) ───────────────────────────────────────────────────
+  // Sky Section (Podium)
   Widget _buildSkySection() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -362,7 +358,6 @@ class _RankingScreenState extends State<RankingScreen> {
         borderRadius: BorderRadius.circular(24),
         child: Stack(
           children: [
-            // ── LAYER 1: Gradien langit biru cerah ──────────────────
             Positioned.fill(
               child: Container(
                 decoration: const BoxDecoration(
@@ -370,10 +365,10 @@ class _RankingScreenState extends State<RankingScreen> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Color(0xFF1E90FF), // biru langit cerah atas
-                      Color(0xFF41B8F5), // biru tengah
-                      Color(0xFF7DD3FC), // biru muda
-                      Color(0xFFBAE6FD), // cakrawala
+                      Color(0xFF1E90FF),
+                      Color(0xFF41B8F5),
+                      Color(0xFF7DD3FC),
+                      Color(0xFFBAE6FD),
                     ],
                     stops: [0.0, 0.35, 0.65, 1.0],
                   ),
@@ -381,7 +376,7 @@ class _RankingScreenState extends State<RankingScreen> {
               ),
             ),
 
-            // ── LAYER 2: Matahari / cahaya ─────────────────────────
+            // LAYER 2: Matahari / cahaya 
             Positioned(
               top: -30,
               right: 30,
@@ -402,42 +397,42 @@ class _RankingScreenState extends State<RankingScreen> {
               ),
             ),
 
-            // ── LAYER 3: Awan besar kiri bawah ─────────────────────
+            // LAYER 3: Awan besar kiri bawah
             Positioned(
               left: -20,
               bottom: 40,
               child: _buildFantasyCloud(160, 0.92),
             ),
 
-            // ── LAYER 4: Awan besar kanan bawah ────────────────────
+            // LAYER 4: Awan besar kanan bawah
             Positioned(
               right: -30,
               bottom: 30,
               child: _buildFantasyCloud(140, 0.85),
             ),
 
-            // ── LAYER 5: Awan kecil kiri atas ───────────────────────
+            // LAYER 5: Awan kecil kiri atas 
             Positioned(
               left: 10,
               top: 30,
               child: _buildFantasyCloud(80, 0.65),
             ),
 
-            // ── LAYER 6: Awan kecil kanan atas ──────────────────────
+            // LAYER 6: Awan kecil kanan atas
             Positioned(
               right: 20,
               top: 15,
               child: _buildFantasyCloud(65, 0.55),
             ),
 
-            // ── LAYER 7: Awan tipis tengah ──────────────────────────
+            // LAYER 7: Awan tipis tengah
             Positioned(
               left: 80,
               top: 55,
               child: _buildFantasyCloud(90, 0.45),
             ),
 
-            // ── LAYER 8: Pesawat mini dekoratif kanan ───────────────
+            // LAYER 8: Pesawat mini dekoratif kanan
             Positioned(
               right: 28,
               top: 52,
@@ -447,7 +442,7 @@ class _RankingScreenState extends State<RankingScreen> {
               ),
             ),
 
-            // ── LAYER 9: Pesawat mini dekoratif kiri ────────────────
+            // LAYER 9: Pesawat mini dekoratif kiri
             Positioned(
               left: 48,
               top: 90,
@@ -457,7 +452,7 @@ class _RankingScreenState extends State<RankingScreen> {
               ),
             ),
 
-            // ── LAYER 10: Garis runway / landasan bawah ─────────────
+            // LAYER 10: Garis runway / landasan bawah
             Positioned(
               bottom: 0,
               left: 0,
@@ -478,7 +473,7 @@ class _RankingScreenState extends State<RankingScreen> {
               ),
             ),
 
-            // ── LAYER 11: Konten Podium ──────────────────────────────
+            // LAYER 11: Konten Podium
             FutureBuilder<List<_RankMember>>(
               future: _leaderboardFuture,
               builder: (context, snapshot) {
@@ -534,7 +529,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  /// Awan bergaya anime/fantasy — tumpukan lingkaran putih lembut
+  /// Awan bergaya anime/fantasy
   Widget _buildFantasyCloud(double width, double opacity) {
     final h = width * 0.5;
     return Opacity(
@@ -544,7 +539,6 @@ class _RankingScreenState extends State<RankingScreen> {
         height: h + 10,
         child: Stack(
           children: [
-            // Badan utama bawah
             Positioned(
               left: 0,
               bottom: 0,
@@ -557,7 +551,6 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
               ),
             ),
-            // Gundukan kiri
             Positioned(
               left: width * 0.05,
               bottom: h * 0.35,
@@ -570,7 +563,6 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
               ),
             ),
-            // Gundukan tengah (paling tinggi)
             Positioned(
               left: width * 0.28,
               bottom: h * 0.42,
@@ -583,7 +575,6 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
               ),
             ),
-            // Gundukan kanan
             Positioned(
               right: width * 0.05,
               bottom: h * 0.3,
@@ -602,58 +593,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  /// Helper: gambar awan sederhana dari lingkaran-lingkaran putih
-  Widget _buildCloud(double width, double opacity) {
-    return Opacity(
-      opacity: opacity,
-      child: SizedBox(
-        width: width,
-        height: width * 0.45,
-        child: Stack(
-          children: [
-            Positioned(
-              left: 0,
-              bottom: 0,
-              child: Container(
-                width: width * 0.55,
-                height: width * 0.35,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.all(Radius.circular(100)),
-                ),
-              ),
-            ),
-            Positioned(
-              left: width * 0.2,
-              bottom: width * 0.1,
-              child: Container(
-                width: width * 0.45,
-                height: width * 0.4,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.all(Radius.circular(100)),
-                ),
-              ),
-            ),
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: width * 0.4,
-                height: width * 0.3,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.all(Radius.circular(100)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Last Updated ───────────────────────────────────────────────────────────
+  // Last Updated
   Widget _buildLastUpdated() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -665,7 +605,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ── Table Header ───────────────────────────────────────────────────────────
+  // Table Header
   Widget _buildTableHeader() {
     final String rankCol =
         widget.lang == 'ID' ? 'Rank' : widget.lang == 'ZH' ? '排名' : 'Rank';
@@ -717,7 +657,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ── Target Row ─────────────────────────────────────────────────────────────
+  // Target Row
   Widget _buildTargetRow() {
     final String targetText = widget.lang == 'ID'
         ? 'Target Bulanan'
@@ -759,7 +699,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ── Rank Row ───────────────────────────────────────────────────────────────
+  // Rank Row
   Widget _buildRankRow(_RankMember m) {
     final isTop3 = m.isTop3;
     return Container(
@@ -850,7 +790,7 @@ class _RankingScreenState extends State<RankingScreen> {
     return '✈  Premium Class';
   }
 
-  // ── Self Pinned Row ────────────────────────────────────────────────────────
+  // Self Pinned Row
   Widget _buildSelfPinnedRow() {
     if (_selfData == null) {
       return const SizedBox.shrink();
@@ -905,8 +845,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 }
-
-// ─── WIDGET-WIDGET PEMBANTU ───────────────────────────────────────────────────
 
 class _PodiumMember extends StatelessWidget {
   final _RankMember member;
@@ -993,7 +931,7 @@ class _PodiumMember extends StatelessWidget {
 
           const SizedBox(height: 5),
 
-          // ── Nama (di atas platform, di luar blok) ───────────
+          // Nama
           Text(
             member.name.split(' ').first,
             style: TextStyle(
@@ -1012,14 +950,13 @@ class _PodiumMember extends StatelessWidget {
 
           const SizedBox(height: 5),
 
-          // ── Platform Podium bergaya kristal ──────────────────
+          // Platform Podium bergaya kristal
           Container(
             height: _platformHeight,
             width: double.infinity,
             decoration: BoxDecoration(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(14)),
-              // Lapisan kaca berwarna
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -1034,7 +971,6 @@ class _PodiumMember extends StatelessWidget {
                 left: BorderSide(color: Colors.white.withOpacity(0.3), width: 1),
                 right: BorderSide(color: _platformColor.withOpacity(0.5), width: 1),
               ),
-              // Bayangan bawah agar tidak menyatu dengan langit
               boxShadow: [
                 BoxShadow(
                   color: _platformColor.withOpacity(0.45),
@@ -1050,7 +986,6 @@ class _PodiumMember extends StatelessWidget {
             ),
             child: Stack(
               children: [
-                // Kilap kiri (efek kaca)
                 Positioned(
                   left: 6,
                   top: 8,
@@ -1063,12 +998,10 @@ class _PodiumMember extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Konten dalam platform
                 Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Nomor peringkat besar
                       Text(
                         '${member.rank}',
                         style: TextStyle(
@@ -1086,7 +1019,6 @@ class _PodiumMember extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      // Pill poin
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 3),

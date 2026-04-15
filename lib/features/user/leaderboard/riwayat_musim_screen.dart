@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import './leaderboard_detail_screen.dart';
+import 'leaderboard_detail_screen.dart';
 
 // Model Data dinamis
 class SeasonHistory {

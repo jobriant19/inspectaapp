@@ -3,9 +3,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui';
 import 'dart:async';
-import 'auth_service.dart';
-import 'home_screen.dart';
-import 'verificator_home_screen.dart';
+import '../../core/services/auth_service.dart';
+import '../user/home/home_screen.dart';
+import '../verificator/home/verificator_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
