@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'riwayat_musim_screen.dart';
 import 'package:shimmer/shimmer.dart';
+import 'user_profile_modal.dart';
 
 // Warna & Tema
 class _AppColors {
@@ -22,6 +23,7 @@ class _AppColors {
 
 // Model Data
 class _RankMember {
+  final String id;
   final int rank;
   final String name;
   final int score;
@@ -30,6 +32,7 @@ class _RankMember {
   final bool isSelf;
 
   const _RankMember({
+    required this.id,
     required this.rank,
     required this.name,
     required this.score,
@@ -147,6 +150,7 @@ class _RankingScreenState extends State<RankingScreen> {
 
         List<_RankMember> members = data.map((item) {
           return _RankMember(
+            id: item['id_user'] as String,
             rank: item['rank_num'] as int,
             name: item['nama'] as String,
             score: item['monthly_score'] as int,
@@ -699,87 +703,119 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
+  void _showUserProfileModal(_RankMember member) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) {
+      return DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (_, controller) {
+          return UserProfileModal(
+            controller: controller,
+            userId: member.id, // <-- GANTI MENJADI INI
+            userName: member.name,
+            userAvatarUrl: member.avatarUrl,
+            userRank: member.rank,
+          );
+        },
+      );
+    },
+  );
+}
+
   // Rank Row
   Widget _buildRankRow(_RankMember m) {
     final isTop3 = m.isTop3;
-    return Container(
-      decoration: BoxDecoration(
-        color: m.isSelf
-            ? _AppColors.selfHighlight
-            : isTop3
-                ? m.medalColor.withOpacity(0.04)
-                : Colors.white,
-        border: Border(
-          bottom: BorderSide(color: _AppColors.divider, width: 1),
-          left: isTop3
-              ? BorderSide(color: m.medalColor, width: 3)
-              : BorderSide.none,
+    return InkWell(
+      onTap: () {
+        _showUserProfileModal(m);
+        // Hapus komentar di atas setelah Anda menambahkan id_user ke _RankMember
+        // Untuk sementara, kita bisa mock panggilannya untuk menghindari error
+        print("Tapped on ${m.name}");
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: m.isSelf
+              ? _AppColors.selfHighlight
+              : isTop3
+                  ? m.medalColor.withOpacity(0.04)
+                  : Colors.white,
+          border: Border(
+            bottom: BorderSide(color: _AppColors.divider, width: 1),
+            left: isTop3
+                ? BorderSide(color: m.medalColor, width: 3)
+                : BorderSide.none,
+          ),
         ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      child: Row(
-        children: [
-          SizedBox(width: 48, child: Center(child: _RankBadge(member: m))),
-          Expanded(
-            child: Row(
-              children: [
-                _Avatar(
-                    name: m.name,
-                    avatarUrl: m.avatarUrl,
-                    color: m.avatarColor,
-                    size: 34,
-                    showRing: isTop3,
-                    ringColor: m.medalColor),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        m.name,
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight:
-                                isTop3 ? FontWeight.w700 : FontWeight.w500,
-                            color: _AppColors.textPrimary),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (isTop3)
-                        Text(_badgeLabel(m.rank),
-                            style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: m.medalColor)),
-                    ],
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        child: Row(
+          children: [
+            SizedBox(width: 48, child: Center(child: _RankBadge(member: m))),
+            Expanded(
+              child: Row(
+                children: [
+                  _Avatar(
+                      name: m.name,
+                      avatarUrl: m.avatarUrl,
+                      color: m.avatarColor,
+                      size: 34,
+                      showRing: isTop3,
+                      ringColor: m.medalColor),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          m.name,
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight:
+                                  isTop3 ? FontWeight.w700 : FontWeight.w500,
+                              color: _AppColors.textPrimary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (isTop3)
+                          Text(_badgeLabel(m.rank),
+                              style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: m.medalColor)),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          SizedBox(
-            width: 80,
-            child: Text(
-              m.altitudeLabel,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w500,
-                  color: isTop3 ? m.medalColor : _AppColors.textSecondary),
+            SizedBox(
+              width: 80,
+              child: Text(
+                m.altitudeLabel,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: isTop3 ? m.medalColor : _AppColors.textSecondary),
+              ),
             ),
-          ),
-          SizedBox(
-            width: 56,
-            child: Text(
-              '${m.score}',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: isTop3 ? m.medalColor : _AppColors.primaryDark),
+            SizedBox(
+              width: 56,
+              child: Text(
+                '${m.score}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: isTop3 ? m.medalColor : _AppColors.primaryDark),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

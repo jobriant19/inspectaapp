@@ -38,11 +38,18 @@ class _SplashScreenState extends State<SplashScreen> {
       try {
         final userData = await Supabase.instance.client
             .from('User')
-            .select('is_verificator')
+            .select('is_verificator, nama, poin, gambar_user, jabatan(nama_jabatan)')
             .eq('id_user', session.user.id)
             .single();
 
         final isVerificator = userData['is_verificator'] as bool? ?? false;
+
+        final userName = userData['nama'] as String?;
+        final userPoin = userData['poin'] as int?;
+        final userImage = userData['gambar_user'] as String?;
+        final userRole = userData['jabatan']?['nama_jabatan'] as String?;
+        final metaName = session.user.userMetadata?['full_name'] ?? session.user.userMetadata?['name'];
+        final metaImage = session.user.userMetadata?['avatar_url'] ?? session.user.userMetadata?['picture'];
 
         if (!mounted) return;
 
@@ -54,7 +61,12 @@ class _SplashScreenState extends State<SplashScreen> {
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
+            MaterialPageRoute(builder: (_) => HomeScreen(
+              initialUserName: userName ?? metaName,
+              initialUserPoin: userPoin,
+              initialUserImage: userImage ?? metaImage,
+              initialUserRole: userRole,
+            )),
           );
         }
       } catch (e) {

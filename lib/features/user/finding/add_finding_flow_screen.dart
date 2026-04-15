@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../explore/explore_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'camera_finding_screen.dart';
+
 class AddFindingFlowScreen extends StatefulWidget {
   final String lang;
   final bool isProMode;
@@ -192,7 +194,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   // Logika Penyimpanan
   //================================================
   Future<void> _saveFinding({bool createNewAfter = false}) async {
-    // Validasi
     if (_titleCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_texts['err_title']!)));
       return;
@@ -210,28 +211,17 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       final user = supabase.auth.currentUser;
       if (user == null) throw 'User not logged in';
 
-      // --- LOGIKA BARU DIMULAI DI SINI ---
-      
-      // Cek apakah user adalah Eksekutif (id_jabatan = 1)
-      final userProfile = await supabase
-          .from('User')
-          .select('id_jabatan')
-          .eq('id_user', user.id)
-          .single();
+      final userProfile = await supabase.from('User').select('id_jabatan').eq('id_user', user.id).single();
       final bool isExecutive = (userProfile['id_jabatan'] == 1);
-      
-      // --- AKHIR LOGIKA BARU ---
 
       // 1. Upload gambar
       final imageBytes = await _imageXFile!.readAsBytes();
       final fileName = '${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-
       await supabase.storage.from('temuan_images').uploadBinary(
           fileName,
           imageBytes,
-          fileOptions: const FileOptions(contentType: 'image/jpeg'), 
+          fileOptions: const FileOptions(contentType: 'image/jpeg'),
         );
-
       final imageUrl = supabase.storage.from('temuan_images').getPublicUrl(fileName);
 
       // 2. Siapkan data untuk insert
@@ -248,18 +238,18 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'id_kategoritemuan': _selectedCategory?['id_kategoritemuan'],
         'id_subkategoritemuan': _selectedCategory?['id_subkategoritemuan'],
         'poin_temuan': _selectedCategory?['poin'] ?? 10,
-        
-        // --- PENAMBAHAN KOLOM BOOLEAN ---
         'is_pro': widget.isProMode,
         'is_visitor': widget.isVisitorMode,
         'is_eksekutif': isExecutive,
-        // --- AKHIR PENAMBAHAN ---
       };
 
-      // Tambahkan data Pro Mode jika ada
-      if(widget.isProMode) {
+      // Selalu tambahkan due date jika dipilih
+      if (_selectedDueDate != null) {
+        dataToInsert['target_waktu_selesai'] = _selectedDueDate!.toIso8601String();
+      }
+      // Tambahkan data Pro Mode jika perlu
+      if (widget.isProMode) {
         dataToInsert['id_penanggung_jawab'] = _selectedAssignee?['id_user'];
-        dataToInsert['target_waktu_selesai'] = _selectedDueDate?.toIso8601String();
         dataToInsert['eskalasi'] = _selectedEscalation;
       }
 
@@ -271,25 +261,29 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       );
 
       if (createNewAfter) {
-        // Reset form untuk temuan baru
-        setState(() {
-          _imageXFile = null;
-          _titleCtrl.clear();
-          _notesCtrl.clear();
-          _selectedCategory = null;
-          _selectedAssignee = null;
-          _selectedDueDate = null;
-          _selectedEscalation = null;
-          _isSaving = false;
-        });
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CameraFindingScreen(
+                lang: widget.lang,
+                isProMode: widget.isProMode,
+                isVisitorMode: widget.isVisitorMode,
+                selectedLocationName: _selectedLocation?['nama'] ?? _texts['select_location']!,
+                selectedLocationId: _selectedLocation?['id_lokasi'],
+                selectedUnitId: _selectedLocation?['id_unit'],
+                selectedSubunitId: _selectedLocation?['id_subunit'],
+                selectedAreaId: _selectedLocation?['id_area'],
+              ),
+            ),
+          );
+        }
       } else {
-        // Kembali ke layar sebelumnya (home) dengan status sukses
-        if(mounted) Navigator.pop(context, true);
+        if (mounted) Navigator.pop(context, true);
       }
-
     } catch (e) {
       debugPrint("Error saving finding: $e");
-      if(mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${_texts['save_fail']!}: $e'), backgroundColor: Colors.red)
         );
@@ -302,48 +296,35 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   // Picker & Dialog Methods
   //================================================
   void _showLocationPicker() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    // Ambil data peran & lokasi user untuk filter di picker
+    final profile = await Supabase.instance.client
+        .from('User')
+        .select('jabatan(nama_jabatan), id_unit, id_lokasi')
+        .eq('id_user', user.id)
+        .single();
+
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => FilterLocationBottomSheet(lang: widget.lang),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => FullLocationPickerBottomSheet(
+        lang: widget.lang,
+        isProMode: widget.isProMode,
+        userRole: profile['jabatan']['nama_jabatan'] ?? 'Staff',
+        userUnitId: profile['id_unit'],
+        userLokasiId: profile['id_lokasi'],
+      ),
     );
 
     if (result != null) {
-      final locationDetails = await _getLocationDetails(result['id'], result['level'], result['name']); // <--- Tambahkan result['name'] di sini
       setState(() {
-        _selectedLocation = locationDetails;
+        _selectedLocation = result;
       });
     }
-  }
-
-  Future<Map<String, dynamic>> _getLocationDetails(int id, int level, String originalName) async {
-      Map<String, dynamic> details = {'id': id, 'nama': 'Loading...'};
-      try {
-          if (level == 0) { // Lokasi
-              final res = await Supabase.instance.client.from('lokasi').select('id_lokasi, nama_lokasi, id_unit').eq('id_lokasi', id).single();
-              details = {'id_lokasi': res['id_lokasi'], 'nama': res['nama_lokasi'], 'id_unit': res['id_unit']};
-          } else if (level == 1) { // Unit
-              final res = await Supabase.instance.client.from('unit').select('id_unit, nama_unit, id_lokasi').eq('id_unit', id).single();
-              final lok = await Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', res['id_lokasi']).single();
-              details = {'id_unit': res['id_unit'], 'id_lokasi': res['id_lokasi'], 'nama': '${lok['nama_lokasi']} / ${res['nama_unit']}'};
-          } else if (level == 2) { // Subunit
-              final res = await Supabase.instance.client.from('subunit').select('id_subunit, nama_subunit, id_unit').eq('id_subunit', id).single();
-              final unit = await Supabase.instance.client.from('unit').select('nama_unit, id_lokasi').eq('id_unit', res['id_unit']).single();
-              final lok = await Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', unit['id_lokasi']).single();
-              details = {'id_subunit': res['id_subunit'], 'id_unit': res['id_unit'], 'id_lokasi': unit['id_lokasi'], 'nama': '${lok['nama_lokasi']} / ${unit['nama_unit']} / ${res['nama_subunit']}'};
-          } else if (level == 3) { // Area
-              final res = await Supabase.instance.client.from('area').select('id_area, nama_area, id_subunit').eq('id_area', id).single();
-              final sub = await Supabase.instance.client.from('subunit').select('nama_subunit, id_unit').eq('id_subunit', res['id_subunit']).single();
-              final unit = await Supabase.instance.client.from('unit').select('nama_unit, id_lokasi').eq('id_unit', sub['id_unit']).single();
-              final lok = await Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', unit['id_lokasi']).single();
-              details = {'id_area': res['id_area'], 'id_subunit': res['id_subunit'], 'id_unit': sub['id_unit'], 'id_lokasi': unit['id_lokasi'], 'nama': '${lok['nama_lokasi']} / ... / ${res['nama_area']}'};
-          }
-      } catch (e) {
-          debugPrint("Error getting location details: $e");
-          details['nama'] = originalName; // Fallback to original name
-      }
-      return details;
   }
 
   void _showCategoryPicker() async {
@@ -492,7 +473,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         shadowColor: Colors.black12,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          // Kembali ke tampilan kamera, bukan pop
           onPressed: () => setState(() => _imageXFile = null),
         ),
         title: Text(_texts['title']!, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
@@ -516,18 +496,8 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: kIsWeb
-                  ? Image.network( // Untuk Web
-                      _imageXFile!.path,
-                      height: 200,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    )
-                  : Image.file( // Untuk Mobile (Android/iOS)
-                      File(_imageXFile!.path),
-                      height: 200,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
+                  ? Image.network(_imageXFile!.path, height: 200, width: double.infinity, fit: BoxFit.cover)
+                  : Image.file(File(_imageXFile!.path), height: 200, width: double.infinity, fit: BoxFit.cover),
             ),
             const SizedBox(height: 16),
             
@@ -561,6 +531,17 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
               text: _selectedCategory?['nama'] ?? _texts['select_category']!,
               onTap: _showCategoryPicker,
             ),
+            const SizedBox(height: 16),
+
+            // --- BATAS WAKTU (SELALU TAMPIL) ---
+            _buildSectionTitle(_texts['due_date']!, isOptional: true),
+            _buildPickerCard(
+              icon: Icons.calendar_today_outlined,
+              text: _selectedDueDate != null
+                ? DateFormat('EEE, d MMM yyyy').format(_selectedDueDate!)
+                : _texts['select_date']!,
+              onTap: _showDueDatePicker,
+            ),
             const SizedBox(height: 24),
             
             // --- PRO MODE FIELDS ---
@@ -576,20 +557,9 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Batas Waktu
-              _buildSectionTitle(_texts['due_date']!, isOptional: true),
-              _buildPickerCard(
-                icon: Icons.calendar_today_outlined,
-                text: _selectedDueDate != null
-                  ? DateFormat('EEE, d MMM yyyy').format(_selectedDueDate!)
-                  : _texts['select_date']!,
-                onTap: _showDueDatePicker,
-              ),
-              const SizedBox(height: 16),
-
               // Eskalasi
               _buildSectionTitle(_texts['escalation']!, isOptional: true),
-               _buildPickerCard(
+              _buildPickerCard(
                 icon: Icons.escalator_warning_outlined,
                 text: _selectedEscalation ?? _texts['select_level']!,
                 onTap: _showEscalationPicker,
@@ -612,50 +582,36 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   }
 
   Widget _buildActionButtons() {
-    if (widget.isProMode) {
-      return Column(
-        children: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _saveFinding(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00C9E4),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(_texts['btn_save']!, style: const TextStyle(color: Colors.white, fontSize: 16)),
+    // Selalu tampilkan kedua tombol, tidak hanya untuk Pro Mode
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => _saveFinding(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00C9E4),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
+            child: Text(_texts['btn_save']!, style: const TextStyle(color: Colors.white, fontSize: 16)),
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => _saveFinding(createNewAfter: true),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF00C9E4)),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(_texts['btn_save_new']!, style: const TextStyle(color: Color(0xFF00C9E4), fontSize: 16)),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: () => _saveFinding(createNewAfter: true),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF00C9E4)),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
+            child: Text(_texts['btn_save_new']!, style: const TextStyle(color: Color(0xFF00C9E4), fontSize: 16)),
           ),
-        ],
-      );
-    } else {
-       return SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _saveFinding(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00C9E4),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(_texts['btn_save']!, style: const TextStyle(color: Colors.white, fontSize: 16)),
-            ),
-          );
-    }
+        ),
+      ],
+    );
   }
 
   Widget _buildSectionTitle(String title, {bool isRequired = false, bool isOptional = false}) {
@@ -1129,6 +1085,279 @@ class EscalationPickerBottomSheet extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+//==================================================================
+// BOTTOM SHEET BARU UNTUK MEMILIH LOKASI (FULL HIERARCHY)
+//==================================================================
+class FullLocationPickerBottomSheet extends StatefulWidget {
+  final String lang;
+  final bool isProMode;
+  final String userRole;
+  final int? userUnitId;
+  final int? userLokasiId;
+
+  const FullLocationPickerBottomSheet({
+    super.key,
+    required this.lang,
+    required this.isProMode,
+    required this.userRole,
+    this.userUnitId,
+    this.userLokasiId,
+  });
+
+  @override
+  State<FullLocationPickerBottomSheet> createState() => _FullLocationPickerBottomSheetState();
+}
+
+class _FullLocationPickerBottomSheetState extends State<FullLocationPickerBottomSheet> {
+  int _currentLevel = 0;
+  bool _isLoading = true;
+  List<dynamic> _currentData = [];
+  List<dynamic> _filteredData = [];
+  String _searchQuery = "";
+  bool _isLokasiSaya = false;
+
+  final List<Map<String, dynamic>> _navHistory = [];
+  Map<String, dynamic>? _currentParentData;
+
+  bool get _hasFullAccess => widget.isProMode || widget.userRole == 'Eksekutif';
+
+  // Kamus Bahasa Lokal
+  late Map<String, String> texts;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupTranslations();
+    _fetchData();
+  }
+
+  void _setupTranslations() {
+    final Map<String, Map<String, String>> data = {
+      'EN': {'cari': 'Search', 'lokasi_saya': 'My Location', 'sublokasi': 'Sub-locations', 'pilih': 'Select', 'kembali': 'Back'},
+      'ID': {'cari': 'Cari', 'lokasi_saya': 'Lokasi Saya', 'sublokasi': 'Sublokasi', 'pilih': 'Pilih', 'kembali': 'Kembali'},
+      'ZH': {'cari': '搜索', 'lokasi_saya': '我的位置', 'sublokasi': '子位置', 'pilih': '选择', 'kembali': '返回'},
+    };
+    texts = data[widget.lang] ?? data['ID']!;
+  }
+
+  Future<void> _fetchData({int? parentId, Map<String, dynamic>? parentData}) async {
+    setState(() => _isLoading = true);
+    try {
+      final supabase = Supabase.instance.client;
+      List<dynamic> data = [];
+
+      String baseSelect = '*, User!id_pic(nama)';
+      if (_currentLevel < 3) baseSelect += ', ${_getLevelName(_currentLevel + 1)}(id_${_getLevelName(_currentLevel + 1)})';
+
+      if (_currentLevel == 0) {
+        var query = supabase.from('lokasi').select(baseSelect);
+        if (_isLokasiSaya && widget.userLokasiId != null) {
+          query = query.eq('id_lokasi', widget.userLokasiId!);
+        }
+        data = await query;
+      } else if (_currentLevel == 1) {
+        var query = supabase.from('unit').select(baseSelect).eq('id_lokasi', parentId!);
+        if (_isLokasiSaya || !_hasFullAccess) {
+          if (widget.userUnitId != null) query = query.eq('id_unit', widget.userUnitId!);
+          else data = [];
+        }
+        if (data.isEmpty) data = await query;
+      } else if (_currentLevel == 2) {
+        data = await supabase.from('subunit').select(baseSelect).eq('id_unit', parentId!);
+      } else if (_currentLevel == 3) {
+        data = await supabase.from('area').select(baseSelect).eq('id_subunit', parentId!);
+      }
+
+      if (mounted) {
+        setState(() {
+          _currentData = data;
+          _currentParentData = parentData;
+          _onSearch("");
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error Load Location Picker: $e");
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _onSearch(String query) {
+    _searchQuery = query.toLowerCase();
+    setState(() {
+      _filteredData = _currentData.where((item) {
+        String name = item['nama_${_getLevelName()}']?.toString().toLowerCase() ?? '';
+        return name.contains(_searchQuery);
+      }).toList();
+      _filteredData.sort((a, b) {
+        int starA = a['is_star'] ?? 0;
+        int starB = b['is_star'] ?? 0;
+        if (starA == 1 && starB == 0) return -1;
+        if (starA == 0 && starB == 1) return 1;
+        return a['nama_${_getLevelName()}'].compareTo(b['nama_${_getLevelName()}']);
+      });
+    });
+  }
+
+  String _getLevelName([int? level]) {
+    return ['lokasi', 'unit', 'subunit', 'area'][level ?? _currentLevel];
+  }
+
+  void _goBack() {
+    if (_navHistory.isEmpty) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() {
+      _navHistory.removeLast();
+      _currentLevel--;
+    });
+    if (_navHistory.isEmpty) {
+      _fetchData();
+    } else {
+      final prev = _navHistory.last;
+      _fetchData(parentId: prev['id'], parentData: prev['data']);
+    }
+  }
+
+  void _navigateDeeper(Map<String, dynamic> item) {
+    if (_currentLevel == 3) return;
+    setState(() {
+      final tName = _getLevelName();
+      _navHistory.add({'level': _currentLevel, 'id': item['id_$tName'], 'name': item['nama_$tName'], 'data': item});
+      _currentLevel++;
+    });
+    _fetchData(parentId: item['id_${_getLevelName(_currentLevel - 1)}'], parentData: item);
+  }
+
+  // Fungsi untuk memilih item dan menutup bottom sheet
+  void _selectAndPop(Map<String, dynamic> itemData, int level) {
+    Map<String, dynamic> result = {'nama': itemData['nama_${_getLevelName(level)}']};
+    
+    // Bangun hierarki ID dari _navHistory dan item saat ini
+    for (var historyItem in _navHistory) {
+      result['id_${_getLevelName(historyItem['level'])}'] = historyItem['id'];
+    }
+    result['id_${_getLevelName(level)}'] = itemData['id_${_getLevelName(level)}'];
+    
+    // Bangun nama lengkap
+    String fullName = _navHistory.map((h) => h['name']).join(' / ');
+    if (fullName.isNotEmpty) {
+      fullName += ' / ';
+    }
+    fullName += itemData['nama_${_getLevelName(level)}'];
+    result['nama'] = fullName;
+
+    Navigator.pop(context, result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    String title = _navHistory.isEmpty ? (_getLevelName().toUpperCase()) : _navHistory.last['name'];
+
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.9,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF9FAFC),
+        appBar: AppBar(
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+          backgroundColor: Colors.white,
+          elevation: 1,
+          centerTitle: true,
+          automaticallyImplyLeading: false,
+          leading: IconButton(
+            icon: Icon(_navHistory.isEmpty ? Icons.close : Icons.arrow_back_ios, color: const Color(0xFF1E3A8A), size: 20),
+            onPressed: _goBack,
+          ),
+          title: Text(title, style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold, fontSize: 16)),
+        ),
+        body: Column(
+          children: [
+            // Search Bar
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: TextField(
+                onChanged: _onSearch,
+                decoration: InputDecoration(
+                  hintText: "${texts['cari']}...",
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                ),
+              ),
+            ),
+
+            if (_currentLevel > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text("${texts['sublokasi']} (${_filteredData.length})", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+                ),
+              ),
+            
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF00C9E4)))
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _filteredData.length,
+                      itemBuilder: (context, index) {
+                        final item = _filteredData[index];
+                        final tName = _getLevelName();
+                        final isLastLevel = _currentLevel == 3;
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 1,
+                          shadowColor: Colors.black.withOpacity(0.1),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          child: InkWell(
+                            onTap: isLastLevel ? null : () => _navigateDeeper(item),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Row(
+                                children: [
+                                  Icon(isLastLevel ? Icons.place : Icons.account_tree_outlined, color: const Color(0xFF1E3A8A)),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      item['nama_$tName'],
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  TextButton(
+                                    onPressed: () => _selectAndPop(item, _currentLevel),
+                                    style: TextButton.styleFrom(
+                                      backgroundColor: const Color(0xFFE0F7FA),
+                                      foregroundColor: const Color(0xFF00C9E4),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                    ),
+                                    child: Text(texts['pilih']!),
+                                  ),
+                                  if (!isLastLevel) const Icon(Icons.chevron_right, color: Colors.grey),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

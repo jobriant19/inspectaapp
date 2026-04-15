@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
-// Model data yang sama dengan ranking_screen, bisa diekstrak ke file sendiri
+class AppColors {
+  static const primaryColor = Color(0xFF0EA5E9);
+}
 class LeaderboardMember {
   final int rank;
   final String name;
@@ -37,6 +39,8 @@ class LeaderboardDetailScreen extends StatefulWidget {
   State<LeaderboardDetailScreen> createState() => _LeaderboardDetailScreenState();
 }
 
+enum FilterType { monthly, daily }
+
 class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   Future<List<LeaderboardMember>>? _leaderboardFuture;
@@ -45,10 +49,13 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
   int _selectedUnitId = 0;
   String _selectedUnitName = 'Semua Grup';
   List<Map<String, dynamic>> _unitList = [];
+  FilterType _filterType = FilterType.monthly;
+  DateTime _selectedDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
+    _selectedDate = DateTime(widget.year, widget.month, 1);
     _fetchUnits().then((_) {
       _fetchData();
     });
@@ -71,20 +78,50 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
 
   void _fetchData() {
     setState(() {
-      _leaderboardFuture = _supabase.rpc('get_monthly_leaderboard', params: {
-        'selected_month': widget.month,
-        'selected_year': widget.year,
-        'selected_unit_id': _selectedUnitId,
-      }).then((response) {
-        final List<dynamic> data = response;
-        return data.map((item) => LeaderboardMember(
-          rank: item['rank_num'] as int,
-          name: item['nama'] as String,
-          avatarUrl: item['gambar_user'] as String?,
-          score: item['monthly_score'] as int,
-        )).toList();
-      });
+      if (_filterType == FilterType.monthly) {
+        _leaderboardFuture = _supabase.rpc('get_monthly_leaderboard', params: {
+          'selected_month': _selectedDate.month,
+          'selected_year': _selectedDate.year,
+          'selected_unit_id': _selectedUnitId,
+        }).then((response) {
+          final List<dynamic> data = response;
+          return data.map((item) => LeaderboardMember(
+            rank: item['rank_num'] as int,
+            name: item['nama'] as String,
+            avatarUrl: item['gambar_user'] as String?,
+            score: item['monthly_score'] as int,
+          )).toList();
+        });
+      } else { // FilterType.daily
+        _leaderboardFuture = _supabase.rpc('get_daily_leaderboard', params: {
+          'selected_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+          'selected_unit_id': _selectedUnitId,
+        }).then((response) {
+            final List<dynamic> data = response;
+            return data.map((item) => LeaderboardMember(
+              rank: item['rank_num'] as int,
+              name: item['nama'] as String,
+              avatarUrl: item['gambar_user'] as String?,
+              score: item['daily_score'] as int,
+            )).toList();
+        });
+      }
     });
+  }
+
+  Future<void> _pickDate() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (pickedDate != null && pickedDate != _selectedDate) {
+      setState(() {
+        _selectedDate = pickedDate;
+        _fetchData();
+      });
+    }
   }
 
   void _showGroupPicker() {
@@ -141,9 +178,34 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
       body: ListView(
         children: [
           _buildHeader(),
+          _buildFilterTypeSelector(),
           _buildFilters(),
           _buildLeaderboardTable(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterTypeSelector() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: SegmentedButton<FilterType>(
+        segments: const [
+          ButtonSegment(value: FilterType.monthly, label: Text('Bulanan'), icon: Icon(Icons.calendar_month)),
+          ButtonSegment(value: FilterType.daily, label: Text('Harian'), icon: Icon(Icons.calendar_today)),
+        ],
+        selected: {_filterType},
+        onSelectionChanged: (newSelection) {
+          setState(() {
+            _filterType = newSelection.first;
+            // Saat beralih, muat ulang data
+            _fetchData();
+          });
+        },
+        style: SegmentedButton.styleFrom(
+          selectedBackgroundColor: AppColors.primaryColor.withOpacity(0.2),
+          selectedForegroundColor: AppColors.primaryColor,
+        ),
       ),
     );
   }
@@ -176,25 +238,76 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
   }
 
   Widget _buildFilters() {
+    // Definisikan warna di sini agar mudah diakses jika belum ada di scope class
+    const Color textPrimaryColor = Color(0xFF0C4A6E);
+    const Color textSecondaryColor = Color(0xFF64748B);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
-      child: GestureDetector(
-        onTap: _showGroupPicker,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
+      child: Row(
+        children: [
+          // Filter Grup (Selalu tampil)
+          Expanded(
+            // Mengatur proporsi lebar antara filter grup dan tanggal
+            flex: _filterType == FilterType.daily ? 2 : 1,
+            child: GestureDetector(
+              onTap: _showGroupPicker,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Expanded untuk memastikan teks tidak overflow jika terlalu panjang
+                    Expanded(
+                      child: Text(
+                        _selectedUnitName,
+                        style: const TextStyle(fontSize: 14, color: textPrimaryColor),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.keyboard_arrow_down_rounded, color: textSecondaryColor),
+                  ],
+                ),
+              ),
+            ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(_selectedUnitName, style: const TextStyle(fontSize: 14, color: Color(0xFF0C4A6E))),
-              const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF64748B)),
-            ],
-          ),
-        ),
+          
+          // Bagian ini hanya akan dibangun dan tampil jika filter Harian dipilih
+          if (_filterType == FilterType.daily) ...[
+            const SizedBox(width: 8), // Spasi antar filter
+            Expanded(
+              flex: 3, // Beri lebih banyak ruang untuk filter tanggal
+              child: GestureDetector(
+                onTap: _pickDate, // Panggil fungsi untuk menampilkan date picker
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Tampilkan tanggal yang dipilih dengan format yang mudah dibaca
+                      Text(
+                        DateFormat('d MMM yyyy', 'id_ID').format(_selectedDate),
+                        style: const TextStyle(fontSize: 14, color: textPrimaryColor, fontWeight: FontWeight.w500),
+                      ),
+                      const Icon(Icons.calendar_today, color: textSecondaryColor, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

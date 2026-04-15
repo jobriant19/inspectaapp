@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/account/account_screen.dart';
+import '../accident/accident_report_list_screen.dart';
 import '../explore/explore_screen.dart';
 import '../analytics/analytics_screen.dart';
 import '../finding/finding_detail_screen.dart';
@@ -12,9 +13,21 @@ import '../finding/camera_finding_screen.dart';
 import 'location_screen.dart';
 import 'dart:ui';
 import 'package:shimmer/shimmer.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String? initialUserName;
+  final int? initialUserPoin;
+  final String? initialUserImage;
+  final String? initialUserRole;
+
+  const HomeScreen({
+    super.key,
+    this.initialUserName,
+    this.initialUserPoin,
+    this.initialUserImage,
+    this.initialUserRole,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -28,16 +41,19 @@ class _HomeScreenState extends State<HomeScreen> {
   String _userLocationName = "...";
   int? _userJabatanId;
   bool _isLoadingVisitorStatus = true;
+  bool _isUserDataLoading = true;
+  RealtimeChannel? _pointChannel;
 
   // Data User
-  String _userName = "Loading...";
-  String _userRole = "Loading...";
+  String _userName = "...";
+  String _userRole = "...";
   int _userPoin = 0;
   String? _userImage;
   int? _userUnitId;
   int? _userLokasiId;
 
   int _notificationCount = 0;
+  DateTime? _lastDialogTime;
 
   // Dictionary Translate untuk Navigation Bar
   final Map<String, Map<String, String>> _navText = {
@@ -50,6 +66,11 @@ class _HomeScreenState extends State<HomeScreen> {
       'visitor_off': 'Visitor Mode Deactivated',
       'update_failed': 'Update Failed',
       'recent_findings': 'Recent Findings',
+      'view_more': 'View More',
+      'activity_log': 'Activity Log',
+      'points': 'Points',
+      'close': 'Close',
+      'latest_activity': 'Latest:',
     },
     'ID': {
       'home': 'Beranda',
@@ -60,6 +81,11 @@ class _HomeScreenState extends State<HomeScreen> {
       'visitor_off': 'Mode Pengunjung Dinonaktifkan',
       'update_failed': 'Gagal Memperbarui',
       'recent_findings': 'Temuan Terbaru',
+      'view_more': 'Lihat Detail',
+      'activity_log': 'Log Aktivitas',
+      'points': 'Poin',
+      'close': 'Tutup',
+      'latest_activity': 'Terbaru:',
     },
     'ZH': {
       'home': '主页', 
@@ -70,24 +96,477 @@ class _HomeScreenState extends State<HomeScreen> {
       'visitor_off': '访客模式已停用',
       'update_failed': '更新失败',
       'recent_findings': '最新发现',
+      'view_more': '查看更多',
+      'activity_log': '活动日志',
+      'points': '积分',
+      'close': '关闭',
+      'latest_activity': '最新活动:',
     },
   };
+
+  Map<String, String> _getPointDialogTexts() {
+  final Map<String, Map<String, String>> texts = {
+    'EN': {
+      'gained_title': 'Points Received!',
+      'lost_title': 'Points Deducted!',
+      'auto_close': 'Closing automatically...',
+      'total_label': 'Total Points',
+      'tap_close': 'Tap anywhere to close',
+    },
+    'ID': {
+      'gained_title': 'Poin Diterima!',
+      'lost_title': 'Poin Dikurangi!',
+      'auto_close': 'Menutup otomatis...',
+      'total_label': 'Total Poin',
+      'tap_close': 'Ketuk di mana saja untuk menutup',
+    },
+    'ZH': {
+      'gained_title': '获得积分！',
+      'lost_title': '积分已扣除！',
+      'auto_close': '自动关闭中...',
+      'total_label': '总积分',
+      'tap_close': '点击任意处关闭',
+    },
+  };
+  return texts[_lang] ?? texts['ID']!;
+}
+
+  void _showPointNotificationDialog(int points, String description, String tipe) {
+  if (points == 0) return;
+
+  final t = _getPointDialogTexts();
+  final bool isPositive = points > 0;
+
+  // --- Konfigurasi visual berdasarkan positif/negatif ---
+  final Color primaryColor = isPositive
+      ? const Color(0xFF16A34A)   // Hijau untuk tambah poin
+      : const Color(0xFFDC2626);  // Merah untuk kurang poin
+
+  final Color bgGradientStart = isPositive
+      ? const Color(0xFFD1FAE5)   // Hijau muda
+      : const Color(0xFFFFE4E6);  // Merah muda
+
+  final Color bgGradientEnd = isPositive
+      ? const Color(0xFFECFDF5)
+      : const Color(0xFFFFF1F2);
+
+  final IconData mainIcon = isPositive
+      ? Icons.trending_up_rounded
+      : Icons.trending_down_rounded;
+
+  final String pointsLabel = isPositive
+      ? '+$points'
+      : '$points'; // sudah mengandung minus dari DB
+
+  final String title = isPositive
+      ? t['gained_title']!
+      : t['lost_title']!;
+
+  // --- Ikon per tipe aktivitas ---
+  IconData tipeIcon;
+  switch (tipe) {
+    case 'login_pertama':
+      tipeIcon = Icons.celebration_rounded;
+      break;
+    case 'login_harian':
+      tipeIcon = Icons.today_rounded;
+      break;
+    case 'login_pertama_hari_ini':
+      tipeIcon = Icons.emoji_events_rounded;
+      break;
+    case 'penalti':
+      tipeIcon = Icons.warning_amber_rounded;
+      break;
+    default:
+      tipeIcon = isPositive
+          ? Icons.star_rounded
+          : Icons.remove_circle_outline_rounded;
+  }
+
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    barrierColor: Colors.black.withOpacity(0.4),
+    builder: (dialogContext) {
+      // Tutup otomatis setelah 4 detik
+      Future.delayed(const Duration(milliseconds: 4000), () {
+        if (dialogContext.mounted &&
+            Navigator.of(dialogContext).canPop()) {
+          Navigator.of(dialogContext).pop();
+        }
+      });
+
+      return GestureDetector(
+        onTap: () {
+          if (Navigator.of(dialogContext).canPop()) {
+            Navigator.of(dialogContext).pop();
+          }
+        },
+        child: Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [bgGradientStart, bgGradientEnd],
+                ),
+                border: Border.all(
+                  color: primaryColor.withOpacity(0.3),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.25),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // --- Ikon Utama dengan Ring ---
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 90,
+                          height: 90,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: primaryColor.withOpacity(0.12),
+                            border: Border.all(
+                              color: primaryColor.withOpacity(0.3),
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        Icon(tipeIcon, color: primaryColor, size: 48),
+                        // Badge tren (panah naik/turun) di pojok
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: primaryColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 2,
+                              ),
+                            ),
+                            child: Icon(
+                              mainIcon,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // --- Judul ---
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: primaryColor.withOpacity(0.8),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // --- Angka Poin Besar ---
+                    Text(
+                      '$pointsLabel ${t['total_label']}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w900,
+                        color: primaryColor,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // --- Garis Pemisah ---
+                    Container(
+                      height: 1,
+                      color: primaryColor.withOpacity(0.15),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // --- Deskripsi ---
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        description,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF1E3A8A),
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // --- Progress Bar Auto Close ---
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 1.0, end: 0.0),
+                        duration: const Duration(milliseconds: 4000),
+                        builder: (context, value, _) {
+                          return LinearProgressIndicator(
+                            value: value,
+                            minHeight: 4,
+                            backgroundColor: primaryColor.withOpacity(0.1),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              primaryColor.withOpacity(0.5),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // --- Teks Petunjuk ---
+                    Text(
+                      t['tap_close']!,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
 
   @override
   void initState() {
     super.initState();
+    if (widget.initialUserName != null) {
+      _userName = widget.initialUserName!;
+      _userPoin = widget.initialUserPoin ?? 0;
+      _userImage = widget.initialUserImage;
+      _userRole = widget.initialUserRole ?? 'Staff';
+      _isUserDataLoading = false;
+    }
     _checkVerificationStatus().then((_) {
       if (mounted) {
         _loadLanguage();
-        _fetchInitialData();
+        _handleLoginAndFetchData();
       }
     });
   }
 
-  void _fetchInitialData() {
+  Future<void> _handleLoginAndFetchData() async {
+    if (_pointChannel != null) return;
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    _setupPointListener();
+
+    await Future.delayed(const Duration(milliseconds: 2500));
+
+    try {
+      await Supabase.instance.client
+          .rpc('handle_daily_login', params: {'p_user_id': user.id});
+    } catch (e) {
+      debugPrint("Error handling daily login points: $e");
+    }
+
     _fetchUserData();
     _fetchNotificationCount();
     _loadInitialVisitorStatus();
+  }
+
+  // === TAMBAHAN BARU: Fungsi untuk mendengarkan poin baru ===
+  void _setupPointListener() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    _pointChannel = Supabase.instance.client
+        .channel('log_poin_${user.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'log_poin',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id_user',
+            value: user.id,
+          ),
+          callback: (payload) {
+            if (!mounted) return;
+
+            final newLog = payload.newRecord;
+            final int points = (newLog['poin'] as num).toInt();
+            final String description = (newLog['deskripsi'] ?? '').toString();
+            final String tipe = (newLog['tipe_aktivitas'] ?? '').toString();
+
+            if (points == 0) return;
+
+            final now = DateTime.now();
+
+            if (_lastDialogTime != null &&
+                now.difference(_lastDialogTime!).inMilliseconds < 3800) {
+              Future.delayed(const Duration(milliseconds: 3900), () {
+                if (!mounted) return;
+                _showPointNotificationDialog(points, description, tipe);
+              });
+            } else {
+              // Gunakan addPostFrameCallback agar context dijamin sudah siap
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _showPointNotificationDialog(points, description, tipe);
+              });
+            }
+
+            _lastDialogTime = now;
+            _fetchUserData();
+          },
+        )
+        .subscribe();
+  }
+
+  // === TAMBAHAN BARU: Dialog pop-up untuk notifikasi poin ===
+  // void _showPointGainedDialog(int points, String description) {
+  //   if (points == 0) return;
+
+  //   final bool isPositive = points > 0;
+  //   final Color glowColor = isPositive ? Colors.green : Colors.red;
+  //   final Color textColor =
+  //       isPositive ? Colors.green.shade700 : Colors.red.shade700;
+  //   final IconData icon =
+  //       isPositive ? Icons.star_rounded : Icons.remove_circle_rounded;
+  //   final Color iconColor = isPositive ? Colors.amber : Colors.red.shade400;
+  //   final String pointsLabel = isPositive ? '+$points POIN' : '$points POIN';
+
+  //   showDialog(
+  //     context: context,
+  //     barrierDismissible: true,
+  //     builder: (dialogContext) {
+  //       // Tutup otomatis setelah 3.5 detik
+  //       Future.delayed(const Duration(milliseconds: 3500), () {
+  //         if (Navigator.of(dialogContext).canPop()) {
+  //           Navigator.of(dialogContext).pop();
+  //         }
+  //       });
+
+  //       return Center(
+  //         child: Material(
+  //           color: Colors.transparent,
+  //           child: Container(
+  //             margin: const EdgeInsets.symmetric(horizontal: 40),
+  //             padding:
+  //                 const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+  //             decoration: BoxDecoration(
+  //               color: Colors.white,
+  //               borderRadius: BorderRadius.circular(28),
+  //               boxShadow: [
+  //                 BoxShadow(
+  //                   color: glowColor.withOpacity(0.25),
+  //                   blurRadius: 30,
+  //                   spreadRadius: 8,
+  //                 ),
+  //               ],
+  //             ),
+  //             child: Column(
+  //               mainAxisSize: MainAxisSize.min,
+  //               children: [
+  //                 Container(
+  //                   padding: const EdgeInsets.all(16),
+  //                   decoration: BoxDecoration(
+  //                     shape: BoxShape.circle,
+  //                     color: glowColor.withOpacity(0.1),
+  //                     border: Border.all(
+  //                       color: glowColor.withOpacity(0.3),
+  //                       width: 2,
+  //                     ),
+  //                   ),
+  //                   child: Icon(icon, color: iconColor, size: 60),
+  //                 ),
+  //                 const SizedBox(height: 20),
+  //                 Text(
+  //                   pointsLabel,
+  //                   style: GoogleFonts.poppins(
+  //                     fontSize: 32,
+  //                     fontWeight: FontWeight.w900,
+  //                     color: textColor,
+  //                   ),
+  //                 ),
+  //                 const SizedBox(height: 8),
+  //                 Text(
+  //                   description,
+  //                   textAlign: TextAlign.center,
+  //                   style: GoogleFonts.poppins(
+  //                     fontSize: 13,
+  //                     fontWeight: FontWeight.w500,
+  //                     color: const Color(0xFF1E3A8A),
+  //                     height: 1.5,
+  //                   ),
+  //                 ),
+  //                 const SizedBox(height: 20),
+  //                 ClipRRect(
+  //                   borderRadius: BorderRadius.circular(10),
+  //                   child: LinearProgressIndicator(
+  //                     value: null,
+  //                     minHeight: 4,
+  //                     backgroundColor: glowColor.withOpacity(0.1),
+  //                     valueColor: AlwaysStoppedAnimation<Color>(glowColor),
+  //                   ),
+  //                 ),
+  //                 const SizedBox(height: 8),
+  //                 Text(
+  //                   'Menutup otomatis...',
+  //                   style: GoogleFonts.poppins(
+  //                     fontSize: 11,
+  //                     color: Colors.grey.shade400,
+  //                   ),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
+
+  @override
+  void dispose() {
+    // Hentikan listener saat halaman ditutup untuk menghindari memory leak
+    if (_pointChannel != null) {
+      Supabase.instance.client.removeChannel(_pointChannel!);
+    }
+    super.dispose();
   }
 
   Future<void> _checkVerificationStatus() async {
@@ -281,7 +760,77 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Color _getFireColor(int points) {
+    if (points >= 1000) return const Color(0xFFEF4444); // Merah (Legendary)
+    if (points >= 500) return const Color(0xFFF97316); // Oranye (Epic)
+    if (points >= 100) return const Color(0xFF22C55E); // Hijau (Rare)
+    if (points > 0) return const Color(0xFF3B82F6);    // Biru (Common)
+    return Colors.grey.shade400;                     
+  }
+
+  // 2. Fungsi untuk menampilkan dialog log aktivitas
+  void _showActivityLogDialog(BuildContext context) {
+    final List<Map<String, dynamic>> dummyActivities = [
+      {'icon': Icons.add_task_rounded, 'title': 'Menambahkan temuan baru', 'time': 'Baru saja', 'points': '+15'},
+      {'icon': Icons.comment_rounded, 'title': 'Memberi komentar pada temuan', 'time': '5 menit lalu', 'points': '+2'},
+      {'icon': Icons.check_circle_rounded, 'title': 'Menyelesaikan sebuah temuan', 'time': '1 jam lalu', 'points': '+25'},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(getTxt('activity_log'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(dummyActivities.length, (index) {
+                  final activity = dummyActivities[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Row(
+                      children: [
+                        Icon(activity['icon'], color: const Color(0xFF0075FF), size: 24),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(activity['title'], style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E3A8A))),
+                              const SizedBox(height: 2),
+                              Text(activity['time'], style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                        Text(activity['points'], style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 14)),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(getTxt('close')),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _fetchUserData() async {
+    if (!_isUserDataLoading) {
+      
+    } else {
+       setState(() { _isUserDataLoading = true; });
+    }
+    
     try {
       final userAuth = Supabase.instance.client.auth.currentUser;
       if (userAuth == null) return;
@@ -353,7 +902,103 @@ class _HomeScreenState extends State<HomeScreen> {
           _userLocationName = 'Gagal memuat';
         });
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUserDataLoading = false;
+        });
+      }
     }
+  }
+
+  Widget _buildInfoCardSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15),
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey.shade300,
+        highlightColor: Colors.grey.shade100,
+        child: Container(
+          height: 140,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityLog() {
+    // Data dummy untuk log aktivitas
+    final List<Map<String, dynamic>> dummyActivities = [
+      {'icon': Icons.add_task_rounded, 'title': 'Menambahkan temuan baru', 'time': 'Baru saja', 'points': '+15'},
+      {'icon': Icons.comment_rounded, 'title': 'Memberi komentar pada temuan', 'time': '5 menit lalu', 'points': '+2'},
+      {'icon': Icons.check_circle_rounded, 'title': 'Menyelesaikan sebuah temuan', 'time': '1 jam lalu', 'points': '+25'},
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 25),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Log Aktivitas",
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black54,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200, width: 1.5),
+            ),
+            child: Column(
+              children: List.generate(dummyActivities.length, (index) {
+                final activity = dummyActivities[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(activity['icon'], color: const Color(0xFF0075FF), size: 24),
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              activity['title'],
+                              style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E3A8A)),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              activity['time'],
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        activity['points'],
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String getTxt(String key) => _navText[_lang]![key] ?? key;
@@ -416,18 +1061,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 // --- BAGIAN 1: HEADER (LOGO, NOTIF, FOTO) ---
                 // ==========================================
                 Container(
-                  width: double.infinity, // Penuh kanan kiri
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15,
-                    vertical: 12,
-                  ),
+                  margin: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white, // Background putih solid
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: const Color(0xFF00C9E4).withOpacity(0.15),
+                        blurRadius: 20,
+                        spreadRadius: -2,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
@@ -437,11 +1081,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       // KIRI: Logo
                       Image.asset(
                         'assets/images/logo.png',
-                        height: 40,
-                        errorBuilder: (c, e, s) => const Icon(
-                          Icons.shield,
-                          color: Color(0xFF00C9E4),
-                          size: 35,
+                        height: 38,
+                        errorBuilder: (c, e, s) => Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00C9E4).withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.shield,
+                            color: Color(0xFF00C9E4),
+                            size: 26,
+                          ),
                         ),
                       ),
 
@@ -454,20 +1105,31 @@ class _HomeScreenState extends State<HomeScreen> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(builder: (_) => NotificationScreen(lang: _lang)),
-                              ).then((_) => _fetchNotificationCount()); // Refresh count saat kembali
+                              ).then((_) => _fetchNotificationCount());
                             },
                             child: Stack(
                               clipBehavior: Clip.none,
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.15), shape: BoxShape.circle),
-                                  child: const Icon(Icons.mail_outlined, color: Colors.black, size: 25),
+                                  padding: const EdgeInsets.all(9),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF00C9E4).withOpacity(0.08),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: const Color(0xFF00C9E4).withOpacity(0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.mail_outlined,
+                                    color: Color(0xFF1E3A8A),
+                                    size: 22,
+                                  ),
                                 ),
                                 if (_notificationCount > 0)
                                   Positioned(
-                                    top: 4,
-                                    right: 4,
+                                    top: 2,
+                                    right: 2,
                                     child: Container(
                                       padding: const EdgeInsets.all(2),
                                       decoration: BoxDecoration(
@@ -475,11 +1137,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                         shape: BoxShape.circle,
                                         border: Border.all(color: Colors.white, width: 1.5),
                                       ),
-                                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                                       child: Center(
                                         child: Text(
                                           _notificationCount > 9 ? '9+' : _notificationCount.toString(),
-                                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                           textAlign: TextAlign.center,
                                         ),
                                       ),
@@ -488,9 +1154,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 10),
 
-                          // Foto Profil
+                          // Foto Profil dengan Ring Gradient
                           GestureDetector(
                             onTap: () {
                               Navigator.push(
@@ -508,26 +1174,42 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ).then((_) {
                                 _loadLanguage();
-                                _fetchInitialData();
+                                _handleLoginAndFetchData();
                               });
                             },
                             child: Container(
+                              padding: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
-                                boxShadow: const [
-                                  BoxShadow(color: Colors.black12, blurRadius: 4),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF00C9E4), Color(0xFF4ADE80)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF00C9E4).withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
                                 ],
                               ),
-                              child: CircleAvatar(
-                                radius: 18,
-                                backgroundColor: const Color(0xFF00C9E4),
-                                backgroundImage: _userImage != null
-                                    ? NetworkImage(_userImage!)
-                                    : null,
-                                child: _userImage == null
-                                    ? const Icon(Icons.person, color: Colors.white, size: 20)
-                                    : null,
+                              child: Container(
+                                padding: const EdgeInsets.all(1.5),
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: CircleAvatar(
+                                  radius: 17,
+                                  backgroundColor: const Color(0xFF00C9E4),
+                                  backgroundImage: _userImage != null
+                                      ? NetworkImage(_userImage!)
+                                      : null,
+                                  child: _userImage == null
+                                      ? const Icon(Icons.person, color: Colors.white, size: 18)
+                                      : null,
+                                ),
                               ),
                             ),
                           ),
@@ -536,204 +1218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                // ==========================================
-                // --- BAGIAN 2: INFO CARD (NAMA, JABATAN, POIN) ---
-                // ==========================================
-                if (_currentIndex == 0) // Jarak hanya jika Info Card muncul
-                  const SizedBox(
-                    height: 10,
-                  ),
-                if (_currentIndex == 0) // Hanya muncul jika berada di tab Home (index 0)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    child: Container(
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF00C9E4), Color(0xFF0075FF)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF0075FF).withOpacity(0.4),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Stack(
-                        children: [
-                          // --- Elemen Dekorasi Background ---
-                          Positioned(
-                            right: -30,
-                            top: -40,
-                            child: Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withOpacity(0.15),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            left: -20,
-                            bottom: -50,
-                            child: Container(
-                              width: 100,
-                              height: 100,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withOpacity(0.1),
-                              ),
-                            ),
-                          ),
-
-                          // --- Konten Utama Info Card ---
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 20,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // KIRI: Nama dan Jabatan Premium
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _userName,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight:
-                                              FontWeight.w900, 
-                                          color: Colors.white,
-                                          letterSpacing: 0.5,
-                                          shadows: [
-                                            Shadow(
-                                              color: Colors.black26,
-                                              blurRadius: 4,
-                                              offset: Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      // Badge Jabatan (Glassmorphism effect)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 5,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.white.withOpacity(
-                                              0.5,
-                                            ),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          _userRole,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 0.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                const SizedBox(width: 10),
-
-                                // KANAN: Poin Eksklusif
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFFFFDF00),
-                                        Color(0xFFD4AF37),
-                                      ],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                    ),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.9),
-                                      width: 1.5,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFFD4AF37,
-                                        ).withOpacity(0.6),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.workspace_premium_rounded,
-                                        color: Colors.white,
-                                        size: 26,
-                                        shadows: [
-                                          Shadow(
-                                            color: Colors.black26,
-                                            blurRadius: 2,
-                                            offset: Offset(0, 1),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        "$_userPoin P",
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w900,
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          shadows: [
-                                            Shadow(
-                                              color: Colors.black26,
-                                              blurRadius: 2,
-                                              offset: Offset(0, 1),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                if (_currentIndex == 0) // Jarak hanya jika Info Card muncul
-                  const SizedBox(
-                    height: 10,
-                  ),
+                const SizedBox(height: 5),
                 // --- KONTEN HALAMAN BERUBAH SESUAI TAB ---
                 Expanded(child: pages[_currentIndex]),
               ],
@@ -807,7 +1292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     // Logika ini tetap berguna untuk me-refresh data setelah temuan berhasil disimpan
                     // dan semua layar (form, kamera, lokasi) sudah di-pop.
                     if (isSuccess == true) {
-                      _fetchInitialData();
+                      _handleLoginAndFetchData();
                     }
                   });
                 },
@@ -867,6 +1352,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Fungsi helper baru untuk menghitung progres poin
+  double _getPointProgress(int points) {
+    const maxPointsForFullBar = 2000; // Anggap 2000 poin adalah 100%
+    final progress = points / maxPointsForFullBar;
+    return progress.clamp(0.0, 1.0); // Pastikan nilai antara 0 dan 1
+  }
+
   // Desain Konten Beranda Asli
   Widget _buildHomeContent() {
     // Dictionary Bahasa khusus untuk area konten beranda
@@ -913,6 +1405,15 @@ class _HomeScreenState extends State<HomeScreen> {
     };
 
     String getHomeTxt(String key) => homeTexts[_lang]?[key] ?? key;
+    
+    // Data dummy untuk log aktivitas terbaru
+    final Map<String, dynamic> latestActivity = {
+      'title': 'Menambahkan temuan baru',
+      'points': '+15'
+    };
+
+    final pointProgress = _getPointProgress(_userPoin);
+    final fireColor = _getFireColor(_userPoin);
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -920,6 +1421,202 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ==========================================
+        // INFO CARD BARU YANG SUDAH DISESUAIKAN
+        // ==========================================
+        if (_isUserDataLoading)
+          _buildInfoCardSkeleton()
+        else
+          Container(
+            margin: const EdgeInsets.only(bottom: 25),
+            padding: const EdgeInsets.all(20),
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFB8F0FF), // Biru cerah kiri atas
+                  Color(0xFFE8FAFF), // Biru muda tengah
+                  Color(0xFFFFFBD6), // Kuning muda tengah-kanan
+                  Color(0xFFB6F5C8), // Hijau cerah kanan bawah
+                ],
+                stops: [0.0, 0.35, 0.65, 1.0],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.cyan.withOpacity(0.15),
+                  blurRadius: 20,
+                  spreadRadius: -5,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                // --- Konten Utama Info Card ---
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // BAGIAN ATAS: NAMA & JABATAN vs LOG TERBARU
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Kiri: Foto, Nama, Jabatan
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor: const Color(0xFF00C9E4),
+                              backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
+                              child: _userImage == null ? const Icon(Icons.person, color: Colors.white, size: 24) : null,
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _userName,
+                                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A)),
+                                ),
+                                Text(
+                                  _userRole,
+                                  style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF334155)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+
+                        // Kanan: Log Aktivitas Terbaru
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              getTxt('latest_activity'),
+                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF475569)),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "${latestActivity['title']} (${latestActivity['points']})",
+                              style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 25),
+
+                    // BAGIAN TENGAH: INDIKATOR POIN PROGRESIF
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final double fireIconSize = 28.0;
+                        final double circlePadding = 6.0;
+                        final double totalSize = fireIconSize + (circlePadding * 2);
+                        final double halfTotal = totalSize / 2;
+
+                        final double rawLeft = constraints.maxWidth * pointProgress;
+                        final double clampedLeft = rawLeft.clamp(0.0, constraints.maxWidth - totalSize);
+
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            // Garis Background
+                            Container(
+                              margin: EdgeInsets.only(top: halfTotal),
+                              width: double.infinity,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Stack(
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 500),
+                                    curve: Curves.easeOut,
+                                    width: rawLeft.clamp(0.0, constraints.maxWidth),
+                                    decoration: BoxDecoration(
+                                      color: fireColor,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Ikon Api dengan Lingkaran
+                            Positioned(
+                              left: clampedLeft,
+                              top: 0,
+                              child: Column(
+                                children: [
+                                  Container(
+                                    width: totalSize,
+                                    height: totalSize,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: fireColor.withOpacity(0.15),
+                                      border: Border.all(color: fireColor.withOpacity(0.4), width: 1.5),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: fireColor.withOpacity(0.3),
+                                          blurRadius: 8,
+                                          spreadRadius: 1,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.local_fire_department_rounded,
+                                        color: fireColor,
+                                        size: fireIconSize,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    "$_userPoin P",
+                                    style: GoogleFonts.poppins(color: fireColor, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 40),
+
+                    // BAGIAN BAWAH: TOMBOL VIEW MORE
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: ElevatedButton(
+                        onPressed: () => _showActivityLogDialog(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black87,
+                          foregroundColor: Colors.white,
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(getTxt('view_more'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.arrow_forward, size: 16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           // ==========================================
           // 1. BAGIAN INSPEKSI (MODE PROFESIONAL)
           // ==========================================
@@ -1153,8 +1850,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 size: 16,
                 color: Colors.black38,
               ),
+              // 2. MODIFIKASI BAGIAN onTap INI
               onTap: () {
-                // TODO: Navigasi ke Layar Laporan Kecelakaan
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccidentReportListScreen(lang: _lang),
+                  ),
+                );
               },
             ),
           ),
@@ -1184,7 +1887,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   is_pro, is_visitor, is_eksekutif
                 ''')
                 .order('created_at', ascending: false)
-                .limit(3), // Batasi menjadi 3 untuk awal
+                .limit(4), // Batasi menjadi 3 untuk awal
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return _buildRecentFindingsLoader();
@@ -1234,7 +1937,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // Jika ada data, tampilkan ListView dari kartu temuan
               final findings = snapshot.data!;
               return ListView.builder(
-                shrinkWrap: true, // Penting agar ListView tidak mengambil tinggi tak terbatas
+                shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(), // Nonaktifkan scroll internal
                 itemCount: findings.length,
                 itemBuilder: (context, index) {
@@ -1243,7 +1946,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-          const SizedBox(height: 20), // Beri jarak di bawah untuk BottomNavBar
+          const SizedBox(height: 10),
         ],
       ),
     );
@@ -1397,7 +2100,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: () {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (context) => FindingDetailScreen(initialData: data, lang: _lang),
-        )).then((_) => _fetchInitialData()); // Refresh data saat kembali
+        )).then((_) => _handleLoginAndFetchData()); // Refresh data saat kembali
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
