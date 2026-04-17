@@ -4,7 +4,7 @@ import 'package:shimmer/shimmer.dart';
 
 class LegalContentScreen extends StatefulWidget {
   final String lang;
-  final String docType; // 'terms_conditions' atau 'privacy_policy'
+  final String docType;
 
   const LegalContentScreen({
     super.key,

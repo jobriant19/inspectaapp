@@ -19,7 +19,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   final Map<String, Future<List<Map<String, dynamic>>>> _findingsCache = {};
 
   // State untuk Filter Chips
-  String _activeChip = '';
+  Set<String> _activeChips = {};
 
   String? _currentUserId;
   int? _userLokasiId;
@@ -326,26 +326,33 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       children: [
         // 1. TABS: Belum Selesai | Selesai
         Container(
-          color: Colors.white, // Latar belakang putih untuk TabBar
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-          child: TabBar(
-            controller: _tabController,
-            isScrollable: false, // Karena hanya ada 2 tab
-            tabAlignment: TabAlignment.fill,
-            indicator: BoxDecoration(
-              color: const Color(0xFF0EA5E9), // Warna biru dari AnalyticsScreen
-              borderRadius: BorderRadius.circular(8),
+          color: Colors.transparent,
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
             ),
-            indicatorSize: TabBarIndicatorSize.tab,
-            labelColor: Colors.white,
-            unselectedLabelColor: const Color(0xFF0EA5E9), // Warna biru
-            labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-            dividerColor: Colors.transparent,
-            tabs: [
-              Tab(text: getTxt('belum_selesai')),
-              Tab(text: getTxt('selesai')),
-            ],
+            padding: const EdgeInsets.all(3),
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: false,
+              tabAlignment: TabAlignment.fill,
+              indicator: BoxDecoration(
+                color: const Color(0xFF0EA5E9),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelColor: Colors.white,
+              unselectedLabelColor: const Color(0xFF0EA5E9),
+              labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              dividerColor: Colors.transparent,
+              tabs: [
+                Tab(text: getTxt('belum_selesai')),
+                Tab(text: getTxt('selesai')),
+              ],
+            ),
           ),
         ),
 
@@ -491,24 +498,22 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
 
   // --- WIDGET HELPER UNTUK CHIPS ---
   Widget _buildFilterChip(String label, String value) {
-    bool isActive = _activeChip == value;
+    bool isActive = _activeChips.contains(value);
     return GestureDetector(
       onTap: () {
         setState(() {
-          // Toggle chip
-          _activeChip = isActive ? '' : value;
-
-          // Jika chip diaktifkan, reset filter dari bottom sheet
-          if (_activeChip.isNotEmpty) {
+          if (isActive) {
+            _activeChips.remove(value);
+          } else {
+            _activeChips.add(value);
+            // Reset filter bottom sheet saat chip diaktifkan
             _appliedLocationFilter = null;
             _appliedInspectionType = '';
           }
-
           _loadFindings();
         });
       },
       child: Container(
-        // ... sisa kode widget ini tetap sama ...
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
@@ -804,7 +809,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                 _appliedInspectionType = '';
                                 _appliedSortOrder = 'terbaru';
                                 _selectedLokasiName = ''; 
-                                _activeChip = ''; 
+                                _activeChips = {}; 
                               });
                               Navigator.pop(context);
                               _loadFindings();
@@ -836,8 +841,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                 _appliedInspectionType = tempInspectionType;
                                 _appliedSortOrder = tempSortOrder;
                                 _selectedLokasiName = tempLocationName;
-                                _activeChip =
-                                    ''; // Filter chip dan filter detail tidak bisa aktif bersamaan
+                                _activeChips = {};
                               });
                               Navigator.pop(context);
                               _loadFindings();
@@ -1035,23 +1039,21 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   }
 
   void _loadFindings() {
-    String cacheKey = 
+    final sortedChips = _activeChips.toList()..sort();
+    String cacheKey =
       'tab:${_tabController.index}_' +
-      'chip:${_activeChip}_' +
-      'loc:${_appliedLocationFilter?['id']}_' + 
-      'type:${_appliedInspectionType}_' + 
+      'chips:${sortedChips.join("+")}_' +
+      'loc:${_appliedLocationFilter?['id']}_' +
+      'type:${_appliedInspectionType}_' +
       'sort:${_appliedSortOrder}';
 
-    // 2. Cek apakah hasil untuk kunci ini sudah ada di cache
     if (_findingsCache.containsKey(cacheKey)) {
-      // Jika ADA, langsung gunakan Future dari cache
       setState(() {
         _findingsFuture = _findingsCache[cacheKey];
       });
     } else {
-      // Jika TIDAK ADA, fetch data baru dan simpan hasilnya ke cache
       final newFuture = _fetchFindings();
-      _findingsCache[cacheKey] = newFuture; // Simpan Future-nya, bukan hasilnya
+      _findingsCache[cacheKey] = newFuture;
       setState(() {
         _findingsFuture = newFuture;
       });
@@ -1084,56 +1086,51 @@ Future<List<Map<String, dynamic>>> _fetchFindings() async {
       query = query.eq('status_temuan', 'Selesai');
     }
 
-    // Filter Chips
-    if (_activeChip.isNotEmpty && _currentUserId != null) {
-      switch (_activeChip) {
-        case 'assigned':
-          query = query.eq('id_penanggung_jawab', _currentUserId!);
-          break;
-        // GANTI BLOK 'case location' DENGAN INI
-case 'location':
-  // Logika OR yang kompleks untuk mencocokkan hierarki lokasi.
-  // Pengguna level atas bisa melihat temuan di bawahnya yang tidak spesifik.
-  
-  final List<String> orFilters = [];
+    // Filter Chips - Multi Select
+    if (_activeChips.isNotEmpty && _currentUserId != null) {
+      // --- CHIP: assigned ---
+      if (_activeChips.contains('assigned')) {
+        query = query.eq('id_penanggung_jawab', _currentUserId!);
+      }
 
-  // Kondisi 1: Cocokkan temuan di level LOKASI
-  // Hanya berlaku jika temuan tersebut tidak punya unit/subunit/area spesifik.
-  if (_userLokasiId != null) {
-    orFilters.add('and(id_lokasi.eq.$_userLokasiId,id_unit.is.null,id_subunit.is.null,id_area.is.null)');
-  }
-  
-  // Kondisi 2: Cocokkan temuan di level UNIT
-  // Hanya berlaku jika temuan tersebut tidak punya subunit/area spesifik.
-  if (_userUnitId != null) {
-    orFilters.add('and(id_unit.eq.$_userUnitId,id_subunit.is.null,id_area.is.null)');
-  }
-  
-  // Kondisi 3: Cocokkan temuan di level SUBUNIT
-  // Hanya berlaku jika temuan tersebut tidak punya area spesifik.
-  if (_userSubunitId != null) {
-    orFilters.add('and(id_subunit.eq.$_userSubunitId,id_area.is.null)');
-  }
-  
-  // Kondisi 4: Cocokkan temuan di level AREA (paling spesifik)
-  if (_userAreaId != null) {
-    orFilters.add('id_area.eq.$_userAreaId');
-  }
+      // --- CHIP: mine ---
+      if (_activeChips.contains('mine')) {
+        query = query.eq('id_user', _currentUserId!);
+      }
 
-  // Terapkan filter OR jika ada kondisi yang bisa diterapkan
-  if (orFilters.isNotEmpty) {
-    query = query.or(orFilters.join(','));
-  } else {
-    // Jika pengguna tidak punya info lokasi sama sekali, jangan tampilkan apa-apa.
-    query = query.eq('id_temuan', -1);
-  }
-  break;
-        case 'mine':
-          query = query.eq('id_user', _currentUserId!);
-          break;
-        case 'inspection':
-          query = query.eq('is_pro', true);
-          break;
+      // --- CHIP: inspection ---
+      if (_activeChips.contains('inspection')) {
+        query = query.eq('is_pro', true);
+      }
+
+      // --- CHIP: location ---
+      if (_activeChips.contains('location')) {
+        final List<String> orFilters = [];
+
+        if (_userLokasiId != null) {
+          orFilters.add(
+            'and(id_lokasi.eq.$_userLokasiId,id_unit.is.null,id_subunit.is.null,id_area.is.null)',
+          );
+        }
+        if (_userUnitId != null) {
+          orFilters.add(
+            'and(id_unit.eq.$_userUnitId,id_subunit.is.null,id_area.is.null)',
+          );
+        }
+        if (_userSubunitId != null) {
+          orFilters.add(
+            'and(id_subunit.eq.$_userSubunitId,id_area.is.null)',
+          );
+        }
+        if (_userAreaId != null) {
+          orFilters.add('id_area.eq.$_userAreaId');
+        }
+
+        if (orFilters.isNotEmpty) {
+          query = query.or(orFilters.join(','));
+        } else {
+          query = query.eq('id_temuan', -1);
+        }
       }
     }
 
@@ -1141,8 +1138,22 @@ case 'location':
     if (_appliedLocationFilter != null) {
       final level = _appliedLocationFilter!['level'] as int;
       final id = _appliedLocationFilter!['id'];
-      final col = ['id_lokasi', 'id_unit', 'id_subunit', 'id_area'][level];
-      query = query.eq(col, id);
+
+      // Bangun OR filter agar temuan di bawah hierarki ini juga tampil
+      switch (level) {
+        case 0: // Lokasi dipilih → tampilkan semua temuan di lokasi ini
+          query = query.eq('id_lokasi', id);
+          break;
+        case 1: // Unit dipilih → tampilkan semua temuan di unit ini
+          query = query.eq('id_unit', id);
+          break;
+        case 2: // Subunit dipilih → tampilkan semua temuan di subunit ini
+          query = query.eq('id_subunit', id);
+          break;
+        case 3: // Area dipilih → tampilkan temuan spesifik area ini
+          query = query.eq('id_area', id);
+          break;
+      }
     }
 
     if (_appliedInspectionType.isNotEmpty) {
@@ -1178,7 +1189,7 @@ case 'location':
 
     // --- BLOK DEBUGGING YANG AMAN ---
     // Cek apakah kita sedang memfilter untuk user level atas di tab Finished
-    if (_tabController.index == 1 && _activeChip == 'location' && _userUnitId == null) {
+    if (_tabController.index == 1 && _activeChips == 'location' && _userUnitId == null) {
       print("--- DEBUG: HASIL QUERY UNTUK USER LOKASI DI TAB FINISHED ---");
       print("Jumlah data yang kembali: ${response.length}");
       if (response.isNotEmpty) {

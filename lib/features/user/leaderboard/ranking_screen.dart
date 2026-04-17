@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'riwayat_musim_screen.dart';
 import 'package:shimmer/shimmer.dart';
 import 'user_profile_modal.dart';
+import 'leaderboard_detail_screen.dart' show LocationFilter;
 
 // Warna & Tema
 class _AppColors {
@@ -67,6 +68,18 @@ class _RankingScreenState extends State<RankingScreen> {
   DateTime? _lastUpdated;
   _RankMember? _selfData;
 
+  // ── Filter Lokasi ──────────────────────────────────────────────────────────
+  LocationFilter _selectedLocation =
+      const LocationFilter(displayName: 'Semua Lokasi');
+  List<Map<String, dynamic>> _lokasiList = [];
+  int? _tempLokasiId;
+  int? _tempUnitId;
+  int? _tempSubunitId;
+  int? _tempAreaId;
+  List<Map<String, dynamic>> _tempUnitList = [];
+  List<Map<String, dynamic>> _tempSubunitList = [];
+  List<Map<String, dynamic>> _tempAreaList = [];
+
   final Map<String, Map<String, String>> _texts = {
     'ID': {
       'loading': 'Memuat...',
@@ -86,6 +99,14 @@ class _RankingScreenState extends State<RankingScreen> {
       'badge_1': '✈  Kelas Utama',
       'badge_2': '✈  Kelas Bisnis',
       'badge_3': '✈  Kelas Premium',
+      'filter_location': 'Filter Lokasi',
+      'all_locations': 'Semua Lokasi',
+      'label_lokasi': 'Lokasi',
+      'label_unit': 'Unit',
+      'label_subunit': 'Subunit',
+      'label_area': 'Area',
+      'reset': 'Reset',
+      'apply_filter': 'Terapkan Filter',
     },
     'EN': {
       'loading': 'Loading...',
@@ -105,6 +126,14 @@ class _RankingScreenState extends State<RankingScreen> {
       'badge_1': '✈  First Class',
       'badge_2': '✈  Business Class',
       'badge_3': '✈  Premium Class',
+      'filter_location': 'Filter Location',
+      'all_locations': 'All Locations',
+      'label_lokasi': 'Location',
+      'label_unit': 'Unit',
+      'label_subunit': 'Subunit',
+      'label_area': 'Area',
+      'reset': 'Reset',
+      'apply_filter': 'Apply Filter',
     },
     'ZH': {
       'loading': '正在加载...',
@@ -124,6 +153,14 @@ class _RankingScreenState extends State<RankingScreen> {
       'badge_1': '✈  头等舱',
       'badge_2': '✈  商务舱',
       'badge_3': '✈  高级舱',
+      'filter_location': '筛选位置',
+      'all_locations': '所有位置',
+      'label_lokasi': '位置',
+      'label_unit': '单位',
+      'label_subunit': '子单位',
+      'label_area': '区域',
+      'reset': '重置',
+      'apply_filter': '应用筛选',
     },
   };
 
@@ -132,8 +169,70 @@ class _RankingScreenState extends State<RankingScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedLocation = LocationFilter(displayName: getTxt('all_locations'));
+    _fetchLokasi();
     _fetchData();
   }
+
+  // ── Fetch Lokasi Hierarkis ─────────────────────────────────────────────────
+
+  Future<void> _fetchLokasi() async {
+    try {
+      final response = await _supabase
+          .from('lokasi')
+          .select('id_lokasi, nama_lokasi')
+          .order('nama_lokasi');
+      if (mounted) {
+        setState(() {
+          _lokasiList = List<Map<String, dynamic>>.from(response);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching lokasi: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchUnitByLokasi(int idLokasi) async {
+    try {
+      final response = await _supabase
+          .from('unit')
+          .select('id_unit, nama_unit')
+          .eq('id_lokasi', idLokasi)
+          .order('nama_unit');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchSubunitByUnit(int idUnit) async {
+    try {
+      final response = await _supabase
+          .from('subunit')
+          .select('id_subunit, nama_subunit')
+          .eq('id_unit', idUnit)
+          .order('nama_subunit');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchAreaBySubunit(
+      int idSubunit) async {
+    try {
+      final response = await _supabase
+          .from('area')
+          .select('id_area, nama_area')
+          .eq('id_subunit', idSubunit)
+          .order('nama_area');
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // ── Fetch Leaderboard ──────────────────────────────────────────────────────
 
   void _fetchData() {
     final now = DateTime.now();
@@ -143,7 +242,7 @@ class _RankingScreenState extends State<RankingScreen> {
           .rpc('get_monthly_leaderboard', params: {
         'selected_month': now.month,
         'selected_year': now.year,
-        'selected_unit_id': 0,
+        'selected_unit_id': _selectedLocation.idUnit ?? 0,
       }).then((response) {
         final List<dynamic> data = response;
         if (!mounted) return <_RankMember>[];
@@ -181,13 +280,330 @@ class _RankingScreenState extends State<RankingScreen> {
     });
   }
 
+  // ── Bottom Sheet Filter Lokasi ─────────────────────────────────────────────
+
+  void _showLocationPicker() {
+    _tempLokasiId = _selectedLocation.idLokasi;
+    _tempUnitId = _selectedLocation.idUnit;
+    _tempSubunitId = _selectedLocation.idSubunit;
+    _tempAreaId = _selectedLocation.idArea;
+    _tempUnitList = [];
+    _tempSubunitList = [];
+    _tempAreaList = [];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _buildLocationBottomSheet(),
+    );
+  }
+
+  Widget _buildLocationBottomSheet() {
+    return StatefulBuilder(
+      builder: (context, setSheetState) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(Icons.location_on_rounded,
+                        color: _AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        getTxt('filter_location'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setSheetState(() {
+                          _tempLokasiId = null;
+                          _tempUnitId = null;
+                          _tempSubunitId = null;
+                          _tempAreaId = null;
+                          _tempUnitList = [];
+                          _tempSubunitList = [];
+                          _tempAreaList = [];
+                        });
+                      },
+                      child: Text(getTxt('reset'),
+                          style: const TextStyle(
+                              color: _AppColors.primary)),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Content hierarki
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Level 1: Lokasi
+                      _buildFilterSection(
+                        setSheetState: setSheetState,
+                        label: getTxt('label_lokasi'),
+                        icon: Icons.business_rounded,
+                        selectedId: _tempLokasiId,
+                        items: _lokasiList,
+                        idKey: 'id_lokasi',
+                        nameKey: 'nama_lokasi',
+                        onSelect: (id) async {
+                          final units = await _fetchUnitByLokasi(id);
+                          setSheetState(() {
+                            _tempLokasiId = id;
+                            _tempUnitId = null;
+                            _tempSubunitId = null;
+                            _tempAreaId = null;
+                            _tempUnitList = units;
+                            _tempSubunitList = [];
+                            _tempAreaList = [];
+                          });
+                        },
+                      ),
+                      // Level 2: Unit
+                      if (_tempLokasiId != null &&
+                          _tempUnitList.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildFilterSection(
+                          setSheetState: setSheetState,
+                          label: getTxt('label_unit'),
+                          icon: Icons.account_tree_rounded,
+                          selectedId: _tempUnitId,
+                          items: _tempUnitList,
+                          idKey: 'id_unit',
+                          nameKey: 'nama_unit',
+                          onSelect: (id) async {
+                            final subunits = await _fetchSubunitByUnit(id);
+                            setSheetState(() {
+                              _tempUnitId = id;
+                              _tempSubunitId = null;
+                              _tempAreaId = null;
+                              _tempSubunitList = subunits;
+                              _tempAreaList = [];
+                            });
+                          },
+                        ),
+                      ],
+                      // Level 3: Subunit
+                      if (_tempUnitId != null &&
+                          _tempSubunitList.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildFilterSection(
+                          setSheetState: setSheetState,
+                          label: getTxt('label_subunit'),
+                          icon: Icons.folder_open_rounded,
+                          selectedId: _tempSubunitId,
+                          items: _tempSubunitList,
+                          idKey: 'id_subunit',
+                          nameKey: 'nama_subunit',
+                          onSelect: (id) async {
+                            final areas = await _fetchAreaBySubunit(id);
+                            setSheetState(() {
+                              _tempSubunitId = id;
+                              _tempAreaId = null;
+                              _tempAreaList = areas;
+                            });
+                          },
+                        ),
+                      ],
+                      // Level 4: Area
+                      if (_tempSubunitId != null &&
+                          _tempAreaList.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildFilterSection(
+                          setSheetState: setSheetState,
+                          label: getTxt('label_area'),
+                          icon: Icons.map_rounded,
+                          selectedId: _tempAreaId,
+                          items: _tempAreaList,
+                          idKey: 'id_area',
+                          nameKey: 'nama_area',
+                          onSelect: (id) {
+                            setSheetState(() {
+                              _tempAreaId = id;
+                            });
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              // Tombol Terapkan
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    16, 8, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Tentukan display name level terdalam
+                      String displayName = getTxt('all_locations');
+                      if (_tempAreaId != null && _tempAreaList.isNotEmpty) {
+                        displayName = _tempAreaList.firstWhere(
+                          (e) => e['id_area'] == _tempAreaId,
+                          orElse: () => {'nama_area': getTxt('label_area')},
+                        )['nama_area'];
+                      } else if (_tempSubunitId != null &&
+                          _tempSubunitList.isNotEmpty) {
+                        displayName = _tempSubunitList.firstWhere(
+                          (e) => e['id_subunit'] == _tempSubunitId,
+                          orElse: () =>
+                              {'nama_subunit': getTxt('label_subunit')},
+                        )['nama_subunit'];
+                      } else if (_tempUnitId != null &&
+                          _tempUnitList.isNotEmpty) {
+                        displayName = _tempUnitList.firstWhere(
+                          (e) => e['id_unit'] == _tempUnitId,
+                          orElse: () =>
+                              {'nama_unit': getTxt('label_unit')},
+                        )['nama_unit'];
+                      } else if (_tempLokasiId != null &&
+                          _lokasiList.isNotEmpty) {
+                        displayName = _lokasiList.firstWhere(
+                          (e) => e['id_lokasi'] == _tempLokasiId,
+                          orElse: () =>
+                              {'nama_lokasi': getTxt('label_lokasi')},
+                        )['nama_lokasi'];
+                      }
+
+                      setState(() {
+                        _selectedLocation = LocationFilter(
+                          idLokasi: _tempLokasiId,
+                          idUnit: _tempUnitId,
+                          idSubunit: _tempSubunitId,
+                          idArea: _tempAreaId,
+                          displayName: displayName,
+                        );
+                      });
+                      _fetchData();
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(
+                      getTxt('apply_filter'),
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterSection({
+    required StateSetter setSheetState,
+    required String label,
+    required IconData icon,
+    required int? selectedId,
+    required List<Map<String, dynamic>> items,
+    required String idKey,
+    required String nameKey,
+    required Function(int id) onSelect,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: _AppColors.primary),
+            const SizedBox(width: 6),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _AppColors.textPrimary)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: items.map((item) {
+            final id = item[idKey] as int;
+            final name = item[nameKey] as String;
+            final isSelected = selectedId == id;
+            return GestureDetector(
+              onTap: () => onSelect(id),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? _AppColors.primary : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected
+                        ? _AppColors.primary
+                        : const Color(0xFFBAE6FD),
+                  ),
+                ),
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                    color: isSelected
+                        ? Colors.white
+                        : _AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
   String get _lastUpdatedText {
-    if (_lastUpdated == null) {
-      return getTxt('loading');
-    }
-    final formattedDate = DateFormat('d MMM yyyy HH:mm', 'id_ID').format(_lastUpdated!);
+    if (_lastUpdated == null) return getTxt('loading');
+    final formattedDate =
+        DateFormat('d MMM yyyy HH:mm', 'id_ID').format(_lastUpdated!);
     return '${getTxt('last_updated_prefix')} $formattedDate (GMT+7)';
   }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -197,33 +613,39 @@ class _RankingScreenState extends State<RankingScreen> {
         children: [
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () async {
-                _fetchData();
-              },
+              onRefresh: () async => _fetchData(),
               child: CustomScrollView(
-                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics()),
                 slivers: [
                   SliverToBoxAdapter(child: _buildSkySection()),
                   SliverToBoxAdapter(child: _buildLastUpdated()),
                   SliverToBoxAdapter(child: _buildSeasonBanner()),
+                  // ── Filter Lokasi Bar ──
+                  SliverToBoxAdapter(child: _buildLocationFilterBar()),
                   SliverToBoxAdapter(child: _buildTableHeader()),
                   SliverToBoxAdapter(child: _buildTargetRow()),
                   FutureBuilder<List<_RankMember>>(
                     future: _leaderboardFuture,
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting && snapshot.data == null) {
+                      if (snapshot.connectionState ==
+                              ConnectionState.waiting &&
+                          snapshot.data == null) {
                         return SliverList(
                           delegate: SliverChildBuilderDelegate(
-                            (context, index) => const _RankRowShimmerPlaceholder(),
+                            (context, index) =>
+                                const _RankRowShimmerPlaceholder(),
                             childCount: 8,
                           ),
                         );
                       }
                       if (snapshot.hasError) {
-                         return SliverToBoxAdapter(
+                        return SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.all(32.0),
-                            child: Center(child: Text('Terjadi Kesalahan: ${snapshot.error}')),
+                            child: Center(
+                                child: Text(
+                                    'Terjadi Kesalahan: ${snapshot.error}')),
                           ),
                         );
                       }
@@ -231,7 +653,8 @@ class _RankingScreenState extends State<RankingScreen> {
                         return SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.all(32.0),
-                            child: Center(child: Text(getTxt('no_rank_data'))),
+                            child: Center(
+                                child: Text(getTxt('no_rank_data'))),
                           ),
                         );
                       }
@@ -256,14 +679,112 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
+  // ── Filter Lokasi Bar ──────────────────────────────────────────────────────
+
+  Widget _buildLocationFilterBar() {
+    final isFiltered = _selectedLocation.idLokasi != null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: GestureDetector(
+        onTap: _showLocationPicker,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isFiltered ? _AppColors.primaryLight : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isFiltered
+                  ? _AppColors.primary
+                  : const Color(0xFFBAE6FD),
+              width: isFiltered ? 1.5 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.location_on_rounded,
+                size: 16,
+                color: isFiltered
+                    ? _AppColors.primary
+                    : _AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _selectedLocation.displayName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isFiltered
+                        ? FontWeight.w700
+                        : FontWeight.normal,
+                    color: isFiltered
+                        ? _AppColors.primary
+                        : _AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Tombol reset jika ada filter aktif
+              if (isFiltered)
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedLocation = LocationFilter(
+                          displayName: getTxt('all_locations'));
+                    });
+                    _fetchData();
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 4),
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: _AppColors.primary.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close_rounded,
+                        size: 13, color: _AppColors.primary),
+                  ),
+                ),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 18,
+                color: isFiltered
+                    ? _AppColors.primary
+                    : _AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // Season Banner
   Widget _buildSeasonBanner() {
-    final String seasonText =
-        widget.lang == 'ID' ? 'Musim' : widget.lang == 'ZH' ? '赛季' : 'Season';
-    final String historyButtonText =
-        widget.lang == 'ID' ? 'Riwayat' : widget.lang == 'ZH' ? '历史' : 'History';
-    final String timeLeftLabel =
-        widget.lang == 'ID' ? 'Sisa waktu:' : widget.lang == 'ZH' ? '剩余时间:' : 'Time left:';
+    final String seasonText = widget.lang == 'ID'
+        ? 'Musim'
+        : widget.lang == 'ZH'
+            ? '赛季'
+            : 'Season';
+    final String historyButtonText = widget.lang == 'ID'
+        ? 'Riwayat'
+        : widget.lang == 'ZH'
+            ? '历史'
+            : 'History';
+    final String timeLeftLabel = widget.lang == 'ID'
+        ? 'Sisa waktu:'
+        : widget.lang == 'ZH'
+            ? '剩余时间:'
+            : 'Time left:';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -319,13 +840,14 @@ class _RankingScreenState extends State<RankingScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(timeLeftLabel,
-                  style:
-                      const TextStyle(color: _AppColors.textSecondary, fontSize: 12)),
+                  style: const TextStyle(
+                      color: _AppColors.textSecondary, fontSize: 12)),
               const SizedBox(height: 2),
               Builder(
                 builder: (context) {
                   final now = DateTime.now();
-                  final endOfMonth = DateTime(now.year, now.month + 1, 0);
+                  final endOfMonth =
+                      DateTime(now.year, now.month + 1, 0);
                   final daysLeft = endOfMonth.difference(now).inDays;
                   return Text(
                     'Sisa $daysLeft hari',
@@ -343,7 +865,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Sky Section (Podium)
+  // Sky Section (tidak berubah, salin dari kode asli)
   Widget _buildSkySection() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -379,8 +901,6 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
               ),
             ),
-
-            // LAYER 2: Matahari / cahaya 
             Positioned(
               top: -30,
               right: 30,
@@ -400,63 +920,46 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
               ),
             ),
-
-            // LAYER 3: Awan besar kiri bawah
             Positioned(
-              left: -20,
-              bottom: 40,
-              child: _buildFantasyCloud(160, 0.92),
-            ),
-
-            // LAYER 4: Awan besar kanan bawah
+                left: -20,
+                bottom: 40,
+                child: _buildFantasyCloud(160, 0.92)),
             Positioned(
-              right: -30,
-              bottom: 30,
-              child: _buildFantasyCloud(140, 0.85),
-            ),
-
-            // LAYER 5: Awan kecil kiri atas 
+                right: -30,
+                bottom: 30,
+                child: _buildFantasyCloud(140, 0.85)),
             Positioned(
-              left: 10,
-              top: 30,
-              child: _buildFantasyCloud(80, 0.65),
-            ),
-
-            // LAYER 6: Awan kecil kanan atas
+                left: 10,
+                top: 30,
+                child: _buildFantasyCloud(80, 0.65)),
             Positioned(
-              right: 20,
-              top: 15,
-              child: _buildFantasyCloud(65, 0.55),
-            ),
-
-            // LAYER 7: Awan tipis tengah
+                right: 20,
+                top: 15,
+                child: _buildFantasyCloud(65, 0.55)),
             Positioned(
-              left: 80,
-              top: 55,
-              child: _buildFantasyCloud(90, 0.45),
-            ),
-
-            // LAYER 8: Pesawat mini dekoratif kanan
+                left: 80,
+                top: 55,
+                child: _buildFantasyCloud(90, 0.45)),
             Positioned(
               right: 28,
               top: 52,
               child: Transform.rotate(
                 angle: -0.15,
-                child: const Text('✈', style: TextStyle(fontSize: 16, color: Colors.white70)),
+                child: const Text('✈',
+                    style: TextStyle(
+                        fontSize: 16, color: Colors.white70)),
               ),
             ),
-
-            // LAYER 9: Pesawat mini dekoratif kiri
             Positioned(
               left: 48,
               top: 90,
               child: Transform.rotate(
                 angle: 0.1,
-                child: const Text('✈', style: TextStyle(fontSize: 11, color: Colors.white54)),
+                child: const Text('✈',
+                    style: TextStyle(
+                        fontSize: 11, color: Colors.white54)),
               ),
             ),
-
-            // LAYER 10: Garis runway / landasan bawah
             Positioned(
               bottom: 0,
               left: 0,
@@ -476,13 +979,12 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
               ),
             ),
-
-            // LAYER 11: Konten Podium
             FutureBuilder<List<_RankMember>>(
               future: _leaderboardFuture,
               builder: (context, snapshot) {
                 if (!snapshot.hasData &&
-                    snapshot.connectionState == ConnectionState.waiting) {
+                    snapshot.connectionState ==
+                        ConnectionState.waiting) {
                   return const _PodiumShimmerPlaceholder();
                 }
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -490,23 +992,31 @@ class _RankingScreenState extends State<RankingScreen> {
                     child: Text(
                       getTxt('no_podium_data'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white70, height: 1.5),
+                      style: const TextStyle(
+                          color: Colors.white70, height: 1.5),
                     ),
                   );
                 }
 
                 final members = snapshot.data!;
                 _RankMember? top1, top2, top3;
-                try { top1 = members.firstWhere((m) => m.rank == 1); } catch (_) {}
-                try { top2 = members.firstWhere((m) => m.rank == 2); } catch (_) {}
-                try { top3 = members.firstWhere((m) => m.rank == 3); } catch (_) {}
+                try {
+                  top1 = members.firstWhere((m) => m.rank == 1);
+                } catch (_) {}
+                try {
+                  top2 = members.firstWhere((m) => m.rank == 2);
+                } catch (_) {}
+                try {
+                  top3 = members.firstWhere((m) => m.rank == 3);
+                } catch (_) {}
 
                 return Align(
                   alignment: Alignment.bottomCenter,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceEvenly,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         if (top2 != null)
@@ -533,7 +1043,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  /// Awan bergaya anime/fantasy
   Widget _buildFantasyCloud(double width, double opacity) {
     final h = width * 0.5;
     return Opacity(
@@ -562,9 +1071,7 @@ class _RankingScreenState extends State<RankingScreen> {
                 width: width * 0.38,
                 height: width * 0.38,
                 decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
+                    color: Colors.white, shape: BoxShape.circle),
               ),
             ),
             Positioned(
@@ -574,9 +1081,7 @@ class _RankingScreenState extends State<RankingScreen> {
                 width: width * 0.44,
                 height: width * 0.44,
                 decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
+                    color: Colors.white, shape: BoxShape.circle),
               ),
             ),
             Positioned(
@@ -586,9 +1091,7 @@ class _RankingScreenState extends State<RankingScreen> {
                 width: width * 0.32,
                 height: width * 0.32,
                 decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
+                    color: Colors.white, shape: BoxShape.circle),
               ),
             ),
           ],
@@ -597,28 +1100,40 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Last Updated
   Widget _buildLastUpdated() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
       child: Text(
         _lastUpdatedText,
         style: const TextStyle(
-            fontSize: 11, color: _AppColors.textSecondary, height: 1.4),
+            fontSize: 11,
+            color: _AppColors.textSecondary,
+            height: 1.4),
       ),
     );
   }
 
-  // Table Header
   Widget _buildTableHeader() {
-    final String rankCol =
-        widget.lang == 'ID' ? 'Rank' : widget.lang == 'ZH' ? '排名' : 'Rank';
-    final String nameCol =
-        widget.lang == 'ID' ? 'Nama' : widget.lang == 'ZH' ? '姓名' : 'Name';
-    final String altCol =
-        widget.lang == 'ID' ? 'Ketinggian' : widget.lang == 'ZH' ? '高度' : 'Altitude';
-    final String scoreCol =
-        widget.lang == 'ID' ? 'Poin' : widget.lang == 'ZH' ? '积分' : 'Score';
+    final String rankCol = widget.lang == 'ID'
+        ? 'Rank'
+        : widget.lang == 'ZH'
+            ? '排名'
+            : 'Rank';
+    final String nameCol = widget.lang == 'ID'
+        ? 'Nama'
+        : widget.lang == 'ZH'
+            ? '姓名'
+            : 'Name';
+    final String altCol = widget.lang == 'ID'
+        ? 'Ketinggian'
+        : widget.lang == 'ZH'
+            ? '高度'
+            : 'Altitude';
+    final String scoreCol = widget.lang == 'ID'
+        ? 'Poin'
+        : widget.lang == 'ZH'
+            ? '积分'
+            : 'Score';
 
     return Container(
       color: const Color(0xFFF8FAFF),
@@ -661,7 +1176,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Target Row
   Widget _buildTargetRow() {
     final String targetText = widget.lang == 'ID'
         ? 'Target Bulanan'
@@ -672,7 +1186,8 @@ class _RankingScreenState extends State<RankingScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
       decoration: BoxDecoration(
           color: _AppColors.primaryLight,
-          border: Border(bottom: BorderSide(color: _AppColors.divider))),
+          border:
+              Border(bottom: BorderSide(color: _AppColors.divider))),
       child: Row(
         children: [
           const SizedBox(width: 48),
@@ -704,39 +1219,33 @@ class _RankingScreenState extends State<RankingScreen> {
   }
 
   void _showUserProfileModal(_RankMember member) {
-  showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (context) {
-      return DraggableScrollableSheet(
-        initialChildSize: 0.65,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (_, controller) {
-          return UserProfileModal(
-            controller: controller,
-            userId: member.id, // <-- GANTI MENJADI INI
-            userName: member.name,
-            userAvatarUrl: member.avatarUrl,
-            userRank: member.rank,
-          );
-        },
-      );
-    },
-  );
-}
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.65,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          builder: (_, controller) {
+            return UserProfileModal(
+              controller: controller,
+              userId: member.id,
+              userName: member.name,
+              userAvatarUrl: member.avatarUrl,
+              userRank: member.rank,
+            );
+          },
+        );
+      },
+    );
+  }
 
-  // Rank Row
   Widget _buildRankRow(_RankMember m) {
     final isTop3 = m.isTop3;
     return InkWell(
-      onTap: () {
-        _showUserProfileModal(m);
-        // Hapus komentar di atas setelah Anda menambahkan id_user ke _RankMember
-        // Untuk sementara, kita bisa mock panggilannya untuk menghindari error
-        print("Tapped on ${m.name}");
-      },
+      onTap: () => _showUserProfileModal(m),
       child: Container(
         decoration: BoxDecoration(
           color: m.isSelf
@@ -754,7 +1263,9 @@ class _RankingScreenState extends State<RankingScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         child: Row(
           children: [
-            SizedBox(width: 48, child: Center(child: _RankBadge(member: m))),
+            SizedBox(
+                width: 48,
+                child: Center(child: _RankBadge(member: m))),
             Expanded(
               child: Row(
                 children: [
@@ -775,8 +1286,9 @@ class _RankingScreenState extends State<RankingScreen> {
                           m.name,
                           style: TextStyle(
                               fontSize: 13,
-                              fontWeight:
-                                  isTop3 ? FontWeight.w700 : FontWeight.w500,
+                              fontWeight: isTop3
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                               color: _AppColors.textPrimary),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -800,7 +1312,9 @@ class _RankingScreenState extends State<RankingScreen> {
                 style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w500,
-                    color: isTop3 ? m.medalColor : _AppColors.textSecondary),
+                    color: isTop3
+                        ? m.medalColor
+                        : _AppColors.textSecondary),
               ),
             ),
             SizedBox(
@@ -811,7 +1325,9 @@ class _RankingScreenState extends State<RankingScreen> {
                 style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: isTop3 ? m.medalColor : _AppColors.primaryDark),
+                    color: isTop3
+                        ? m.medalColor
+                        : _AppColors.primaryDark),
               ),
             ),
           ],
@@ -821,16 +1337,13 @@ class _RankingScreenState extends State<RankingScreen> {
   }
 
   String _badgeLabel(int rank) {
-    if (rank == 1) return '✈  First Class';
-    if (rank == 2) return '✈  Business Class';
-    return '✈  Premium Class';
+    if (rank == 1) return getTxt('badge_1');
+    if (rank == 2) return getTxt('badge_2');
+    return getTxt('badge_3');
   }
 
-  // Self Pinned Row
   Widget _buildSelfPinnedRow() {
-    if (_selfData == null) {
-      return const SizedBox.shrink();
-    }
+    if (_selfData == null) return const SizedBox.shrink();
     final self = _selfData!;
     return Container(
       decoration: BoxDecoration(
@@ -848,7 +1361,9 @@ class _RankingScreenState extends State<RankingScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          SizedBox(width: 48, child: Center(child: _RankBadge(member: self))),
+          SizedBox(
+              width: 48,
+              child: Center(child: _RankBadge(member: self))),
           _Avatar(
               name: self.name,
               avatarUrl: self.avatarUrl,
@@ -867,7 +1382,8 @@ class _RankingScreenState extends State<RankingScreen> {
               child: Text(self.altitudeLabel,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 11.5, color: _AppColors.textSecondary))),
+                      fontSize: 11.5,
+                      color: _AppColors.textSecondary))),
           SizedBox(
               width: 56,
               child: Text('${self.score}',
