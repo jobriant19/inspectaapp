@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "858207227944",
+    "project_id": "notifinspecta",
+    "storage_bucket": "notifinspecta.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:858207227944:android:3e4962ed8ed26cfb40251d",
+        "android_client_info": {
+          "package_name": "com.example.inspectaapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABx9CJL21LefqAB2hdwrroNR1GlVJdSus"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

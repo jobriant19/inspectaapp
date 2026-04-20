@@ -109,14 +109,17 @@ class _AccountScreenState extends State<AccountScreen> {
   void initState() {
     super.initState();
     _currentLang = widget.lang;
-    _userName = widget.initialUserName ?? "...";
-    _userImage = widget.initialUserImage;
-    _userJabatan = widget.initialUserRole ?? "...";
-    _userLokasiSpesifik = widget.initialUserLocation ?? "...";
-    _isVisitor = widget.initialIsVisitor ?? false;
-    _userJabatanId = widget.initialUserJabatanId;
-    _isLoading = widget.initialUserName == null || widget.initialUserName == "...";
-    _fetchUserData();
+
+    if (widget.initialUserName != null && widget.initialUserName != '...') {
+      _userName = widget.initialUserName!;
+      _userImage = widget.initialUserImage;
+      _userJabatan = widget.initialUserRole ?? '...';
+      _userLokasiSpesifik = widget.initialUserLocation ?? '...';
+      _isVisitor = widget.initialIsVisitor ?? false;
+      _userJabatanId = widget.initialUserJabatanId;
+      _isLoading = false;
+    }
+    _fetchUserDataSilent();
   }
 
   Widget _buildSkeletonProfileCard() {
@@ -156,12 +159,9 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Future<void> _fetchUserData() async {
+  Future<void> _fetchUserDataSilent() async {
     final userAuth = Supabase.instance.client.auth.currentUser;
-    if (userAuth == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
+    if (userAuth == null) return;
 
     try {
       final userRow = await Supabase.instance.client
@@ -170,25 +170,11 @@ class _AccountScreenState extends State<AccountScreen> {
           .eq('id_user', userAuth.id)
           .maybeSingle();
 
-      if (userRow == null || !mounted) {
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
+      if (userRow == null || !mounted) return;
 
       final isVerificator = userRow['is_verificator'] as bool? ?? false;
+      if (isVerificator) return;
 
-      if (isVerificator) {
-        if (mounted) {
-          setState(() {
-            _userName = userRow['nama'] ?? 'User';
-            final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
-            _userImage = userRow['gambar_user'] ?? metaImage;
-            _isLoading = false;
-          });
-        }
-        return;
-      }
-      
       final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
       final isVisitor = userRow['is_visitor'] as bool? ?? false;
       final idJabatan = userRow['id_jabatan'];
@@ -197,7 +183,7 @@ class _AccountScreenState extends State<AccountScreen> {
       final idSubunit = userRow['id_subunit'];
       final idArea = userRow['id_area'];
 
-      String locationName = "Tidak Terdefinisi";
+      String locationName = _userLokasiSpesifik; // Gunakan yang ada dulu
       if (idArea != null) {
         final data = await Supabase.instance.client.from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
         locationName = data?['nama_area'] ?? locationName;
@@ -212,13 +198,7 @@ class _AccountScreenState extends State<AccountScreen> {
         locationName = data?['nama_lokasi'] ?? locationName;
       }
 
-      String jabatanName;
-      if (isVisitor) {
-        jabatanName = getTxt('visitor');
-      } else {
-        jabatanName = userRow['jabatan']?['nama_jabatan'] ?? 'Staff';
-      }
-
+      String jabatanName = isVisitor ? getTxt('visitor') : (userRow['jabatan']?['nama_jabatan'] ?? 'Staff');
       String? dbImage = userRow['gambar_user'];
       if (dbImage != null && dbImage.trim().isEmpty) dbImage = null;
 
@@ -230,13 +210,11 @@ class _AccountScreenState extends State<AccountScreen> {
           _userLokasiSpesifik = locationName;
           _isVisitor = isVisitor;
           _userJabatanId = idJabatan;
-          _isLoading = false;
+          // ← _isLoading TIDAK diubah di sini
         });
       }
-
     } catch (e) {
       debugPrint("Error fetching user data for account: $e");
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -449,7 +427,7 @@ Widget _buildProfileCard() {
             initialUserLocation: _userLokasiSpesifik,
           ),
         ),
-      ).then((_) => _fetchUserData());
+      ).then((_) => _fetchUserDataSilent());
     },
     child: Container(
       height: 140, // Tinggi konsisten
@@ -571,7 +549,7 @@ Widget _buildVisitorCard() {
   return GestureDetector(
     onTap: () {
       Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(lang: _currentLang)))
-          .then((_) => _fetchUserData());
+          .then((_) => _fetchUserDataSilent());
     },
     child: Container(
       padding: const EdgeInsets.all(20),

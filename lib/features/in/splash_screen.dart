@@ -38,36 +38,70 @@ class _SplashScreenState extends State<SplashScreen> {
       try {
         final userData = await Supabase.instance.client
             .from('User')
-            .select('is_verificator, nama, poin, gambar_user, jabatan(nama_jabatan)')
+            .select('is_verificator, nama, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, jabatan(nama_jabatan)')
             .eq('id_user', session.user.id)
             .single();
 
+        Map<String, dynamic>? latestLog;
+        try {
+          final logs = await Supabase.instance.client
+              .from('log_poin')
+              .select('poin, deskripsi, tipe_aktivitas, created_at')
+              .eq('id_user', session.user.id)
+              .order('created_at', ascending: false)
+              .limit(1);
+          if (logs.isNotEmpty) latestLog = logs.first;
+        } catch (_) {}
+
         final isVerificator = userData['is_verificator'] as bool? ?? false;
 
-        final userName = userData['nama'] as String?;
-        final userPoin = userData['poin'] as int?;
+        // ── Resolusi lokasi ──
+        String locationName = 'Tidak Terdefinisi';
+        final idArea    = userData['id_area'];
+        final idSubunit = userData['id_subunit'];
+        final idUnit    = userData['id_unit'];
+        final idLokasi  = userData['id_lokasi'];
+
+        if (idArea != null) {
+          final d = await Supabase.instance.client
+              .from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
+          locationName = d?['nama_area'] ?? locationName;
+        } else if (idSubunit != null) {
+          final d = await Supabase.instance.client
+              .from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
+          locationName = d?['nama_subunit'] ?? locationName;
+        } else if (idUnit != null) {
+          final d = await Supabase.instance.client
+              .from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
+          locationName = d?['nama_unit'] ?? locationName;
+        } else if (idLokasi != null) {
+          final d = await Supabase.instance.client
+              .from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
+          locationName = d?['nama_lokasi'] ?? locationName;
+        }
+
+        final userName  = userData['nama'] as String?;
+        final userPoin  = userData['poin'] as int?;
         final userImage = userData['gambar_user'] as String?;
-        final userRole = userData['jabatan']?['nama_jabatan'] as String?;
-        final metaName = session.user.userMetadata?['full_name'] ?? session.user.userMetadata?['name'];
+        final userRole  = userData['jabatan']?['nama_jabatan'] as String?;
+        final metaName  = session.user.userMetadata?['full_name'] ?? session.user.userMetadata?['name'];
         final metaImage = session.user.userMetadata?['avatar_url'] ?? session.user.userMetadata?['picture'];
 
         if (!mounted) return;
 
         if (isVerificator) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const VerificatorHomeScreen()),
-          );
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const VerificatorHomeScreen()));
         } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => HomeScreen(
-              initialUserName: userName ?? metaName,
-              initialUserPoin: userPoin,
-              initialUserImage: userImage ?? metaImage,
-              initialUserRole: userRole,
-            )),
-          );
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => HomeScreen(
+                initialUserName: userName ?? metaName,
+                initialUserPoin: userPoin,
+                initialUserImage: userImage ?? metaImage,
+                initialUserRole: userRole,
+                initialUserLocation: locationName,  
+                initialLatestLog: latestLog,
+              )));
         }
       } catch (e) {
         debugPrint("Error cek verifikator di splash: $e");

@@ -428,17 +428,71 @@ class _LoginScreenState extends State<LoginScreen>
               .single();
 
           // Update log login
-          await Supabase.instance.client
-              .from('User')
-              .update({'log_login': DateTime.now().toIso8601String()})
-              .eq('id_user', res.user!.id);
-          
+          Map<String, dynamic>? latestLog;
+          try {
+            final logs = await Supabase.instance.client
+                .from('log_poin')
+                .select('poin, deskripsi, tipe_aktivitas, created_at')
+                .eq('id_user', res.user!.id)
+                .order('created_at', ascending: false)
+                .limit(1);
+            if (logs.isNotEmpty) latestLog = logs.first;
+          } catch (_) {}
           if (mounted) {
-            // BARU: Logika pengalihan halaman berdasarkan is_verificator
             if (userProfile['is_verificator'] == true) {
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const VerificatorHomeScreen()));
+              Navigator.pushReplacement(context,
+                  MaterialPageRoute(builder: (context) => const VerificatorHomeScreen()));
             } else {
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+              // Ambil data user untuk pass ke HomeScreen agar tidak loading
+              try {
+                final userData = await Supabase.instance.client
+                    .from('User')
+                    .select('nama, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, jabatan(nama_jabatan)')
+                    .eq('id_user', res.user!.id)
+                    .single();
+
+                // ── Resolusi lokasi ──
+                String locationName = 'Tidak Terdefinisi';
+                final idArea    = userData['id_area'];
+                final idSubunit = userData['id_subunit'];
+                final idUnit    = userData['id_unit'];
+                final idLokasi  = userData['id_lokasi'];
+
+                if (idArea != null) {
+                  final d = await Supabase.instance.client
+                      .from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
+                  locationName = d?['nama_area'] ?? locationName;
+                } else if (idSubunit != null) {
+                  final d = await Supabase.instance.client
+                      .from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
+                  locationName = d?['nama_subunit'] ?? locationName;
+                } else if (idUnit != null) {
+                  final d = await Supabase.instance.client
+                      .from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
+                  locationName = d?['nama_unit'] ?? locationName;
+                } else if (idLokasi != null) {
+                  final d = await Supabase.instance.client
+                      .from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
+                  locationName = d?['nama_lokasi'] ?? locationName;
+                }
+
+                if (mounted) {
+                  Navigator.pushReplacement(context,
+                      MaterialPageRoute(builder: (context) => HomeScreen(
+                        initialUserName: userData['nama'],
+                        initialUserPoin: userData['poin'],
+                        initialUserImage: userData['gambar_user'],
+                        initialUserRole: userData['jabatan']?['nama_jabatan'],
+                        initialUserLocation: locationName,   // ← BARU
+                        initialLatestLog: latestLog, 
+                      )));
+                }
+              } catch (_) {
+                if (mounted) {
+                  Navigator.pushReplacement(context,
+                      MaterialPageRoute(builder: (context) => const HomeScreen()));
+                }
+              }
             }
           }
         } else {

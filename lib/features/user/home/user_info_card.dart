@@ -60,6 +60,52 @@ class UserInfoCard extends StatelessWidget {
     return texts[lang]?[key] ?? key;
   }
 
+  Widget _buildLatestLog() {
+    if (latestLogPoin == null) return const SizedBox();
+
+    // Aman: ambil poin sebagai num lalu konversi ke int
+    final int poin = (latestLogPoin!['poin'] as num).toInt();
+    final String deskripsi = (latestLogPoin!['deskripsi'] ?? '').toString();
+    final bool isPositive = poin >= 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _getTxt('activity_log'),
+          style: GoogleFonts.poppins(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF475569),
+          ),
+        ),
+        const SizedBox(height: 3),
+        Row(
+          children: [
+            Icon(
+              isPositive ? Icons.add_circle_outline : Icons.remove_circle_outline,
+              size: 13,
+              color: isPositive ? Colors.green.shade700 : Colors.red.shade700,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                '${isPositive ? '+' : ''}$poin • $deskripsi',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fireColor = _getFireColor(userPoin);
@@ -290,53 +336,25 @@ class UserInfoCard extends StatelessWidget {
               // Kiri: Log aktivitas terbaru
               Expanded(
                 child: isLatestLogLoading
-                    ? const SizedBox(height: 36)
+                    ? Row(
+                        children: [
+                          Container(
+                            width: 12, height: 12,
+                            margin: const EdgeInsets.only(right: 6),
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF00C9E4),
+                            ),
+                          ),
+                          Text('...', style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey)),
+                        ],
+                      )
                     : latestLogPoin == null
                         ? Text(
                             '-',
-                            style: GoogleFonts.poppins(
-                                fontSize: 11, color: Colors.grey),
+                            style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey),
                           )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _getTxt('activity_log'),
-                                style: GoogleFonts.poppins(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF475569),
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Row(
-                                children: [
-                                  Icon(
-                                    (latestLogPoin!['poin'] as int) >= 0
-                                        ? Icons.add_circle_outline
-                                        : Icons.remove_circle_outline,
-                                    size: 13,
-                                    color: (latestLogPoin!['poin'] as int) >= 0
-                                        ? Colors.green.shade700
-                                        : Colors.red.shade700,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      '${(latestLogPoin!['poin'] as int) >= 0 ? '+' : ''}${latestLogPoin!['poin']} • ${latestLogPoin!['deskripsi']}',
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                        : _buildLatestLog(),
               ),
               const SizedBox(width: 8),
 
@@ -347,8 +365,7 @@ class UserInfoCard extends StatelessWidget {
                   backgroundColor: Colors.black87,
                   foregroundColor: Colors.white,
                   shape: const StadiumBorder(),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   elevation: 0,
                 ),
                 child: Row(
@@ -356,8 +373,7 @@ class UserInfoCard extends StatelessWidget {
                   children: [
                     Text(
                       _getTxt('view_more'),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 12),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                     const SizedBox(width: 6),
                     const Icon(Icons.arrow_forward, size: 14),

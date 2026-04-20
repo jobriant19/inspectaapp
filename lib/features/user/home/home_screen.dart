@@ -1,27 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/notification_service.dart';
 import '../../shared/account/account_screen.dart';
-import '../accident/accident_report_list_screen.dart';
 import '../explore/explore_screen.dart';
 import '../analytics/analytics_screen.dart';
-import '../finding/finding_detail_screen.dart';
 import '../../shared/notifications/notification_screen.dart';
 import '../../shared/code/qr_scanner_screen.dart';
 import '../leaderboard/ranking_screen.dart';
 import '../finding/camera_finding_screen.dart';
-import 'location_screen.dart';
 import 'dart:ui';
+import 'dart:async';
+import 'dart:math' as math;
 import 'package:shimmer/shimmer.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'user_info_card.dart';
 import 'activity_log_dialog.dart';
+import 'home_content.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? initialUserName;
   final int? initialUserPoin;
   final String? initialUserImage;
   final String? initialUserRole;
+  final String? initialUserLocation;
+  final Map<String, dynamic>? initialLatestLog;
 
   const HomeScreen({
     super.key,
@@ -29,6 +32,8 @@ class HomeScreen extends StatefulWidget {
     this.initialUserPoin,
     this.initialUserImage,
     this.initialUserRole,
+    this.initialUserLocation,
+    this.initialLatestLog,
   });
 
   @override
@@ -60,6 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _latestLogPoin;
   bool _isLatestLogLoading = true;
   String _activeTab = 'my';
+  bool _hasShownLoginDialog = false;
+  int _previousPoin = 0;
+  bool _isAnimatingPoin = false;
+  int _displayedPoin = 0;
 
   // Dictionary Translate untuk Navigation Bar
   final Map<String, Map<String, String>> _navText = {
@@ -137,393 +146,73 @@ class _HomeScreenState extends State<HomeScreen> {
     return texts[_lang] ?? texts['ID']!;
   }
 
-  Widget _buildTabChip(String tabKey, String label) {
-    final bool isActive = _activeTab == tabKey;
-    return GestureDetector(
-      onTap: () => setState(() => _activeTab = tabKey),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF00C9E4) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isActive ? const Color(0xFF00C9E4) : Colors.grey.shade300,
-            width: 1.5,
-          ),
-          boxShadow: isActive
-              ? [BoxShadow(color: const Color(0xFF00C9E4).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3))]
-              : [],
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: isActive ? Colors.white : Colors.grey.shade600,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFindingsTab() {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return const SizedBox();
-
-    // Query berbeda per tab
-    Future<List<Map<String, dynamic>>> future;
-
-    if (_activeTab == 'my') {
-      // Temuan yang dibuat oleh user ini
-      future = Supabase.instance.client
-          .from('temuan')
-          .select('''
-            id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan,
-            poin_temuan, target_waktu_selesai,
-            id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab,
-            lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area),
-            is_pro, is_visitor, is_eksekutif
-          ''')
-          .eq('id_user', userId)
-          .order('created_at', ascending: false)
-          .limit(10)
-          .then((v) => List<Map<String, dynamic>>.from(v));
-    } else if (_activeTab == 'assigned') {
-      // Temuan yang ditugaskan ke user ini (id_penanggung_jawab)
-      future = Supabase.instance.client
-          .from('temuan')
-          .select('''
-            id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan,
-            poin_temuan, target_waktu_selesai,
-            id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab,
-            lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area),
-            is_pro, is_visitor, is_eksekutif
-          ''')
-          .eq('id_penanggung_jawab', userId)
-          .order('created_at', ascending: false)
-          .limit(10)
-          .then((v) => List<Map<String, dynamic>>.from(v));
-    } else {
-      // Resolved: penyelesaian yang dilakukan user ini → join ke temuan
-      future = Supabase.instance.client
-          .from('penyelesaian')
-          .select('''
-            id_penyelesaian,
-            temuan(
-              id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan,
-              poin_temuan, target_waktu_selesai,
-              id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab,
-              lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area),
-              is_pro, is_visitor, is_eksekutif
-            )
-          ''')
-          .eq('id_user', userId)
-          .order('tanggal_selesai', ascending: false)
-          .limit(10)
-          .then((v) {
-            // Flatten: ambil data temuan dari dalam penyelesaian
-            final List<Map<String, dynamic>> result = [];
-            for (final item in v) {
-              final temuanRaw = item['temuan'];
-              if (temuanRaw == null) continue;
-              if (temuanRaw is List && temuanRaw.isNotEmpty) {
-                result.add(Map<String, dynamic>.from(temuanRaw.first));
-              } else if (temuanRaw is Map) {
-                result.add(Map<String, dynamic>.from(temuanRaw));
-              }
-            }
-            return result;
-          });
-    }
-
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildRecentFindingsLoader();
-        }
-
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20.0),
-              child: Column(
-                children: [
-                  Image.asset(
-                    'assets/images/team_illustration.png',
-                    height: 150,
-                    fit: BoxFit.contain,
-                    errorBuilder: (c, e, s) =>
-                        const Icon(Icons.search_off, size: 80, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    getHomeTxt('no_findings_title'),
-                    style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E3A8A)),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    getHomeTxt('no_findings_subtitle'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        final findings = snapshot.data!;
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: findings.length,
-          itemBuilder: (context, index) => _buildFindingCard(findings[index]),
-        );
-      },
-    );
-  }
-
   void _showPointNotificationDialog(int points, String description, String tipe) {
-  if (points == 0) return;
-
-  final t = _getPointDialogTexts();
-  final bool isPositive = points > 0;
-
-  // --- Konfigurasi visual berdasarkan positif/negatif ---
-  final Color primaryColor = isPositive
-      ? const Color(0xFF16A34A)   // Hijau untuk tambah poin
-      : const Color(0xFFDC2626);  // Merah untuk kurang poin
-
-  final Color bgGradientStart = isPositive
-      ? const Color(0xFFD1FAE5)   // Hijau muda
-      : const Color(0xFFFFE4E6);  // Merah muda
-
-  final Color bgGradientEnd = isPositive
-      ? const Color(0xFFECFDF5)
-      : const Color(0xFFFFF1F2);
-
-  final IconData mainIcon = isPositive
-      ? Icons.trending_up_rounded
-      : Icons.trending_down_rounded;
-
-  final String pointsLabel = isPositive
-      ? '+$points'
-      : '$points'; // sudah mengandung minus dari DB
-
-  final String title = isPositive
-      ? t['gained_title']!
-      : t['lost_title']!;
-
-  // --- Ikon per tipe aktivitas ---
-  IconData tipeIcon;
-  switch (tipe) {
-    case 'login_pertama':
-      tipeIcon = Icons.celebration_rounded;
-      break;
-    case 'login_harian':
-      tipeIcon = Icons.today_rounded;
-      break;
-    case 'login_pertama_hari_ini':
-      tipeIcon = Icons.emoji_events_rounded;
-      break;
-    case 'penalti':
-      tipeIcon = Icons.warning_amber_rounded;
-      break;
-    default:
-      tipeIcon = isPositive
-          ? Icons.star_rounded
-          : Icons.remove_circle_outline_rounded;
-  }
-
-  showDialog(
-    context: context,
-    barrierDismissible: true,
-    barrierColor: Colors.black.withOpacity(0.4),
-    builder: (dialogContext) {
-      // Tutup otomatis setelah 4 detik
-      Future.delayed(const Duration(milliseconds: 4000), () {
-        if (dialogContext.mounted &&
-            Navigator.of(dialogContext).canPop()) {
-          Navigator.of(dialogContext).pop();
-        }
-      });
-
-      return GestureDetector(
-        onTap: () {
+    if (points == 0) return;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.55),
+      builder: (dialogContext) => _PointNotifDialog(
+        points: points,
+        description: description,
+        tipe: tipe,
+        lang: _lang,
+        onDismiss: () {
           if (Navigator.of(dialogContext).canPop()) {
             Navigator.of(dialogContext).pop();
           }
         },
-        child: Center(
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 32),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [bgGradientStart, bgGradientEnd],
-                ),
-                border: Border.all(
-                  color: primaryColor.withOpacity(0.3),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryColor.withOpacity(0.25),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // --- Ikon Utama dengan Ring ---
-                    Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Container(
-                          width: 90,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: primaryColor.withOpacity(0.12),
-                            border: Border.all(
-                              color: primaryColor.withOpacity(0.3),
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        Icon(tipeIcon, color: primaryColor, size: 48),
-                        // Badge tren (panah naik/turun) di pojok
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: primaryColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 2,
-                              ),
-                            ),
-                            child: Icon(
-                              mainIcon,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+      ),
+    );
+  }
 
-                    // --- Judul ---
-                    Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: primaryColor.withOpacity(0.8),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+  // ── Animasi poin naik pada info card ──
+  void _animatePoinUpdate(int newPoin) {
+    if (_isAnimatingPoin) return;
+    _previousPoin = _displayedPoin;
+    _isAnimatingPoin = true;
+    final diff = newPoin - _previousPoin;
+    if (diff == 0) { setState(() { _displayedPoin = newPoin; _isAnimatingPoin = false; }); return; }
 
-                    // --- Angka Poin Besar ---
-                    Text(
-                      '$pointsLabel ${t['total_label']}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w900,
-                        color: primaryColor,
-                        height: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+    final steps = diff.abs().clamp(1, 30);
+    final stepValue = diff / steps;
+    int currentStep = 0;
 
-                    // --- Garis Pemisah ---
-                    Container(
-                      height: 1,
-                      color: primaryColor.withOpacity(0.15),
-                    ),
-                    const SizedBox(height: 12),
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(milliseconds: 40));
+      currentStep++;
+      if (mounted) {
+        setState(() {
+          _displayedPoin = (_previousPoin + (stepValue * currentStep)).round();
+          if (currentStep >= steps) {
+            _displayedPoin = newPoin;
+            _isAnimatingPoin = false;
+          }
+        });
+      }
+      return currentStep < steps && mounted;
+    });
+  }
 
-                    // --- Deskripsi ---
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        description,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFF1E3A8A),
-                          height: 1.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // --- Progress Bar Auto Close ---
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 1.0, end: 0.0),
-                        duration: const Duration(milliseconds: 4000),
-                        builder: (context, value, _) {
-                          return LinearProgressIndicator(
-                            value: value,
-                            minHeight: 4,
-                            backgroundColor: primaryColor.withOpacity(0.1),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              primaryColor.withOpacity(0.5),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // --- Teks Petunjuk ---
-                    Text(
-                      t['tap_close']!,
-                      style: GoogleFonts.poppins(
-                        fontSize: 10,
-                        color: Colors.grey.shade400,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    },
-  );
-}
+  // Helper: buat deskripsi dari konfigurasi (fallback jika belum load)
+  String _getConfig(String tipe, int poin) {
+    switch (tipe) {
+      case 'login_pertama_hari_ini':
+        return _lang == 'EN'
+            ? 'Congratulations! You are the first to login today: +$poin points'
+            : _lang == 'ZH'
+                ? '恭喜！您今天第一个登录：+$poin积分'
+                : 'Selamat! Anda orang pertama yang login hari ini: +$poin poin';
+      case 'login_harian':
+        return _lang == 'EN'
+            ? 'Daily login bonus: +$poin points'
+            : _lang == 'ZH'
+                ? '每日登录奖励：+$poin积分'
+                : 'Bonus login harian: +$poin poin';
+      default:
+        return 'Poin: +$poin';
+    }
+  }
 
   @override
   void initState() {
@@ -531,38 +220,236 @@ class _HomeScreenState extends State<HomeScreen> {
     if (widget.initialUserName != null) {
       _userName = widget.initialUserName!;
       _userPoin = widget.initialUserPoin ?? 0;
+      _displayedPoin = widget.initialUserPoin ?? 0;
       _userImage = widget.initialUserImage;
       _userRole = widget.initialUserRole ?? 'Staff';
       _isUserDataLoading = false;
+      if (widget.initialUserLocation != null) {
+        _userLocationName = widget.initialUserLocation!;
+      }
+      if (widget.initialLatestLog != null) {
+        _latestLogPoin = widget.initialLatestLog;
+        _isLatestLogLoading = false;
+      } else {
+        _isLatestLogLoading = false;
+      }
     }
-    _checkVerificationStatus().then((_) {
+
+    _checkVerificationStatus().then((_) async {
+      if (!mounted) return;
+      await _loadLanguage();
       if (mounted) {
-        _loadLanguage();
         _handleLoginAndFetchData();
       }
     });
   }
 
   Future<void> _handleLoginAndFetchData() async {
-    if (_pointChannel != null) return;
-
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    _setupPointListener();
-
-    await Future.delayed(const Duration(milliseconds: 2500));
-
-    try {
-      await Supabase.instance.client
-          .rpc('handle_daily_login', params: {'p_user_id': user.id});
-    } catch (e) {
-      debugPrint("Error handling daily login points: $e");
+    if (_pointChannel == null) {
+      _setupPointListener();
     }
 
+    // Fetch data & notif count
     _fetchUserData();
     _fetchNotificationCount();
     _loadInitialVisitorStatus();
+
+    // ✅ Dialog hanya ditampilkan SEKALI per sesi app
+    if (!_hasShownLoginDialog) {
+      _hasShownLoginDialog = true;
+
+      // Tunggu UI dan bahasa siap
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+
+      try {
+        final dynamic raw = await Supabase.instance.client
+            .rpc('handle_daily_login', params: {'p_user_id': user.id});
+
+        if (!mounted || raw == null) return;
+
+        final Map<String, dynamic> result = raw is List
+            ? (raw.isNotEmpty ? Map<String, dynamic>.from(raw.first) : {})
+            : Map<String, dynamic>.from(raw);
+
+        final String status = result['status']?.toString() ?? '';
+
+        // ✅ Jika sudah login hari ini, skip dialog tapi tetap refresh data
+        if (status == 'already_logged_in_today' || status.isEmpty) {
+          _fetchUserData(silent: true);
+          return;
+        }
+
+        final int dailyBonus = (result['daily_bonus'] as num?)?.toInt() ?? 0;
+        final int penalty = (result['penalty'] as num?)?.toInt() ?? 0;
+        final int firstTodayBonus = (result['first_today_bonus'] as num?)?.toInt() ?? 0;
+        final bool isFirstToday = result['is_first_today'] as bool? ?? false;
+        final String message = result['message']?.toString() ?? '';
+
+        // Tunggu sebentar agar home screen fully rendered
+        await Future.delayed(const Duration(milliseconds: 400));
+        if (!mounted) return;
+
+        // Login pertama seumur hidup
+        if (status == 'first_ever_login') {
+          await _showLoginPointDialogAndWait(dailyBonus, message);
+          _fetchUserData(silent: true);
+          return;
+        }
+
+        // ✅ Tampilkan dialog berurutan: penalti → bonus pertama hari ini → bonus harian
+        if (penalty > 0) {
+          final int daysAbsent = (result['days_absent'] as num?)?.toInt() ?? 0;
+          await _showPenaltyDialogAndWait(
+            -penalty,
+            _lang == 'EN'
+                ? 'Penalty for not logging in $daysAbsent days: -$penalty points'
+                : _lang == 'ZH'
+                    ? '未登录$daysAbsent天的罚分：-$penalty积分'
+                    : 'Penalti tidak login $daysAbsent hari: -$penalty poin',
+          );
+          if (!mounted) return;
+          // Refresh poin setelah penalti ditampilkan
+          _fetchUserData(silent: true);
+        }
+
+        if (isFirstToday && firstTodayBonus > 0) {
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (!mounted) return;
+          await _showLoginPointDialogAndWait(
+            firstTodayBonus,
+            _getConfig('login_pertama_hari_ini', firstTodayBonus),
+          );
+          if (!mounted) return;
+          _fetchUserData(silent: true);
+        }
+
+        if (dailyBonus > 0) {
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (!mounted) return;
+          await _showLoginPointDialogAndWait(
+            dailyBonus,
+            _getConfig('login_harian', dailyBonus),
+          );
+          if (!mounted) return;
+          // ✅ Refresh data setelah semua dialog selesai → animasi poin update
+          _fetchUserData(silent: true);
+        }
+
+      } catch (e) {
+        debugPrint("Error handling daily login points: $e");
+      }
+    }
+  }
+
+  /// Menampilkan dialog login poin dan MENUNGGU sampai user klik tombol
+  Future<void> _showLoginPointDialogAndWait(int points, String description) async {
+    if (!mounted) return;
+    final completer = Completer<void>();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (dialogContext) => _LoginPointDialog(
+        points: points,
+        description: description,
+        lang: _lang,
+        userId: Supabase.instance.client.auth.currentUser?.id ?? '',
+        userLokasiId: _userLokasiId,
+        onClaimed: () {
+          Navigator.of(dialogContext).pop();
+          _fetchUserData(silent: true);
+          if (!completer.isCompleted) completer.complete();
+        },
+        onClaimedAndShared: (receiverUser) async {
+          Navigator.of(dialogContext).pop();
+          try {
+            await Supabase.instance.client.rpc('share_login_points', params: {
+              'p_sharer_id': Supabase.instance.client.auth.currentUser?.id,
+              'p_receiver_id': receiverUser['id_user'],
+              'p_share_amount': 5,
+            });
+            if (mounted) {
+              int sharedAmt = 5;
+              int bonusAmt = 1;
+              try {
+                final cfg = await Supabase.instance.client
+                    .from('konfigurasi_poin')
+                    .select('kode, poin')
+                    .inFilter('kode', ['berbagi_poin', 'bonus_berbagi'])
+                    .eq('is_aktif', true);
+                for (final row in cfg) {
+                  if (row['kode'] == 'berbagi_poin') {
+                    sharedAmt = (row['poin'] as num).toInt().abs();
+                  } else if (row['kode'] == 'bonus_berbagi') {
+                    bonusAmt = (row['poin'] as num).toInt().abs();
+                  }
+                }
+              } catch (_) {}
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(children: [
+                    const Icon(Icons.local_fire_department_rounded,
+                        color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _lang == 'ID'
+                            ? '${receiverUser['nama']} mendapat +$sharedAmt poin! Bonus +$bonusAmt poin untukmu.'
+                            : '${receiverUser['nama']} gets +$sharedAmt points! Bonus +$bonusAmt points for you.',
+                      ),
+                    ),
+                  ]),
+                  backgroundColor: const Color(0xFF16A34A),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  margin: const EdgeInsets.all(16),
+                ),
+              );
+            }
+          } catch (e) {
+            debugPrint('Error sharing points: $e');
+          }
+          _fetchUserData(silent: true);
+          if (!completer.isCompleted) completer.complete();
+        },
+      ),
+    );
+    await completer.future;
+  }
+
+  /// Menampilkan dialog penalti dan MENUNGGU sampai user klik tombol OK
+  Future<void> _showPenaltyDialogAndWait(int points, String description) async {
+    if (!mounted) return;
+    final completer = Completer<void>();
+    final Map<String, Map<String, String>> texts = {
+      'EN': {'title': 'Points Deducted!', 'sub': 'You missed some login days.', 'ok': 'Got It'},
+      'ID': {'title': 'Poin Dikurangi!', 'sub': 'Kamu melewatkan beberapa hari login.', 'ok': 'Mengerti'},
+      'ZH': {'title': '积分已扣除！', 'sub': '您错过了一些登录天数。', 'ok': '明白'},
+    };
+    final t = texts[_lang] ?? texts['ID']!;
+    final int absPoints = points.abs();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (ctx) => _PenaltyDialog(
+        absPoints: absPoints,
+        description: description,
+        title: t['title']!,
+        okLabel: t['ok']!,
+        onDismiss: () {
+          Navigator.of(ctx).pop();
+          if (!completer.isCompleted) completer.complete();
+        },
+      ),
+    );
+    await completer.future;
   }
 
   // === TAMBAHAN BARU: Fungsi untuk mendengarkan poin baru ===
@@ -591,24 +478,50 @@ class _HomeScreenState extends State<HomeScreen> {
 
             if (points == 0) return;
 
+            // Tipe login ditangani oleh _handleLoginAndFetchData, skip di sini
+            // agar tidak muncul dobel
+            const Set<String> loginTipes = {
+              'login_pertama',
+              'login_harian',
+              'login_pertama_hari_ini',
+              'penalti',
+            };
+            if (loginTipes.contains(tipe)) {
+              // Hanya update data user, tidak tampilkan notif (sudah ditangani)
+              _fetchUserData(silent: true);
+              return;
+            }
+
+            // Untuk tipe lain (temuan, penyelesaian, kts, accident, berbagi, dll)
             final now = DateTime.now();
+            final bool isPenalty = points < 0;
+
+            void showNotif() {
+              if (!mounted) return;
+              // Tampilkan local notification
+              NotificationService.instance.showNotification(
+                title: points > 0 ? '🎉 Poin Diterima!' : '⚠️ Poin Dikurangi',
+                body: description,
+              );
+              // Dialog seperti sebelumnya
+              if (isPenalty) {
+                _showPenaltyDialog(points, description);
+              } else {
+                _showPointNotificationDialog(points, description, tipe);
+              }
+            }
 
             if (_lastDialogTime != null &&
                 now.difference(_lastDialogTime!).inMilliseconds < 3800) {
-              Future.delayed(const Duration(milliseconds: 3900), () {
-                if (!mounted) return;
-                _showPointNotificationDialog(points, description, tipe);
-              });
+              Future.delayed(
+                  const Duration(milliseconds: 3900), () => showNotif());
             } else {
-              // Gunakan addPostFrameCallback agar context dijamin sudah siap
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                _showPointNotificationDialog(points, description, tipe);
-              });
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => showNotif());
             }
 
             _lastDialogTime = now;
-            _fetchUserData();
+            _fetchUserData(silent: true);
           },
         )
         .subscribe();
@@ -762,79 +675,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildShimmerPlaceholder({double width = double.infinity, double height = 14}) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade300,
-        borderRadius: BorderRadius.circular(8),
-      ),
-    );
-  }
-
-  Widget _buildLoadingSkeletonCard() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200, width: 1.5),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 92,
-              height: 92,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 5),
-                  _buildShimmerPlaceholder(height: 16), // Placeholder Judul baris 1
-                  const SizedBox(height: 6),
-                  _buildShimmerPlaceholder(height: 16, width: 120), // Placeholder Judul baris 2
-                  const SizedBox(height: 12),
-                  _buildShimmerPlaceholder(height: 12, width: 150), // Placeholder Lokasi
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildShimmerPlaceholder(height: 12, width: 80), // Placeholder Tanggal
-                      _buildShimmerPlaceholder(height: 28, width: 90), // Placeholder Status
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRecentFindingsLoader() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
-      child: ListView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 3, // Jumlah kartu skeleton yang ditampilkan
-        itemBuilder: (_, __) => _buildLoadingSkeletonCard(),
-      ),
-    );
-  }
-
   Future<void> _fetchNotificationCount() async {
     if (!mounted) return;
     final user = Supabase.instance.client.auth.currentUser;
@@ -895,12 +735,7 @@ class _HomeScreenState extends State<HomeScreen> {
           .update({'is_visitor': isVisitor})
           .eq('id_user', userId);
 
-      _showCustomDialog(
-        title: isVisitor ? getTxt('visitor_on') : getTxt('visitor_off'),
-        imagePath: isVisitor 
-            ? 'assets/images/visitor_on.png'   
-            : 'assets/images/visitor_off.png',
-      );
+      _showVisitorStatusDialog(isVisitor);
 
     } catch (e) {
       debugPrint('Error updating visitor status: $e');
@@ -918,14 +753,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Color _getFireColor(int points) {
-    if (points >= 1000) return const Color(0xFFEF4444); // Merah (Legendary)
-    if (points >= 500) return const Color(0xFFF97316); // Oranye (Epic)
-    if (points >= 100) return const Color(0xFF22C55E); // Hijau (Rare)
-    if (points > 0) return const Color(0xFF3B82F6);    // Biru (Common)
-    return Colors.grey.shade400;                     
-  }
-
   void _showActivityLogDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -939,18 +766,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _fetchUserData() async {
-    if (!_isUserDataLoading) {
-      // silent refresh: jangan tampilkan skeleton lagi
-    } else {
-      setState(() { _isUserDataLoading = true; });
+  Future<void> _fetchUserData({bool silent = false}) async {
+    if (!silent && _isUserDataLoading) {
+      // Sudah loading, skip
+    } else if (!silent) {
+      // Hanya set loading jika pertama kali (bukan silent refresh)
     }
+    // Selalu lakukan silent refresh tanpa mengubah _isUserDataLoading
+    // kecuali memang pertama kali load
 
     try {
       final userAuth = Supabase.instance.client.auth.currentUser;
       if (userAuth == null) return;
 
-      // Ambil data user + jabatan sekaligus
       final userRow = await Supabase.instance.client
           .from('User')
           .select('nama, email, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, jabatan(nama_jabatan)')
@@ -965,6 +793,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _userName = metaName ?? 'User';
           _userPoin = 0;
+          _displayedPoin = 0;
           _userImage = metaImage;
           _userRole = 'Staff';
           _userLocationName = 'Tidak Terdefinisi';
@@ -973,12 +802,12 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      // Resolusi lokasi: area → subunit → unit → lokasi (dari tabel User)
+      // Resolusi lokasi
       String locationName = 'Tidak Terdefinisi';
-      final idArea   = userRow['id_area'];
+      final idArea    = userRow['id_area'];
       final idSubunit = userRow['id_subunit'];
-      final idUnit   = userRow['id_unit'];
-      final idLokasi = userRow['id_lokasi'];
+      final idUnit    = userRow['id_unit'];
+      final idLokasi  = userRow['id_lokasi'];
 
       if (idArea != null) {
         final data = await Supabase.instance.client
@@ -1006,7 +835,6 @@ class _HomeScreenState extends State<HomeScreen> {
       String? dbImage = userRow['gambar_user'];
       if (dbImage != null && dbImage.trim().isEmpty) dbImage = null;
 
-      // Fetch log aktivitas terbaru sekaligus (1 query tambahan)
       Map<String, dynamic>? latestLog;
       try {
         final logs = await Supabase.instance.client
@@ -1019,9 +847,14 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (_) {}
 
       if (!mounted) return;
+
+      final int newPoin = (userRow['poin'] as num?)?.toInt() ?? 0;
+      final int oldPoin = _userPoin;
+      final bool shouldAnimate = newPoin != oldPoin;
+
       setState(() {
         _userName          = userRow['nama'] ?? metaName ?? 'User';
-        _userPoin          = userRow['poin'] ?? 0;
+        _userPoin          = newPoin;
         _userImage         = dbImage ?? metaImage;
         _userRole          = roleName;
         _userJabatanId     = userRow['id_jabatan'];
@@ -1030,108 +863,25 @@ class _HomeScreenState extends State<HomeScreen> {
         _userLocationName  = locationName;
         _latestLogPoin     = latestLog;
         _isLatestLogLoading = false;
-        _isUserDataLoading = false;
+        _isUserDataLoading  = false;
+        if (!shouldAnimate) {
+          _displayedPoin = newPoin;
+        }
       });
+
+      if (shouldAnimate) {
+        _animatePoinUpdate(newPoin);
+      }
     } catch (e) {
       debugPrint("Error fetching user data: $e");
       if (mounted) {
         setState(() {
-          _userLocationName = 'Gagal memuat';
-          _isUserDataLoading = false;
+          _userLocationName   = 'Gagal memuat';
+          _isUserDataLoading  = false;
           _isLatestLogLoading = false;
         });
       }
     }
-  }
-
-  Widget _buildInfoCardSkeleton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 15),
-      child: Shimmer.fromColors(
-        baseColor: Colors.grey.shade300,
-        highlightColor: Colors.grey.shade100,
-        child: Container(
-          height: 140,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActivityLog() {
-    // Data dummy untuk log aktivitas
-    final List<Map<String, dynamic>> dummyActivities = [
-      {'icon': Icons.add_task_rounded, 'title': 'Menambahkan temuan baru', 'time': 'Baru saja', 'points': '+15'},
-      {'icon': Icons.comment_rounded, 'title': 'Memberi komentar pada temuan', 'time': '5 menit lalu', 'points': '+2'},
-      {'icon': Icons.check_circle_rounded, 'title': 'Menyelesaikan sebuah temuan', 'time': '1 jam lalu', 'points': '+25'},
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.only(left: 20, right: 20, top: 25),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Log Aktivitas",
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200, width: 1.5),
-            ),
-            child: Column(
-              children: List.generate(dummyActivities.length, (index) {
-                final activity = dummyActivities[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                  child: Row(
-                    children: [
-                      Icon(activity['icon'], color: const Color(0xFF0075FF), size: 24),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              activity['title'],
-                              style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E3A8A)),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              activity['time'],
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        activity['points'],
-                        style: const TextStyle(
-                          color: Colors.green,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   String getTxt(String key) => _navText[_lang]![key] ?? key;
@@ -1512,428 +1262,184 @@ class _HomeScreenState extends State<HomeScreen> {
 String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
   // Desain Konten Beranda Asli
   Widget _buildHomeContent() {
-    // Dictionary Bahasa khusus untuk area konten beranda
-    final Map<String, Map<String, String>> homeTexts = {
-      'EN': {
-        'inspeksi': 'Inspection',
-        'pro_mode': 'Professional Mode',
-        'visitor_mode': 'Visitor Mode',
-        'laporan_cepat': 'Quick Report',
-        'telusur': 'Browse & Manage',
-        'lokasi': 'Location',
-        'laporan': 'Accident Report',
-        'hint': 'Click the + button to add a new finding.',
-        'no_findings_title': 'No Recent Findings',
-        'no_findings_subtitle': 'Recent findings you create or are involved in will appear here.',
-        'recent_findings': 'Recent Findings',
-        'kts_produksi': 'KTS Produksi',
-        'tab_my':       'Temuan Saya',
-        'tab_assigned': 'Ditugaskan ke Saya',
-        'tab_resolved': 'Diselesaikan Saya',
-      },
-      'ID': {
-        'inspeksi': 'Inspeksi',
-        'pro_mode': 'Mode Profesional',
-        'visitor_mode': 'Mode Pengunjung',
-        'laporan_cepat': 'Laporan Cepat',
-        'telusur': 'Telusur & Atur',
-        'lokasi': 'Lokasi',
-        'laporan': 'Laporan Kecelakaan',
-        'hint': 'Klik tombol + untuk memasukkan temuan baru.',
-        'no_findings_title': 'Belum Ada Temuan',
-        'no_findings_subtitle': 'Temuan terbaru yang Anda buat atau terlibat di dalamnya akan muncul di sini.',
-        'recent_findings': 'Temuan Terbaru',
-        'kts_produksi': 'Production KTS',
-        'tab_my':       'My Findings',
-        'tab_assigned': 'Assigned to Me',
-        'tab_resolved': 'Resolved by Me',
-      },
-      'ZH': {
-        'inspeksi': '检查',
-        'pro_mode': '专业模式',
-        'visitor_mode': '访客模式',
-        'laporan_cepat': '快速报告',
-        'telusur': '浏览与管理',
-        'lokasi': '地点',
-        'laporan': '事故报告',
-        'hint': '点击 + 按钮添加新发现。',
-        'no_findings_title': '暂无最新发现',
-        'no_findings_subtitle': '您创建或参与的最新发现将显示在此处。',
-        'recent_findings': '最新发现',
-        'kts_produksi': '生产KTS',
-        'tab_my':       '我的发现',
-        'tab_assigned': '分配给我',
-        'tab_resolved': '我已解决',
-      },
-    };
-
-    String getHomeTxt(String key) => homeTexts[_lang]?[key] ?? key;
-
-    final pointProgress = _getPointProgress(_userPoin);
-    final fireColor = _getFireColor(_userPoin);
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(left: 20, right: 20, top: 10, bottom: 100),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ==========================================
-          // INFO CARD BARU YANG SUDAH DISESUAIKAN
-          // ==========================================
-          if (_isUserDataLoading)
-            _buildInfoCardSkeleton()
-          else
-            UserInfoCard(
-              userName: _userName,
-              userRole: _userRole,
-              userImage: _userImage,
-              userPoin: _userPoin,
-              userLocationName: _userLocationName,
-              latestLogPoin: _latestLogPoin,
-              isLatestLogLoading: _isLatestLogLoading,
-              lang: _lang,
-              onViewMoreTap: () => _showActivityLogDialog(context),
-            ),
-          // ==========================================
-          // 1. BAGIAN INSPEKSI (MODE PROFESIONAL)
-          // ==========================================
-          if (_userRole == 'Eksekutif') ...[
-            Text(
-              getHomeTxt('inspeksi'),
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF8EE),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.orange.shade200, width: 1.5),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.assignment_ind_outlined,
-                        color: Color(0xFF1E3A8A),
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        getHomeTxt('pro_mode'),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E3A8A),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Switch.adaptive(
-                    value: _isProMode,
-                    activeColor: Colors.white,
-                    activeTrackColor: Colors.orange.shade300,
-                    inactiveThumbColor: Colors.white,
-                    inactiveTrackColor: Colors.grey.shade300,
-                    onChanged: (value) {
-                      setState(() {
-                        _isProMode = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 25),
-          ],
-
-          // ==========================================
-          // 2. BAGIAN MODE VISITOR (UNTUK SEMUA USER)
-          // ==========================================
-          Text(
-            getHomeTxt('laporan_cepat'),
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE6F7F9), // Warna berbeda (biru muda)
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.cyan.shade200, width: 1.5),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.visibility_outlined, // Ikon berbeda
-                      color: Color(0xFF1E3A8A),
-                      size: 28,
-                    ),
-                    SizedBox(width: 12),
-                    Text(
-                      getHomeTxt('visitor_mode'),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E3A8A),
-                      ),
-                    ),
-                  ],
-                ),
-                Switch.adaptive(
-                  value: _isVisitorMode,
-                  activeColor: Colors.white,
-                  activeTrackColor: Colors.cyan.shade300,
-                  inactiveThumbColor: Colors.white,
-                  inactiveTrackColor: Colors.grey.shade300,
-                  onChanged: (value) {
-                    _updateVisitorStatus(value);
-                  },
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 25),
-
-          // ==========================================
-          // 3. BAGIAN TELUSUR & ATUR
-          // ==========================================
-          Text(
-            getHomeTxt('telusur'),
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          // Tombol Lokasi
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 15,
-                vertical: 2,
-              ),
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.location_on,
-                  color: Colors.lightBlue,
-                  size: 24,
-                ),
-              ),
-              title: Text(
-                getHomeTxt('lokasi'),
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E3A8A),
-                ),
-              ),
-              trailing: const Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: Colors.black38,
-              ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => LocationScreen(
-                      lang: _lang,
-                      isProMode: _isProMode,
-                      userRole: _userRole,
-                      userUnitId: _userUnitId,
-                      userLokasiId: _userLokasiId,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // Tombol KTS Produksi
-          const SizedBox(height: 12),
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 2),
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.factory_outlined, color: Colors.orange, size: 24),
-              ),
-              title: Text(
-                getHomeTxt('kts_produksi'),
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E3A8A),
-                ),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black38),
-              onTap: () {
-                // TODO: Arahkan ke halaman KTS Produksi
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('KTS Produksi - Coming Soon')),
-                );
-              },
-            ),
-          ),
-
-          // Tombol Laporan Kecelakaan
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
-                  blurRadius: 5,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 15,
-                vertical: 2,
-              ),
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.error_outline,
-                  color: Colors.redAccent,
-                  size: 24,
-                ),
-              ),
-              title: Text(
-                getHomeTxt('laporan'),
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E3A8A),
-                ),
-              ),
-              trailing: const Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: Colors.black38,
-              ),
-              // 2. MODIFIKASI BAGIAN onTap INI
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AccidentReportListScreen(lang: _lang),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 25),
-
-          // ── HEADER RECENT FINDINGS + TAB ──
-Padding(
-  padding: const EdgeInsets.only(bottom: 10.0),
-  child: Text(
-    getHomeTxt('recent_findings'),
-    style: const TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.w600,
-      color: Colors.black54,
-    ),
-  ),
-),
-
-// Tab Pilihan: My Findings / Assigned / Resolved
-SingleChildScrollView(
-  scrollDirection: Axis.horizontal,
-  child: Row(
-    children: [
-      _buildTabChip('my',       getHomeTxt('tab_my')),
-      const SizedBox(width: 8),
-      _buildTabChip('assigned', getHomeTxt('tab_assigned')),
-      const SizedBox(width: 8),
-      _buildTabChip('resolved', getHomeTxt('tab_resolved')),
-    ],
-  ),
-),
-const SizedBox(height: 12),
-
-// Konten sesuai tab aktif
-_buildFindingsTab(),
-          const SizedBox(height: 10),
-        ],
+    return HomeContent(
+      lang: _lang,
+      isProMode: _isProMode,
+      isVisitorMode: _isVisitorMode,
+      isUserDataLoading: _isUserDataLoading,
+      userName: _userName,
+      userRole: _userRole,
+      userLocationName: _userLocationName,
+      userPoin: _userPoin,
+      displayedPoin: _displayedPoin,
+      userImage: _userImage,
+      userUnitId: _userUnitId,
+      userLokasiId: _userLokasiId,
+      latestLogPoin: _latestLogPoin,
+      isLatestLogLoading: _isLatestLogLoading,
+      onRefresh: _handleLoginAndFetchData,
+      onViewActivityLog: () => _showActivityLogDialog(context),
+      onProModeChanged: (val) => setState(() => _isProMode = val),
+      onVisitorModeChanged: _updateVisitorStatus,
+      buildInfoCard: () => UserInfoCard(
+        userName: _userName,
+        userRole: _userRole,
+        userImage: _userImage,
+        userPoin: _displayedPoin > 0 ? _displayedPoin : _userPoin,
+        userLocationName: _userLocationName,
+        latestLogPoin: _latestLogPoin,
+        isLatestLogLoading: _isLatestLogLoading,
+        lang: _lang,
+        onViewMoreTap: () => _showActivityLogDialog(context),
       ),
     );
   }
 
   // Notifikasi Mode Visitor
+  // ── Dialog visitor mode (versi baru menarik) ──
+  void _showVisitorStatusDialog(bool isVisitor) {
+    final Map<String, Map<String, String>> texts = {
+      'EN': {
+        'on_title': 'Visitor Mode Active',
+        'off_title': 'Visitor Mode Off',
+        'on_sub': 'Your findings will be tagged as visitor reports.',
+        'off_sub': 'Back to regular mode.',
+      },
+      'ID': {
+        'on_title': 'Mode Pengunjung Aktif',
+        'off_title': 'Mode Pengunjung Nonaktif',
+        'on_sub': 'Temuan Anda akan ditandai sebagai laporan pengunjung.',
+        'off_sub': 'Kembali ke mode reguler.',
+      },
+      'ZH': {
+        'on_title': '访客模式已激活',
+        'off_title': '访客模式已停用',
+        'on_sub': '您的发现将被标记为访客报告。',
+        'off_sub': '返回常规模式。',
+      },
+    };
+    final t = texts[_lang] ?? texts['ID']!;
+
+    final Color primary = isVisitor ? const Color(0xFF0891B2) : Colors.grey.shade500;
+    final IconData icon = isVisitor ? Icons.visibility_rounded : Icons.visibility_off_rounded;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.35),
+      builder: (ctx) {
+        Future.delayed(const Duration(seconds: 3), () {
+          if (ctx.mounted && Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 36),
+              padding: const EdgeInsets.fromLTRB(24, 30, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withOpacity(0.3),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Ilustrasi (gunakan asset jika ada, fallback ke icon)
+                  Container(
+                    width: 90, height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: primary.withOpacity(0.1),
+                      border: Border.all(color: primary.withOpacity(0.3), width: 2),
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        isVisitor ? 'assets/images/visitor_on.png' : 'assets/images/visitor_off.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Icon(icon, color: primary, size: 42),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    isVisitor ? t['on_title']! : t['off_title']!,
+                    style: GoogleFonts.poppins(
+                        fontSize: 16, fontWeight: FontWeight.w800,
+                        color: primary),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isVisitor ? t['on_sub']! : t['off_sub']!,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: Colors.grey.shade500),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 1.0, end: 0.0),
+                      duration: const Duration(milliseconds: 3000),
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v, minHeight: 4,
+                        backgroundColor: primary.withOpacity(0.1),
+                        valueColor: AlwaysStoppedAnimation<Color>(primary.withOpacity(0.6)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Dialog khusus penalti pengurangan poin ──
+  void _showPenaltyDialog(int points, String description) {
+    final Map<String, Map<String, String>> texts = {
+      'EN': {'title': 'Points Deducted!', 'ok': 'Got It'},
+      'ID': {'title': 'Poin Dikurangi!', 'ok': 'Mengerti'},
+      'ZH': {'title': '积分已扣除！', 'ok': '明白'},
+    };
+    final t = texts[_lang] ?? texts['ID']!;
+    final int absPoints = points.abs();
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (ctx) => _PenaltyDialog(
+        absPoints: absPoints,
+        description: description,
+        title: t['title']!,
+        okLabel: t['ok']!,
+        onDismiss: () {
+          if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+        },
+      ),
+    );
+  }
+
+  // ── Notif gagal update (tetap ada sebagai fallback) ──
   void _showCustomDialog({required String title, required String imagePath}) {
     showDialog(
       context: context,
-      barrierDismissible: true, // Boleh ditutup dengan klik di luar dialog
+      barrierDismissible: true,
       builder: (BuildContext context) {
-        // Hilangkan dialog secara otomatis setelah beberapa detik
         Future.delayed(const Duration(seconds: 2), () {
-          if (Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          }
+          if (Navigator.of(context).canPop()) Navigator.of(context).pop();
         });
-        
         return Dialog(
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -1946,28 +1452,14 @@ _buildFindingsTab(),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  imagePath,
-                  height: 100,
-                  width: 100,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Icon(
-                      imagePath.contains('success') ? Icons.check_circle_outline : Icons.error_outline,
-                      size: 80,
-                      color: imagePath.contains('success') ? Colors.green : Colors.red,
-                    );
-                  },
-                ),
+                Image.asset(imagePath, height: 100, width: 100,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.error_outline, size: 80, color: Colors.red)),
                 const SizedBox(height: 20),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E3A8A),
-                  ),
-                ),
+                Text(title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E3A8A))),
               ],
             ),
           ),
@@ -1975,218 +1467,937 @@ _buildFindingsTab(),
       },
     );
   }
+}
 
-  String _formatLocation(Map<String, dynamic> item) {
-    if (item['area'] != null && item['area']['nama_area'] != null) {
-      return item['area']['nama_area'].toString();
-    }
-    if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
-      return item['subunit']['nama_subunit'].toString();
-    }
-    if (item['unit'] != null && item['unit']['nama_unit'] != null) {
-      return item['unit']['nama_unit'].toString();
-    }
-    if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
-      return item['lokasi']['nama_lokasi'].toString();
-    }
-    return '-';
+// ============================================================
+// DIALOG: NOTIFIKASI POIN LOGIN
+// ============================================================
+class _LoginPointDialog extends StatefulWidget {
+  final int points;
+  final String description;
+  final String lang;
+  final String userId;
+  final int? userLokasiId;
+  final VoidCallback onClaimed;
+  final Function(Map<String, dynamic>) onClaimedAndShared;
+
+  const _LoginPointDialog({
+    required this.points,
+    required this.description,
+    required this.lang,
+    required this.userId,
+    required this.onClaimed,
+    required this.onClaimedAndShared,
+    this.userLokasiId,
+  });
+
+  @override
+  State<_LoginPointDialog> createState() => _LoginPointDialogState();
+}
+
+class _LoginPointDialogState extends State<_LoginPointDialog>
+    with SingleTickerProviderStateMixin {
+  bool _showUserPicker = false;
+  List<Map<String, dynamic>> _users = [];
+  bool _isLoadingUsers = false;
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulseAnim;
+
+  Map<String, String> get t => _dialogTxt[widget.lang] ?? _dialogTxt['ID']!;
+
+  static const Map<String, Map<String, String>> _dialogTxt = {
+    'ID': {
+      'title': 'Poin Login Diterima!',
+      'claim': 'Ambil Poin',
+      'share': 'Ambil & Bagikan',
+      'share_title': 'Pilih teman untuk berbagi 5 poin',
+      'share_info': 'Kamu akan berbagi 5 poin dan mendapat bonus +1 poin!',
+      'search': 'Cari teman...',
+    },
+    'EN': {
+      'title': 'Login Points Received!',
+      'claim': 'Claim Points',
+      'share': 'Claim & Share',
+      'share_title': 'Pick a friend to share 5 points',
+      'share_info': 'You share 5 points and earn +1 bonus point!',
+      'search': 'Search friend...',
+    },
+    'ZH': {
+      'title': '登录积分已获得！',
+      'claim': '领取积分',
+      'share': '领取并分享',
+      'share_title': '选择朋友分享5积分',
+      'share_info': '您分享5积分并获得+1奖励积分！',
+      'search': '搜索朋友...',
+    },
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.95, end: 1.05).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
   }
 
-  String _formatDate(dynamic value) {
-    if (value == null) return '-';
-    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
-    if (dt == null) return '-';
-    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
   }
 
-  Widget _buildFindingCard(Map<String, dynamic> data) {
-    final imageUrl = (data['gambar_temuan'] ?? '').toString();
-    final title = (data['judul_temuan'] ?? '-').toString();
-    final lokasi = _formatLocation(data);
-    final tanggal = _formatDate(data['created_at']);
-    final poin = int.tryParse((data['poin_temuan'] ?? 0).toString()) ?? 0;
-    final status = (data['status_temuan'] ?? '').toString();
+  Future<void> _loadUsers() async {
+    if (_users.isNotEmpty) return;
+    setState(() => _isLoadingUsers = true);
+    try {
+      var query = Supabase.instance.client
+          .from('User')
+          .select('id_user, nama, jabatan(nama_jabatan)')
+          .neq('id_user', widget.userId);
+      
+      if (widget.userLokasiId != null) {
+        query = query.eq('id_lokasi', widget.userLokasiId!);
+      }
 
-    final isPro = data['is_pro'] == true;
-    final isVisitor = data['is_visitor'] == true;
-    final isEksekutif = data['is_eksekutif'] == true;
-
-    final s = status.toLowerCase();
-    final isFinished = ['selesai', 'done', 'completed', 'closed'].any((e) => s.contains(e));
-    
-    final String statusText = isFinished ? 'Selesai' : 'Belum Selesai';
-
-    late Color statusColor;
-    late Color statusBg;
-    late IconData statusIcon;
-
-    if (isFinished) {
-      statusColor = const Color(0xFF16A34A);
-      statusBg = const Color(0xFFF0FDF4);
-      statusIcon = Icons.check_circle_rounded;
-    } else {
-      statusColor = const Color(0xFFDC2626);
-      statusBg = const Color(0xFFFEF2F2);
-      statusIcon = Icons.pending_actions_rounded;
+      final data = await query.order('nama').limit(50);
+      if (mounted) {
+        setState(() {
+          _users = List<Map<String, dynamic>>.from(data);
+          _isLoadingUsers = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading users: $e');
+      if (mounted) setState(() => _isLoadingUsers = false);
     }
+  }
 
-    List<Widget> badges = [];
-    List<String> inspectionTypes = [];
-
-    if (isPro) inspectionTypes.add('pro');
-    if (isVisitor) inspectionTypes.add('visitor');
-    if (isEksekutif) inspectionTypes.add('eksekutif');
-
-    if (inspectionTypes.contains('pro')) {
-      badges.add(_buildInspectionBadge('PROFESIONAL', const Color.fromARGB(255, 255, 244, 45), Colors.black));
+  // Ambil jumlah poin berbagi dari konfigurasi database
+  Future<int> _getShareAmount() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('konfigurasi_poin')
+          .select('poin')
+          .eq('kode', 'berbagi_poin')
+          .eq('is_aktif', true)
+          .maybeSingle();
+      return (data?['poin'] as num?)?.toInt().abs() ?? 5;
+    } catch (_) {
+      return 5;
     }
-    if (inspectionTypes.contains('visitor')) {
-      badges.add(_buildInspectionBadge('VISITOR', const Color(0xFF3B82F6), Colors.white));
-    }
-    if (inspectionTypes.contains('eksekutif')) {
-      badges.add(_buildInspectionBadge('EKSEKUTIF', const Color(0xFFEF4444), Colors.white));
-    }
+  }
 
-    inspectionTypes.sort();
-    String combinationKey = inspectionTypes.join('+');
-
-    final Color borderColor;
-    switch (combinationKey) {
-      case 'eksekutif+pro+visitor': borderColor = const Color(0xFF9333EA); break;
-      case 'pro+visitor': borderColor = const Color(0xFF16A34A); break;
-      case 'eksekutif+pro': borderColor = const Color(0xFFEA580C); break;
-      case 'eksekutif+visitor': borderColor = const Color(0xFF2563EB); break;
-      case 'pro': borderColor = const Color(0xFFF59E0B); break;
-      case 'visitor': borderColor = const Color(0xFF3B82F6); break;
-      case 'eksekutif': borderColor = const Color(0xFFEF4444); break;
-      default: borderColor = const Color(0xFFF1F5F9);
-    }
-    
-    Widget? timeIndicator;
-    // Time indicator logic tidak diperlukan untuk home, jadi kita biarkan null
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (context) => FindingDetailScreen(initialData: data, lang: _lang),
-        )).then((_) => _handleLoginAndFetchData()); // Refresh data saat kembali
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: borderColor, width: borderColor == const Color(0xFFF1F5F9) ? 1.0 : 1.5),
-          boxShadow: [BoxShadow(color: borderColor.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 6))],
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 92,
-                    height: 92,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.black.withOpacity(0.15), width: 1.5),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12.5),
-                      child: Container(
-                        color: const Color(0xFFF8FAFC),
-                        child: imageUrl.isNotEmpty
-                            ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.grey))
-                            : const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, height: 1.3, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [BoxShadow(color: const Color(0xFFEF4444).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.local_fire_department_rounded, size: 14, color: Colors.white),
-                                  const SizedBox(width: 4),
-                                  Text('$poin', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
-                                  const SizedBox(width: 3),
-                                  const Text('Poin', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 10)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        if (badges.isNotEmpty)
-                          Padding(padding: const EdgeInsets.only(bottom: 6.0), child: Wrap(spacing: 6, runSpacing: 4, children: badges)),
-                        Row(
-                          children: [
-                            const Icon(Icons.place_rounded, size: 14, color: Color(0xFF94A3B8)),
-                            const SizedBox(width: 5),
-                            Expanded(child: Text(lokasi, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)))),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF94A3B8)),
-                            const SizedBox(width: 5),
-                            Text(tanggal, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                              decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(20)),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(statusIcon, size: 13, color: statusColor),
-                                  const SizedBox(width: 4),
-                                  Text(statusText, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: statusColor)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00C9E4).withOpacity(0.3),
+                blurRadius: 40,
+                spreadRadius: 5,
+                offset: const Offset(0, 10),
               ),
-            ),
-            if (timeIndicator != null) timeIndicator,
-          ],
+            ],
+          ),
+          child: _showUserPicker ? _buildUserPickerView() : _buildMainView(),
         ),
       ),
     );
   }
 
-  Widget _buildInspectionBadge(String text, Color bgColor, Color textColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
-      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(6)),
-      child: Text(
-        text,
-        style: TextStyle(color: textColor, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+  Widget _buildMainView() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Ikon berdenyut
+          AnimatedBuilder(
+            animation: _pulseAnim,
+            builder: (_, child) => Transform.scale(
+              scale: _pulseAnim.value,
+              child: child,
+            ),
+            child: Container(
+              width: 90, height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF00C9E4), Color(0xFF0891B2)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00C9E4).withOpacity(0.4),
+                    blurRadius: 20, spreadRadius: 3,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 46),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(t['title']!,
+              style: GoogleFonts.poppins(
+                  fontSize: 18, fontWeight: FontWeight.w800,
+                  color: const Color(0xFF1E3A8A))),
+          const SizedBox(height: 8),
+          // Poin besar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFB8F0FF), Color(0xFFE0F7FF)],
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '+${widget.points} Points',
+              style: GoogleFonts.poppins(
+                  fontSize: 32, fontWeight: FontWeight.w900,
+                  color: const Color(0xFF0891B2)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(widget.description,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 12, color: Colors.grey.shade600, height: 1.5)),
+          ),
+          const SizedBox(height: 24),
+          // ── Tombol Ambil Poin ──
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: widget.onClaimed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00C9E4),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.local_fire_department_rounded,
+                    size: 22, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(t['claim']!,
+                    style: GoogleFonts.poppins(
+                        fontSize: 15, fontWeight: FontWeight.bold)),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // ── Tombol Bagikan ──
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton(
+              onPressed: () async {
+                await _loadUsers();
+                setState(() => _showUserPicker = true);
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(
+                    color: Color(0xFF00C9E4), width: 1.5),
+                foregroundColor: const Color(0xFF00C9E4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.local_fire_department_rounded,
+                    size: 22, color: Color(0xFF00C9E4)),
+                const SizedBox(width: 8),
+                Text(t['share']!,
+                    style: GoogleFonts.poppins(
+                        fontSize: 15, fontWeight: FontWeight.bold)),
+              ]),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildUserPickerView() {
+    final searchCtrl = TextEditingController();
+    List<Map<String, dynamic>> filtered = List.from(_users);
+
+    return StatefulBuilder(
+      builder: (context, setInner) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => setState(() => _showUserPicker = false),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.arrow_back_ios_new, size: 16, color: Color(0xFF1E3A8A)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(t['share_title']!,
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold, fontSize: 14,
+                            color: const Color(0xFF1E3A8A))),
+                  ),
+                ],
+              ),
+            ),
+            // Info banner
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00C9E4).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF00C9E4).withOpacity(0.3)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.info_outline, color: Color(0xFF00C9E4), size: 16),
+                const SizedBox(width: 6),
+                Expanded(child: Text(t['share_info']!,
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF0891B2)))),
+              ]),
+            ),
+            const SizedBox(height: 10),
+            // Search
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: searchCtrl,
+                onChanged: (q) {
+                  setInner(() {
+                    filtered = _users
+                        .where((u) => u['nama'].toString().toLowerCase().contains(q.toLowerCase()))
+                        .toList();
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: t['search']!,
+                  prefixIcon: const Icon(Icons.search, color: Color(0xFF1E3A8A), size: 20),
+                  filled: true, fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Daftar user
+            SizedBox(
+              height: 250,
+              child: _isLoadingUsers
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF00C9E4)))
+                  : filtered.isEmpty
+                      ? const Center(child: Text('Tidak ada teman', style: TextStyle(color: Colors.grey)))
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          itemCount: filtered.length,
+                          itemBuilder: (_, i) {
+                            final u = filtered[i];
+                            return GestureDetector(
+                              onTap: () => widget.onClaimedAndShared(u),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: const Color(0xFF00C9E4).withOpacity(0.12),
+                                      child: Text(
+                                        u['nama'][0].toUpperCase(),
+                                        style: const TextStyle(
+                                            color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(u['nama'],
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w600, fontSize: 13)),
+                                          if (u['jabatan'] != null)
+                                            Text(u['jabatan']['nama_jabatan'] ?? '',
+                                                style: TextStyle(
+                                                    fontSize: 11, color: Colors.grey.shade500)),
+                                        ],
+                                      ),
+                                    ),
+                                    // Tampilkan poin yang akan DITERIMA penerima (+5P)
+                                    FutureBuilder<int>(
+                                      future: _getShareAmount(),
+                                      builder: (_, snap) {
+                                        final amt = snap.data ?? 5;
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF16A34A).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                'Dapat',
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade500,
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              Text(
+                                                '+$amt poin',
+                                                style: const TextStyle(
+                                                  color: Color(0xFF16A34A),
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ============================================================
+// DIALOG: PENALTI POIN — dipakai oleh await & non-await
+// ============================================================
+class _PenaltyDialog extends StatefulWidget {
+  final int absPoints;
+  final String description;
+  final String title;
+  final String okLabel;
+  final VoidCallback onDismiss;
+
+  const _PenaltyDialog({
+    required this.absPoints,
+    required this.description,
+    required this.title,
+    required this.okLabel,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_PenaltyDialog> createState() => _PenaltyDialogState();
+}
+
+class _PenaltyDialogState extends State<_PenaltyDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scaleAnim;
+  late Animation<double> _fadeAnim;
+  late Animation<double> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 520));
+    _scaleAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
+    _fadeAnim  = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slideAnim = Tween<double>(begin: 40, end: 0).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const Color red = Color(0xFFDC2626);
+    const Color redLight = Color(0xFFFEF2F2);
+    const Color redMid   = Color(0xFFFFE4E6);
+
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) => Opacity(
+        opacity: _fadeAnim.value,
+        child: Transform.translate(
+          offset: Offset(0, _slideAnim.value),
+          child: Transform.scale(scale: _scaleAnim.value, child: child),
+        ),
+      ),
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: red.withOpacity(0.18), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                    color: red.withOpacity(0.18),
+                    blurRadius: 40,
+                    spreadRadius: 4,
+                    offset: const Offset(0, 12)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Header merah ──
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                  decoration: BoxDecoration(
+                    color: redMid,
+                    borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(32)),
+                  ),
+                  child: Column(children: [
+                    // Ikon dengan ring animasi
+                    _PulsingRing(
+                      color: red,
+                      child: Container(
+                        width: 72, height: 72,
+                        decoration: BoxDecoration(
+                          color: red.withOpacity(0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: red.withOpacity(0.35), width: 2),
+                        ),
+                        child: const Icon(Icons.warning_amber_rounded,
+                            color: red, size: 36),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.title,
+                      style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: red),
+                    ),
+                    const SizedBox(height: 6),
+                    // Badge poin
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: red,
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: Text(
+                        '-${widget.absPoints} Poin',
+                        style: GoogleFonts.poppins(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white),
+                      ),
+                    ),
+                  ]),
+                ),
+
+                // ── Body ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                  child: Column(children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: redLight,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: red.withOpacity(0.12), width: 1),
+                      ),
+                      child: Text(
+                        widget.description,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF7F1D1D),
+                            height: 1.6),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Progress bar auto-close
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 1.0, end: 0.0),
+                        duration: const Duration(milliseconds: 6000),
+                        builder: (_, v, __) => LinearProgressIndicator(
+                          value: v,
+                          minHeight: 3,
+                          backgroundColor: red.withOpacity(0.08),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(red.withOpacity(0.4)),
+                        ),
+                        child: null,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Tombol
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: widget.onDismiss,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: red,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: Text(
+                          widget.okLabel,
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w700, fontSize: 15),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// DIALOG: NOTIFIKASI POIN (realtime listener — non-login)
+// ============================================================
+class _PointNotifDialog extends StatefulWidget {
+  final int points;
+  final String description;
+  final String tipe;
+  final String lang;
+  final VoidCallback onDismiss;
+
+  const _PointNotifDialog({
+    required this.points,
+    required this.description,
+    required this.tipe,
+    required this.lang,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_PointNotifDialog> createState() => _PointNotifDialogState();
+}
+
+class _PointNotifDialogState extends State<_PointNotifDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scaleAnim;
+  late Animation<double> _fadeAnim;
+  late Animation<double> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 480));
+    _scaleAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
+    _fadeAnim  = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slideAnim = Tween<double>(begin: 50, end: 0).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _ctrl.forward();
+
+    // Auto dismiss
+    Future.delayed(const Duration(milliseconds: 4500), () {
+      if (mounted) widget.onDismiss();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Color get _primary {
+    if (!_isPositive) return const Color(0xFFDC2626);
+    switch (widget.tipe) {
+      case 'login_pertama': return const Color(0xFFEC4899);
+      case 'login_pertama_hari_ini': return const Color(0xFFF59E0B);
+      default: return const Color(0xFF16A34A);
+    }
+  }
+
+  bool get _isPositive => widget.points > 0;
+
+  IconData get _icon {
+    switch (widget.tipe) {
+      case 'login_pertama': return Icons.celebration_rounded;
+      case 'login_harian': return Icons.today_rounded;
+      case 'login_pertama_hari_ini': return Icons.emoji_events_rounded;
+      default:
+        return _isPositive
+            ? Icons.local_fire_department_rounded
+            : Icons.warning_amber_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color primary = _primary;
+    final Color bgColor = primary.withOpacity(0.06);
+    final String pointLabel =
+        _isPositive ? '+${widget.points}' : '${widget.points}';
+
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) => Opacity(
+        opacity: _fadeAnim.value,
+        child: Transform.translate(
+          offset: Offset(0, _slideAnim.value),
+          child: Transform.scale(scale: _scaleAnim.value, child: child),
+        ),
+      ),
+      child: GestureDetector(
+        onTap: widget.onDismiss,
+        child: Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(32),
+                border: Border.all(
+                    color: primary.withOpacity(0.2), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                      color: primary.withOpacity(0.2),
+                      blurRadius: 40,
+                      spreadRadius: 4,
+                      offset: const Offset(0, 12)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Header berwarna ──
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(32)),
+                    ),
+                    child: Column(children: [
+                      _PulsingRing(
+                        color: primary,
+                        child: Container(
+                          width: 72, height: 72,
+                          decoration: BoxDecoration(
+                            color: primary.withOpacity(0.12),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: primary.withOpacity(0.3), width: 2),
+                          ),
+                          child: Icon(_icon, color: primary, size: 36),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      // Badge poin besar
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: primary,
+                          borderRadius: BorderRadius.circular(50),
+                        ),
+                        child: Text(
+                          '$pointLabel Poin',
+                          style: GoogleFonts.poppins(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white),
+                        ),
+                      ),
+                    ]),
+                  ),
+
+                  // ── Body ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 18, 24, 22),
+                    child: Column(children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: primary.withOpacity(0.12), width: 1),
+                        ),
+                        child: Text(
+                          widget.description,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF1E3A8A),
+                              height: 1.6),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 1.0, end: 0.0),
+                          duration: const Duration(milliseconds: 4500),
+                          builder: (_, v, __) => LinearProgressIndicator(
+                            value: v,
+                            minHeight: 3,
+                            backgroundColor: primary.withOpacity(0.08),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                primary.withOpacity(0.45)),
+                          ),
+                          child: null,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.lang == 'EN'
+                            ? 'Tap anywhere to close'
+                            : widget.lang == 'ZH'
+                                ? '点击任意处关闭'
+                                : 'Ketuk di mana saja untuk menutup',
+                        style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            color: Colors.grey.shade400),
+                      ),
+                    ]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// HELPER: Pulsing ring animation untuk ikon dialog
+// ============================================================
+class _PulsingRing extends StatefulWidget {
+  final Color color;
+  final Widget child;
+  const _PulsingRing({required this.color, required this.child});
+
+  @override
+  State<_PulsingRing> createState() => _PulsingRingState();
+}
+
+class _PulsingRingState extends State<_PulsingRing>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1400))
+      ..repeat(reverse: true);
+    _anim = Tween<double>(begin: 1.0, end: 1.18).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, child) => Stack(
+        alignment: Alignment.center,
+        children: [
+          // Ring luar berdenyut
+          Transform.scale(
+            scale: _anim.value,
+            child: Container(
+              width: 88, height: 88,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: widget.color.withOpacity(
+                    0.08 * (2.0 - _anim.value)),
+              ),
+            ),
+          ),
+          child!,
+        ],
+      ),
+      child: widget.child,
     );
   }
 }
