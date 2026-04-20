@@ -354,17 +354,20 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
         });
 
         _leaderboardFuture = _supabase.rpc('get_monthly_leaderboard', params: {
-          'selected_month': _selectedDate.month,
-          'selected_year': _selectedDate.year,
-          'selected_unit_id': _selectedLocation.idUnit ?? 0,
+          'selected_month'     : _selectedDate.month,
+          'selected_year'      : _selectedDate.year,
+          'selected_unit_id'   : _selectedLocation.idUnit    ?? 0,
+          'selected_lokasi_id' : _selectedLocation.idLokasi  ?? 0,
+          'selected_subunit_id': _selectedLocation.idSubunit ?? 0,
+          'selected_area_id'   : _selectedLocation.idArea    ?? 0,
         }).then((response) {
           final List<dynamic> data = response;
           return data.map((item) => LeaderboardMember(
-            idUser: item['id_user'] as String?,
-            rank: item['rank_num'] as int,
-            name: item['nama'] as String,
+            idUser   : item['id_user'].toString(),  // ← UUID → String aman
+            rank     : item['rank_num'] as int,
+            name     : item['nama'] as String,
             avatarUrl: item['gambar_user'] as String?,
-            score: item['monthly_score'] as int,
+            score    : item['poin'] as int,         // ← DIPERBAIKI
           )).toList();
         });
 
@@ -764,6 +767,10 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Text(
           _getTxt('appbar_title'),
           style: const TextStyle(

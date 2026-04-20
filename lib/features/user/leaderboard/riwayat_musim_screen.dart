@@ -165,18 +165,21 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
   Future<List<SeasonWinner>> _fetchWinners(int year, int month) {
     final key = '$year-$month';
     _winnerCache[key] ??= _supabase.rpc('get_monthly_leaderboard', params: {
-      'selected_month': month,
-      'selected_year': year,
-      'selected_unit_id': 0,
+      'selected_month'     : month,
+      'selected_year'      : year,
+      'selected_unit_id'   : 0,
+      'selected_lokasi_id' : 0,
+      'selected_subunit_id': 0,
+      'selected_area_id'   : 0,
     }).then((response) {
       final List<dynamic> data = response;
       return data
           .take(3)
           .map((item) => SeasonWinner(
-                rank: item['rank_num'] as int,
-                name: item['nama'] as String,
+                rank     : item['rank_num'] as int,
+                name     : item['nama'] as String,
                 avatarUrl: item['gambar_user'] as String?,
-                score: item['monthly_score'] as int,
+                score    : item['poin'] as int,  // ← DIPERBAIKI
               ))
           .toList();
     }).catchError((_) => <SeasonWinner>[]);
@@ -221,6 +224,10 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios),
+        onPressed: () => Navigator.of(context).pop(),
+      ),
       title: Text(
         _t('title'),
         style: const TextStyle(

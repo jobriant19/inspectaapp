@@ -376,7 +376,7 @@ class UserInfoCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                     const SizedBox(width: 6),
-                    const Icon(Icons.arrow_forward, size: 14),
+                    const Icon(Icons.arrow_forward_ios, size: 14),
                   ],
                 ),
               ),

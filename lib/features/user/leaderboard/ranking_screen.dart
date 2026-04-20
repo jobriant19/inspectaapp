@@ -235,50 +235,62 @@ class _RankingScreenState extends State<RankingScreen> {
   // ── Fetch Leaderboard ──────────────────────────────────────────────────────
 
   void _fetchData() {
-    final now = DateTime.now();
-    setState(() {
-      _lastUpdated = now;
-      _leaderboardFuture = _supabase
-          .rpc('get_monthly_leaderboard', params: {
-        'selected_month': now.month,
-        'selected_year': now.year,
-        'selected_unit_id': _selectedLocation.idUnit ?? 0,
-      }).then((response) {
-        final List<dynamic> data = response;
-        if (!mounted) return <_RankMember>[];
+  final now = DateTime.now();
+  setState(() {
+    _lastUpdated = now;
 
-        List<_RankMember> members = data.map((item) {
-          return _RankMember(
-            id: item['id_user'] as String,
-            rank: item['rank_num'] as int,
-            name: item['nama'] as String,
-            score: item['monthly_score'] as int,
-            avatarUrl: item['gambar_user'] as String?,
-            isSelf: item['is_self'] as bool,
-            avatarColor: _AppColors.primary,
-          );
-        }).toList();
+    // ── Tentukan parameter filter paling spesifik ──────────────────────
+    // Prioritas: area > subunit > unit > lokasi
+    final int selectedAreaId    = _selectedLocation.idArea    ?? 0;
+    final int selectedSubunitId = _selectedLocation.idSubunit ?? 0;
+    final int selectedUnitId    = _selectedLocation.idUnit    ?? 0;
+    final int selectedLokasiId  = _selectedLocation.idLokasi  ?? 0;
 
-        try {
-          _selfData = members.firstWhere((m) => m.isSelf);
-        } catch (e) {
-          _selfData = null;
-        }
+    _leaderboardFuture = _supabase
+        .rpc('get_monthly_leaderboard', params: {
+      'selected_month'    : now.month,
+      'selected_year'     : now.year,
+      'selected_unit_id'  : selectedUnitId,
+      'selected_lokasi_id': selectedLokasiId,
+      'selected_subunit_id': selectedSubunitId,
+      'selected_area_id'  : selectedAreaId,
+    }).then((response) {
+      final List<dynamic> data = response;
+      if (!mounted) return <_RankMember>[];
 
-        return members;
-      }).catchError((error) {
-        debugPrint('Error fetching leaderboard: $error');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('Gagal memuat papan peringkat: $error'),
-                backgroundColor: Colors.red),
-          );
-        }
-        return <_RankMember>[];
-      });
+      List<_RankMember> members = data.map((item) {
+        return _RankMember(
+          id      : item['id_user'].toString(),
+          rank    : item['rank_num']      as int,
+          name    : item['nama']          as String,
+          // ── SINKRON: gunakan poin total dari kolom 'poin' tabel User ──
+          score   : item['poin']          as int,
+          avatarUrl: item['gambar_user']  as String?,
+          isSelf  : item['is_self']       as bool,
+          avatarColor: _AppColors.primary,
+        );
+      }).toList();
+
+      try {
+        _selfData = members.firstWhere((m) => m.isSelf);
+      } catch (e) {
+        _selfData = null;
+      }
+
+      return members;
+    }).catchError((error) {
+      debugPrint('Error fetching leaderboard: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Gagal memuat papan peringkat: $error'),
+              backgroundColor: Colors.red),
+        );
+      }
+      return <_RankMember>[];
     });
-  }
+  });
+}
 
   // ── Bottom Sheet Filter Lokasi ─────────────────────────────────────────────
 
