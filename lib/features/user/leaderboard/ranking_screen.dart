@@ -282,15 +282,29 @@ class _RankingScreenState extends State<RankingScreen> {
 
   // ── Bottom Sheet Filter Lokasi ─────────────────────────────────────────────
 
-  void _showLocationPicker() {
-    _tempLokasiId = _selectedLocation.idLokasi;
-    _tempUnitId = _selectedLocation.idUnit;
+  void _showLocationPicker() async {
+    // ✅ Restore state temp dari filter yang sudah aktif
+    _tempLokasiId  = _selectedLocation.idLokasi;
+    _tempUnitId    = _selectedLocation.idUnit;
     _tempSubunitId = _selectedLocation.idSubunit;
-    _tempAreaId = _selectedLocation.idArea;
-    _tempUnitList = [];
-    _tempSubunitList = [];
-    _tempAreaList = [];
+    _tempAreaId    = _selectedLocation.idArea;
 
+    // ✅ Load kembali data child yang sesuai dengan filter aktif
+    _tempUnitList    = [];
+    _tempSubunitList = [];
+    _tempAreaList    = [];
+
+    if (_tempLokasiId != null) {
+      _tempUnitList = await _fetchUnitByLokasi(_tempLokasiId!);
+    }
+    if (_tempUnitId != null && _tempUnitList.isNotEmpty) {
+      _tempSubunitList = await _fetchSubunitByUnit(_tempUnitId!);
+    }
+    if (_tempSubunitId != null && _tempSubunitList.isNotEmpty) {
+      _tempAreaList = await _fetchAreaBySubunit(_tempSubunitId!);
+    }
+
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

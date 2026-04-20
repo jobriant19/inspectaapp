@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
+import 'user_profile_modal.dart';
+
 class AppColors {
   static const primaryColor   = Color(0xFF0EA5E9);
   static const primaryDark    = Color(0xFF0369A1);
@@ -23,12 +25,14 @@ class AppColors {
 }
 
 class LeaderboardMember {
+  final String? idUser;
   final int rank;
   final String name;
   final String? avatarUrl;
   final int score;
 
   LeaderboardMember({
+    this.idUser,
     required this.rank,
     required this.name,
     this.avatarUrl,
@@ -356,6 +360,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
         }).then((response) {
           final List<dynamic> data = response;
           return data.map((item) => LeaderboardMember(
+            idUser: item['id_user'] as String?,
             rank: item['rank_num'] as int,
             name: item['nama'] as String,
             avatarUrl: item['gambar_user'] as String?,
@@ -440,15 +445,27 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
 
   // ── Bottom Sheet Filter Lokasi ────────────────────────────────────────────
 
-  void _showLocationPicker() {
-    _tempLokasiId = _selectedLocation.idLokasi;
-    _tempUnitId = _selectedLocation.idUnit;
+  void _showLocationPicker() async {
+    _tempLokasiId  = _selectedLocation.idLokasi;
+    _tempUnitId    = _selectedLocation.idUnit;
     _tempSubunitId = _selectedLocation.idSubunit;
-    _tempAreaId = _selectedLocation.idArea;
-    _tempUnitList = [];
-    _tempSubunitList = [];
-    _tempAreaList = [];
+    _tempAreaId    = _selectedLocation.idArea;
 
+    _tempUnitList    = [];
+    _tempSubunitList = [];
+    _tempAreaList    = [];
+
+    if (_tempLokasiId != null) {
+      _tempUnitList = await _fetchUnitByLokasi(_tempLokasiId!);
+    }
+    if (_tempUnitId != null && _tempUnitList.isNotEmpty) {
+      _tempSubunitList = await _fetchSubunitByUnit(_tempUnitId!);
+    }
+    if (_tempSubunitId != null && _tempSubunitList.isNotEmpty) {
+      _tempAreaList = await _fetchAreaBySubunit(_tempSubunitId!);
+    }
+
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1809,117 +1826,128 @@ Widget _buildPieInfoCard({
 
     if (item.rank == 1) {
       leftBorder = AppColors.gold;
-      bgColor = const Color(0xFFFFFBEB);
+      bgColor    = const Color(0xFFFFFBEB);
       scoreColor = AppColors.gold;
-      badge = const Text('🥇', style: TextStyle(fontSize: 20));
-      subLabel = _getTxt('first_class'); // <-- terjemahan
+      badge      = const Text('🥇', style: TextStyle(fontSize: 20));
+      subLabel   = _getTxt('first_class');
     } else if (item.rank == 2) {
       leftBorder = AppColors.silver;
-      bgColor = const Color(0xFFF8FAFC);
+      bgColor    = const Color(0xFFF8FAFC);
       scoreColor = AppColors.silver;
-      badge = const Text('🥈', style: TextStyle(fontSize: 20));
-      subLabel = _getTxt('business_class'); // <-- terjemahan
+      badge      = const Text('🥈', style: TextStyle(fontSize: 20));
+      subLabel   = _getTxt('business_class');
     } else if (item.rank == 3) {
       leftBorder = AppColors.bronze;
-      bgColor = const Color(0xFFFDF6EE);
+      bgColor    = const Color(0xFFFDF6EE);
       scoreColor = AppColors.bronze;
-      badge = const Text('🥉', style: TextStyle(fontSize: 20));
-      subLabel = _getTxt('premium_class'); // <-- terjemahan
+      badge      = const Text('🥉', style: TextStyle(fontSize: 20));
+      subLabel   = _getTxt('premium_class');
     } else {
       badge = SizedBox(
         width: 28,
         child: Text('${item.rank}',
             textAlign: TextAlign.center,
             style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+                fontSize: 12, fontWeight: FontWeight.w700,
                 color: AppColors.textSecondary)),
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bgColor,
-        border: Border(
-          bottom: BorderSide(color: AppColors.border, width: 0.5),
-          left: leftBorder != null
-              ? BorderSide(color: leftBorder, width: 3)
-              : BorderSide.none,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(
-        children: [
-          SizedBox(width: 44, child: Center(child: badge)),
-          Expanded(
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 15,
-                  backgroundImage: (item.avatarUrl != null &&
-                          item.avatarUrl!.isNotEmpty)
-                      ? NetworkImage(item.avatarUrl!)
-                      : null,
-                  backgroundColor: AppColors.primaryLight,
-                  child: (item.avatarUrl == null || item.avatarUrl!.isEmpty)
-                      ? Text(
-                          item.name
-                              .trim()
-                              .split(' ')
-                              .take(2)
-                              .map((w) =>
-                                  w.isNotEmpty ? w[0].toUpperCase() : '')
-                              .join(),
-                          style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primaryColor))
-                      : null,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(item.name,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: item.rank <= 3
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: AppColors.textPrimary),
-                          overflow: TextOverflow.ellipsis),
-                      if (subLabel != null)
-                        Text(subLabel,
-                            style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: scoreColor)),
-                    ],
-                  ),
-                ),
-              ],
+    return InkWell(
+      onTap: item.idUser == null ? null : () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (context) => DraggableScrollableSheet(
+            initialChildSize: 0.65,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            builder: (_, controller) => UserProfileModal(
+              controller: controller,
+              userId: item.idUser!,
+              userName: item.name,
+              userAvatarUrl: item.avatarUrl,
+              userRank: item.rank,
             ),
           ),
-          SizedBox(
-              width: 72,
-              child: Text(item.altitudeLabel,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: item.rank <= 3
-                          ? scoreColor
-                          : AppColors.textSecondary))),
-          SizedBox(
-              width: 48,
-              child: Text('${item.score}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: scoreColor))),
-        ],
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border(
+            bottom: BorderSide(color: AppColors.border, width: 0.5),
+            left: leftBorder != null
+                ? BorderSide(color: leftBorder, width: 3)
+                : BorderSide.none,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox(width: 44, child: Center(child: badge)),
+            Expanded(
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 15,
+                    backgroundImage: (item.avatarUrl != null &&
+                            item.avatarUrl!.isNotEmpty)
+                        ? NetworkImage(item.avatarUrl!)
+                        : null,
+                    backgroundColor: AppColors.primaryLight,
+                    child: (item.avatarUrl == null || item.avatarUrl!.isEmpty)
+                        ? Text(
+                            item.name.trim().split(' ').take(2)
+                                .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
+                                .join(),
+                            style: const TextStyle(
+                                fontSize: 10, fontWeight: FontWeight.w700,
+                                color: AppColors.primaryColor))
+                        : null,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.name,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: item.rank <= 3
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: AppColors.textPrimary),
+                            overflow: TextOverflow.ellipsis),
+                        if (subLabel != null)
+                          Text(subLabel,
+                              style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: scoreColor)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+                width: 72,
+                child: Text(item.altitudeLabel,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w500,
+                        color: item.rank <= 3 ? scoreColor : AppColors.textSecondary))),
+            SizedBox(
+                width: 48,
+                child: Text('${item.score}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        color: scoreColor))),
+          ],
+        ),
       ),
     );
   }
