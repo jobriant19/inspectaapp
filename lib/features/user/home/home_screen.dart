@@ -64,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
   
   Map<String, dynamic>? _latestLogPoin;
   bool _isLatestLogLoading = true;
+  bool _isExecutiveVerificator = false;
   String _activeTab = 'my';
   bool _hasShownLoginDialog = false;
   int _previousPoin = 0;
@@ -238,6 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _checkVerificationStatus().then((_) async {
       if (!mounted) return;
       await _loadLanguage();
+      await _checkExecutiveVerificatorStatus();
       if (mounted) {
         _handleLoginAndFetchData();
       }
@@ -675,6 +677,30 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _checkExecutiveVerificatorStatus() async {
+    try{
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final data = await Supabase.instance.client
+        .from('User')
+        .select('id_jabatan, is_verificator')
+        .eq('id_user', userId)
+        .single();
+
+      final int? jabatanId = data['id_jabatan'] as int?;
+      final bool isVerif = data['is_verificator'] as bool? ?? false;
+
+      if (mounted) {
+        setState(() {
+          _isExecutiveVerificator = (jabatanId == 1) || isVerif;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking exec verificator: $e');
+    }
+  }
+
   Future<void> _fetchNotificationCount() async {
     if (!mounted) return;
     final user = Supabase.instance.client.auth.currentUser;
@@ -963,7 +989,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       // KIRI: Logo
                       Image.asset(
-                        'assets/images/logo.png',
+                        'assets/images/logo1.png',
                         height: 38,
                         errorBuilder: (c, e, s) => Container(
                           padding: const EdgeInsets.all(6),
@@ -1279,8 +1305,13 @@ String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
       isLatestLogLoading: _isLatestLogLoading,
       onRefresh: _handleLoginAndFetchData,
       onViewActivityLog: () => _showActivityLogDialog(context),
-      onProModeChanged: (val) => setState(() => _isProMode = val),
+      onProModeChanged: (val) {
+        setState(() => _isProMode = val);
+        _showProModeStatusDialog(val);
+      },
       onVisitorModeChanged: _updateVisitorStatus,
+      isExecVerificator: _isExecutiveVerificator,
+      userJabatanId: _userJabatanId,
       buildInfoCard: () => UserInfoCard(
         userName: _userName,
         userRole: _userRole,
@@ -1293,10 +1324,9 @@ String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
         onViewMoreTap: () => _showActivityLogDialog(context),
       ),
     );
-  }
+  } 
 
   // Notifikasi Mode Visitor
-  // ── Dialog visitor mode (versi baru menarik) ──
   void _showVisitorStatusDialog(bool isVisitor) {
     final Map<String, Map<String, String>> texts = {
       'EN': {
@@ -1393,6 +1423,128 @@ String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
                         value: v, minHeight: 4,
                         backgroundColor: primary.withOpacity(0.1),
                         valueColor: AlwaysStoppedAnimation<Color>(primary.withOpacity(0.6)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── Notifikasi mode professional ──
+  void _showProModeStatusDialog(bool isProMode) {
+    final Map<String, Map<String, String>> texts = {
+      'EN': {
+        'on_title': 'Professional Mode Active',
+        'off_title': 'Professional Mode Off',
+        'on_sub': 'You can now access all locations without restrictions.',
+        'off_sub': 'Back to regular mode.',
+      },
+      'ID': {
+        'on_title': 'Mode Profesional Aktif',
+        'off_title': 'Mode Profesional Nonaktif',
+        'on_sub': 'Anda sekarang dapat mengakses semua lokasi tanpa batasan.',
+        'off_sub': 'Kembali ke mode reguler.',
+      },
+      'ZH': {
+        'on_title': '专业模式已激活',
+        'off_title': '专业模式已停用',
+        'on_sub': '您现在可以不受限制地访问所有地点。',
+        'off_sub': '返回常规模式。',
+      },
+    };
+    final t = texts[_lang] ?? texts['ID']!;
+
+    final Color primary = isProMode
+        ? const Color(0xFF16A34A)
+        : Colors.grey.shade500;
+    final IconData icon = isProMode
+        ? Icons.workspace_premium_rounded
+        : Icons.workspace_premium_outlined;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.35),
+      builder: (ctx) {
+        Future.delayed(const Duration(seconds: 3), () {
+          if (ctx.mounted && Navigator.of(ctx).canPop()) {
+            Navigator.of(ctx).pop();
+          }
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 36),
+              padding: const EdgeInsets.fromLTRB(24, 30, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: primary.withOpacity(0.3),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: primary.withOpacity(0.1),
+                      border: Border.all(
+                          color: primary.withOpacity(0.3), width: 2),
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        isProMode
+                            ? 'assets/images/modepro.png'
+                            : 'assets/images/modepro.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            Icon(icon, color: primary, size: 42),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    isProMode ? t['on_title']! : t['off_title']!,
+                    style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: primary),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isProMode ? t['on_sub']! : t['off_sub']!,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: Colors.grey.shade500),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 1.0, end: 0.0),
+                      duration: const Duration(milliseconds: 3000),
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 4,
+                        backgroundColor: primary.withOpacity(0.1),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                            primary.withOpacity(0.6)),
                       ),
                     ),
                   ),
