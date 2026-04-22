@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/user_picker_bottom_sheet.dart';
 import 'camera_finding_screen.dart';
-import 'package:flutter/foundation.dart' show kIsWeb; 
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 // Model Comment tidak berubah, jadi tetap
 class Comment {
@@ -59,7 +59,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   late Future<Map<String, dynamic>> _findingDetailFuture;
   Map<String, dynamic>? _currentFindingData;
   late Future<List<Comment>> _commentsFuture;
-  
+
   // Resolution State
   XFile? _resolutionImageFile;
   final _resolutionNotesController = TextEditingController();
@@ -128,7 +128,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         .order('created_at', ascending: true);
     return response.map((map) => Comment.fromMap(map)).toList();
   }
-  
+
   // ===== LOGIC ACTIONS =====
   Future<void> _pickResolutionImage() async {
     final result = await Navigator.push<XFile>(
@@ -151,14 +151,18 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     try {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) throw Exception('User not logged in');
-      
-      final mentionedUserIds = _mentionedUsers.map((e) => e['id_user'] as String).toList();
+
+      final mentionedUserIds = _mentionedUsers
+          .map((e) => e['id_user'] as String)
+          .toList();
 
       await Supabase.instance.client.from('komentar').insert({
         'id_temuan': widget.initialData['id_temuan'],
         'id_user': user.id,
         'isi_komentar': content,
-        'mentioned_users': mentionedUserIds.isNotEmpty ? mentionedUserIds : null,
+        'mentioned_users': mentionedUserIds.isNotEmpty
+            ? mentionedUserIds
+            : null,
       });
 
       _commentController.clear();
@@ -176,56 +180,131 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       _showErrorSnackbar(_texts['err_proof_required']!);
       return;
     }
-    
+
+    // Tampilkan loading dialog di tengah layar
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (ctx) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00C9E4).withOpacity(0.2),
+                blurRadius: 30,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: Color(0xFF00C9E4)),
+              const SizedBox(height: 20),
+              Text(
+                widget.lang == 'EN'
+                    ? 'Saving resolution...'
+                    : widget.lang == 'ZH'
+                    ? '正在保存...'
+                    : 'Menyimpan penyelesaian...',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1E3A8A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
     setState(() => _isFinishing = true);
-    
+
     try {
       final supabase = Supabase.instance.client;
       final user = supabase.auth.currentUser;
       if (user == null) throw Exception('User not logged in');
 
-      // ... (Bagian upload gambar tidak berubah)
       final imageBytes = await _resolutionImageFile!.readAsBytes();
-      final fileName = 'resolution/${widget.initialData['id_temuan']}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await supabase.storage.from('temuan_images').uploadBinary(
-            fileName, imageBytes, fileOptions: const FileOptions(contentType: 'image/jpeg'));
-      final imageUrl = supabase.storage.from('temuan_images').getPublicUrl(fileName);
+      final fileName =
+          'resolution/${widget.initialData['id_temuan']}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await supabase.storage
+          .from('temuan_images')
+          .uploadBinary(
+            fileName,
+            imageBytes,
+            fileOptions: const FileOptions(contentType: 'image/jpeg'),
+          );
+      final imageUrl = supabase.storage
+          .from('temuan_images')
+          .getPublicUrl(fileName);
 
       final costText = _resolutionCostController.text.trim();
       final additionalCost = double.tryParse(costText);
 
-      // 2. Insert ke tabel 'penyelesaian' 
-      final penyelesaianResponse = await supabase.from('penyelesaian').insert({
-        // 'id_temuan': widget.initialData['id_temuan'], // <-- BARIS INI DIHAPUS
-        'id_user': user.id,
-        'gambar_penyelesaian': imageUrl,
-        'catatan_penyelesaian': _resolutionNotesController.text.trim(),
-        'additional_cost': additionalCost,
-        'tanggal_selesai': DateTime.now().toIso8601String(),
-      }).select().single();
+      // Ambil poin dari temuan untuk penyelesaian
+      final temuanData = await supabase
+          .from('temuan')
+          .select('poin_temuan')
+          .eq('id_temuan', widget.initialData['id_temuan'])
+          .maybeSingle();
+
+      final int poinPenyelesaian =
+          (temuanData?['poin_temuan'] as num?)?.toInt() ?? 0;
+
+      final penyelesaianResponse = await supabase
+          .from('penyelesaian')
+          .insert({
+            'id_user': user.id,
+            'gambar_penyelesaian': imageUrl,
+            'catatan_penyelesaian': _resolutionNotesController.text.trim(),
+            'additional_cost': additionalCost,
+            'tanggal_selesai': DateTime.now().toIso8601String(),
+            'poin_penyelesaian': poinPenyelesaian,
+          })
+          .select()
+          .single();
 
       final penyelesaianId = penyelesaianResponse['id_penyelesaian'];
 
-      // ... (Sisa fungsi tidak berubah)
       await supabase
           .from('temuan')
-          .update({'status_temuan': 'Selesai', 'id_penyelesaian': penyelesaianId})
+          .update({
+            'status_temuan': 'Selesai',
+            'id_penyelesaian': penyelesaianId,
+          })
           .eq('id_temuan', widget.initialData['id_temuan']);
-      
+
+      // Tutup loading dialog
+      if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+
       _showSuccessSnackbar(_texts['finish_success']!);
 
       if (createNewAfter) {
         if (!mounted) return;
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => CameraFindingScreen(
-          lang: widget.lang, isProMode: false, isVisitorMode: false,
-          selectedLocationName: _formatLocation(widget.initialData),
-        )));
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CameraFindingScreen(
+              lang: widget.lang,
+              isProMode: false,
+              isVisitorMode: false,
+              selectedLocationName: _formatLocation(widget.initialData),
+            ),
+          ),
+        );
       } else {
         if (!mounted) return;
         Navigator.pop(context, true);
       }
-
     } catch (e) {
+      // Tutup loading dialog jika error
+      if (mounted && Navigator.canPop(context)) Navigator.pop(context);
       _showErrorSnackbar('${_texts['finish_fail']}: $e');
     } finally {
       if (mounted) setState(() => _isFinishing = false);
@@ -278,8 +357,11 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     }
     return 'Lokasi tidak diketahui';
   }
-  
-  String _formatDateTime(String? dateStr, {String format = 'dd MMM yyyy, HH:mm'}) {
+
+  String _formatDateTime(
+    String? dateStr, {
+    String format = 'dd MMM yyyy, HH:mm',
+  }) {
     if (dateStr == null || dateStr.isEmpty) return '-';
     try {
       // Coba parsing langsung, ini berhasil jika formatnya sudah ISO (ada 'T')
@@ -300,12 +382,16 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
   void _showErrorSnackbar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   void _showSuccessSnackbar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
+    );
   }
 
   // ===== WIDGET BUILDERS =====
@@ -317,7 +403,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         future: _findingDetailFuture,
         initialData: widget.initialData,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
@@ -329,7 +416,12 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           final b = (data['status_temuan'] as String? ?? '').toLowerCase();
           final isNotFinished = ['belum'].any((e) => b.contains(e));
           final s = (data['status_temuan'] as String? ?? '').toLowerCase();
-          final isFinished = ['closed', 'selesai', 'done', 'completed'].any((e) => s.contains(e));
+          final isFinished = [
+            'closed',
+            'selesai',
+            'done',
+            'completed',
+          ].any((e) => s.contains(e));
           final resolutionData = data['penyelesaian'] as Map<String, dynamic>?;
 
           // Struktur yang benar adalah menempatkan semua widget di dalam Sliver
@@ -352,12 +444,12 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                       const SizedBox(height: 24),
                       _buildFindingInfoGrid(data),
                       const SizedBox(height: 24),
-                      
+
                       if (isFinished && resolutionData != null)
                         _buildCompletedResolutionSection(resolutionData)
                       else
                         _buildResolutionSection(),
-                      
+
                       const SizedBox(height: 24),
                       _buildCommentsSection(),
                       const SizedBox(height: 16),
@@ -365,11 +457,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                       // --- URUTAN YANG BENAR DI SINI ---
                       // 1. Input Komentar (selalu ada)
                       _buildCommentInputBar(),
-                      
+
                       // 2. Tombol Aksi (hanya jika belum selesai)
                       if (isNotFinished)
                         Padding(
-                          padding: const EdgeInsets.only(top: 8.0), // beri jarak dari input komentar
+                          padding: const EdgeInsets.only(
+                            top: 8.0,
+                          ), // beri jarak dari input komentar
                           child: _buildActionButtons(),
                         ),
 
@@ -388,19 +482,27 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
   SliverAppBar _buildSliverAppBar(BuildContext context) {
     // ... (kode sama)
-     return SliverAppBar(
+    return SliverAppBar(
       pinned: true,
       floating: true,
       backgroundColor: const Color(0xFFF8FAFC),
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
+        icon: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          color: Colors.black87,
+        ),
         onPressed: () => Navigator.of(context).pop(),
       ),
       centerTitle: true,
-      title: Text(_texts['detail_title']!,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87),
+      title: Text(
+        _texts['detail_title']!,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+          color: Colors.black87,
+        ),
       ),
     );
   }
@@ -422,11 +524,20 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(20),
                 image: imageUrl != null && imageUrl.isNotEmpty
-                    ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover)
+                    ? DecorationImage(
+                        image: NetworkImage(imageUrl),
+                        fit: BoxFit.cover,
+                      )
                     : null,
               ),
               child: imageUrl == null || imageUrl.isEmpty
-                  ? const Center(child: Icon(Icons.image_not_supported_rounded, color: Colors.grey, size: 50))
+                  ? const Center(
+                      child: Icon(
+                        Icons.image_not_supported_rounded,
+                        color: Colors.grey,
+                        size: 50,
+                      ),
+                    )
                   : null,
             ),
           ),
@@ -434,7 +545,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       ),
     );
   }
-  
+
   Widget _buildTitleSection(Map<String, dynamic> data) {
     final title = data['judul_temuan'] as String? ?? 'Tanpa Judul';
     final location = _formatLocation(data);
@@ -442,13 +553,29 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E3A8A),
+          ),
+        ),
         const SizedBox(height: 8),
-        Row(children: [
-          Icon(Icons.location_on_outlined, color: Colors.grey.shade600, size: 16),
-          const SizedBox(width: 4),
-          Text(location, style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
-        ]),
+        Row(
+          children: [
+            Icon(
+              Icons.location_on_outlined,
+              color: Colors.grey.shade600,
+              size: 16,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              location,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -458,7 +585,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     final isPro = data['is_pro'] == true;
     final isVisitor = data['is_visitor'] == true;
     final isEksekutif = data['is_eksekutif'] == true;
-    
+
     if (!isPro && !isVisitor && !isEksekutif) return const SizedBox.shrink();
 
     return Wrap(
@@ -475,8 +602,18 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   Widget _buildBadge(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
-      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
     );
   }
 
@@ -487,8 +624,10 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     final creatorName = creator?['nama'] as String? ?? 'Pengguna';
     final creatorAvatarUrl = creator?['gambar_user'] as String?;
 
-    final category = data['kategoritemuan']?['nama_kategoritemuan'] as String? ?? '-';
-    final subCategory = data['subkategoritemuan']?['nama_subkategoritemuan'] as String? ?? '-';
+    final category =
+        data['kategoritemuan']?['nama_kategoritemuan'] as String? ?? '-';
+    final subCategory =
+        data['subkategoritemuan']?['nama_subkategoritemuan'] as String? ?? '-';
 
     final createdAt = data['created_at'] as String?;
     final deadline = data['target_waktu_selesai'] as String?;
@@ -498,46 +637,71 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200)
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Bagian Creator (Dibuat Oleh)
-          Text(_texts['created_by']!, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+          Text(
+            _texts['created_by']!,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
               CircleAvatar(
                 radius: 22,
                 backgroundColor: Colors.grey.shade200,
-                backgroundImage: creatorAvatarUrl != null ? NetworkImage(creatorAvatarUrl) : null,
-                child: creatorAvatarUrl == null ? const Icon(Icons.person, color: Colors.grey) : null,
+                backgroundImage: creatorAvatarUrl != null
+                    ? NetworkImage(creatorAvatarUrl)
+                    : null,
+                child: creatorAvatarUrl == null
+                    ? const Icon(Icons.person, color: Colors.grey)
+                    : null,
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(creatorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                child: Text(
+                  creatorName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
               ),
             ],
           ),
-          
+
           const Divider(height: 24),
 
           // Detail Waktu
-          _buildInfoRow(Icons.calendar_today_outlined, _texts['reported_on']!, _formatDateTime(createdAt)),
+          _buildInfoRow(
+            Icons.calendar_today_outlined,
+            _texts['reported_on']!,
+            _formatDateTime(createdAt),
+          ),
           if (deadline != null) ...[
             const SizedBox(height: 16),
-            _buildInfoRow(Icons.timer_outlined, 'Tenggat Waktu', _formatDateTime(deadline)),
+            _buildInfoRow(
+              Icons.timer_outlined,
+              'Tenggat Waktu',
+              _formatDateTime(deadline),
+            ),
           ],
-          
+
           const Divider(height: 24),
 
           // Detail Kategori
           _buildInfoRow(Icons.category_outlined, _texts['category']!, category),
-          if(subCategory != '-') ...[
+          if (subCategory != '-') ...[
             const SizedBox(height: 16),
-            _buildInfoRow(Icons.label_important_outline, _texts['subcategory']!, subCategory),
-          ]
+            _buildInfoRow(
+              Icons.label_important_outline,
+              _texts['subcategory']!,
+              subCategory,
+            ),
+          ],
         ],
       ),
     );
@@ -554,7 +718,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       ],
     );
   }
-  
+
   Widget _buildDetailedInfoSection(Map<String, dynamic> data) {
     final assignee = data['User_PIC'] as Map<String, dynamic>?;
     final deadline = data['target_waktu_selesai'] as String?;
@@ -567,40 +731,59 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200)
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // --- CATATAN/DESKRIPSI ---
           if (deskripsi != null && deskripsi.isNotEmpty) ...[
-            const Text('Catatan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text(
+              'Catatan',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
             const SizedBox(height: 8),
-            Text(deskripsi, style: const TextStyle(color: Colors.black87, height: 1.5)),
+            Text(
+              deskripsi,
+              style: const TextStyle(color: Colors.black87, height: 1.5),
+            ),
             const Divider(height: 32),
           ],
 
           // --- PENANGGUNG JAWAB (PIC) ---
           if (assignee != null) ...[
-            const Text('Penanggung Jawab', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text(
+              'Penanggung Jawab',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundImage: (assignee['gambar_user'] != null) ? NetworkImage(assignee['gambar_user']) : null,
-                  child: (assignee['gambar_user'] == null) ? const Icon(Icons.person) : null,
+                  backgroundImage: (assignee['gambar_user'] != null)
+                      ? NetworkImage(assignee['gambar_user'])
+                      : null,
+                  child: (assignee['gambar_user'] == null)
+                      ? const Icon(Icons.person)
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(assignee['nama'] ?? '...', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const Text('Ditugaskan untuk menyelesaikan', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text(
+                        assignee['nama'] ?? '...',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const Text(
+                        'Ditugaskan untuk menyelesaikan',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
             const Divider(height: 32),
@@ -608,13 +791,21 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
           // --- DETAIL LAINNYA (DEADLINE, POIN, ESKALASI) ---
           if (deadline != null || poin != null || eskalasi != null)
-            _buildInfoRow(Icons.task_alt_outlined, 'Status', data['status_temuan'] ?? '-'),
+            _buildInfoRow(
+              Icons.task_alt_outlined,
+              'Status',
+              data['status_temuan'] ?? '-',
+            ),
 
           if (deadline != null) ...[
             const SizedBox(height: 16),
-            _buildInfoRow(Icons.calendar_month_outlined, 'Tenggat Waktu', _formatDateTime(deadline, format: 'dd MMMM yyyy')),
+            _buildInfoRow(
+              Icons.calendar_month_outlined,
+              'Tenggat Waktu',
+              _formatDateTime(deadline, format: 'dd MMMM yyyy'),
+            ),
           ],
-          
+
           if (poin != null && poin > 0) ...[
             const SizedBox(height: 16),
             _buildInfoRow(Icons.star_outline, 'Poin Temuan', '$poin Poin'),
@@ -622,14 +813,18 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
           if (eskalasi != null && eskalasi.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _buildInfoRow(Icons.escalator_warning_outlined, 'Level Eskalasi', eskalasi),
+            _buildInfoRow(
+              Icons.escalator_warning_outlined,
+              'Level Eskalasi',
+              eskalasi,
+            ),
           ],
         ],
       ),
     );
   }
-  
-    Widget _buildCompletedResolutionSection(Map<String, dynamic> resolutionData) {
+
+  Widget _buildCompletedResolutionSection(Map<String, dynamic> resolutionData) {
     final imageUrl = resolutionData['gambar_penyelesaian'] as String?;
     final notes = resolutionData['catatan_penyelesaian'] as String?;
     final cost = resolutionData['additional_cost'] as num?;
@@ -640,40 +835,69 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
     String formattedCost = 'Rp 0';
     if (cost != null) {
-      formattedCost = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(cost);
+      formattedCost = NumberFormat.currency(
+        locale: 'id_ID',
+        symbol: 'Rp ',
+        decimalDigits: 0,
+      ).format(cost);
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(_texts['resolution_result']!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+        Text(
+          _texts['resolution_result']!,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E3A8A),
+          ),
+        ),
         const SizedBox(height: 12),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200)),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Bagian Info Penyelesai
               if (solver != null) ...[
-                Text(_texts['resolved_by']!, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                Text(
+                  _texts['resolved_by']!,
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     CircleAvatar(
                       radius: 22,
                       backgroundColor: Colors.grey.shade200,
-                      backgroundImage: solverAvatarUrl != null ? NetworkImage(solverAvatarUrl) : null,
-                      child: solverAvatarUrl == null ? const Icon(Icons.person, color: Colors.grey, size: 20) : null,
+                      backgroundImage: solverAvatarUrl != null
+                          ? NetworkImage(solverAvatarUrl)
+                          : null,
+                      child: solverAvatarUrl == null
+                          ? const Icon(
+                              Icons.person,
+                              color: Colors.grey,
+                              size: 20,
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(solverName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    )
+                      child: Text(
+                        solverName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 const Divider(height: 24),
@@ -682,27 +906,47 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               if (completedDate != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12.0),
-                  child: _buildInfoRow(Icons.check_circle_outline, _texts['completed_on']!, _formatDateTime(completedDate)),
+                  child: _buildInfoRow(
+                    Icons.check_circle_outline,
+                    _texts['completed_on']!,
+                    _formatDateTime(completedDate),
+                  ),
                 ),
 
               if (imageUrl != null)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity),
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                  ),
                 ),
-                
+
               if (notes != null && notes.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Text(_texts['notes']!, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  _texts['notes']!,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 4),
                 Text(notes),
               ],
 
               if (cost != null && cost > 0) ...[
                 const SizedBox(height: 16),
-                Text(_texts['cost']!, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  _texts['cost']!,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 4),
-                Text(formattedCost, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                Text(
+                  formattedCost,
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ],
           ),
@@ -716,7 +960,14 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(_texts['resolution']!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+        Text(
+          _texts['resolution']!,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E3A8A),
+          ),
+        ),
         const SizedBox(height: 12),
         // Bagian Upload Gambar
         if (_resolutionImageFile == null)
@@ -733,9 +984,19 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.camera_alt_outlined, color: Colors.blueGrey, size: 40),
+                  const Icon(
+                    Icons.camera_alt_outlined,
+                    color: Colors.blueGrey,
+                    size: 40,
+                  ),
                   const SizedBox(height: 8),
-                  Text(_texts['upload_proof']!, style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.w600)),
+                  Text(
+                    _texts['upload_proof']!,
+                    style: const TextStyle(
+                      color: Colors.blueGrey,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -747,31 +1008,52 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: kIsWeb
-                    ? Image.network(_resolutionImageFile!.path, height: 200, width: double.infinity, fit: BoxFit.cover)
-                    : Image.file(File(_resolutionImageFile!.path), height: 200, width: double.infinity, fit: BoxFit.cover),
+                    ? Image.network(
+                        _resolutionImageFile!.path,
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      )
+                    : Image.file(
+                        File(_resolutionImageFile!.path),
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
               ),
               const SizedBox(height: 8),
-              TextButton.icon(onPressed: _pickResolutionImage, icon: const Icon(Icons.edit_outlined, size: 16), label: Text(_texts['change_photo']!)),
+              TextButton.icon(
+                onPressed: _pickResolutionImage,
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: Text(_texts['change_photo']!),
+              ),
             ],
           ),
         const SizedBox(height: 16),
 
         // Bagian Catatan Penyelesaian
-        Text(_texts['resolution_notes']!, style: const TextStyle(fontWeight: FontWeight.w600)),
+        Text(
+          _texts['resolution_notes']!,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _resolutionNotesController,
           maxLines: 3,
           decoration: InputDecoration(
             hintText: _texts['resolution_notes_hint'],
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), filled: true, fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
+            fillColor: Colors.white,
           ),
         ),
-        
-        const SizedBox(height: 16), // <-- Spasi baru
 
+        const SizedBox(height: 16), // <-- Spasi baru
         // Bagian Biaya Penyelesaian (BARU)
-        const Text('Biaya Penyelesaian (Opsional)', style: TextStyle(fontWeight: FontWeight.w600)),
+        const Text(
+          'Biaya Penyelesaian (Opsional)',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _resolutionCostController,
@@ -790,27 +1072,48 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
   Widget _buildCommentsSection() {
     // ... (kode sama)
-     return Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Aktivitas & Komentar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+        const Text(
+          'Aktivitas & Komentar',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E3A8A),
+          ),
+        ),
         const SizedBox(height: 12),
         FutureBuilder<List<Comment>>(
           future: _commentsFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator(strokeWidth: 2)));
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              );
             }
             if (snapshot.hasError) return Text('Error: ${snapshot.error}');
             final comments = snapshot.data ?? [];
             if (comments.isEmpty) {
-              return const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 24.0), child: Text('Belum ada komentar.', style: TextStyle(color: Colors.grey))));
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24.0),
+                  child: Text(
+                    'Belum ada komentar.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              );
             }
             return ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: comments.length,
-              itemBuilder: (context, index) => _buildCommentItem(comments[index]),
+              itemBuilder: (context, index) =>
+                  _buildCommentItem(comments[index]),
               separatorBuilder: (context, index) => const SizedBox(height: 16),
             );
           },
@@ -818,7 +1121,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       ],
     );
   }
-  
+
   Widget _buildCommentItem(Comment comment) {
     // ... (kode sama)
     return Row(
@@ -827,8 +1130,12 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         CircleAvatar(
           radius: 18,
           backgroundColor: Colors.grey.shade200,
-          backgroundImage: comment.userAvatarUrl != null ? NetworkImage(comment.userAvatarUrl!) : null,
-          child: comment.userAvatarUrl == null ? const Icon(Icons.person_outline, color: Colors.grey, size: 18) : null,
+          backgroundImage: comment.userAvatarUrl != null
+              ? NetworkImage(comment.userAvatarUrl!)
+              : null,
+          child: comment.userAvatarUrl == null
+              ? const Icon(Icons.person_outline, color: Colors.grey, size: 18)
+              : null,
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -837,27 +1144,49 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             children: [
               Row(
                 children: [
-                  Text(comment.userName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    comment.userName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(width: 8),
-                  Text(DateFormat('dd MMM, HH:mm').format(comment.createdAt.toLocal()), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(
+                    DateFormat(
+                      'dd MMM, HH:mm',
+                    ).format(comment.createdAt.toLocal()),
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
                 ],
               ),
               const SizedBox(height: 4),
-              Text(comment.content, style: const TextStyle(color: Colors.black87)),
+              Text(
+                comment.content,
+                style: const TextStyle(color: Colors.black87),
+              ),
             ],
           ),
         ),
       ],
     );
   }
-  
+
   // WIDGET BARU (disesuaikan untuk mention)
   Widget _buildCommentInputBar() {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        16 + MediaQuery.of(context).viewInsets.bottom,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -874,20 +1203,36 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 hintText: _texts['comment_hint'],
                 fillColor: const Color(0xFFF8FAFC),
                 filled: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
+                ),
               ),
-              minLines: 1, maxLines: 4,
+              minLines: 1,
+              maxLines: 4,
             ),
           ),
           const SizedBox(width: 8),
           _isPostingComment
-          ? const SizedBox(width: 44, height: 44, child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
-          : IconButton(
-              icon: const Icon(Icons.send_rounded),
-              style: IconButton.styleFrom(backgroundColor: const Color(0xFF1E3A8A), foregroundColor: Colors.white),
-              onPressed: _postComment,
-            ),
+              ? const SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.send_rounded),
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E3A8A),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: _postComment,
+                ),
         ],
       ),
     );
@@ -895,41 +1240,73 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
   // WIDGET BARU
   Widget _buildActionButtons() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: Colors.white,
-      child: _isFinishing 
-        ? const Center(child: CircularProgressIndicator())
-        : Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => _finishFinding(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(255, 21, 252, 71),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(_texts['finish']!, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _isFinishing ? null : () => _finishFinding(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(
+                0xFF00C9E4,
+              ), // sama dengan buat temuan
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              elevation: 2,
+              shadowColor: const Color(0xFF00C9E4).withOpacity(0.4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
               ),
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => _finishFinding(createNewAfter: true),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color.fromARGB(255, 21, 252, 71)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.save_outlined, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  _texts['finish']!,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                child: Text(_texts['finish_and_new']!, style: const TextStyle(color: Color(0xFF16A34A), fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: _isFinishing
+                ? null
+                : () => _finishFinding(createNewAfter: true),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF00C9E4), width: 1.5),
+              foregroundColor: const Color(0xFF00C9E4),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.add_circle_outline, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  _texts['finish_and_new']!,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1038,8 +1415,12 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             CircleAvatar(
               radius: 24,
               backgroundColor: Colors.grey.shade200,
-              backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-              child: avatarUrl == null ? const Icon(Icons.person, color: Colors.grey) : null,
+              backgroundImage: avatarUrl != null
+                  ? NetworkImage(avatarUrl)
+                  : null,
+              child: avatarUrl == null
+                  ? const Icon(Icons.person, color: Colors.grey)
+                  : null,
             ),
             Positioned(
               bottom: 0,
@@ -1060,9 +1441,18 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(
+                name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
               const SizedBox(height: 2),
-              Text(role, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              Text(
+                role,
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+              ),
             ],
           ),
         ),

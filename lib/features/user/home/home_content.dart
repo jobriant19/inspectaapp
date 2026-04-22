@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../finding/finding_detail_screen.dart';
 import 'location_screen.dart';
 import '../ktsproduksi/kts_produksi_screen.dart';
 import '../accident/accident_report_screen.dart';
@@ -30,6 +31,7 @@ class HomeContent extends StatefulWidget {
   final Function(bool) onProModeChanged;
   final Function(bool) onVisitorModeChanged;
   final Widget Function() buildInfoCard;
+  final Function(int)? onVerifPointEarned;
 
   // ── PARAMETER BARU ──
   final bool isExecVerificator;
@@ -51,6 +53,7 @@ class HomeContent extends StatefulWidget {
     required this.onProModeChanged,
     required this.onVisitorModeChanged,
     required this.buildInfoCard,
+    this.onVerifPointEarned,
     this.userImage,
     this.userUnitId,
     this.userLokasiId,
@@ -166,8 +169,7 @@ class _HomeContentState extends State<HomeContent> {
   }
 
   Widget _buildFindingsTab() {
-    final userId =
-        Supabase.instance.client.auth.currentUser?.id;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return const SizedBox();
 
     Future<List<Map<String, dynamic>>> future;
@@ -203,8 +205,7 @@ class _HomeContentState extends State<HomeContent> {
           final temuanRaw = item['temuan'];
           if (temuanRaw == null) continue;
           if (temuanRaw is List && temuanRaw.isNotEmpty) {
-            result.add(
-                Map<String, dynamic>.from(temuanRaw.first));
+            result.add(Map<String, dynamic>.from(temuanRaw.first));
           } else if (temuanRaw is Map) {
             result.add(Map<String, dynamic>.from(temuanRaw));
           }
@@ -214,10 +215,10 @@ class _HomeContentState extends State<HomeContent> {
     }
 
     return FutureBuilder<List<Map<String, dynamic>>>(
+      key: ValueKey('findings_future_$_activeTab'),
       future: future,
       builder: (context, snapshot) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildRecentFindingsLoader();
         }
         if (snapshot.hasError ||
@@ -225,8 +226,7 @@ class _HomeContentState extends State<HomeContent> {
             snapshot.data!.isEmpty) {
           return Center(
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(vertical: 20.0),
+              padding: const EdgeInsets.symmetric(vertical: 20.0),
               child: Column(
                 children: [
                   Image.asset(
@@ -265,9 +265,24 @@ class _HomeContentState extends State<HomeContent> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: findings.length,
           itemBuilder: (context, index) => FindingCard(
-              data: findings[index],
-              lang: widget.lang,
-              onTap: widget.onRefresh),
+            data: findings[index],
+            lang: widget.lang,
+            // ── DIUBAH: navigasi ke FindingDetailScreen dan refresh setelah kembali ──
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => FindingDetailScreen(
+                    initialData: findings[index],
+                    lang: widget.lang,
+                  ),
+                ),
+              );
+              // Refresh list setelah kembali (misal setelah penyelesaian)
+              setState(() => _activeTab = _activeTab);
+              widget.onRefresh();
+            },
+          ),
         );
       },
     );
@@ -452,6 +467,7 @@ class _HomeContentState extends State<HomeContent> {
             builder: (_) => VerificationIntroScreen(
               lang: widget.lang,
               userJabatanId: widget.userJabatanId,
+              onPointEarned: widget.onVerifPointEarned, // TAMBAH INI
             ),
           ),
         );

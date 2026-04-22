@@ -70,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _previousPoin = 0;
   bool _isAnimatingPoin = false;
   int _displayedPoin = 0;
+  bool _hasSetupRouteObserver = false;
 
   // Dictionary Translate untuk Navigation Bar
   final Map<String, Map<String, String>> _navText = {
@@ -169,14 +170,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Animasi poin naik pada info card ──
   void _animatePoinUpdate(int newPoin) {
-    if (_isAnimatingPoin) return;
-    _previousPoin = _displayedPoin;
-    _isAnimatingPoin = true;
-    final diff = newPoin - _previousPoin;
-    if (diff == 0) { setState(() { _displayedPoin = newPoin; _isAnimatingPoin = false; }); return; }
+    if (_isAnimatingPoin) {
+      // Jika sedang animasi, langsung set target baru dan stop
+      setState(() {
+        _displayedPoin = newPoin;
+        _isAnimatingPoin = false;
+      });
+      return;
+    }
 
-    final steps = diff.abs().clamp(1, 30);
-    final stepValue = diff / steps;
+    final int startPoin = _displayedPoin;
+
+    // Tidak perlu animasi jika nilai sama
+    if (startPoin == newPoin) {
+      setState(() => _displayedPoin = newPoin);
+      return;
+    }
+
+    _isAnimatingPoin = true;
+    final int diff = newPoin - startPoin;
+    final int steps = diff.abs().clamp(1, 30);
+    final double stepValue = diff / steps;
     int currentStep = 0;
 
     Future.doWhile(() async {
@@ -184,14 +198,14 @@ class _HomeScreenState extends State<HomeScreen> {
       currentStep++;
       if (mounted) {
         setState(() {
-          _displayedPoin = (_previousPoin + (stepValue * currentStep)).round();
+          _displayedPoin = (startPoin + (stepValue * currentStep)).round();
           if (currentStep >= steps) {
             _displayedPoin = newPoin;
             _isAnimatingPoin = false;
           }
         });
       }
-      return currentStep < steps && mounted;
+      return currentStep < steps && mounted && _isAnimatingPoin;
     });
   }
 
@@ -470,7 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
             column: 'id_user',
             value: user.id,
           ),
-          callback: (payload) {
+          callback: (payload) async {
             if (!mounted) return;
 
             final newLog = payload.newRecord;
@@ -480,32 +494,57 @@ class _HomeScreenState extends State<HomeScreen> {
 
             if (points == 0) return;
 
-            // Tipe login ditangani oleh _handleLoginAndFetchData, skip di sini
-            // agar tidak muncul dobel
+            // ── UPDATE POIN LANGSUNG dari payload untuk SEMUA tipe ──
+            final int newPoin = _userPoin + points;
+            if (mounted) {
+              setState(() {
+                _userPoin = newPoin;
+                // Update log aktivitas terbaru langsung dari payload
+                _latestLogPoin = {
+                  'poin': points,
+                  'deskripsi': description,
+                  'tipe_aktivitas': tipe,
+                  'created_at': newLog['created_at'],
+                };
+              });
+              _animatePoinUpdate(newPoin);
+            }
+
+            // Tipe yang ditangani flow login — skip dialog notif realtime
             const Set<String> loginTipes = {
               'login_pertama',
               'login_harian',
               'login_pertama_hari_ini',
               'penalti',
             };
+
+            // Tipe verifikasi — sudah ditangani di ExecVerificationScreen
+            const Set<String> verifTipes = {
+              'verifikasi_partisipasi',
+              'verifikasi_benar',
+              'verifikasi_salah',
+            };
+
             if (loginTipes.contains(tipe)) {
-              // Hanya update data user, tidak tampilkan notif (sudah ditangani)
               _fetchUserData(silent: true);
               return;
             }
 
-            // Untuk tipe lain (temuan, penyelesaian, kts, accident, berbagi, dll)
+            if (verifTipes.contains(tipe)) {
+              _fetchUserData(silent: true);
+              return;
+            }
+
+            // Untuk tipe lainnya (temuan, penyelesaian, dll): tampilkan notif
             final now = DateTime.now();
             final bool isPenalty = points < 0;
 
             void showNotif() {
               if (!mounted) return;
-              // Tampilkan local notification
               NotificationService.instance.showNotification(
                 title: points > 0 ? '🎉 Poin Diterima!' : '⚠️ Poin Dikurangi',
                 body: description,
               );
-              // Dialog seperti sebelumnya
               if (isPenalty) {
                 _showPenaltyDialog(points, description);
               } else {
@@ -518,12 +557,13 @@ class _HomeScreenState extends State<HomeScreen> {
               Future.delayed(
                   const Duration(milliseconds: 3900), () => showNotif());
             } else {
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => showNotif());
+              WidgetsBinding.instance.addPostFrameCallback((_) => showNotif());
             }
 
             _lastDialogTime = now;
-            _fetchUserData(silent: true);
+
+            await Future.delayed(const Duration(milliseconds: 500));
+            if (mounted) _fetchUserData(silent: true);
           },
         )
         .subscribe();
@@ -875,8 +915,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
 
       final int newPoin = (userRow['poin'] as num?)?.toInt() ?? 0;
-      final int oldPoin = _userPoin;
-      final bool shouldAnimate = newPoin != oldPoin;
+      final bool shouldAnimate = newPoin != _displayedPoin && !_isAnimatingPoin;
 
       setState(() {
         _userName          = userRow['nama'] ?? metaName ?? 'User';
@@ -887,9 +926,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _userUnitId        = userRow['id_unit'];
         _userLokasiId      = userRow['id_lokasi'];
         _userLocationName  = locationName;
-        _latestLogPoin     = latestLog;
+        // Hanya update latestLog jika tidak sedang ada animasi aktif
+        // agar log tidak berubah di tengah animasi poin
+        if (latestLog != null) _latestLogPoin = latestLog;
         _isLatestLogLoading = false;
         _isUserDataLoading  = false;
+        // Jika tidak perlu animasi, langsung set displayed
         if (!shouldAnimate) {
           _displayedPoin = newPoin;
         }
@@ -1198,8 +1240,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       userRole: _userRole,
                     ),
                   ).then((isSuccess) {
-                    // Logika ini tetap berguna untuk me-refresh data setelah temuan berhasil disimpan
-                    // dan semua layar (form, kamera, lokasi) sudah di-pop.
+                    // Selalu refresh data saat kembali dari bottom sheet
+                    // (termasuk setelah buat temuan baru)
+                    _fetchUserData(silent: true);  // ← TAMBAHKAN BARIS INI
                     if (isSuccess == true) {
                       _handleLoginAndFetchData();
                     }
@@ -1312,6 +1355,12 @@ String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
       onVisitorModeChanged: _updateVisitorStatus,
       isExecVerificator: _isExecutiveVerificator,
       userJabatanId: _userJabatanId,
+      // TAMBAH CALLBACK INI:
+      onVerifPointEarned: (int earnedPoints) {
+        final int newPoin = _userPoin + earnedPoints;
+        setState(() => _userPoin = newPoin);
+        _animatePoinUpdate(newPoin);
+      },
       buildInfoCard: () => UserInfoCard(
         userName: _userName,
         userRole: _userRole,
@@ -1324,7 +1373,7 @@ String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
         onViewMoreTap: () => _showActivityLogDialog(context),
       ),
     );
-  } 
+  }
 
   // Notifikasi Mode Visitor
   void _showVisitorStatusDialog(bool isVisitor) {
