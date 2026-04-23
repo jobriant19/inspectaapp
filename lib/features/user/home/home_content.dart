@@ -26,6 +26,7 @@ class HomeContent extends StatefulWidget {
   final int? userLokasiId;
   final Map<String, dynamic>? latestLogPoin;
   final bool isLatestLogLoading;
+  final VoidCallback? onRequestRefresh;
   final VoidCallback onRefresh;
   final VoidCallback onViewActivityLog;
   final Function(bool) onProModeChanged;
@@ -36,6 +37,8 @@ class HomeContent extends StatefulWidget {
   // ── PARAMETER BARU ──
   final bool isExecVerificator;
   final int? userJabatanId;
+  final bool shouldRefreshFindings;
+  final VoidCallback? onRefreshDone;
 
   const HomeContent({
     super.key,
@@ -62,14 +65,18 @@ class HomeContent extends StatefulWidget {
     // ── PARAMETER BARU (opsional, default false/null) ──
     this.isExecVerificator = false,
     this.userJabatanId,
+    this.onRequestRefresh,
+    this.shouldRefreshFindings = false,
+    this.onRefreshDone,
   });
 
   @override
-  State<HomeContent> createState() => _HomeContentState();
+  State<HomeContent> createState() => HomeContentState();
 }
 
-class _HomeContentState extends State<HomeContent> {
+class HomeContentState extends State<HomeContent> {
   String _activeTab = 'my';
+  Future<List<Map<String, dynamic>>>? _findingsFuture;
 
   static const Map<String, Map<String, String>> _texts = {
     'EN': {
@@ -129,28 +136,99 @@ class _HomeContentState extends State<HomeContent> {
 
   String _t(String key) => _texts[widget.lang]?[key] ?? key;
 
+  @override
+  void initState() {
+    super.initState();
+    _findingsFuture = _buildFindingsFuture();
+    // Daftarkan refreshFindings ke parent melalui onRefresh
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.onRefresh != null) {
+        // Simpan referensi ke HomeScreen
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(HomeContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Refresh findings jika dipicu dari luar
+    if (widget.shouldRefreshFindings == true && 
+        oldWidget.shouldRefreshFindings == false) {
+      setState(() {
+        _activeTab = 'my';
+        _findingsFuture = _buildFindingsFuture();
+      });
+      widget.onRefreshDone?.call();
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _buildFindingsFuture() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return Future.value([]);
+
+    if (_activeTab == 'my') {
+      return Supabase.instance.client
+          .from('temuan')
+          .select(
+              'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif')
+          .eq('id_user', userId)
+          .order('created_at', ascending: false)
+          .limit(10)
+          .then((v) => List<Map<String, dynamic>>.from(v));
+    } else if (_activeTab == 'assigned') {
+      return Supabase.instance.client
+          .from('temuan')
+          .select(
+              'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif')
+          .eq('id_penanggung_jawab', userId)
+          .order('created_at', ascending: false)
+          .limit(10)
+          .then((v) => List<Map<String, dynamic>>.from(v));
+    } else {
+      return Supabase.instance.client
+          .from('penyelesaian')
+          .select(
+              'id_penyelesaian, temuan(id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif)')
+          .eq('id_user', userId)
+          .order('tanggal_selesai', ascending: false)
+          .limit(10)
+          .then((v) {
+        final List<Map<String, dynamic>> result = [];
+        for (final item in v) {
+          final temuanRaw = item['temuan'];
+          if (temuanRaw == null) continue;
+          if (temuanRaw is List && temuanRaw.isNotEmpty) {
+            result.add(Map<String, dynamic>.from(temuanRaw.first));
+          } else if (temuanRaw is Map) {
+            result.add(Map<String, dynamic>.from(temuanRaw));
+          }
+        }
+        return result;
+      });
+    }
+  }
+
   Widget _buildTabChip(String tabKey, String label) {
     final bool isActive = _activeTab == tabKey;
     return GestureDetector(
-      onTap: () => setState(() => _activeTab = tabKey),
+      onTap: () => setState(() {
+        _activeTab = tabKey;
+        _findingsFuture = _buildFindingsFuture(); // ← TAMBAH
+      }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isActive ? const Color(0xFF00C9E4) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isActive
-                ? const Color(0xFF00C9E4)
-                : Colors.grey.shade300,
+            color: isActive ? const Color(0xFF00C9E4) : Colors.grey.shade300,
             width: 1.5,
           ),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                      color:
-                          const Color(0xFF00C9E4).withOpacity(0.25),
+                      color: const Color(0xFF00C9E4).withOpacity(0.25),
                       blurRadius: 8,
                       offset: const Offset(0, 3))
                 ]
@@ -172,51 +250,9 @@ class _HomeContentState extends State<HomeContent> {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return const SizedBox();
 
-    Future<List<Map<String, dynamic>>> future;
-    if (_activeTab == 'my') {
-      future = Supabase.instance.client
-          .from('temuan')
-          .select(
-              'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif')
-          .eq('id_user', userId)
-          .order('created_at', ascending: false)
-          .limit(10)
-          .then((v) => List<Map<String, dynamic>>.from(v));
-    } else if (_activeTab == 'assigned') {
-      future = Supabase.instance.client
-          .from('temuan')
-          .select(
-              'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif')
-          .eq('id_penanggung_jawab', userId)
-          .order('created_at', ascending: false)
-          .limit(10)
-          .then((v) => List<Map<String, dynamic>>.from(v));
-    } else {
-      future = Supabase.instance.client
-          .from('penyelesaian')
-          .select(
-              'id_penyelesaian, temuan(id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif)')
-          .eq('id_user', userId)
-          .order('tanggal_selesai', ascending: false)
-          .limit(10)
-          .then((v) {
-        final List<Map<String, dynamic>> result = [];
-        for (final item in v) {
-          final temuanRaw = item['temuan'];
-          if (temuanRaw == null) continue;
-          if (temuanRaw is List && temuanRaw.isNotEmpty) {
-            result.add(Map<String, dynamic>.from(temuanRaw.first));
-          } else if (temuanRaw is Map) {
-            result.add(Map<String, dynamic>.from(temuanRaw));
-          }
-        }
-        return result;
-      });
-    }
-
     return FutureBuilder<List<Map<String, dynamic>>>(
       key: ValueKey('findings_future_$_activeTab'),
-      future: future,
+      future: _findingsFuture, // ← GUNAKAN STATE VARIABLE
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildRecentFindingsLoader();
@@ -251,8 +287,7 @@ class _HomeContentState extends State<HomeContent> {
                   Text(
                     _t('no_findings_subtitle'),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 13, color: Colors.grey),
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                 ],
               ),
@@ -267,7 +302,6 @@ class _HomeContentState extends State<HomeContent> {
           itemBuilder: (context, index) => FindingCard(
             data: findings[index],
             lang: widget.lang,
-            // ── DIUBAH: navigasi ke FindingDetailScreen dan refresh setelah kembali ──
             onTap: () async {
               await Navigator.push(
                 context,
@@ -278,14 +312,24 @@ class _HomeContentState extends State<HomeContent> {
                   ),
                 ),
               );
-              // Refresh list setelah kembali (misal setelah penyelesaian)
-              setState(() => _activeTab = _activeTab);
+              // Refresh findings dan data setelah kembali
+              setState(() {
+                _findingsFuture = _buildFindingsFuture();
+              });
               widget.onRefresh();
             },
           ),
         );
       },
     );
+  }
+
+  void refreshFindings() {
+    if (!mounted) return;
+    setState(() {
+      _activeTab = 'my';
+      _findingsFuture = _buildFindingsFuture();
+    });
   }
 
   Widget _buildRecentFindingsLoader() {

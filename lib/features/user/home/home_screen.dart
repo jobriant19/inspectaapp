@@ -50,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingVisitorStatus = true;
   bool _isUserDataLoading = true;
   RealtimeChannel? _pointChannel;
+  int _findingsRefreshTrigger = 0;
 
   // Data User
   String _userName = "...";
@@ -70,7 +71,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _previousPoin = 0;
   bool _isAnimatingPoin = false;
   int _displayedPoin = 0;
-  bool _hasSetupRouteObserver = false;
+  final RouteObserver<ModalRoute<void>> _routeObserver = RouteObserver<ModalRoute<void>>();
+  _PendingPointNotif? _pendingPointNotif;
+  final GlobalKey<HomeContentState> _homeContentKey = GlobalKey<HomeContentState>();
+  VoidCallback? _triggerFindingsRefresh;
+  bool _shouldRefreshFindings = false;
 
   // Dictionary Translate untuk Navigation Bar
   final Map<String, Map<String, String>> _navText = {
@@ -166,6 +171,31 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+  }
+
+  void _tryShowPendingNotif() async {
+    if (_pendingPointNotif == null) return;
+    if (!mounted) return;
+
+    // Pastikan kita benar-benar di HomeScreen (tidak ada screen lain di atas)
+    // Tunggu sampai navigation selesai
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted || _pendingPointNotif == null) return;
+
+    final notif = _pendingPointNotif!;
+    _pendingPointNotif = null;
+    _lastDialogTime = DateTime.now();
+
+    NotificationService.instance.showNotification(
+      title: notif.points > 0 ? '🎉 Poin Diterima!' : '⚠️ Poin Dikurangi',
+      body: notif.description,
+    );
+
+    if (notif.points < 0) {
+      _showPenaltyDialog(notif.points, notif.description);
+    } else {
+      _showPointNotificationDialog(notif.points, notif.description, notif.tipe);
+    }
   }
 
   // ── Animasi poin naik pada info card ──
@@ -494,12 +524,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
             if (points == 0) return;
 
-            // ── UPDATE POIN LANGSUNG dari payload untuk SEMUA tipe ──
+            // ── UPDATE POIN & LOG LANGSUNG dari realtime payload ──
             final int newPoin = _userPoin + points;
             if (mounted) {
               setState(() {
                 _userPoin = newPoin;
-                // Update log aktivitas terbaru langsung dari payload
                 _latestLogPoin = {
                   'poin': points,
                   'deskripsi': description,
@@ -508,9 +537,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 };
               });
               _animatePoinUpdate(newPoin);
+
+              // Refresh findings dan rebuild info card
+              if (mounted) {
+                setState(() {
+                  _findingsRefreshTrigger++;
+                });
+              }
             }
 
-            // Tipe yang ditangani flow login — skip dialog notif realtime
+            // Tipe login — skip dialog
             const Set<String> loginTipes = {
               'login_pertama',
               'login_harian',
@@ -518,7 +554,7 @@ class _HomeScreenState extends State<HomeScreen> {
               'penalti',
             };
 
-            // Tipe verifikasi — sudah ditangani di ExecVerificationScreen
+            // Tipe verifikasi — skip dialog
             const Set<String> verifTipes = {
               'verifikasi_partisipasi',
               'verifikasi_benar',
@@ -526,44 +562,33 @@ class _HomeScreenState extends State<HomeScreen> {
             };
 
             if (loginTipes.contains(tipe)) {
-              _fetchUserData(silent: true);
+              await Future.delayed(const Duration(milliseconds: 800));
+              if (mounted) _fetchUserData(silent: true);
               return;
             }
 
             if (verifTipes.contains(tipe)) {
-              _fetchUserData(silent: true);
+              await Future.delayed(const Duration(milliseconds: 800));
+              if (mounted) _fetchUserData(silent: true);
               return;
             }
 
-            // Untuk tipe lainnya (temuan, penyelesaian, dll): tampilkan notif
-            final now = DateTime.now();
-            final bool isPenalty = points < 0;
+            // ── Untuk tipe lainnya: simpan pending notif ──
+            _pendingPointNotif = _PendingPointNotif(
+              points: points,
+              description: description,
+              tipe: tipe,
+            );
 
-            void showNotif() {
-              if (!mounted) return;
-              NotificationService.instance.showNotification(
-                title: points > 0 ? '🎉 Poin Diterima!' : '⚠️ Poin Dikurangi',
-                body: description,
-              );
-              if (isPenalty) {
-                _showPenaltyDialog(points, description);
-              } else {
-                _showPointNotificationDialog(points, description, tipe);
-              }
-            }
+            // Tunggu 1.5 detik agar navigation pop selesai dulu
+            await Future.delayed(const Duration(milliseconds: 1500));
+            if (!mounted) return;
 
-            if (_lastDialogTime != null &&
-                now.difference(_lastDialogTime!).inMilliseconds < 3800) {
-              Future.delayed(
-                  const Duration(milliseconds: 3900), () => showNotif());
-            } else {
-              WidgetsBinding.instance.addPostFrameCallback((_) => showNotif());
-            }
+            // Refresh data user (poin, log) dari DB
+            await _fetchUserData(silent: true);
 
-            _lastDialogTime = now;
-
-            await Future.delayed(const Duration(milliseconds: 500));
-            if (mounted) _fetchUserData(silent: true);
+            // Tampilkan dialog notif
+            if (mounted) _tryShowPendingNotif();
           },
         )
         .subscribe();
@@ -675,7 +700,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    // Hentikan listener saat halaman ditutup untuk menghindari memory leak
     if (_pointChannel != null) {
       Supabase.instance.client.removeChannel(_pointChannel!);
     }
@@ -1229,7 +1253,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () {
                   showModalBottomSheet(
                     context: context,
-                    isScrollControlled: true, // Agar bisa full screen jika data banyak
+                    isScrollControlled: true,
                     backgroundColor: Colors.transparent,
                     builder: (context) => LocationBottomSheet(
                       lang: _lang,
@@ -1239,12 +1263,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       userLokasiId: _userLokasiId,
                       userRole: _userRole,
                     ),
-                  ).then((isSuccess) {
-                    // Selalu refresh data saat kembali dari bottom sheet
-                    // (termasuk setelah buat temuan baru)
-                    _fetchUserData(silent: true);  // ← TAMBAHKAN BARIS INI
+                  ).then((isSuccess) async {
                     if (isSuccess == true) {
-                      _handleLoginAndFetchData();
+                      await _fetchUserData(silent: true);
+                      if (mounted) {
+                        setState(() {
+                          _findingsRefreshTrigger++;
+                        });
+                      }
+                      Future.delayed(const Duration(milliseconds: 1500), () {
+                        if (mounted) _tryShowPendingNotif();
+                      });
                     }
                   });
                 },
@@ -1328,10 +1357,11 @@ class _HomeScreenState extends State<HomeScreen> {
     },
   };
 
-String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
-  // Desain Konten Beranda Asli
+  String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
+
   Widget _buildHomeContent() {
     return HomeContent(
+      key: ValueKey(_findingsRefreshTrigger),
       lang: _lang,
       isProMode: _isProMode,
       isVisitorMode: _isVisitorMode,
@@ -1346,7 +1376,10 @@ String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
       userLokasiId: _userLokasiId,
       latestLogPoin: _latestLogPoin,
       isLatestLogLoading: _isLatestLogLoading,
-      onRefresh: _handleLoginAndFetchData,
+      onRefresh: () {
+        _fetchUserData(silent: true);
+        _tryShowPendingNotif();
+      },
       onViewActivityLog: () => _showActivityLogDialog(context),
       onProModeChanged: (val) {
         setState(() => _isProMode = val);
@@ -1355,7 +1388,6 @@ String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
       onVisitorModeChanged: _updateVisitorStatus,
       isExecVerificator: _isExecutiveVerificator,
       userJabatanId: _userJabatanId,
-      // TAMBAH CALLBACK INI:
       onVerifPointEarned: (int earnedPoints) {
         final int newPoin = _userPoin + earnedPoints;
         setState(() => _userPoin = newPoin);
@@ -1668,6 +1700,19 @@ String getHomeTxt(String key) => _homeTxtMini[_lang]?[key] ?? key;
       },
     );
   }
+}
+
+// ── Helper class untuk menyimpan notif yang pending ──
+class _PendingPointNotif {
+  final int points;
+  final String description;
+  final String tipe;
+
+  const _PendingPointNotif({
+    required this.points,
+    required this.description,
+    required this.tipe,
+  });
 }
 
 // ============================================================

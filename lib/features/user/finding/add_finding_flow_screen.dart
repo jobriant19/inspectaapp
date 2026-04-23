@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
@@ -236,8 +237,8 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'id_unit': _selectedLocation?['id_unit'],
         'id_subunit': _selectedLocation?['id_subunit'],
         'id_area': _selectedLocation?['id_area'],
-        'id_kategoritemuan': _selectedCategory?['id_kategoritemuan'],
-        'id_subkategoritemuan': _selectedCategory?['id_subkategoritemuan'],
+        'id_kategoritemuan_uuid': _selectedCategory?['id_kategoritemuan_uuid'],
+        'id_subkategoritemuan_uuid': _selectedCategory?['id_subkategoritemuan_uuid'],
         'poin_temuan': _selectedCategory?['poin'] ?? 10,
         'is_pro': widget.isProMode,
         'is_visitor': widget.isVisitorMode,
@@ -274,7 +275,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       // 3. Insert to temuan
       await supabase.from('temuan').insert(dataToInsert);
 
-      _showSnackBar(_texts['save_success']!, isError: false);
+      await _showSaveSuccessDialog();
 
       if (createNewAfter) {
         if (mounted) {
@@ -296,7 +297,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           );
         }
       } else {
-        if (mounted) Navigator.pop(context, true);
+        if (mounted) {
+          // Pop AddFindingFlowScreen dengan true
+          Navigator.pop(context, true);
+        }
       }
     } catch (e) {
       debugPrint("Error saving finding: $e");
@@ -316,6 +320,117 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         setState(() => _isSaving = false);
       }
     }
+  }
+
+  Future<void> _showSaveSuccessDialog() async {
+    if (!mounted) return;
+    final completer = Completer<void>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.55),
+      builder: (dialogContext) {
+        // Auto close setelah 3 detik
+        Future.delayed(const Duration(milliseconds: 3000), () {
+          if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+            Navigator.of(dialogContext).pop();
+            if (!completer.isCompleted) completer.complete();
+          }
+        });
+
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 36),
+              padding: const EdgeInsets.fromLTRB(24, 30, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withOpacity(0.3),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF16A34A).withOpacity(0.1),
+                      border: Border.all(
+                        color: const Color(0xFF16A34A).withOpacity(0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF16A34A),
+                      size: 50,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    widget.lang == 'EN'
+                        ? 'Finding Saved!'
+                        : widget.lang == 'ZH'
+                            ? '发现已保存！'
+                            : 'Temuan Tersimpan!',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF16A34A),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.lang == 'EN'
+                        ? 'Your finding has been successfully saved.'
+                        : widget.lang == 'ZH'
+                            ? '您的发现已成功保存。'
+                            : 'Temuan Anda berhasil disimpan.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 1.0, end: 0.0),
+                      duration: const Duration(milliseconds: 3000),
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 4,
+                        backgroundColor:
+                            const Color(0xFF16A34A).withOpacity(0.1),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF16A34A)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ).then((_) {
+      if (!completer.isCompleted) completer.complete();
+    });
+
+    await completer.future;
   }
 
   void _showSnackBar(String message, {required bool isError}) {
@@ -1674,10 +1789,10 @@ class _CategoryPickerBottomSheetState
                                   return InkWell(
                                     onTap: () {
                                       Navigator.pop(context, {
-                                        'id_kategoritemuan':
-                                            sub['id_kategoritemuan'],
-                                        'id_subkategoritemuan':
-                                            sub['id_subkategoritemuan'],
+                                        'id_kategoritemuan_uuid':
+                                            sub['id_kategoritemuan_uuid'],
+                                        'id_subkategoritemuan_uuid':
+                                            sub['id_subkategoritemuan_uuid'],
                                         'nama':
                                             sub['nama_subkategoritemuan'],
                                         'poin':
