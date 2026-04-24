@@ -119,25 +119,119 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen> {
   }
 
   Future<void> _deleteReport(int id) async {
-    final confirmed = await showCupertinoDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => CupertinoAlertDialog(
-        title: Text(t['delete_confirm']!,
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
-        content: const Text('Tindakan ini tidak dapat dibatalkan.'),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(t['cancel']!,
-                style:
-                    const TextStyle(color: CupertinoColors.systemBlue)),
+      barrierDismissible: true,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          CupertinoDialogAction(
-            isDestructiveAction: true,
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(t['delete']!),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(CupertinoIcons.trash_fill,
+                    color: Color(0xFFEF4444), size: 32),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                t['delete_confirm']!,
+                style: GoogleFonts.inter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF0F172A)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.lang == 'EN'
+                    ? 'This action cannot be undone.'
+                    : widget.lang == 'ZH'
+                        ? '此操作无法撤销。'
+                        : 'Tindakan ini tidak dapat dibatalkan.',
+                style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: const Color(0xFF94A3B8)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context, false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Center(
+                          child: Text(
+                            t['cancel']!,
+                            style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF475569)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context, true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEF4444).withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            t['delete']!,
+                            style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
     if (confirmed != true) return;
@@ -166,19 +260,19 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: Color(0xFFD97706)),
+          icon: const Icon(CupertinoIcons.back, color: Color(0xFF2563EB)),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(t['title']!,
             style: GoogleFonts.inter(
-                color: const Color(0xFFD97706),
+                color: const Color(0xFF2563EB),
                 fontWeight: FontWeight.w700,
                 fontSize: 17)),
         centerTitle: true,
         actions: [
           IconButton(
             onPressed: _fetchReports,
-            icon: const Icon(CupertinoIcons.refresh, color: Color(0xFFD97706)),
+            icon: const Icon(CupertinoIcons.refresh, color: Color(0xFF2563EB)),
           ),
         ],
         bottom: PreferredSize(
@@ -299,9 +393,9 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen> {
 
   Widget _buildCard(Map<String, dynamic> r) {
     final status = r['status_temuan'] ?? 'Belum';
-    final isResolved = status == 'Selesai' || status == 'Teratasi';
-    final statusColor = isResolved ? const Color(0xFF16A34A) : const Color(0xFFD97706);
-    final statusBg = isResolved ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7);
+    final isResolved = status == 'Closed' || status == 'Teratasi' || status == 'Selesai';
+    final statusColor = isResolved ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    final statusBg = isResolved ? const Color(0xFFDCFCE7) : const Color(0xFFFFE4E6);
     final statusIcon = isResolved
         ? CupertinoIcons.check_mark_circled_solid
         : CupertinoIcons.clock_solid;
@@ -414,7 +508,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen> {
                         const SizedBox(height: 4),
                         Text(itemName,
                             style: GoogleFonts.inter(
-                                fontSize: 13, color: const Color(0xFF64748B))),
+                                fontSize: 13, color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
                         const SizedBox(height: 10),
                         Row(
                           children: [
@@ -447,20 +541,20 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF7ED),
+                      color: const Color(0xFFF5F3FF),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
                         const Icon(CupertinoIcons.folder_fill,
-                            size: 12, color: Color(0xFFD97706)),
+                            size: 12, color: Color(0xFF7C3AED)),
                         const SizedBox(width: 4),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 120),
                           child: Text(subKategori,
                               style: GoogleFonts.inter(
                                   fontSize: 11,
-                                  color: const Color(0xFFD97706),
+                                  color: const Color(0xFF7C3AED),
                                   fontWeight: FontWeight.w600),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis),
@@ -472,11 +566,11 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen> {
                   Row(
                     children: [
                       const Icon(CupertinoIcons.calendar,
-                          size: 12, color: Color(0xFF94A3B8)),
+                          size: 12, color: Color.fromARGB(255, 6, 7, 7)),
                       const SizedBox(width: 4),
                       Text(dateStr,
                           style: GoogleFonts.inter(
-                              fontSize: 11, color: const Color(0xFF94A3B8))),
+                              fontSize: 11, color: const Color.fromARGB(255, 19, 20, 22), fontWeight: FontWeight.w600)),
                     ],
                   ),
                   if (isOwner) ...[
@@ -614,18 +708,42 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen> {
 
   Widget _buildShimmer() {
     return Shimmer.fromColors(
-      baseColor: const Color(0xFFE2E8F0),
-      highlightColor: Colors.white,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: 4,
-        itemBuilder: (_, __) => Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          height: 150,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
+      baseColor: const Color(0xFFFEF3C7),
+      highlightColor: const Color(0xFFFFFBEB),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Shimmer create button
+            Container(
+              height: 90,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            const SizedBox(height: 28),
+            // Shimmer history label
+            Container(
+              height: 16,
+              width: 180,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            const SizedBox(height: 14),
+            // Shimmer cards
+            ...List.generate(3, (_) => Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              height: 150,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            )),
+          ],
         ),
       ),
     );
@@ -851,7 +969,7 @@ class _KtsProduksiFormScreenState
                       style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: const Color(0xFFD97706))),
+                          color: const Color(0xFF2563EB))),
                 ),
               ),
               const Divider(color: CupertinoColors.systemGrey5),
@@ -888,7 +1006,7 @@ class _KtsProduksiFormScreenState
                       trailing: isSelected
                           ? const Icon(
                               CupertinoIcons.check_mark,
-                              color: const Color(0xFFD97706))
+                              color: const Color(0xFF2563EB))
                           : null,
                       onTap: () {
                         setState(
@@ -1288,13 +1406,13 @@ class _KtsProduksiFormScreenState
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: Color(0xFFD97706)),
+          icon: const Icon(CupertinoIcons.back, color: Color(0xFF2563EB)),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
             _isEdit ? t['edit_title']! : t['create_title']!,
             style: GoogleFonts.inter(
-                color: const Color(0xFFD97706),
+                color: const Color(0xFF2563EB),
                 fontWeight: FontWeight.w700,
                 fontSize: 17)),
         centerTitle: true,
@@ -1401,13 +1519,12 @@ class _KtsProduksiFormScreenState
               child: Container(
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFFBBF24), Color(0xFFD97706)],
+                    colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
                   ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFF59E0B)
-                          .withOpacity(0.4),
+                      color: const Color(0xFF3B82F6).withOpacity(0.4),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -1439,19 +1556,17 @@ class _KtsProduksiFormScreenState
     );
   }
 
-  Widget _buildSectionCard(
-      {required List<Widget> children}) {
+  Widget _buildSectionCard({required List<Widget> children}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border:
-            Border.all(color: const Color(0xFFFDE68A), width: 1),
+        border: Border.all(color: const Color(0xFFE0E7FF), width: 1),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFD97706).withOpacity(0.05),
+            color: const Color(0xFF3B82F6).withOpacity(0.05),
             blurRadius: 12,
             offset: const Offset(0, 2),
           ),
@@ -1499,7 +1614,7 @@ class _KtsProduksiFormScreenState
             color: const Color(0xFFCBD5E1), fontSize: 15),
         prefixIcon: maxLines == 1
             ? Icon(icon,
-                color: const Color(0xFFD97706), size: 20)
+                color: const Color(0xFF2563EB), size: 20)
             : null,
         filled: true,
         fillColor: const Color(0xFFF8FAFF),
@@ -1509,11 +1624,11 @@ class _KtsProduksiFormScreenState
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(
-                color: Color(0xFFFDE68A), width: 1)),
+                color: Color(0xFFE0E7FF), width: 1)),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(
-                color: Color(0xFFD97706), width: 1.5)),
+                color: Color(0xFF2563EB), width: 1.5)),
         contentPadding: const EdgeInsets.symmetric(
             horizontal: 16, vertical: 16),
       ),
@@ -1535,16 +1650,15 @@ class _KtsProduksiFormScreenState
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
               color: hasValue
-                  ? const Color(0xFFD97706)
-                  : const Color(0xFFFDE68A),
+                  ? const Color(0xFF2563EB)
+                  : const Color(0xFFE0E7FF),
               width: hasValue ? 1.5 : 1),
         ),
         child: Row(
           children: [
             Icon(icon,
                 color: hasValue
-                    ? const Color(0xFFD97706)
-                    : const Color(0xFFCBD5E1),
+                    ? const Color(0xFF2563EB) : const Color(0xFFCBD5E1),
                 size: 20),
             const SizedBox(width: 12),
             Expanded(
@@ -1558,8 +1672,7 @@ class _KtsProduksiFormScreenState
                           ? FontWeight.w500
                           : FontWeight.normal)),
             ),
-            Icon(CupertinoIcons.chevron_down,
-                color: const Color(0xFFD97706), size: 18),
+            Icon(CupertinoIcons.chevron_down, color: const Color(0xFF2563EB), size: 18),
           ],
         ),
       ),
@@ -1573,7 +1686,7 @@ class _KtsProduksiFormScreenState
         color: const Color(0xFFF8FAFF),
         borderRadius: BorderRadius.circular(12),
         border: const Border.fromBorderSide(
-            BorderSide(color: Color(0xFFFDE68A), width: 1)),
+            BorderSide(color: Color(0xFFE0E7FF), width: 1)),
       ),
       child: Row(
         children: [
@@ -1588,15 +1701,13 @@ class _KtsProduksiFormScreenState
               child: Center(
                   child: Icon(CupertinoIcons.minus,
                       size: 16,
-                      color: _qty > 1
-                          ? const Color(0xFFD97706)
-                          : const Color(0xFFCBD5E1))),
+                      color: _qty > 1 ? const Color(0xFF2563EB) : const Color(0xFFCBD5E1))),
             ),
           ),
           Container(
             width: 1,
             height: 28,
-            color: const Color(0xFFFDE68A),
+            color: const Color(0xFFE0E7FF),
           ),
           Expanded(
             child: Center(
@@ -1604,13 +1715,13 @@ class _KtsProduksiFormScreenState
                   style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFFD97706))),
+                      color: const Color(0xFF2563EB))),
             ),
           ),
           Container(
             width: 1,
             height: 28,
-            color: const Color(0xFFFDE68A),
+            color: const Color(0xFFE0E7FF),
           ),
           Expanded(
             child: InkWell(
@@ -1621,7 +1732,7 @@ class _KtsProduksiFormScreenState
               child: const Center(
                   child: Icon(CupertinoIcons.add,
                       size: 16,
-                      color: const Color(0xFFD97706))),
+                      color: const Color(0xFF2563EB))),
             ),
           ),
         ],
@@ -1640,8 +1751,7 @@ class _KtsProduksiFormScreenState
             hintText: t['item_hint']!,
             hintStyle: GoogleFonts.inter(
                 color: const Color(0xFFCBD5E1), fontSize: 15),
-            prefixIcon: const Icon(CupertinoIcons.search,
-                color: const Color(0xFFD97706), size: 20),
+            prefixIcon: const Icon(CupertinoIcons.search, color: Color(0xFF2563EB), size: 20),
             suffixIcon: _isSearchingItems
                 ? const Padding(
                     padding: EdgeInsets.all(14),
@@ -1650,7 +1760,7 @@ class _KtsProduksiFormScreenState
                         height: 16,
                         child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: const Color(0xFFD97706))))
+                            color: const Color(0xFF2563EB))))
                 : _selectedItem != null
                     ? IconButton(
                         icon: const Icon(
@@ -1671,15 +1781,12 @@ class _KtsProduksiFormScreenState
             border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none),
-            enabledBorder: OutlineInputBorder(
+           enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                    color: Color(0xFFFDE68A), width: 1)),
+                borderSide: const BorderSide(color: Color(0xFFE0E7FF), width: 1)),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                    color: Color(0xFFD97706),
-                    width: 1.5)),
+                borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5)),
             contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16, vertical: 16),
           ),
@@ -1690,8 +1797,7 @@ class _KtsProduksiFormScreenState
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: const Color(0xFFFDE68A)),
+              border: Border.all(color: const Color(0xFFE0E7FF)),
               boxShadow: [
                 BoxShadow(
                     color: Colors.black.withOpacity(0.06),
@@ -1747,11 +1853,11 @@ class _KtsProduksiFormScreenState
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF3C7),
+        color: const Color(0xFFEFF6FF),
         borderRadius: BorderRadius.circular(8),
       ),
       child: const Icon(CupertinoIcons.cube_box,
-          color: Color(0xFFD97706), size: 20),
+          color: Color(0xFF2563EB), size: 20),
     );
   }
 
@@ -1768,7 +1874,7 @@ class _KtsProduksiFormScreenState
             color: const Color(0xFFF8FAFF),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-                color: const Color(0xFFFDE68A),
+                color: const Color(0xFFE0E7FF),
                 width: 1.5,
                 style: BorderStyle.solid),
           ),
@@ -1778,16 +1884,16 @@ class _KtsProduksiFormScreenState
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFEF3C7),
+                  color: const Color(0xFFEFF6FF),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(CupertinoIcons.camera,
-                    color: const Color(0xFFD97706), size: 28),
+                    color: const Color(0xFF2563EB), size: 28),
               ),
               const SizedBox(height: 12),
               Text(t['add_photo']!,
                   style: GoogleFonts.inter(
-                      color: const Color(0xFFD97706),
+                      color: const Color(0xFF2563EB),
                       fontWeight: FontWeight.w600,
                       fontSize: 14)),
             ],
@@ -2332,13 +2438,13 @@ class _KtsProduksiDetailScreenState
           scrolledUnderElevation: 0,
           leading: IconButton(
             icon: const Icon(CupertinoIcons.back,
-                color: const Color(0xFFD97706)),
+                color: Color(0xFF2563EB)),
             onPressed: () =>
                 Navigator.pop(context, _isDataChanged),
           ),
           title: Text(t['title']!,
               style: GoogleFonts.inter(
-                  color: const Color(0xFFD97706),
+                  color: const Color(0xFF2563EB),
                   fontWeight: FontWeight.w700,
                   fontSize: 17)),
           centerTitle: true,
@@ -2346,9 +2452,9 @@ class _KtsProduksiDetailScreenState
                   _data!['id_user'] == _currentUserId
               ? [
                   _buildAppBarActionButton(
-                    icon: CupertinoIcons.pencil,
-                    color: const Color(0xFFD97706),
-                    bgColor: const Color(0xFFFEF3C7),
+                    icon: CupertinoIcons.pencil_ellipsis_rectangle,
+                    color: const Color(0xFF2563EB),
+                    bgColor: const Color(0xFFEFF6FF),
                     onTap: () async {
                       final result = await Navigator.push(
                         context,
@@ -2381,14 +2487,153 @@ class _KtsProduksiDetailScreenState
           ),
         ),
         body: _isLoading
-            ? const Center(
-                child: CupertinoActivityIndicator(radius: 14))
+            ? _buildDetailShimmer()
             : _data == null
                 ? Center(
                     child: Text('Data tidak ditemukan',
                         style: GoogleFonts.inter(
                             color: CupertinoColors.systemGrey)))
                 : _buildContent(),
+      ),
+    );
+  }
+
+  Widget _buildDetailShimmer() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFE2E8F0),
+      highlightColor: const Color(0xFFF8FAFF),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Shimmer gambar header
+            Container(
+              height: 240,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Shimmer badge row
+            Row(
+              children: [
+                Container(
+                  height: 24,
+                  width: 110,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  height: 24,
+                  width: 90,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Shimmer judul
+            Container(
+              height: 28,
+              width: 220,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Shimmer info card
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  // item row
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              height: 16,
+                              width: 140,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 12,
+                              width: 80,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // info rows
+                  ...List.generate(4, (_) => Column(
+                    children: [
+                      Container(height: 1, color: const Color(0xFFF1F5F9)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(height: 14, width: 80, color: Colors.white),
+                            Container(height: 14, width: 100, color: Colors.white),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Shimmer resolution section title
+            Container(
+              height: 20,
+              width: 140,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Shimmer resolution form card
+            Container(
+              height: 300,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2484,7 +2729,7 @@ class _KtsProduksiDetailScreenState
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(colors: [
                     Color(0xFF1E40AF),
-                    Color(0xFFFBBF24)
+                    Color(0xFF2563EB)
                   ]),
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -2534,11 +2779,8 @@ class _KtsProduksiDetailScreenState
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: const Color(0xFFFDE68A), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFD97706).withOpacity(0.06),
+              border: Border.all(color: const Color(0xFFE0E7FF), width: 1.5),
+              boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withOpacity(0.06),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -2596,7 +2838,7 @@ class _KtsProduksiDetailScreenState
                                         vertical: 2),
                                 decoration: BoxDecoration(
                                   color:
-                                      const Color(0xFFFEF3C7),
+                                      const Color(0xFFEFF6FF),
                                   borderRadius:
                                       BorderRadius.circular(6),
                                 ),
@@ -2645,7 +2887,7 @@ class _KtsProduksiDetailScreenState
                     child: Row(
                       children: [
                         const Icon(CupertinoIcons.person_fill,
-                            color: Color(0xFFD97706), size: 20),
+                            color: const Color(0xFF2563EB), size: 20),
                         const SizedBox(width: 12),
                         Text(t['reported_by']!,
                             style: GoogleFonts.inter(
@@ -2670,14 +2912,14 @@ class _KtsProduksiDetailScreenState
                                     width: 28,
                                     height: 28,
                                     decoration: const BoxDecoration(
-                                      color: Color(0xFFFEF3C7),
+                                      color: const Color(0xFFEFF6FF),
                                       shape: BoxShape.circle,
                                     ),
                                     child: const Icon(
                                         CupertinoIcons
                                             .person_fill,
                                         size: 14,
-                                        color: Color(0xFFD97706)),
+                                        color: const Color(0xFF2563EB)),
                                   ),
                           ],
                         ),
@@ -2702,8 +2944,7 @@ class _KtsProduksiDetailScreenState
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: const Color(0xFFFDE68A), width: 1.5),
+                border: Border.all(color: const Color(0xFFE0E7FF), width: 1.5),
               ),
               child: Text(d['deskripsi_temuan'],
                   style: GoogleFonts.inter(
@@ -2736,7 +2977,7 @@ class _KtsProduksiDetailScreenState
   }
 
   Widget _buildSectionTitle(IconData icon, String title,
-      {Color color = const Color(0xFFD97706)}) {
+      {Color color = const Color(0xFF2563EB)}) {
     return Row(
       children: [
         Container(
@@ -2763,13 +3004,13 @@ class _KtsProduksiDetailScreenState
       height: 60,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFFEF3C7), Color(0xFFFDE68A)],
+          colors: [Color(0xFFEFF6FF), Color(0xFFE0E7FF)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
       child: const Icon(CupertinoIcons.cube_box,
-          color: Color(0xFFD97706), size: 28),
+          color: Color(0xFF2563EB), size: 28),
     );
   }
 
@@ -2780,7 +3021,7 @@ class _KtsProduksiDetailScreenState
           horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFFD97706), size: 18),
+          Icon(icon, color: const Color(0xFF2563EB), size: 18),
           const SizedBox(width: 12),
           Text(label,
               style: GoogleFonts.inter(

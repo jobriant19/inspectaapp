@@ -886,14 +886,14 @@ class _HomeScreenState extends State<HomeScreen> {
           _displayedPoin = 0;
           _userImage = metaImage;
           _userRole = 'Staff';
-          _userLocationName = 'Tidak Terdefinisi';
+          _userLocationName = '...';
           _isUserDataLoading = false;
         });
         return;
       }
 
       // Resolusi lokasi
-      String locationName = 'Tidak Terdefinisi';
+      String locationName = '...';
       final idArea    = userRow['id_area'];
       final idSubunit = userRow['id_subunit'];
       final idUnit    = userRow['id_unit'];

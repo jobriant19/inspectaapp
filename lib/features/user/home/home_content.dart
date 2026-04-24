@@ -603,7 +603,6 @@ class HomeContentState extends State<HomeContent> {
               : widget.buildInfoCard(),
 
           // ── Inspeksi Section ──
-          const SizedBox(height: 20),
           _buildSectionLabel(_t('inspeksi')),
           const SizedBox(height: 10),
 
@@ -692,9 +691,9 @@ class HomeContentState extends State<HomeContent> {
 
   Widget _buildSectionLabel(String text) => Text(
         text,
-        style: const TextStyle(
+        style: GoogleFonts.inter(
             fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: Colors.black54),
       );
 
