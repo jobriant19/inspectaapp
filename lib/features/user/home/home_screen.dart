@@ -1380,6 +1380,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _fetchUserData(silent: true);
         _tryShowPendingNotif();
       },
+      onRequestRefresh: () {
+        setState(() => _currentIndex = 1);
+      },
       onViewActivityLog: () => _showActivityLogDialog(context),
       onProModeChanged: (val) {
         setState(() => _isProMode = val);

@@ -1355,7 +1355,7 @@ class _KtsProduksiFormScreenState
             : _descCtrl.text.trim(),
         'jenis_temuan': 'KTS Production',
         'poin_temuan': 20,
-        'status_temuan': 'Open',
+        'status_temuan': 'Belum',
       };
 
       if (_isEdit) {
@@ -2389,7 +2389,7 @@ class _KtsProduksiDetailScreenState
           insertRes['id_penyelesaian'] as int;
 
       await supabase.from('temuan').update({
-        'status_temuan': 'Closed',
+        'status_temuan': 'Selesai',
         'id_penyelesaian': newPenyelesaianId,
       }).eq('id_temuan', widget.ktsId);
 

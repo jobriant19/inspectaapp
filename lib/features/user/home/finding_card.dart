@@ -43,7 +43,13 @@ class FindingCard extends StatelessWidget {
     final isEksekutif = data['is_eksekutif'] == true;
     final s = status.toLowerCase();
     final isFinished = ['selesai', 'done', 'completed', 'closed'].any((e) => s.contains(e));
-    final String statusText = isFinished ? 'Selesai' : 'Belum Selesai';
+    final Map<String, List<String>> _statusLabels = {
+      'ID': ['Selesai', 'Belum Selesai'],
+      'EN': ['Finished', 'Unfinished'],
+      'ZH': ['已完成', '未完成'],
+    };
+    final labels = _statusLabels[lang] ?? _statusLabels['ID']!;
+    final String statusText = isFinished ? labels[0] : labels[1];
 
     late Color statusColor;
     late Color statusBg;
@@ -67,14 +73,14 @@ class FindingCard extends StatelessWidget {
     String combinationKey = inspectionTypes.join('+');
     final Color borderColor;
     switch (combinationKey) {
-      case 'eksekutif+pro+visitor': borderColor = const Color(0xFF9333EA); break;
-      case 'pro+visitor': borderColor = const Color(0xFF16A34A); break;
-      case 'eksekutif+pro': borderColor = const Color(0xFFEA580C); break;
-      case 'eksekutif+visitor': borderColor = const Color(0xFF2563EB); break;
-      case 'pro': borderColor = const Color(0xFFF59E0B); break;
-      case 'visitor': borderColor = const Color(0xFF3B82F6); break;
-      case 'eksekutif': borderColor = const Color(0xFFEF4444); break;
-      default: borderColor = const Color(0xFFF1F5F9);
+      case 'eksekutif+pro+visitor': borderColor = const Color(0xFF38BDF8); break;
+      case 'pro+visitor': borderColor = const Color(0xFF38BDF8); break;
+      case 'eksekutif+pro': borderColor = const Color(0xFF38BDF8); break;
+      case 'eksekutif+visitor': borderColor = const Color(0xFF38BDF8); break;
+      case 'pro': borderColor = const Color(0xFF38BDF8); break;
+      case 'visitor': borderColor = const Color(0xFF38BDF8); break;
+      case 'eksekutif': borderColor = const Color(0xFF38BDF8); break;
+      default: borderColor = const Color(0xFF38BDF8);
     }
 
     return GestureDetector(
@@ -88,7 +94,7 @@ class FindingCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: borderColor, width: borderColor == const Color(0xFFF1F5F9) ? 1.0 : 1.5),
+          border: Border.all(color: borderColor, width: 1.5),
           boxShadow: [BoxShadow(color: borderColor.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 6))],
         ),
         child: Padding(
@@ -116,6 +122,30 @@ class FindingCard extends StatelessWidget {
                       children: [
                         Expanded(child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, height: 1.3, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)))),
                         const SizedBox(width: 8),
+                        // Label jenis temuan
+                        () {
+                          final jenis = (data['jenis_temuan'] ?? '').toString();
+                          final isKts = jenis == 'KTS Production';
+                          final labelText = isKts ? 'KTS' : '5R';
+                          final labelColor = isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: labelColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: labelColor, width: 1.2),
+                            ),
+                            child: Text(
+                              labelText,
+                              style: TextStyle(
+                                color: labelColor,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 11,
+                              ),
+                            ),
+                          );
+                        }(),
+                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(

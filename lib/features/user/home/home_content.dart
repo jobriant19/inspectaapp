@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../explore/explore_screen.dart';
 import '../finding/finding_detail_screen.dart';
+import '../ktsproduksi/kts_detail_screen.dart';
 import 'location_screen.dart';
 import '../ktsproduksi/kts_produksi_screen.dart';
 import '../accident/accident_report_screen.dart';
@@ -10,6 +12,7 @@ import 'finding_card.dart';
 import 'choose_mode_sheet.dart';
 import 'executive_verification_screen.dart';
 import 'verification_intro_screen.dart';
+import 'kts_finding_card.dart';
 
 class HomeContent extends StatefulWidget {
   final String lang;
@@ -75,7 +78,8 @@ class HomeContent extends StatefulWidget {
 }
 
 class HomeContentState extends State<HomeContent> {
-  String _activeTab = 'my';
+  Set<String> _activeTabs = {'my'};
+  String _activeTypeFilter = '';
   Future<List<Map<String, dynamic>>>? _findingsFuture;
 
   static const Map<String, Map<String, String>> _texts = {
@@ -86,7 +90,7 @@ class HomeContentState extends State<HomeContent> {
       'telusur': 'Browse & Manage',
       'lokasi': 'Location',
       'laporan': 'Accident Report',
-      'recent_findings': 'Recent Findings',
+      'recent_findings': 'Latest Activity',
       'kts_produksi': 'Production KTS',
       'tab_my': 'My Findings',
       'tab_assigned': 'Assigned to Me',
@@ -96,6 +100,8 @@ class HomeContentState extends State<HomeContent> {
           'Recent findings you create or are involved in will appear here.',
       'verifikasi': 'Verification',
       'verifikasi_sub': 'Review pending reports',
+      'tab_5r': '5R Findings',
+      'tab_kts': 'KTS Production',
     },
     'ID': {
       'inspeksi': 'Inspeksi',
@@ -104,7 +110,7 @@ class HomeContentState extends State<HomeContent> {
       'telusur': 'Telusur & Atur',
       'lokasi': 'Lokasi',
       'laporan': 'Laporan Kecelakaan',
-      'recent_findings': 'Temuan Terbaru',
+      'recent_findings': 'Aktivitas Terbaru',
       'kts_produksi': 'KTS Produksi',
       'tab_my': 'Temuan Saya',
       'tab_assigned': 'Ditugaskan ke Saya',
@@ -114,6 +120,8 @@ class HomeContentState extends State<HomeContent> {
           'Temuan terbaru yang Anda buat atau terlibat di dalamnya akan muncul di sini.',
       'verifikasi': 'Verifikasi',
       'verifikasi_sub': 'Tinjau laporan yang menunggu',
+      'tab_5r': 'Temuan 5R',
+      'tab_kts': 'KTS Produksi',
     },
     'ZH': {
       'inspeksi': '检查',
@@ -122,7 +130,7 @@ class HomeContentState extends State<HomeContent> {
       'telusur': '浏览与管理',
       'lokasi': '地点',
       'laporan': '事故报告',
-      'recent_findings': '最新发现',
+      'recent_findings': '最新活动',
       'kts_produksi': '生产KTS',
       'tab_my': '我的发现',
       'tab_assigned': '分配给我',
@@ -131,6 +139,8 @@ class HomeContentState extends State<HomeContent> {
       'no_findings_subtitle': '您创建或参与的最新发现将显示在此处。',
       'verifikasi': '验证',
       'verifikasi_sub': '查看待审报告',
+      'tab_5r': '5R发现',
+      'tab_kts': 'KTS生产',
     },
   };
 
@@ -155,7 +165,7 @@ class HomeContentState extends State<HomeContent> {
     if (widget.shouldRefreshFindings == true && 
         oldWidget.shouldRefreshFindings == false) {
       setState(() {
-        _activeTab = 'my';
+        _activeTabs = {'my'};
         _findingsFuture = _buildFindingsFuture();
       });
       widget.onRefreshDone?.call();
@@ -166,58 +176,92 @@ class HomeContentState extends State<HomeContent> {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return Future.value([]);
 
-    if (_activeTab == 'my') {
-      return Supabase.instance.client
+    // Kumpulkan semua future sesuai tab aktif
+    final List<Future<List<Map<String, dynamic>>>> futures = [];
+
+    if (_activeTabs.contains('my')) {
+      var q = Supabase.instance.client
           .from('temuan')
-          .select(
-              'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif')
-          .eq('id_user', userId)
-          .order('created_at', ascending: false)
-          .limit(10)
-          .then((v) => List<Map<String, dynamic>>.from(v));
-    } else if (_activeTab == 'assigned') {
-      return Supabase.instance.client
-          .from('temuan')
-          .select(
-              'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif')
-          .eq('id_penanggung_jawab', userId)
-          .order('created_at', ascending: false)
-          .limit(10)
-          .then((v) => List<Map<String, dynamic>>.from(v));
-    } else {
-      return Supabase.instance.client
-          .from('penyelesaian')
-          .select(
-              'id_penyelesaian, temuan(id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif)')
-          .eq('id_user', userId)
-          .order('tanggal_selesai', ascending: false)
-          .limit(10)
-          .then((v) {
-        final List<Map<String, dynamic>> result = [];
-        for (final item in v) {
-          final temuanRaw = item['temuan'];
-          if (temuanRaw == null) continue;
-          if (temuanRaw is List && temuanRaw.isNotEmpty) {
-            result.add(Map<String, dynamic>.from(temuanRaw.first));
-          } else if (temuanRaw is Map) {
-            result.add(Map<String, dynamic>.from(temuanRaw));
-          }
-        }
-        return result;
-      });
+          .select('id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)')
+          .eq('id_user', userId);
+      if (_activeTypeFilter == '5r') q = q.neq('jenis_temuan', 'KTS Production');
+      if (_activeTypeFilter == 'kts') q = q.eq('jenis_temuan', 'KTS Production');
+      futures.add(q.order('created_at', ascending: false).limit(10).then((v) => List<Map<String, dynamic>>.from(v)));
     }
+
+    if (_activeTabs.contains('assigned')) {
+      var q = Supabase.instance.client
+          .from('temuan')
+          .select('id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)')
+          .eq('id_penanggung_jawab', userId);
+      if (_activeTypeFilter == '5r') q = q.neq('jenis_temuan', 'KTS Production');
+      if (_activeTypeFilter == 'kts') q = q.eq('jenis_temuan', 'KTS Production');
+      futures.add(q.order('created_at', ascending: false).limit(10).then((v) => List<Map<String, dynamic>>.from(v)));
+    }
+
+    if (_activeTabs.contains('resolved')) {
+      futures.add(
+        Supabase.instance.client
+            .from('penyelesaian')
+            .select('id_penyelesaian, temuan(id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan))')
+            .eq('id_user', userId)
+            .order('tanggal_selesai', ascending: false)
+            .limit(10)
+            .then((v) {
+          final result = <Map<String, dynamic>>[];
+          for (final item in v) {
+            final temuanRaw = item['temuan'];
+            if (temuanRaw == null) continue;
+            Map<String, dynamic> t;
+            if (temuanRaw is List && temuanRaw.isNotEmpty) {
+              t = Map<String, dynamic>.from(temuanRaw.first);
+            } else if (temuanRaw is Map) {
+              t = Map<String, dynamic>.from(temuanRaw);
+            } else continue;
+            if (_activeTypeFilter == '5r' && t['jenis_temuan'] == 'KTS Production') continue;
+            if (_activeTypeFilter == 'kts' && t['jenis_temuan'] != 'KTS Production') continue;
+            result.add(t);
+          }
+          return result;
+        }),
+      );
+    }
+
+    if (futures.isEmpty) return Future.value([]);
+
+    // Gabungkan semua hasil, hapus duplikat berdasarkan id_temuan
+    return Future.wait(futures).then((lists) {
+      final seen = <int>{};
+      final combined = <Map<String, dynamic>>[];
+      for (final list in lists) {
+        for (final item in list) {
+          final id = item['id_temuan'] as int?;
+          if (id != null && seen.add(id)) combined.add(item);
+        }
+      }
+      combined.sort((a, b) {
+        final da = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
+        final db = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
+        return db.compareTo(da);
+      });
+      return combined;
+    });
   }
 
   Widget _buildTabChip(String tabKey, String label) {
-    final bool isActive = _activeTab == tabKey;
+    final bool isActive = _activeTabs.contains(tabKey);
     return GestureDetector(
       onTap: () => setState(() {
-        _activeTab = tabKey;
-        _findingsFuture = _buildFindingsFuture(); // ← TAMBAH
+        if (isActive) {
+          _activeTabs.remove(tabKey);
+        } else {
+          _activeTabs.add(tabKey);
+        }
+        _findingsFuture = _buildFindingsFuture();
       }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
         decoration: BoxDecoration(
           color: isActive ? const Color(0xFF00C9E4) : Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -226,40 +270,130 @@ class HomeContentState extends State<HomeContent> {
             width: 1.5,
           ),
           boxShadow: isActive
-              ? [
-                  BoxShadow(
-                      color: const Color(0xFF00C9E4).withOpacity(0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3))
-                ]
+              ? [BoxShadow(color: const Color(0xFF00C9E4).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3))]
               : [],
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: isActive ? Colors.white : Colors.grey.shade600,
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: isActive ? Colors.white : Colors.grey.shade600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ),
     );
   }
 
+  Widget _buildTypeFilterBar() {
+    return Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() {
+              _activeTypeFilter = _activeTypeFilter == '5r' ? '' : '5r';
+              _findingsFuture = _buildFindingsFuture();
+            }),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              decoration: BoxDecoration(
+                color: _activeTypeFilter == '5r'
+                    ? const Color(0xFF38BDF8)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _activeTypeFilter == '5r'
+                      ? const Color(0xFF38BDF8)
+                      : const Color(0xFFCBD5E1),
+                  width: 1.5,
+                ),
+                boxShadow: _activeTypeFilter == '5r'
+                    ? [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4))]
+                    : [],
+              ),
+              child: Center(
+                child: Text(
+                  _t('tab_5r'),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _activeTypeFilter == '5r' ? Colors.white : const Color(0xFF38BDF8),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() {
+              _activeTypeFilter = _activeTypeFilter == 'kts' ? '' : 'kts';
+              _findingsFuture = _buildFindingsFuture();
+            }),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              decoration: BoxDecoration(
+                color: _activeTypeFilter == 'kts'
+                    ? const Color(0xFFFBBF24)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _activeTypeFilter == 'kts'
+                      ? const Color(0xFFFBBF24)
+                      : const Color(0xFFCBD5E1),
+                  width: 1.5,
+                ),
+                boxShadow: _activeTypeFilter == 'kts'
+                    ? [BoxShadow(color: const Color(0xFFFBBF24).withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4))]
+                    : [],
+              ),
+              child: Center(
+                child: Text(
+                  _t('tab_kts'),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _activeTypeFilter == 'kts' ? Colors.white : const Color(0xFFFBBF24),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  static const int _kMaxHomeCards = 5;
+ 
+  String _lihatSemuaLabel() {
+    switch (widget.lang) {
+      case 'EN': return 'View All';
+      case 'ZH': return '查看全部';
+      default: return 'Lihat Semua';
+    }
+  }
+  
   Widget _buildFindingsTab() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return const SizedBox();
-
+  
     return FutureBuilder<List<Map<String, dynamic>>>(
-      key: ValueKey('findings_future_$_activeTab'),
-      future: _findingsFuture, // ← GUNAKAN STATE VARIABLE
+      key: ValueKey('findings_future_${_activeTabs.join("_")}'),
+      future: _findingsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildRecentFindingsLoader();
         }
-        if (snapshot.hasError ||
-            !snapshot.hasData ||
-            snapshot.data!.isEmpty) {
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 20.0),
@@ -269,18 +403,14 @@ class HomeContentState extends State<HomeContent> {
                     'assets/images/team_illustration.png',
                     height: 150,
                     fit: BoxFit.contain,
-                    errorBuilder: (c, e, s) => const Icon(
-                        Icons.search_off,
-                        size: 80,
-                        color: Colors.grey),
+                    errorBuilder: (c, e, s) =>
+                        const Icon(Icons.search_off, size: 80, color: Colors.grey),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     _t('no_findings_title'),
                     style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E3A8A)),
+                        fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 6),
@@ -294,31 +424,99 @@ class HomeContentState extends State<HomeContent> {
             ),
           );
         }
-        final findings = snapshot.data!;
-        return ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: findings.length,
-          itemBuilder: (context, index) => FindingCard(
-            data: findings[index],
-            lang: widget.lang,
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => FindingDetailScreen(
-                    initialData: findings[index],
+  
+        final allFindings = snapshot.data!;
+        // Batasi maksimum 5 card di home
+        final findings = allFindings.take(_kMaxHomeCards).toList();
+        final hasMore = allFindings.length > _kMaxHomeCards;
+  
+        return Column(
+          children: [
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: findings.length,
+              itemBuilder: (context, index) {
+                final item = findings[index];
+                final isKts = (item['jenis_temuan'] ?? '') == 'KTS Production';
+  
+                if (isKts) {
+                  // Card KTS
+                  return KtsFindingCard(
+                    data: item,
                     lang: widget.lang,
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => KtsDetailScreen(
+                            ktsId: item['id_temuan'] as int,
+                            lang: widget.lang,
+                            initialData: item,
+                          ),
+                        ),
+                      );
+                      setState(() { _findingsFuture = _buildFindingsFuture(); });
+                      widget.onRefresh();
+                    },
+                  );
+                }
+  
+                // Card 5R biasa
+                return FindingCard(
+                  data: item,
+                  lang: widget.lang,
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FindingDetailScreen(
+                          initialData: item,
+                          lang: widget.lang,
+                        ),
+                      ),
+                    );
+                    setState(() { _findingsFuture = _buildFindingsFuture(); });
+                    widget.onRefresh();
+                  },
+                );
+              },
+            ),
+  
+            // Tombol "Lihat Semua" jika data > 5
+            if (hasMore) ...[
+              const SizedBox(height: 4),
+              GestureDetector(
+                onTap: () {
+                  widget.onRequestRefresh?.call();
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF00C9E4).withOpacity(0.4), width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _lihatSemuaLabel(),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF00C9E4),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.arrow_forward_rounded, size: 16, color: Color(0xFF00C9E4)),
+                    ],
                   ),
                 ),
-              );
-              // Refresh findings dan data setelah kembali
-              setState(() {
-                _findingsFuture = _buildFindingsFuture();
-              });
-              widget.onRefresh();
-            },
-          ),
+              ),
+            ],
+          ],
         );
       },
     );
@@ -327,7 +525,7 @@ class HomeContentState extends State<HomeContent> {
   void refreshFindings() {
     if (!mounted) return;
     setState(() {
-      _activeTab = 'my';
+      _activeTabs = {'my'};
       _findingsFuture = _buildFindingsFuture();
     });
   }
@@ -593,7 +791,7 @@ class HomeContentState extends State<HomeContent> {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.only(
-          left: 20, right: 20, top: 10, bottom: 100),
+          left: 20, right: 20, top: 10, bottom: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -669,19 +867,22 @@ class HomeContentState extends State<HomeContent> {
           // ── Recent Findings ──
           _buildSectionLabel(_t('recent_findings')),
           const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              _buildTabChip('my', _t('tab_my')),
+          // Filter utama: 5R & KTS
+          _buildTypeFilterBar(),
+          const SizedBox(height: 10),
+          // Filter tab: My / Assigned / Resolved
+          Row(
+            children: [
+              Expanded(child: _buildTabChip('my', _t('tab_my'))),
               const SizedBox(width: 8),
-              _buildTabChip('assigned', _t('tab_assigned')),
+              Expanded(child: _buildTabChip('assigned', _t('tab_assigned'))),
               const SizedBox(width: 8),
-              _buildTabChip('resolved', _t('tab_resolved')),
-            ]),
+              Expanded(child: _buildTabChip('resolved', _t('tab_resolved'))),
+            ],
           ),
           const SizedBox(height: 12),
           KeyedSubtree(
-            key: ValueKey('findings_tab_$_activeTab'),
+            key: ValueKey('findings_tab_${_activeTabs.join("_")}_$_activeTypeFilter'),
             child: _buildFindingsTab(),
           ),
         ],
