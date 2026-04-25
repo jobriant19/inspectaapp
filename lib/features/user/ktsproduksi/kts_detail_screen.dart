@@ -30,7 +30,7 @@ class KtsDetailScreen extends StatefulWidget {
 
 class _KtsDetailScreenState extends State<KtsDetailScreen> {
   Map<String, dynamic>? _data;
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool _isSavingResolution = false;
   String? _currentUserId;
   bool _isDataChanged = false;
@@ -144,12 +144,86 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   void initState() {
     super.initState();
     _currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    // Gunakan initialData jika tersedia agar terasa lebih cepat
     if (widget.initialData != null) {
       _data = widget.initialData;
       _isLoading = false;
+      // Load data di background tanpa menampilkan shimmer
+      _loadDataSilently();
+    } else {
+      _loadData();
     }
-    _loadData();
+  }
+
+  Future<void> _loadDataSilently() async {
+    // Load tanpa mengubah _isLoading, sehingga tidak ada shimmer
+    try {
+      final data = await Supabase.instance.client
+          .from('temuan')
+          .select('''
+            id_temuan, no_order, judul_temuan, deskripsi_temuan,
+            gambar_temuan, status_temuan, poin_temuan,
+            jumlah_item, nama_item_manual, jenis_temuan,
+            created_at, id_user, id_penyelesaian,
+            subkategoritemuan:id_subkategoritemuan_uuid(
+              id_subkategoritemuan,
+              nama_subkategoritemuan
+            ),
+            kategoritemuan:id_kategoritemuan_uuid(
+              id_kategoritemuan,
+              nama_kategoritemuan
+            ),
+            item_produksi:id_item(
+              id_item, nama_item, gambar_item, kode_item
+            ),
+            lokasi:id_lokasi(nama_lokasi)
+          ''')
+          .eq('id_temuan', widget.ktsId)
+          .single();
+
+      Map<String, dynamic>? pelaporData;
+      if (data['id_user'] != null) {
+        try {
+          pelaporData = await Supabase.instance.client
+              .from('User')
+              .select('nama, gambar_user')
+              .eq('id_user', data['id_user'])
+              .maybeSingle();
+        } catch (_) {}
+      }
+
+      Map<String, dynamic>? penyelesaianData;
+      final idPenyelesaian = data['id_penyelesaian'];
+      if (idPenyelesaian != null) {
+        try {
+          penyelesaianData = await Supabase.instance.client
+              .from('penyelesaian')
+              .select('id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, tanggal_selesai, poin_penyelesaian, additional_cost, id_user')
+              .eq('id_penyelesaian', idPenyelesaian)
+              .maybeSingle();
+          if (penyelesaianData != null && penyelesaianData['id_user'] != null) {
+            final solverRes = await Supabase.instance.client
+                .from('User')
+                .select('nama, gambar_user')
+                .eq('id_user', penyelesaianData['id_user'])
+                .maybeSingle();
+            penyelesaianData['solver'] = solverRes;
+          }
+        } catch (_) {}
+      }
+
+      if (mounted) {
+        setState(() {
+          _data = {
+            ...data,
+            'pelapor': pelaporData,
+            'penyelesaian': penyelesaianData,
+          };
+          // _isLoading tetap false, tidak ada shimmer
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading KTS detail silently: $e');
+    }
   }
 
   @override

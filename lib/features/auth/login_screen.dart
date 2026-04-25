@@ -452,7 +452,7 @@ class _LoginScreenState extends State<LoginScreen>
                     .single();
 
                 // ── Resolusi lokasi ──
-                String locationName = 'Tidak Terdefinisi';
+                String locationName = '...';
                 final idArea    = userData['id_area'];
                 final idSubunit = userData['id_subunit'];
                 final idUnit    = userData['id_unit'];

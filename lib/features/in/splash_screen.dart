@@ -56,7 +56,7 @@ class _SplashScreenState extends State<SplashScreen> {
         final isVerificator = userData['is_verificator'] as bool? ?? false;
 
         // ── Resolusi lokasi ──
-        String locationName = 'Tidak Terdefinisi';
+        String locationName = '...';
         final idArea    = userData['id_area'];
         final idSubunit = userData['id_subunit'];
         final idUnit    = userData['id_unit'];

@@ -78,7 +78,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   void initState() {
     super.initState();
     _setupTranslations();
-    _loadData();
+    _loadData(silent: true);
   }
 
   @override
@@ -89,11 +89,11 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     super.dispose();
   }
 
-  void _loadData() {
+  void _loadData({bool silent = false}) {
     final findingId = widget.initialData['id_temuan'];
     _findingDetailFuture = _fetchFindingDetails(findingId);
     _commentsFuture = _fetchComments(findingId);
-    setState(() {}); // Refresh UI
+    if (!silent) setState(() {});
   }
 
   // ===== DATA FETCHING =====
@@ -845,13 +845,26 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _texts['resolution_result']!,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1E3A8A),
-          ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF16A34A).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF16A34A)),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              _texts['resolution_result']!,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         Container(
@@ -860,11 +873,41 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200),
+            border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF16A34A).withOpacity(0.07),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      _texts['resolved']!,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Color(0xFF16A34A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               // Bagian Info Penyelesai
               if (solver != null) ...[
                 Text(
@@ -960,110 +1003,225 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _texts['resolution']!,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1E3A8A),
-          ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color.fromARGB(255, 105, 217, 6).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.build_circle_rounded, size: 16, color: Color.fromARGB(255, 76, 217, 6)),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              _texts['resolution']!,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
-        // Bagian Upload Gambar
-        if (_resolutionImageFile == null)
-          GestureDetector(
-            onTap: _pickResolutionImage,
-            child: Container(
-              height: 150,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.blueGrey.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.blueGrey.shade200, width: 2),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF16A34A).withOpacity(0.07),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Upload Foto
+              Row(
                 children: [
-                  const Icon(
-                    Icons.camera_alt_outlined,
-                    color: Colors.blueGrey,
-                    size: 40,
-                  ),
-                  const SizedBox(height: 8),
                   Text(
                     _texts['upload_proof']!,
                     style: const TextStyle(
-                      color: Colors.blueGrey,
                       fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                  const Text(' *', style: TextStyle(color: Colors.redAccent)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_resolutionImageFile == null)
+                GestureDetector(
+                  onTap: _pickResolutionImage,
+                  child: Container(
+                    height: 140,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFDCFCE7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded, color: Color(0xFF16A34A), size: 26),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          _texts['upload_proof']!,
+                          style: const TextStyle(
+                            color: Color(0xFF16A34A),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: kIsWeb
+                          ? Image.network(
+                              _resolutionImageFile!.path,
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            )
+                          : Image.file(
+                              File(_resolutionImageFile!.path),
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: _pickResolutionImage,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFF86EFAC)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.edit_rounded, size: 14, color: Color(0xFF16A34A)),
+                            const SizedBox(width: 6),
+                            Text(
+                              _texts['change_photo']!,
+                              style: const TextStyle(
+                                color: Color(0xFF16A34A),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 16),
+
+              // Catatan
+              Row(
+                children: [
+                  Text(
+                    _texts['resolution_notes']!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: Color(0xFF475569),
                     ),
                   ),
                 ],
               ),
-            ),
-          )
-        else
-          // Tampilan setelah gambar dipilih
-          Column(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: kIsWeb
-                    ? Image.network(
-                        _resolutionImageFile!.path,
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      )
-                    : Image.file(
-                        File(_resolutionImageFile!.path),
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _resolutionNotesController,
+                maxLines: 3,
+                style: const TextStyle(fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: _texts['resolution_notes_hint'],
+                  hintStyle: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 15),
+                  filled: true,
+                  fillColor: const Color(0xFFF0FDF4),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF86EFAC), width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF16A34A), width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Biaya
+              Text(
+                widget.lang == 'ZH'
+                    ? '费用（可选）'
+                    : widget.lang == 'EN'
+                        ? 'Cost (Optional)'
+                        : 'Biaya Penyelesaian (Opsional)',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: Color(0xFF475569),
+                ),
               ),
               const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: _pickResolutionImage,
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: Text(_texts['change_photo']!),
+              TextField(
+                controller: _resolutionCostController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: widget.lang == 'ZH' ? '例如：50000' : widget.lang == 'EN' ? 'Example: 50000' : 'Contoh: 50000',
+                  prefixText: 'Rp ',
+                  hintStyle: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 15),
+                  filled: true,
+                  fillColor: const Color(0xFFF0FDF4),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF86EFAC), width: 1),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF16A34A), width: 1.5),
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
               ),
             ],
-          ),
-        const SizedBox(height: 16),
-
-        // Bagian Catatan Penyelesaian
-        Text(
-          _texts['resolution_notes']!,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _resolutionNotesController,
-          maxLines: 3,
-          decoration: InputDecoration(
-            hintText: _texts['resolution_notes_hint'],
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-        ),
-
-        const SizedBox(height: 16), // <-- Spasi baru
-        // Bagian Biaya Penyelesaian (BARU)
-        const Text(
-          'Biaya Penyelesaian (Opsional)',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _resolutionCostController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            hintText: 'Contoh: 50000',
-            prefixText: 'Rp ',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            filled: true,
-            fillColor: Colors.white,
           ),
         ),
       ],
@@ -1340,6 +1498,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'resolution_result': 'Hasil Penyelesaian', // <-- BARU
         'notes': 'Catatan:', // <-- BARU
         'cost': 'Biaya yang Dikeluarkan:', // <-- BARU
+        'resolved': 'Temuan Selesai',
       },
       'EN': {
         'detail_title': 'Finding Detail',
@@ -1368,6 +1527,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'resolution_result': 'Resolution Result', // <-- BARU
         'notes': 'Notes:', // <-- BARU
         'cost': 'Cost Incurred:', // <-- BARU
+        'resolved': 'Finding Resolved',
       },
       'ZH': {
         'detail_title': '发现详情',
@@ -1396,6 +1556,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'resolution_result': '解决方案结果', // <-- BARU
         'notes': '笔记：', // <-- BARU
         'cost': '产生的费用：', // <-- BARU
+        'resolved': '发现已完成',
       },
     };
     _texts = translations[widget.lang] ?? translations['EN']!;

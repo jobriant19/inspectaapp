@@ -176,10 +176,12 @@ class HomeContentState extends State<HomeContent> {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return Future.value([]);
 
-    // Kumpulkan semua future sesuai tab aktif
     final List<Future<List<Map<String, dynamic>>>> futures = [];
 
-    if (_activeTabs.contains('my')) {
+    // Jika tidak ada tab yang dipilih, default tampilkan semua (my findings)
+    final activeTabs = _activeTabs.isEmpty ? {'my'} : _activeTabs;
+
+    if (activeTabs.contains('my')) {
       var q = Supabase.instance.client
           .from('temuan')
           .select('id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)')
@@ -189,7 +191,7 @@ class HomeContentState extends State<HomeContent> {
       futures.add(q.order('created_at', ascending: false).limit(10).then((v) => List<Map<String, dynamic>>.from(v)));
     }
 
-    if (_activeTabs.contains('assigned')) {
+    if (activeTabs.contains('assigned')) {
       var q = Supabase.instance.client
           .from('temuan')
           .select('id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)')
@@ -199,7 +201,7 @@ class HomeContentState extends State<HomeContent> {
       futures.add(q.order('created_at', ascending: false).limit(10).then((v) => List<Map<String, dynamic>>.from(v)));
     }
 
-    if (_activeTabs.contains('resolved')) {
+    if (activeTabs.contains('resolved')) {
       futures.add(
         Supabase.instance.client
             .from('penyelesaian')
@@ -229,7 +231,6 @@ class HomeContentState extends State<HomeContent> {
 
     if (futures.isEmpty) return Future.value([]);
 
-    // Gabungkan semua hasil, hapus duplikat berdasarkan id_temuan
     return Future.wait(futures).then((lists) {
       final seen = <int>{};
       final combined = <Map<String, dynamic>>[];
@@ -252,7 +253,9 @@ class HomeContentState extends State<HomeContent> {
     final bool isActive = _activeTabs.contains(tabKey);
     return GestureDetector(
       onTap: () => setState(() {
-        if (isActive) {
+        if (isActive && _activeTabs.length == 1) {
+          
+        } else if (isActive) {
           _activeTabs.remove(tabKey);
         } else {
           _activeTabs.add(tabKey);

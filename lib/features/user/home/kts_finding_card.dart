@@ -93,8 +93,8 @@ class KtsFindingCard extends StatelessWidget {
             children: [
               // Gambar
               Container(
-                width: 72,
-                height: 72,
+                width: 92,
+                height: 92,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
@@ -105,6 +105,8 @@ class KtsFindingCard extends StatelessWidget {
                   child: displayImageUrl.isNotEmpty
                       ? Image.network(
                           displayImageUrl,
+                          width: 92,
+                          height: 92,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => _buildItemIcon(),
                         )
