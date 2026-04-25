@@ -3,6 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../user/finding/finding_detail_screen.dart';
+import '../../user/home/finding_card.dart';
+
 class NotificationScreen extends StatefulWidget {
   final String lang;
   const NotificationScreen({super.key, required this.lang});
@@ -104,114 +107,116 @@ class _NotificationScreenState extends State<NotificationScreen>
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
   }
 
-  String _formatLocation(Map<String, dynamic> item) {
-    if (item['area'] != null && item['area']['nama_area'] != null) return item['area']['nama_area'].toString();
-    if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) return item['subunit']['nama_subunit'].toString();
-    if (item['unit'] != null && item['unit']['nama_unit'] != null) return item['unit']['nama_unit'].toString();
-    if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) return item['lokasi']['nama_lokasi'].toString();
-    return '-';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFF),
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: true,
-            pinned: true,
-            backgroundColor: Colors.white,
-            elevation: 0,
-            leading: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.arrow_back_ios_new, size: 18, color: Color(0xFF1E3A8A)),
-              ),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 20, bottom: 60),
-              title: Text(
-                _t('title'),
-                style: GoogleFonts.poppins(
-                  fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF1E3A8A),
-                ),
-              ),
-              centerTitle: true,
-              background: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(0)),
-                ),
-                child: Positioned(
-                  right: -30, top: -20,
-                  child: Container(
-                    width: 150, height: 150,
+      body: Column(
+        children: [
+          // ── HEADER TETAP (tidak ikut scroll) ──
+          Container(
+            color: Colors.white,
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                children: [
+                  // AppBar custom
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.arrow_back_ios_new,
+                                size: 18, color: Color(0xFF1E3A8A)),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            _t('title'),
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF1E3A8A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 40), // balancer
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // TabBar tetap
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF00C9E4).withOpacity(0.07),
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TabBar(
+                      controller: _tabController,
+                      isScrollable: false,
+                      tabAlignment: TabAlignment.fill,
+                      indicator: BoxDecoration(
+                        color: const Color(0xFF0EA5E9),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: const Color(0xFF0EA5E9),
+                      labelStyle: GoogleFonts.poppins(
+                          fontSize: 12, fontWeight: FontWeight.w700),
+                      unselectedLabelStyle: GoogleFonts.poppins(
+                          fontSize: 12, fontWeight: FontWeight.w500),
+                      dividerColor: Colors.transparent,
+                      tabs: [
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.assignment_ind_outlined, size: 15),
+                              const SizedBox(width: 5),
+                              Text(_t('tab_findings')),
+                            ],
+                          ),
+                        ),
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.history_rounded, size: 15),
+                              const SizedBox(width: 5),
+                              Text(_t('tab_activity')),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ),
-            ),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(52),
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  isScrollable: false,
-                  tabAlignment: TabAlignment.fill,
-                  indicator: BoxDecoration(
-                    color: const Color(0xFF0EA5E9),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: const Color(0xFF0EA5E9),
-                  labelStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700),
-                  unselectedLabelStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500),
-                  dividerColor: Colors.transparent,
-                  tabs: [
-                    Tab(
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        const Icon(Icons.assignment_ind_outlined, size: 15),
-                        const SizedBox(width: 5),
-                        Text(_t('tab_findings')),
-                      ]),
-                    ),
-                    Tab(
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        const Icon(Icons.history_rounded, size: 15),
-                        const SizedBox(width: 5),
-                        Text(_t('tab_activity')),
-                      ]),
-                    ),
-                  ],
-                ),
+                ],
               ),
             ),
           ),
+
+          // ── KONTEN SCROLLABLE ──
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildAssignedFindingsTab(),
+                _buildActivityLogTab(),
+              ],
+            ),
+          ),
         ],
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildAssignedFindingsTab(),
-            _buildActivityLogTab(),
-          ],
-        ),
       ),
     );
   }
@@ -219,53 +224,108 @@ class _NotificationScreenState extends State<NotificationScreen>
   // ── TAB 1: Temuan yang ditugaskan ──
   Widget _buildAssignedFindingsTab() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return _buildEmpty(_t('empty_findings'), _t('empty_findings_sub'), Icons.assignment_ind_outlined);
+    if (userId == null) {
+      return _buildEmpty(
+        _t('empty_findings'),
+        _t('empty_findings_sub'),
+        Icons.assignment_ind_outlined,
+      );
+    }
 
     return FutureBuilder<List<dynamic>>(
       future: Supabase.instance.client
           .from('temuan')
-          .select('id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area)')
+          .select(
+            'id_temuan, judul_temuan, gambar_temuan, created_at, '
+            'status_temuan, poin_temuan, target_waktu_selesai, '
+            'jenis_temuan, id_lokasi, id_unit, id_subunit, id_area, '
+            'id_penanggung_jawab, is_pro, is_visitor, is_eksekutif, '
+            'lokasi(nama_lokasi), unit(nama_unit), '
+            'subunit(nama_subunit), area(nama_area)',
+          )
           .eq('id_penanggung_jawab', userId)
           .order('created_at', ascending: false),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return _buildShimmerList();
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _buildEmpty(_t('empty_findings'), _t('empty_findings_sub'), Icons.assignment_ind_outlined);
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildShimmerList();
         }
-        final items = snapshot.data!;
-        // Hitung badge
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _buildEmpty(
+            _t('empty_findings'),
+            _t('empty_findings_sub'),
+            Icons.assignment_ind_outlined,
+          );
+        }
+
+        final items =
+            List<Map<String, dynamic>>.from(snapshot.data!);
+
         final pendingCount = items.where((e) {
-          final s = (e['status_temuan'] ?? '').toString().toLowerCase();
-          return !['selesai', 'done', 'completed', 'closed'].any((x) => s.contains(x));
+          final s =
+              (e['status_temuan'] ?? '').toString().toLowerCase();
+          return !['selesai', 'done', 'completed', 'closed']
+              .any((x) => s.contains(x));
         }).length;
 
         return Column(
           children: [
+            // Banner pending — tetap di atas, tidak scroll
             if (pendingCount > 0)
               Container(
                 margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [const Color(0xFFDC2626).withOpacity(0.08), const Color(0xFFEF4444).withOpacity(0.05)]),
+                  gradient: LinearGradient(colors: [
+                    const Color(0xFFDC2626).withOpacity(0.08),
+                    const Color(0xFFEF4444).withOpacity(0.05),
+                  ]),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFDC2626).withOpacity(0.2)),
+                  border: Border.all(
+                      color: const Color(0xFFDC2626).withOpacity(0.2)),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.pending_actions_rounded, color: Color(0xFFDC2626), size: 20),
+                  const Icon(Icons.pending_actions_rounded,
+                      color: Color(0xFFDC2626), size: 20),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(
-                    widget.lang == 'ID'
-                        ? '$pendingCount temuan masih menunggu penyelesaian Anda'
-                        : '$pendingCount findings are waiting for your action',
-                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFDC2626)),
-                  )),
+                  Expanded(
+                    child: Text(
+                      widget.lang == 'ID'
+                          ? '$pendingCount temuan masih menunggu penyelesaian Anda'
+                          : '$pendingCount findings are waiting for your action',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFDC2626),
+                      ),
+                    ),
+                  ),
                 ]),
               ),
+
+            // List scrollable
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                 itemCount: items.length,
-                itemBuilder: (context, index) => _buildFindingNotifCard(items[index]),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return FindingCard(
+                    data: item,
+                    lang: widget.lang,
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FindingDetailScreen(
+                            initialData: item,
+                            lang: widget.lang,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
           ],
@@ -274,102 +334,18 @@ class _NotificationScreenState extends State<NotificationScreen>
     );
   }
 
-  Widget _buildFindingNotifCard(Map<String, dynamic> item) {
-    final imageUrl = (item['gambar_temuan'] ?? '').toString();
-    final title = (item['judul_temuan'] ?? '-').toString();
-    final lokasi = _formatLocation(item);
-    final tanggal = _formatDate(item['created_at']);
-    final poin = int.tryParse((item['poin_temuan'] ?? 0).toString()) ?? 0;
-    final status = (item['status_temuan'] ?? '').toString();
-    final s = status.toLowerCase();
-    final isFinished = ['selesai', 'done', 'completed', 'closed'].any((e) => s.contains(e));
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isFinished ? const Color(0xFF16A34A).withOpacity(0.2) : const Color(0xFFDC2626).withOpacity(0.2), width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
-      child: Row(
-        children: [
-          // Gambar
-          ClipRRect(
-            borderRadius: const BorderRadius.horizontal(left: Radius.circular(17)),
-            child: SizedBox(
-              width: 90, height: 100,
-              child: imageUrl.isNotEmpty
-                  ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade100, child: const Icon(Icons.image_outlined, color: Colors.grey)))
-                  : Container(color: Colors.grey.shade100, child: const Icon(Icons.image_outlined, color: Colors.grey)),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A), height: 1.3)),
-                  const SizedBox(height: 6),
-                  Row(children: [
-                    const Icon(Icons.place_rounded, size: 12, color: Color(0xFF94A3B8)),
-                    const SizedBox(width: 4),
-                    Expanded(child: Text(lokasi, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF64748B)))),
-                  ]),
-                  const SizedBox(height: 6),
-                  Row(children: [
-                    // Status badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isFinished ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(isFinished ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-                            size: 11, color: isFinished ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
-                        const SizedBox(width: 3),
-                        Text(isFinished ? _t('status_done') : _t('status_pending'),
-                            style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700,
-                                color: isFinished ? const Color(0xFF16A34A) : const Color(0xFFDC2626))),
-                      ]),
-                    ),
-                    const Spacer(),
-                    // Poin
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)]),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.local_fire_department_rounded, size: 11, color: Colors.white),
-                        const SizedBox(width: 3),
-                        Text('$poin P', style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
-                      ]),
-                    ),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text(tanggal, style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey.shade400)),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── TAB 2: Activity Log ──
   Widget _buildActivityLogTab() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return _buildEmpty(_t('empty_activity'), _t('empty_activity_sub'), Icons.history_rounded);
+    if (userId == null) {
+      return _buildEmpty(
+        _t('empty_activity'),
+        _t('empty_activity_sub'),
+        Icons.history_rounded,
+      );
+    }
 
     return FutureBuilder<Map<String, dynamic>>(
-      // ✅ Ambil poin aktual dari User DAN log_poin sekaligus
       future: Future.wait([
         Supabase.instance.client
             .from('User')
@@ -383,53 +359,95 @@ class _NotificationScreenState extends State<NotificationScreen>
             .order('created_at', ascending: false)
             .limit(50),
       ]).then((results) => {
-        'userPoin': results[0],
-        'logs': results[1],
-      }),
+            'userPoin': results[0],
+            'logs': results[1],
+          }),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return _buildShimmerList();
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildShimmerList();
+        }
         if (!snapshot.hasData) {
-          return _buildEmpty(_t('empty_activity'), _t('empty_activity_sub'), Icons.history_rounded);
+          return _buildEmpty(
+            _t('empty_activity'),
+            _t('empty_activity_sub'),
+            Icons.history_rounded,
+          );
         }
 
-        final int actualPoin = (snapshot.data!['userPoin'] as Map<String, dynamic>)['poin'] as int? ?? 0;
-        final List<dynamic> logs = snapshot.data!['logs'] as List<dynamic>;
+        final int actualPoin =
+            (snapshot.data!['userPoin'] as Map<String, dynamic>)['poin']
+                    as int? ??
+                0;
+        final List<dynamic> logs =
+            snapshot.data!['logs'] as List<dynamic>;
 
         if (logs.isEmpty) {
-          return _buildEmpty(_t('empty_activity'), _t('empty_activity_sub'), Icons.history_rounded);
+          return _buildEmpty(
+            _t('empty_activity'),
+            _t('empty_activity_sub'),
+            Icons.history_rounded,
+          );
         }
 
         return Column(
           children: [
-            // Summary card — ✅ gunakan poin aktual dari tabel User
+            // Summary card — tetap di atas, tidak scroll
             Container(
               margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 20, vertical: 14),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFF1E3A8A), Color(0xFF0EA5E9)],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(18),
-                boxShadow: [BoxShadow(color: const Color(0xFF1E3A8A).withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 6))],
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1E3A8A).withOpacity(0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  )
+                ],
               ),
               child: Row(children: [
-                const Icon(Icons.local_fire_department_rounded, color: Colors.amber, size: 32),
+                const Icon(Icons.local_fire_department_rounded,
+                    color: Colors.amber, size: 32),
                 const SizedBox(width: 12),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_t('total_points'), style: GoogleFonts.poppins(fontSize: 11, color: Colors.white70)),
-                  Text('$actualPoin ${_t('points')}', style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
-                ]),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_t('total_points'),
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, color: Colors.white70)),
+                    Text(
+                      '$actualPoin ${_t('points')}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
                 const Spacer(),
-                Text('${logs.length} log', style: GoogleFonts.poppins(fontSize: 12, color: Colors.white60)),
+                Text('${logs.length} log',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: Colors.white60)),
               ]),
             ),
+
+            // List scrollable
             Expanded(
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                 itemCount: logs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) => _buildActivityLogCard(logs[index]),
+                separatorBuilder: (_, __) =>
+                    const SizedBox(height: 8),
+                itemBuilder: (context, index) =>
+                    _buildActivityLogCard(
+                        logs[index] as Map<String, dynamic>),
               ),
             ),
           ],

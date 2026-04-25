@@ -549,34 +549,134 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   Widget _buildTitleSection(Map<String, dynamic> data) {
     final title = data['judul_temuan'] as String? ?? 'Tanpa Judul';
     final location = _formatLocation(data);
+    final status = (data['status_temuan'] ?? '').toString();
+    final s = status.toLowerCase();
+    final isFinished =
+        ['closed', 'selesai', 'done', 'completed'].any((e) => s.contains(e));
+    final poin = data['poin_temuan'] as int? ?? 0;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1E3A8A),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Status + Poin row
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isFinished
+                      ? const Color(0xFFF0FDF4)
+                      : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isFinished
+                        ? const Color(0xFF16A34A).withOpacity(0.3)
+                        : const Color(0xFFDC2626).withOpacity(0.3),
+                  ),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(
+                    isFinished
+                        ? Icons.check_circle_rounded
+                        : Icons.pending_actions_rounded,
+                    size: 13,
+                    color: isFinished
+                        ? const Color(0xFF16A34A)
+                        : const Color(0xFFDC2626),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isFinished
+                        ? _texts['finish']!
+                        : (_texts['err_proof_required'] != null
+                            ? (widget.lang == 'ID'
+                                ? 'Belum Selesai'
+                                : widget.lang == 'ZH'
+                                    ? '未完成'
+                                    : 'Unfinished')
+                            : 'Pending'),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isFinished
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFDC2626),
+                    ),
+                  ),
+                ]),
+              ),
+              const Spacer(),
+              if (poin > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.local_fire_department_rounded,
+                        size: 13, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$poin Poin',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ]),
+                ),
+            ],
           ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Icon(
-              Icons.location_on_outlined,
-              color: Colors.grey.shade600,
-              size: 16,
+          const SizedBox(height: 12),
+          // Judul
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF0F172A),
+              height: 1.3,
             ),
-            const SizedBox(width: 4),
-            Text(
-              location,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-      ],
+          ),
+          const SizedBox(height: 8),
+          // Lokasi
+          Row(
+            children: [
+              Icon(Icons.location_on_rounded,
+                  color: const Color(0xFF0EA5E9), size: 16),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  location,
+                  style: const TextStyle(
+                      fontSize: 13, color: Color(0xFF64748B)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -617,18 +717,15 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  // WIDGET BARU
   Widget _buildFindingInfoGrid(Map<String, dynamic> data) {
-    // Ambil data dengan aman, berikan nilai default jika null
     final creator = data['User_Creator'] as Map<String, dynamic>?;
     final creatorName = creator?['nama'] as String? ?? 'Pengguna';
     final creatorAvatarUrl = creator?['gambar_user'] as String?;
-
     final category =
         data['kategoritemuan']?['nama_kategoritemuan'] as String? ?? '-';
     final subCategory =
-        data['subkategoritemuan']?['nama_subkategoritemuan'] as String? ?? '-';
-
+        data['subkategoritemuan']?['nama_subkategoritemuan'] as String? ??
+            '-';
     final createdAt = data['created_at'] as String?;
     final deadline = data['target_waktu_selesai'] as String?;
 
@@ -636,28 +733,35 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Bagian Creator (Dibuat Oleh)
-          Text(
-            _texts['created_by']!,
-            style: const TextStyle(fontSize: 13, color: Colors.grey),
-          ),
-          const SizedBox(height: 8),
+          // Section title
+          _sectionHeader(
+              Icons.info_outline_rounded, _texts['created_by']!,
+              color: const Color(0xFF0EA5E9)),
+          const SizedBox(height: 12),
+          // Creator
           Row(
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: const Color(0xFFE0F2FE),
                 backgroundImage: creatorAvatarUrl != null
                     ? NetworkImage(creatorAvatarUrl)
                     : null,
                 child: creatorAvatarUrl == null
-                    ? const Icon(Icons.person, color: Colors.grey)
+                    ? const Icon(Icons.person,
+                        color: Color(0xFF0EA5E9))
                     : null,
               ),
               const SizedBox(width: 12),
@@ -665,56 +769,95 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 child: Text(
                   creatorName,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: Color(0xFF0F172A)),
                 ),
               ),
             ],
           ),
-
-          const Divider(height: 24),
-
-          // Detail Waktu
-          _buildInfoRow(
-            Icons.calendar_today_outlined,
-            _texts['reported_on']!,
-            _formatDateTime(createdAt),
-          ),
+          const SizedBox(height: 16),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
+          const SizedBox(height: 16),
+          // Info rows
+          _infoChip(Icons.calendar_today_outlined,
+              _texts['reported_on']!, _formatDateTime(createdAt)),
           if (deadline != null) ...[
-            const SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.timer_outlined,
-              'Tenggat Waktu',
-              _formatDateTime(deadline),
-            ),
+            const SizedBox(height: 12),
+            _infoChip(Icons.timer_outlined,
+                widget.lang == 'ID' ? 'Tenggat Waktu' : 'Deadline',
+                _formatDateTime(deadline)),
           ],
-
-          const Divider(height: 24),
-
-          // Detail Kategori
-          _buildInfoRow(Icons.category_outlined, _texts['category']!, category),
+          const SizedBox(height: 16),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
+          const SizedBox(height: 16),
+          _infoChip(Icons.category_outlined,
+              _texts['category']!, category),
           if (subCategory != '-') ...[
-            const SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.label_important_outline,
-              _texts['subcategory']!,
-              subCategory,
-            ),
+            const SizedBox(height: 12),
+            _infoChip(Icons.label_important_outline,
+                _texts['subcategory']!, subCategory),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _sectionHeader(IconData icon, String label,
+    {Color color = const Color(0xFF1E3A8A)}) {
     return Row(
       children: [
-        Icon(icon, color: Colors.grey.shade500, size: 20),
-        const SizedBox(width: 16),
-        Text(label, style: const TextStyle(color: Colors.grey)),
-        const Spacer(),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: color),
+        ),
+      ],
+    );
+  }
+
+  Widget _infoChip(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 15, color: const Color(0xFF64748B)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                      fontWeight: FontWeight.w500)),
+              const SizedBox(height: 2),
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F172A))),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -726,271 +869,413 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     final eskalasi = data['eskalasi'] as String?;
     final deskripsi = data['deskripsi_temuan'] as String?;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // --- CATATAN/DESKRIPSI ---
-          if (deskripsi != null && deskripsi.isNotEmpty) ...[
-            const Text(
-              'Catatan',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+    return Column(
+      children: [
+        // Deskripsi
+        if (deskripsi != null && deskripsi.isNotEmpty) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4))
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              deskripsi,
-              style: const TextStyle(color: Colors.black87, height: 1.5),
-            ),
-            const Divider(height: 32),
-          ],
-
-          // --- PENANGGUNG JAWAB (PIC) ---
-          if (assignee != null) ...[
-            const Text(
-              'Penanggung Jawab',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 12),
-            Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundImage: (assignee['gambar_user'] != null)
-                      ? NetworkImage(assignee['gambar_user'])
-                      : null,
-                  child: (assignee['gambar_user'] == null)
-                      ? const Icon(Icons.person)
-                      : null,
+                _sectionHeader(Icons.notes_rounded,
+                    widget.lang == 'ID'
+                        ? 'Catatan'
+                        : widget.lang == 'ZH'
+                            ? '备注'
+                            : 'Notes'),
+                const SizedBox(height: 12),
+                Text(deskripsi,
+                    style: const TextStyle(
+                        color: Color(0xFF334155),
+                        height: 1.6,
+                        fontSize: 14)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // PIC
+        if (assignee != null) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4))
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionHeader(
+                  Icons.person_pin_rounded,
+                  widget.lang == 'ID'
+                      ? 'Penanggung Jawab'
+                      : widget.lang == 'ZH'
+                          ? '负责人'
+                          : 'Person in Charge',
+                  color: const Color(0xFF7C3AED),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        assignee['nama'] ?? '...',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: const Color(0xFFF5F3FF),
+                      backgroundImage: (assignee['gambar_user'] != null)
+                          ? NetworkImage(assignee['gambar_user'])
+                          : null,
+                      child: (assignee['gambar_user'] == null)
+                          ? const Icon(Icons.person,
+                              color: Color(0xFF7C3AED))
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            assignee['nama'] ?? '-',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: Color(0xFF0F172A)),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.lang == 'ID'
+                                ? 'Ditugaskan untuk menyelesaikan'
+                                : widget.lang == 'ZH'
+                                    ? '负责解决此问题'
+                                    : 'Assigned to resolve',
+                            style: const TextStyle(
+                                color: Color(0xFF94A3B8), fontSize: 12),
+                          ),
+                        ],
                       ),
-                      const Text(
-                        'Ditugaskan untuk menyelesaikan',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const Divider(height: 32),
-          ],
-
-          // --- DETAIL LAINNYA (DEADLINE, POIN, ESKALASI) ---
-          if (deadline != null || poin != null || eskalasi != null)
-            _buildInfoRow(
-              Icons.task_alt_outlined,
-              'Status',
-              data['status_temuan'] ?? '-',
-            ),
-
-          if (deadline != null) ...[
-            const SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.calendar_month_outlined,
-              'Tenggat Waktu',
-              _formatDateTime(deadline, format: 'dd MMMM yyyy'),
-            ),
-          ],
-
-          if (poin != null && poin > 0) ...[
-            const SizedBox(height: 16),
-            _buildInfoRow(Icons.star_outline, 'Poin Temuan', '$poin Poin'),
-          ],
-
-          if (eskalasi != null && eskalasi.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildInfoRow(
-              Icons.escalator_warning_outlined,
-              'Level Eskalasi',
-              eskalasi,
-            ),
-          ],
+          ),
+          const SizedBox(height: 12),
         ],
-      ),
-    );
-  }
 
-  Widget _buildCompletedResolutionSection(Map<String, dynamic> resolutionData) {
-    final imageUrl = resolutionData['gambar_penyelesaian'] as String?;
-    final notes = resolutionData['catatan_penyelesaian'] as String?;
-    final cost = resolutionData['additional_cost'] as num?;
-    final completedDate = resolutionData['tanggal_selesai'] as String?;
-    final solver = resolutionData['User_Solver'] as Map<String, dynamic>?;
-    final solverName = solver?['nama'] as String? ?? '...';
-    final solverAvatarUrl = solver?['gambar_user'] as String?;
-
-    String formattedCost = 'Rp 0';
-    if (cost != null) {
-      formattedCost = NumberFormat.currency(
-        locale: 'id_ID',
-        symbol: 'Rp ',
-        decimalDigits: 0,
-      ).format(cost);
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF16A34A).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF16A34A)),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              _texts['resolution_result']!,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
+        // Status & Detail lainnya
         Container(
-          width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF16A34A).withOpacity(0.07),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4))
             ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(12),
+              _sectionHeader(Icons.analytics_outlined,
+                  widget.lang == 'ID'
+                      ? 'Detail Temuan'
+                      : widget.lang == 'ZH'
+                          ? '发现详情'
+                          : 'Finding Details',
+                  color: const Color(0xFF0EA5E9)),
+              const SizedBox(height: 16),
+              _infoChip(Icons.task_alt_outlined,
+                  widget.lang == 'ID' ? 'Status' : 'Status',
+                  data['status_temuan'] ?? '-'),
+              if (deadline != null) ...[
+                const SizedBox(height: 12),
+                _infoChip(
+                  Icons.calendar_month_outlined,
+                  widget.lang == 'ID'
+                      ? 'Tenggat Waktu'
+                      : widget.lang == 'ZH'
+                          ? '截止日期'
+                          : 'Deadline',
+                  _formatDateTime(deadline, format: 'dd MMMM yyyy'),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+              ],
+              if (poin != null && poin > 0) ...[
+                const SizedBox(height: 12),
+                _infoChip(
+                  Icons.star_outline_rounded,
+                  widget.lang == 'ID'
+                      ? 'Poin Temuan'
+                      : widget.lang == 'ZH'
+                          ? '发现积分'
+                          : 'Finding Points',
+                  '$poin Poin',
+                ),
+              ],
+              if (eskalasi != null && eskalasi.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _infoChip(
+                  Icons.escalator_warning_outlined,
+                  widget.lang == 'ID'
+                      ? 'Level Eskalasi'
+                      : widget.lang == 'ZH'
+                          ? '升级级别'
+                          : 'Escalation Level',
+                  eskalasi,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompletedResolutionSection(
+    Map<String, dynamic> resolutionData) {
+    final imageUrl = resolutionData['gambar_penyelesaian'] as String?;
+    final notes = resolutionData['catatan_penyelesaian'] as String?;
+    final cost = resolutionData['additional_cost'] as num?;
+    final completedDate = resolutionData['tanggal_selesai'] as String?;
+    final solver =
+        resolutionData['User_Solver'] as Map<String, dynamic>?;
+    final solverName = solver?['nama'] as String? ?? '...';
+    final solverAvatarUrl = solver?['gambar_user'] as String?;
+
+    String formattedCost = '-';
+    if (cost != null && cost > 0) {
+      formattedCost = NumberFormat.currency(
+              locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0)
+          .format(cost);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionHeader(
+            Icons.verified_rounded, _texts['resolution_result']!,
+            color: const Color(0xFF16A34A)),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+                color: const Color(0xFFDCFCE7), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF16A34A).withOpacity(0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              )
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Foto penyelesaian
+              if (imageUrl != null)
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20)),
+                  child: Image.network(imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: 220),
+                ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      _texts['resolved']!,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: Color(0xFF16A34A),
+                    // Badge selesai
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.verified_rounded,
+                              color: Color(0xFF16A34A), size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            _texts['resolved']!,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: Color(0xFF16A34A)),
+                          ),
+                        ],
                       ),
                     ),
+
+                    // Solver
+                    if (solver != null) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: const Color(0xFFDCFCE7)),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 20,
+                              backgroundColor:
+                                  const Color(0xFFDCFCE7),
+                              backgroundImage: solverAvatarUrl != null
+                                  ? NetworkImage(solverAvatarUrl)
+                                  : null,
+                              child: solverAvatarUrl == null
+                                  ? const Icon(Icons.person,
+                                      color: Color(0xFF16A34A),
+                                      size: 20)
+                                  : null,
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _texts['resolved_by']!,
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF94A3B8),
+                                      fontWeight: FontWeight.w500),
+                                ),
+                                Text(
+                                  solverName,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: Color(0xFF0F172A)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // Tanggal selesai
+                    if (completedDate != null) ...[
+                      const SizedBox(height: 12),
+                      _infoChip(
+                          Icons.event_available_rounded,
+                          _texts['completed_on']!,
+                          _formatDateTime(completedDate)),
+                    ],
+
+                    // Catatan
+                    if (notes != null && notes.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: const Color(0xFFBBF7D0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _texts['notes']!,
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF16A34A),
+                                  fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(notes,
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF166534),
+                                    height: 1.5)),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    // Biaya
+                    if (cost != null && cost > 0) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: const Color(0xFFFED7AA)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                                Icons.monetization_on_rounded,
+                                color: Color(0xFFEA580C),
+                                size: 18),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _texts['cost']!,
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF92400E),
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                Text(
+                                  formattedCost,
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFFEA580C)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              // Bagian Info Penyelesai
-              if (solver != null) ...[
-                Text(
-                  _texts['resolved_by']!,
-                  style: const TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: Colors.grey.shade200,
-                      backgroundImage: solverAvatarUrl != null
-                          ? NetworkImage(solverAvatarUrl)
-                          : null,
-                      child: solverAvatarUrl == null
-                          ? const Icon(
-                              Icons.person,
-                              color: Colors.grey,
-                              size: 20,
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        solverName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const Divider(height: 24),
-              ],
-
-              if (completedDate != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: _buildInfoRow(
-                    Icons.check_circle_outline,
-                    _texts['completed_on']!,
-                    _formatDateTime(completedDate),
-                  ),
-                ),
-
-              if (imageUrl != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                  ),
-                ),
-
-              if (notes != null && notes.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  _texts['notes']!,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(notes),
-              ],
-
-              if (cost != null && cost > 0) ...[
-                const SizedBox(height: 16),
-                Text(
-                  _texts['cost']!,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  formattedCost,
-                  style: const TextStyle(
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -1560,64 +1845,5 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       },
     };
     _texts = translations[widget.lang] ?? translations['EN']!;
-  }
-
-  Widget _buildUserCard({
-    required String name,
-    required String? avatarUrl,
-    required String role,
-    required IconData icon,
-    required Color iconColor,
-  }) {
-    return Row(
-      children: [
-        Stack(
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: Colors.grey.shade200,
-              backgroundImage: avatarUrl != null
-                  ? NetworkImage(avatarUrl)
-                  : null,
-              child: avatarUrl == null
-                  ? const Icon(Icons.person, color: Colors.grey)
-                  : null,
-            ),
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 14, color: iconColor),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                role,
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }
