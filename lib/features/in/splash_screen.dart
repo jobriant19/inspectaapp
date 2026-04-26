@@ -101,6 +101,8 @@ class _SplashScreenState extends State<SplashScreen> {
                 initialUserRole: userRole,
                 initialUserLocation: locationName,  
                 initialLatestLog: latestLog,
+                initialUserJabatanId: userData['id_jabatan'] as int?,
+                initialIsVerificator: false,
               )));
         }
       } catch (e) {

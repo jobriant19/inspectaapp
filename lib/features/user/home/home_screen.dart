@@ -25,6 +25,8 @@ class HomeScreen extends StatefulWidget {
   final String? initialUserRole;
   final String? initialUserLocation;
   final Map<String, dynamic>? initialLatestLog;
+  final int? initialUserJabatanId;       // ← TAMBAH INI
+  final bool? initialIsVerificator;
 
   const HomeScreen({
     super.key,
@@ -34,6 +36,8 @@ class HomeScreen extends StatefulWidget {
     this.initialUserRole,
     this.initialUserLocation,
     this.initialLatestLog,
+    this.initialUserJabatanId,
+    this.initialIsVerificator,
   });
 
   @override
@@ -277,6 +281,15 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLatestLogLoading = false;
       } else {
         _isLatestLogLoading = false;
+      }
+      // ← Set langsung dari data yang dikirim login/splash
+      if (widget.initialUserJabatanId != null) {
+        _userJabatanId = widget.initialUserJabatanId;
+      }
+      if (widget.initialIsVerificator != null || widget.initialUserJabatanId != null) {
+        _isExecutiveVerificator =
+            (widget.initialUserJabatanId == 1) ||
+            (widget.initialIsVerificator == true);
       }
     }
 

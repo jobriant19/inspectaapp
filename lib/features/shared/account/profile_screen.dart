@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -28,7 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   String _email = '', _jabatan = '', _lokasi = '';
   String? _initialName, _imageUrl;
-  File? _imageFile; // Variabel ini kunci untuk preview gambar baru
+  XFile? _imageFile; // Variabel ini kunci untuk preview gambar baru
   bool _isSaving = false;
   bool _isScreenLoading = true;
   bool _isEditMode = false;
@@ -122,12 +123,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _pickImage() async {
     if (!_isEditMode) return;
-    final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 800, maxHeight: 800);
-    if (file != null) {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
+    if (picked != null) {
       setState(() {
-        // Simpan file gambar yang dipilih ke _imageFile
-        _imageFile = File(file.path);
-        // Tandai bahwa ada perubahan
+        _imageFile = picked;
         _hasChanges = true;
       });
     }
@@ -136,59 +140,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // --- BAGIAN UTAMA PERBAIKAN: METHOD UNTUK MENYIMPAN PROFIL ---
   Future<void> _updateProfile() async {
     setState(() => _isSaving = true);
-    
+
     final user = Supabase.instance.client.auth.currentUser!;
-    String? finalImageUrl = _imageUrl; // Mulai dengan URL gambar yang lama
+    String? finalImageUrl = _imageUrl;
 
     try {
-      // 1. Cek apakah pengguna memilih gambar baru (_imageFile tidak null)
+      // Upload gambar baru jika ada
       if (_imageFile != null) {
-        // Buat nama file yang unik untuk menghindari konflik
-        final fileName = '${user.id}-${DateTime.now().millisecondsSinceEpoch}.${_imageFile!.path.split('.').last}';
+        final ext = _imageFile!.path.split('.').last.toLowerCase();
+        final fileName =
+            '${user.id}-${DateTime.now().millisecondsSinceEpoch}.$ext';
         final filePath = 'avatars/$fileName';
+        final bytes = await _imageFile!.readAsBytes();
 
-        // 2. Upload gambar baru ke Supabase Storage di bucket 'avatars'
         await Supabase.instance.client.storage
-            .from('avatars')
-            .upload(filePath, _imageFile!);
+            .from('temuan_images')
+            .uploadBinary(
+              filePath,
+              bytes,
+              fileOptions: FileOptions(
+                contentType: 'image/$ext',
+                upsert: true,
+              ),
+            );
 
-        // 3. Dapatkan URL publik dari gambar yang baru di-upload
         finalImageUrl = Supabase.instance.client.storage
-            .from('avatars')
+            .from('temuan_images')
             .getPublicUrl(filePath);
       }
 
-      // 4. Siapkan data yang akan di-update ke tabel 'User'
-      final updates = {
-        'nama': _nameController.text,
-        'gambar_user': finalImageUrl, // Gunakan URL gambar yang final (bisa baru atau lama)
-      };
-
-      // 5. Lakukan update ke database
-      await Supabase.instance.client.from('User')
-          .update(updates)
+      // Update tabel User
+      await Supabase.instance.client
+          .from('User')
+          .update({
+            'nama': _nameController.text.trim(),
+            if (finalImageUrl != null) 'gambar_user': finalImageUrl,
+          })
           .eq('id_user', user.id);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(getTxt('success')), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(getTxt('success')),
+            backgroundColor: Colors.green,
+          ),
+        );
         setState(() {
-          // 6. Perbarui state lokal setelah berhasil menyimpan
-          _initialName = _nameController.text;
+          _initialName = _nameController.text.trim();
           _imageUrl = finalImageUrl;
-          _imageFile = null; // Kosongkan file preview
+          _imageFile = null;
           _isEditMode = false;
           _hasChanges = false;
         });
       }
     } catch (e) {
+      debugPrint('Error updating profile: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(getTxt('error_update')), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${getTxt('error_update')}\nDetail: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-      debugPrint("Error updating profile: $e");
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
   
@@ -239,26 +255,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Stack(
                       alignment: Alignment.bottomRight,
                       children: [
-                        // --- BAGIAN UTAMA PERBAIKAN: LOGIKA TAMPIL GAMBAR ---
-                        CircleAvatar(
-                          radius: 60,
-                          backgroundColor: Colors.grey.shade200,
-                          // Logika ini yang membuat preview bekerja:
-                          // 1. Jika _imageFile ada (gambar baru dipilih), tampilkan dari file lokal.
-                          // 2. Jika tidak, coba tampilkan dari _imageUrl (gambar dari server).
-                          // 3. Jika keduanya null, tampilkan ikon default.
-                          backgroundImage: _imageFile != null
-                              ? FileImage(_imageFile!) as ImageProvider
-                              : (_imageUrl != null && _imageUrl!.isNotEmpty ? NetworkImage(_imageUrl!) : null),
-                          child: (_imageFile == null && (_imageUrl == null || _imageUrl!.isEmpty))
-                              ? const Icon(Icons.person, size: 60, color: Color(0xFF00C9E4))
-                              : null,
+                        FutureBuilder<Uint8List?>(
+                          future: _imageFile != null ? _imageFile!.readAsBytes() : null,
+                          builder: (context, snapshot) {
+                            ImageProvider? imageProvider;
+
+                            if (_imageFile != null && snapshot.hasData) {
+                              // Preview gambar baru dari file lokal
+                              imageProvider = MemoryImage(snapshot.data!);
+                            } else if (_imageUrl != null && _imageUrl!.isNotEmpty) {
+                              // Gambar dari server
+                              imageProvider = NetworkImage(_imageUrl!);
+                            }
+
+                            return CircleAvatar(
+                              radius: 60,
+                              backgroundColor: Colors.grey.shade200,
+                              backgroundImage: imageProvider,
+                              child: imageProvider == null
+                                  ? const Icon(Icons.person, size: 60,
+                                      color: Color(0xFF00C9E4))
+                                  : null,
+                            );
+                          },
                         ),
                         if (_isEditMode)
                           Container(
                             padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: Color(0xFF00C9E4), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00C9E4),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Icon(Icons.camera_alt,
+                                color: Colors.white, size: 18),
                           ),
                       ],
                     ),

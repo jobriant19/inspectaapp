@@ -483,8 +483,10 @@ class _LoginScreenState extends State<LoginScreen>
                         initialUserPoin: userData['poin'],
                         initialUserImage: userData['gambar_user'],
                         initialUserRole: userData['jabatan']?['nama_jabatan'],
-                        initialUserLocation: locationName,   // ← BARU
-                        initialLatestLog: latestLog, 
+                        initialUserLocation: locationName,
+                        initialLatestLog: latestLog,
+                        initialUserJabatanId: userData['id_jabatan'] as int?,
+                        initialIsVerificator: false,
                       )));
                 }
               } catch (_) {
