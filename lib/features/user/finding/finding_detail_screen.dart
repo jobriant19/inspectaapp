@@ -9,7 +9,6 @@ import '../../../core/widgets/user_picker_bottom_sheet.dart';
 import 'camera_finding_screen.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-// Model Comment tidak berubah, jadi tetap
 class Comment {
   final String id;
   final String content;

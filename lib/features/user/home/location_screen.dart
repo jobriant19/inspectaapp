@@ -13,14 +13,14 @@ class _LastActivity {
 }
 
 class _UserLastLocation {
-  final int? lastTemuanLokasiId;
-  final int? lastTemuanUnitId;
-  final int? lastTemuanSubunitId;
-  final int? lastTemuanAreaId;
-  final int? lastSelesaiLokasiId;
-  final int? lastSelesaiUnitId;
-  final int? lastSelesaiSubunitId;
-  final int? lastSelesaiAreaId;
+  final String? lastTemuanLokasiId;
+  final String? lastTemuanUnitId;
+  final String? lastTemuanSubunitId;
+  final String? lastTemuanAreaId;
+  final String? lastSelesaiLokasiId;
+  final String? lastSelesaiUnitId;
+  final String? lastSelesaiSubunitId;
+  final String? lastSelesaiAreaId;
 
   const _UserLastLocation({
     this.lastTemuanLokasiId,
@@ -33,22 +33,22 @@ class _UserLastLocation {
     this.lastSelesaiAreaId,
   });
 
-  bool isLastTemuan(String levelType, int levelId) {
+  bool isLastTemuan(String levelType, String levelId) {
     switch (levelType) {
-      case 'lokasi':  return lastTemuanLokasiId   == levelId;
-      case 'unit':    return lastTemuanUnitId      == levelId;
-      case 'subunit': return lastTemuanSubunitId   == levelId;
-      case 'area':    return lastTemuanAreaId      == levelId;
+      case 'lokasi':  return lastTemuanLokasiId  == levelId;
+      case 'unit':    return lastTemuanUnitId     == levelId;
+      case 'subunit': return lastTemuanSubunitId  == levelId;
+      case 'area':    return lastTemuanAreaId     == levelId;
       default:        return false;
     }
   }
 
-  bool isLastSelesai(String levelType, int levelId) {
+  bool isLastSelesai(String levelType, String levelId) {
     switch (levelType) {
-      case 'lokasi':  return lastSelesaiLokasiId   == levelId;
-      case 'unit':    return lastSelesaiUnitId     == levelId;
-      case 'subunit': return lastSelesaiSubunitId  == levelId;
-      case 'area':    return lastSelesaiAreaId     == levelId;
+      case 'lokasi':  return lastSelesaiLokasiId  == levelId;
+      case 'unit':    return lastSelesaiUnitId    == levelId;
+      case 'subunit': return lastSelesaiSubunitId == levelId;
+      case 'area':    return lastSelesaiAreaId    == levelId;
       default:        return false;
     }
   }
@@ -200,8 +200,8 @@ class LocationScreen extends StatefulWidget {
   final String lang;
   final bool isProMode;
   final String userRole;
-  final int? userUnitId;
-  final int? userLokasiId;
+  final String? userUnitId;
+  final String? userLokasiId; 
 
   const LocationScreen({
     super.key,
@@ -240,10 +240,10 @@ class _LocationScreenState extends State<LocationScreen> {
   Map<String, dynamic>? _suggestSelesai;
 
   // My Location IDs
-  int? _myLocationLokasiId;
-  int? _myLocationUnitId;
-  int? _myLocationSubunitId;
-  int? _myLocationAreaId;
+  String? _myLocationLokasiId;
+  String? _myLocationUnitId;
+  String? _myLocationSubunitId;
+  String? _myLocationAreaId;
 
   // Helper teks
   String t(String key) => _AppTexts.get(widget.lang, key);
@@ -304,14 +304,15 @@ class _LocationScreenState extends State<LocationScreen> {
         final r = rows[0];
         setState(() {
           _userLastLocation = _UserLastLocation(
-            lastTemuanLokasiId  : r['last_temuan_lokasi_id'],
-            lastTemuanUnitId    : r['last_temuan_unit_id'],
-            lastTemuanSubunitId : r['last_temuan_subunit_id'],
-            lastTemuanAreaId    : r['last_temuan_area_id'],
-            lastSelesaiLokasiId : r['last_selesai_lokasi_id'],
-            lastSelesaiUnitId   : r['last_selesai_unit_id'],
-            lastSelesaiSubunitId: r['last_selesai_subunit_id'],
-            lastSelesaiAreaId   : r['last_selesai_area_id'],
+            // SESUDAH: ambil sebagai String, bukan int
+            lastTemuanLokasiId  : r['last_temuan_lokasi_id']?.toString(),
+            lastTemuanUnitId    : r['last_temuan_unit_id']?.toString(),
+            lastTemuanSubunitId : r['last_temuan_subunit_id']?.toString(),
+            lastTemuanAreaId    : r['last_temuan_area_id']?.toString(),
+            lastSelesaiLokasiId : r['last_selesai_lokasi_id']?.toString(),
+            lastSelesaiUnitId   : r['last_selesai_unit_id']?.toString(),
+            lastSelesaiSubunitId: r['last_selesai_subunit_id']?.toString(),
+            lastSelesaiAreaId   : r['last_selesai_area_id']?.toString(),
           );
         });
         _updateSuggestItems();
@@ -327,9 +328,8 @@ class _LocationScreenState extends State<LocationScreen> {
     Map<String, dynamic>? foundSelesai;
 
     for (final item in _currentData) {
-      final rawId = item['id_$tName'];
-      if (rawId == null) continue;
-      final id = rawId is int ? rawId : int.tryParse(rawId.toString());
+      // SESUDAH: ambil sebagai String langsung
+      final id = item['id_$tName']?.toString();
       if (id == null) continue;
 
       if (_userLastLocation.isLastTemuan(tName, id)) foundTemuan = item;
@@ -366,10 +366,10 @@ class _LocationScreenState extends State<LocationScreen> {
     }
   }
 
-  bool _isFavorit(String levelType, int levelId) =>
+  bool _isFavorit(String levelType, String levelId) =>
       _favoritSet.contains('$levelType:$levelId');
 
-  Future<void> _toggleFavorit(String levelType, int levelId) async {
+  Future<void> _toggleFavorit(String levelType, String levelId) async {
     if (_currentUserId == null) return;
     final key    = '$levelType:$levelId';
     final wasFav = _favoritSet.contains(key);
@@ -411,11 +411,9 @@ class _LocationScreenState extends State<LocationScreen> {
   Future<void> _prefetchAllActivities(
       String tName, List<dynamic> items) async {
     // Kumpulkan id yang belum ada di cache
-    final toFetch = <int>[];
+    final toFetch = <String>[];
     for (final item in items) {
-      final rawId = item['id_$tName'];
-      if (rawId == null) continue;
-      final id = rawId is int ? rawId : int.tryParse(rawId.toString());
+      final id = item['id_$tName']?.toString();
       if (id != null && !_activityCache.containsKey('$tName:$id')) {
         toFetch.add(id);
       }
@@ -434,7 +432,7 @@ class _LocationScreenState extends State<LocationScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<_LastActivity> _fetchActivity(String levelType, int levelId) async {
+  Future<_LastActivity> _fetchActivity(String levelType, String levelId) async {
     final key = '$levelType:$levelId';
     if (_activityCache.containsKey(key)) return _activityCache[key]!;
     try {
@@ -463,7 +461,7 @@ class _LocationScreenState extends State<LocationScreen> {
   }
 
   // ── Fetch data level ──────────────────────────────────────────────────────
-  Future<void> _fetchData({int? parentId, Map<String, dynamic>? parentData}) async {
+  Future<void> _fetchData({String? parentId, Map<String, dynamic>? parentData}) async {
     setState(() => _isLoading = true);
     try {
       List<dynamic> data = [];
@@ -556,10 +554,9 @@ class _LocationScreenState extends State<LocationScreen> {
       }).toList();
 
       _filteredData.sort((a, b) {
-        final rawIdA = a['id_$tName'];
-        final rawIdB = b['id_$tName'];
-        final idA = rawIdA is int ? rawIdA : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
-        final idB = rawIdB is int ? rawIdB : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
+        // SESUDAH: ID adalah String UUID, sort hanya by favorit & nama
+        final idA = a['id_$tName']?.toString() ?? '';
+        final idB = b['id_$tName']?.toString() ?? '';
 
         final favA = _isFavorit(tName, idA) ? 0 : 1;
         final favB = _isFavorit(tName, idB) ? 0 : 1;
@@ -1086,7 +1083,7 @@ class _LocationScreenState extends State<LocationScreen> {
   }) {
     final rawId = item['id_$tName'];
     if (rawId == null) return const SizedBox.shrink();
-    final id = rawId is int ? rawId : int.tryParse(rawId.toString());
+    final id = item['id_$tName']?.toString();
     if (id == null) return const SizedBox.shrink();
 
     final name   = item['nama_$tName']?.toString() ?? '';
@@ -1330,7 +1327,7 @@ class _LocationScreenState extends State<LocationScreen> {
     final tName = _getLevelName();
     final rawId = item['id_$tName'];
     if (rawId == null) return const SizedBox.shrink();
-    final id = rawId is int ? rawId : int.tryParse(rawId.toString());
+    final id = item['id_$tName']?.toString();
     if (id == null) return const SizedBox.shrink();
 
     final name      = item['nama_$tName']?.toString() ?? '';
@@ -1349,7 +1346,7 @@ class _LocationScreenState extends State<LocationScreen> {
         if (_currentLevel == 3) return;
         setState(() {
           _navHistory.add({
-            'level': _currentLevel, 'id': id,
+            'level': _currentLevel, 'id': id, // String UUID
             'name': name, 'data': item,
           });
           _currentLevel++;
@@ -1587,10 +1584,10 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
   void initState() {
     super.initState();
     final tName = ['lokasi', 'unit', 'subunit', 'area'][widget.level];
-    _membersFuture = _fetchMembersData(widget.data['id_$tName']);
+    _membersFuture = _fetchMembersData(widget.data['id_$tName'].toString());
   }
 
-  Future<List<dynamic>> _fetchMembersData(int idValue) async {
+  Future<List<dynamic>> _fetchMembersData(String idValue) async {
     final s = Supabase.instance.client;
     const q = 'nama, gambar_user, jabatan(nama_jabatan)';
     if (widget.level == 0) {
@@ -1601,12 +1598,12 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
       final d = await s.from('subunit').select('id_unit')
           .eq('id_subunit', idValue).maybeSingle();
       if (d?['id_unit'] == null) return [];
-      return await s.from('User').select(q).eq('id_unit', d!['id_unit']);
+      return await s.from('User').select(q).eq('id_unit', d!['id_unit'].toString());
     } else {
       final d = await s.from('area').select('id_unit')
           .eq('id_area', idValue).maybeSingle();
       if (d?['id_unit'] == null) return [];
-      return await s.from('User').select(q).eq('id_unit', d!['id_unit']);
+      return await s.from('User').select(q).eq('id_unit', d!['id_unit'].toString());
     }
   }
 
@@ -2070,7 +2067,7 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
                           builder: (_) => QRGeneratorScreen(
                             lang     : widget.lang,
                             levelName: tName,
-                            levelId  : widget.data['id_$tName'],
+                            levelId  : widget.data['id_$tName'].toString(),
                             itemName : widget.data['nama_$tName'],
                           ),
                         ),
@@ -2079,7 +2076,7 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
                         final refreshed = await Supabase.instance.client
                             .from(tName)
                             .select('*, User!id_pic(nama)')
-                            .eq('id_$tName', widget.data['id_$tName'])
+                            .eq('id_$tName', widget.data['id_$tName'].toString()) 
                             .single();
                         setState(() => widget.data.addAll(refreshed));
                       }

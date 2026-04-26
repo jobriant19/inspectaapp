@@ -111,7 +111,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
     try {
       String locationName = '';
-      int? locationId, unitId, subunitId, areaId;
+      String? locationId, unitId, subunitId, areaId;
 
       if (type == 'lokasi') {
         final data = await supabase.from('lokasi').select('id_lokasi, nama_lokasi').eq('id_lokasi', id).single();

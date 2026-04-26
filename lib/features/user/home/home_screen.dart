@@ -57,8 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _userRole = "...";
   int _userPoin = 0;
   String? _userImage;
-  int? _userUnitId;
-  int? _userLokasiId;
+  String? _userUnitId;
+  String? _userLokasiId;
 
   int _notificationCount = 0;
   DateTime? _lastDialogTime;
@@ -871,7 +871,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final userRow = await Supabase.instance.client
           .from('User')
-          .select('nama, email, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, jabatan(nama_jabatan)')
+          .select('nama, email, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, jabatan!User_id_jabatan_fkey(nama_jabatan)')
           .eq('id_user', userAuth.id)
           .maybeSingle();
 
@@ -946,9 +946,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _userPoin          = newPoin;
         _userImage         = dbImage ?? metaImage;
         _userRole          = roleName;
-        _userJabatanId     = userRow['id_jabatan'];
-        _userUnitId        = userRow['id_unit'];
-        _userLokasiId      = userRow['id_lokasi'];
+        _userJabatanId     = userRow['id_jabatan'] as int?;
+        _userUnitId        = userRow['id_unit']?.toString();
+        _userLokasiId      = userRow['id_lokasi']?.toString();
         _userLocationName  = locationName;
         // Hanya update latestLog jika tidak sedang ada animasi aktif
         // agar log tidak berubah di tengah animasi poin
@@ -1259,8 +1259,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       lang: _lang,
                       isProMode: _isProMode,
                       isVisitorMode: _isVisitorMode,
-                      userUnitId: _userUnitId,
-                      userLokasiId: _userLokasiId,
+                      userUnitId: _userUnitId?.toString(),
+                      userLokasiId: _userLokasiId?.toString(),
                       userRole: _userRole,
                     ),
                   ).then((isSuccess) async {
@@ -1372,8 +1372,8 @@ class _HomeScreenState extends State<HomeScreen> {
       userPoin: _userPoin,
       displayedPoin: _displayedPoin,
       userImage: _userImage,
-      userUnitId: _userUnitId,
-      userLokasiId: _userLokasiId,
+      userUnitId: _userUnitId?.toString(),
+      userLokasiId: _userLokasiId?.toString(),
       latestLogPoin: _latestLogPoin,
       isLatestLogLoading: _isLatestLogLoading,
       onRefresh: () {
@@ -1726,7 +1726,7 @@ class _LoginPointDialog extends StatefulWidget {
   final String description;
   final String lang;
   final String userId;
-  final int? userLokasiId;
+  final String? userLokasiId;
   final VoidCallback onClaimed;
   final Function(Map<String, dynamic>) onClaimedAndShared;
 
@@ -2658,8 +2658,8 @@ class LocationBottomSheet extends StatefulWidget {
   final String lang;
   final bool isProMode;
   final bool isVisitorMode;
-  final int? userUnitId;
-  final int? userLokasiId;
+  final String? userUnitId;
+  final String? userLokasiId;
   final String userRole;
 
   const LocationBottomSheet({
@@ -2700,7 +2700,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     _fetchData();
   }
 
-  Future<void> _fetchData({int? parentId, String? parentName}) async {
+  Future<void> _fetchData({String? parentId, String? parentName}) async {
     setState(() => _isLoading = true);
     try {
       final supabase = Supabase.instance.client;
@@ -2745,7 +2745,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     setState(() {
       _navigationHistory.add({
         'level': _currentLevel,
-        'id': item[_getIdColumn(_currentLevel)], 
+        'id': item[_getIdColumn(_currentLevel)]?.toString(),
         'name': item[_getNameColumn(_currentLevel)], 
       });
       _currentLevel++;
@@ -2754,7 +2754,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
 
     // Panggil ulang fetch data untuk level selanjutnya
     _fetchData(
-      parentId: item[_getIdColumn(_currentLevel - 1)],
+      parentId: item[_getIdColumn(_currentLevel - 1)]?.toString(),
       parentName: item[_getNameColumn(_currentLevel - 1)],
     );
   }
@@ -2949,7 +2949,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                       final String nameCol = _getNameColumn(_currentLevel);
                       final String childCol = _getChildColumn(_currentLevel);
 
-                      final int itemId = item[idCol] as int;
+                      final String itemId = item[idCol]?.toString() ?? '';
                       final String itemName = item[nameCol].toString();
 
                       int subCount = 0;
@@ -3044,14 +3044,14 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                   GestureDetector(
                                     onTap: () {
                                       // --- MODIFIKASI DIMULAI DI SINI ---
-                                      int? idL, idU, idS, idA;
+                                      String? idL, idU, idS, idA;
                                       String locationName = itemName;
 
                                       // Logika untuk mendapatkan ID hierarki
                                       if (_currentLevel == 0) { idL = itemId; }
-                                      else if (_currentLevel == 1) { idL = _navigationHistory[0]['id']; idU = itemId; }
-                                      else if (_currentLevel == 2) { idL = _navigationHistory[0]['id']; idU = _navigationHistory[1]['id']; idS = itemId; }
-                                      else if (_currentLevel == 3) { idL = _navigationHistory[0]['id']; idU = _navigationHistory[1]['id']; idS = _navigationHistory[2]['id']; idA = itemId; }
+                                      else if (_currentLevel == 1) { idL = _navigationHistory[0]['id']?.toString(); idU = itemId; }
+                                      else if (_currentLevel == 2) { idL = _navigationHistory[0]['id']?.toString(); idU = _navigationHistory[1]['id']?.toString(); idS = itemId; }
+                                      else if (_currentLevel == 3) { idL = _navigationHistory[0]['id']?.toString(); idU = _navigationHistory[1]['id']?.toString(); idS = _navigationHistory[2]['id']?.toString(); idA = itemId; }
 
                                       // Gabungkan nama untuk ditampilkan di kamera (opsional, tapi bagus)
                                       if (_navigationHistory.isNotEmpty) {

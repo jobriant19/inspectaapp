@@ -65,10 +65,10 @@ class ChartTarget {
 }
 
 class LocationFilter {
-  final int? idLokasi;
-  final int? idUnit;
-  final int? idSubunit;
-  final int? idArea;
+  final String? idLokasi;
+  final String? idUnit;
+  final String? idSubunit;
+  final String? idArea;
   final String displayName;
 
   const LocationFilter({
@@ -240,10 +240,10 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
   List<Map<String, dynamic>> _lokasiList = [];
 
   // State sementara dalam bottom sheet
-  int? _tempLokasiId;
-  int? _tempUnitId;
-  int? _tempSubunitId;
-  int? _tempAreaId;
+  String? _tempLokasiId;
+  String? _tempUnitId;
+  String? _tempSubunitId;
+  String? _tempAreaId;
   List<Map<String, dynamic>> _tempUnitList = [];
   List<Map<String, dynamic>> _tempSubunitList = [];
   List<Map<String, dynamic>> _tempAreaList = [];
@@ -286,7 +286,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchUnitByLokasi(int idLokasi) async {
+  Future<List<Map<String, dynamic>>> _fetchUnitByLokasi(String idLokasi) async {
     try {
       final response = await _supabase
           .from('unit')
@@ -300,7 +300,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchSubunitByUnit(int idUnit) async {
+  Future<List<Map<String, dynamic>>> _fetchSubunitByUnit(String idUnit) async {
     try {
       final response = await _supabase
           .from('subunit')
@@ -314,7 +314,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchAreaBySubunit(int idSubunit) async {
+  Future<List<Map<String, dynamic>>> _fetchAreaBySubunit(String idSubunit) async {
     try {
       final response = await _supabase
           .from('area')
@@ -339,7 +339,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
         _chartTargetFuture = _supabase.rpc('get_chart_target', params: {
           'selected_month': _selectedDate.month,
           'selected_year': _selectedDate.year,
-          'selected_unit_id': _selectedLocation.idUnit ?? 0,
+          'selected_unit_id': _selectedLocation.idUnit,
         }).then((response) {
           final List<dynamic> data = response;
           if (data.isEmpty) {
@@ -356,33 +356,33 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
         _leaderboardFuture = _supabase.rpc('get_monthly_leaderboard', params: {
           'selected_month'     : _selectedDate.month,
           'selected_year'      : _selectedDate.year,
-          'selected_unit_id'   : _selectedLocation.idUnit    ?? 0,
-          'selected_lokasi_id' : _selectedLocation.idLokasi  ?? 0,
-          'selected_subunit_id': _selectedLocation.idSubunit ?? 0,
-          'selected_area_id'   : _selectedLocation.idArea    ?? 0,
+          'selected_unit_id'   : _selectedLocation.idUnit,
+          'selected_lokasi_id' : _selectedLocation.idLokasi,
+          'selected_subunit_id': _selectedLocation.idSubunit,
+          'selected_area_id'   : _selectedLocation.idArea,
         }).then((response) {
           final List<dynamic> data = response;
           return data.map((item) => LeaderboardMember(
-            idUser   : item['id_user'].toString(),  // ← UUID → String aman
-            rank     : item['rank_num'] as int,
+            idUser   : item['id_user']?.toString(),
+            rank     : (item['rank_num'] as num).toInt(),
             name     : item['nama'] as String,
             avatarUrl: item['gambar_user'] as String?,
-            score    : item['poin'] as int,         // ← DIPERBAIKI
+            score    : item['poin'] as int,
           )).toList();
         });
 
         _chartFuture = _supabase.rpc('get_daily_chart_data', params: {
-          'selected_month': _selectedDate.month,
-          'selected_year': _selectedDate.year,
-          'selected_unit_id': _selectedLocation.idUnit ?? 0,
-          'selected_lokasi_id': _selectedLocation.idLokasi ?? 0,
-          'selected_subunit_id': _selectedLocation.idSubunit ?? 0,
-          'selected_area_id': _selectedLocation.idArea ?? 0,
+          'selected_month'     : _selectedDate.month,
+          'selected_year'      : _selectedDate.year,
+          'selected_unit_id'   : _selectedLocation.idUnit,
+          'selected_lokasi_id' : _selectedLocation.idLokasi,
+          'selected_subunit_id': _selectedLocation.idSubunit,
+          'selected_area_id'   : _selectedLocation.idArea,
         }).then((response) {
           final List<dynamic> data = response;
           return data.map((item) => DailyChartData(
-            date: item['tanggal'] as int,
-            temuan: item['temuan'] as int,
+            date        : item['tanggal'] as int,
+            temuan      : item['temuan'] as int,
             penyelesaian: item['penyelesaian'] as int,
           )).toList();
         });
@@ -394,37 +394,37 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
 
         // Fetch data pie chart harian
         _dailyPieFuture = _supabase.rpc('get_daily_chart_data', params: {
-          'selected_month': _selectedDate.month,
-          'selected_year': _selectedDate.year,
-          'selected_unit_id': _selectedLocation.idUnit ?? 0,
-          'selected_lokasi_id': _selectedLocation.idLokasi ?? 0,
-          'selected_subunit_id': _selectedLocation.idSubunit ?? 0,
-          'selected_area_id': _selectedLocation.idArea ?? 0,
+          'selected_month'     : _selectedDate.month,
+          'selected_year'      : _selectedDate.year,
+          'selected_unit_id'   : _selectedLocation.idUnit,
+          'selected_lokasi_id' : _selectedLocation.idLokasi,
+          'selected_subunit_id': _selectedLocation.idSubunit,
+          'selected_area_id'   : _selectedLocation.idArea,
         }).then((response) {
           final List<dynamic> data = response;
-          // Cari data untuk tanggal yang dipilih
           final selectedDay = _selectedDate.day;
           final found = data.firstWhere(
             (item) => (item['tanggal'] as int) == selectedDay,
             orElse: () => {'tanggal': selectedDay, 'temuan': 0, 'penyelesaian': 0},
           );
           return DailyChartData(
-            date: found['tanggal'] as int,
-            temuan: found['temuan'] as int,
+            date        : found['tanggal'] as int,
+            temuan      : found['temuan'] as int,
             penyelesaian: found['penyelesaian'] as int,
           );
         });
 
         _leaderboardFuture = _supabase.rpc('get_daily_leaderboard', params: {
-          'selected_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
-          'selected_unit_id': _selectedLocation.idUnit ?? 0,
+          'selected_date'   : DateFormat('yyyy-MM-dd').format(_selectedDate),
+          'selected_unit_id': _selectedLocation.idUnit, // UUID string atau null
         }).then((response) {
           final List<dynamic> data = response;
           return data.map((item) => LeaderboardMember(
-            rank: item['rank_num'] as int,
-            name: item['nama'] as String,
+            idUser   : item['id_user']?.toString(),
+            rank     : (item['rank_num'] as num).toInt(),
+            name     : item['nama'] as String,
             avatarUrl: item['gambar_user'] as String?,
-            score: item['daily_score'] as int,
+            score    : item['daily_score'] as int,  // ← nama kolom sesuai SQL baru
           )).toList();
         });
       }
@@ -700,11 +700,11 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
   Widget _buildFilterSection({
     required String label,
     required IconData icon,
-    required int? selectedId,
+    required String? selectedId,
     required List<Map<String, dynamic>> items,
     required String idKey,
     required String nameKey,
-    required Function(int id, String name) onSelect,
+    required Function(String id, String name) onSelect,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -725,7 +725,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           spacing: 8,
           runSpacing: 8,
           children: items.map((item) {
-            final id = item[idKey] as int;
+            final id = item[idKey].toString();
             final name = item[nameKey] as String;
             final isSelected = selectedId == id;
             return GestureDetector(

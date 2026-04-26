@@ -17,10 +17,10 @@ class AddFindingFlowScreen extends StatefulWidget {
   final XFile initialImageXFile;
 
   final String? preSelectedLocationName;
-  final int? preSelectedLocationId;
-  final int? preSelectedUnitId;
-  final int? preSelectedSubunitId;
-  final int? preSelectedAreaId;
+  final String? preSelectedLocationId;
+  final String? preSelectedUnitId;
+  final String? preSelectedSubunitId;
+  final String? preSelectedAreaId;
 
   const AddFindingFlowScreen({
     super.key,
@@ -93,10 +93,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       final user = Supabase.instance.client.auth.currentUser;
       if (user == null) return;
       final profile = await Supabase.instance.client
-          .from('User')
-          .select('id_user, nama, is_visitor, id_jabatan, id_lokasi, id_unit, id_subunit, id_area, jabatan(nama_jabatan)')
-          .eq('id_user', user.id)
-          .single();
+        .from('User')
+        .select('id_user, nama, is_visitor, id_jabatan, id_lokasi, id_unit, id_subunit, id_area, jabatan!User_id_jabatan_fkey(nama_jabatan)')
+        .eq('id_user', user.id)
+        .single();
       if (mounted) {
         setState(() {
           _currentUserProfile = profile;
@@ -243,6 +243,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'is_pro': widget.isProMode,
         'is_visitor': widget.isVisitorMode,
         'is_eksekutif': isExecutive,
+        'jenis_temuan': '5R',
       };
 
       // PIC
@@ -460,7 +461,8 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   // Picker Methods
   // ================================================
   void _showLocationPicker() async {
-    if (_currentUserProfile == null) return;
+    // HAPUS guard: if (_currentUserProfile == null) return;
+    // Izinkan picker terbuka meskipun profil belum selesai dimuat
 
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -469,16 +471,22 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       builder: (ctx) => FullLocationPickerBottomSheet(
         lang: widget.lang,
         isProMode: widget.isProMode,
-        userRole: _currentUserProfile!['jabatan']?['nama_jabatan'] ?? 'Staff',
-        userUnitId: _currentUserProfile!['id_unit'],
-        userLokasiId: _currentUserProfile!['id_lokasi'],
-        userSubunitId: _currentUserProfile!['id_subunit'],
-        userAreaId: _currentUserProfile!['id_area'],
+        // Gunakan data profil jika ada, fallback ke null (tampilkan semua)
+        userRole: _currentUserProfile?['jabatan']?['nama_jabatan'] ?? 'Staff',
+        userUnitId: _currentUserProfile?['id_unit']?.toString(),
+        userLokasiId: _currentUserProfile?['id_lokasi']?.toString(),
+        userSubunitId: _currentUserProfile?['id_subunit']?.toString(),
+        userAreaId: _currentUserProfile?['id_area']?.toString(),
       ),
     );
 
     if (result != null) {
       setState(() => _selectedLocation = result);
+      // Reset PIC saat lokasi berubah agar PIC diperbarui sesuai lokasi baru
+      if (_selectedAssignee != null &&
+          _selectedAssignee!['id_user'] != _currentUserProfile?['id_user']) {
+        setState(() => _selectedAssignee = null);
+      }
     }
   }
 
@@ -495,6 +503,12 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   }
 
   void _showAssigneePicker() async {
+    // Prioritas: lokasi temuan yang dipilih → lokasi user login → null (tampilkan semua)
+    final String? lokasiId = (_selectedLocation?['id_lokasi'] != null
+            ? _selectedLocation!['id_lokasi'].toString()
+            : null) ??
+        _currentUserProfile?['id_lokasi']?.toString();
+
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -503,9 +517,9 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => AssigneePickerBottomSheet(
         lang: widget.lang,
-        // Always use locationId = 1 (PT ATMI SOLO) as specified
-        locationId: 1,
+        locationId: lokasiId,
         unitId: null,
+        currentUserId: _currentUserProfile?['id_user']?.toString(),
       ),
     );
     if (result != null) setState(() => _selectedAssignee = result);
@@ -553,9 +567,25 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
   Widget _buildCameraUI() {
     if (!_isCameraInitialized) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF00C9E4))),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: Color(0xFF00C9E4)),
+              const SizedBox(height: 16),
+              Text(
+                widget.lang == 'EN'
+                    ? 'Initializing camera...'
+                    : widget.lang == 'ZH'
+                        ? '正在初始化相机...'
+                        : 'Memuat kamera...',
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
       );
     }
     return Scaffold(
@@ -1901,10 +1931,17 @@ class _CategoryPickerBottomSheetState
 // ==================================================================
 class AssigneePickerBottomSheet extends StatefulWidget {
   final String lang;
-  final int? locationId;
-  final int? unitId;
-  const AssigneePickerBottomSheet(
-      {super.key, required this.lang, this.locationId, this.unitId});
+  final String? locationId;
+  final String? unitId;
+  final String? currentUserId; // TAMBAH INI
+
+  const AssigneePickerBottomSheet({
+    super.key,
+    required this.lang,
+    this.locationId,
+    this.unitId,
+    this.currentUserId, // TAMBAH INI
+  });
 
   @override
   State<AssigneePickerBottomSheet> createState() =>
@@ -1933,13 +1970,34 @@ class _AssigneePickerBottomSheetState
 
   Future<void> _fetchUsers() async {
     try {
-      // Always fetch all users where id_lokasi = 1 (PT ATMI SOLO)
-      final response = await Supabase.instance.client
+      List<Map<String, dynamic>> data = [];
+
+      if (widget.locationId != null && widget.locationId!.isNotEmpty) {
+        // Ada lokasi → filter by id_lokasi
+        final response = await Supabase.instance.client
           .from('User')
-          .select('id_user, nama, jabatan(nama_jabatan)')
-          .eq('id_lokasi', 1)
+          .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user')
+          .eq('id_lokasi', widget.locationId!)
           .order('nama');
-      final data = List<Map<String, dynamic>>.from(response);
+        data = List<Map<String, dynamic>>.from(response);
+      } else {
+        // Tidak ada lokasi → tampilkan semua user
+        final response = await Supabase.instance.client
+          .from('User')
+          .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user')
+          .order('nama');
+        data = List<Map<String, dynamic>>.from(response);
+      }
+
+      // Sortir: user yang login sekarang di paling atas
+      if (widget.currentUserId != null) {
+        data.sort((a, b) {
+          if (a['id_user'] == widget.currentUserId) return -1;
+          if (b['id_user'] == widget.currentUserId) return 1;
+          return (a['nama'] as String).compareTo(b['nama'] as String);
+        });
+      }
+
       if (mounted) {
         setState(() {
           _allUsers = data;
@@ -1971,10 +2029,8 @@ class _AssigneePickerBottomSheetState
         itemCount: 6,
         itemBuilder: (_, __) => ListTile(
           leading: const CircleAvatar(backgroundColor: Colors.white),
-          title: Container(
-              height: 14, width: 120, color: Colors.white),
-          subtitle: Container(
-              height: 10, width: 80, color: Colors.white),
+          title: Container(height: 14, width: 120, color: Colors.white),
+          subtitle: Container(height: 10, width: 80, color: Colors.white),
         ),
       ),
     );
@@ -2000,24 +2056,33 @@ class _AssigneePickerBottomSheetState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.lang == 'ID'
-                          ? 'Pilih Penanggung Jawab'
-                          : 'Select PIC',
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E3A8A)),
-                    ),
-                    Text(
-                      'PT ATMI SOLO',
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade500),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.lang == 'ID'
+                            ? 'Pilih Penanggung Jawab'
+                            : widget.lang == 'ZH'
+                                ? '选择负责人'
+                                : 'Select PIC',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E3A8A)),
+                      ),
+                      if (widget.locationId != null)
+                        Text(
+                          widget.lang == 'ID'
+                              ? 'Menampilkan pengguna di lokasi temuan'
+                              : widget.lang == 'ZH'
+                                  ? '显示发现位置的用户'
+                                  : 'Showing users at finding location',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade500),
+                        ),
+                    ],
+                  ),
                 ),
                 IconButton(
                     onPressed: () => Navigator.pop(context),
@@ -2032,7 +2097,9 @@ class _AssigneePickerBottomSheetState
               decoration: InputDecoration(
                 hintText: widget.lang == 'ID'
                     ? 'Cari anggota...'
-                    : 'Search member...',
+                    : widget.lang == 'ZH'
+                        ? '搜索成员...'
+                        : 'Search member...',
                 prefixIcon: const Icon(Icons.search, color: Colors.grey),
                 filled: true,
                 fillColor: Colors.grey.shade100,
@@ -2046,14 +2113,12 @@ class _AssigneePickerBottomSheetState
           const SizedBox(height: 8),
           if (!_isLoading)
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '${_filteredUsers.length} ${widget.lang == 'ID' ? 'anggota' : 'members'}',
-                  style: TextStyle(
-                      color: Colors.grey.shade500, fontSize: 12),
+                  '${_filteredUsers.length} ${widget.lang == 'ID' ? 'anggota' : widget.lang == 'ZH' ? '成员' : 'members'}',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
                 ),
               ),
             ),
@@ -2063,9 +2128,23 @@ class _AssigneePickerBottomSheetState
                 ? _buildShimmerList()
                 : _filteredUsers.isEmpty
                     ? Center(
-                        child: Text(widget.lang == 'ID'
-                            ? 'Tidak ada pengguna ditemukan'
-                            : 'No users found'))
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.group_off_rounded,
+                                size: 48, color: Colors.grey.shade300),
+                            const SizedBox(height: 8),
+                            Text(
+                              widget.lang == 'ID'
+                                  ? 'Tidak ada pengguna ditemukan'
+                                  : widget.lang == 'ZH'
+                                      ? '未找到用户'
+                                      : 'No users found',
+                              style: TextStyle(color: Colors.grey.shade500),
+                            ),
+                          ],
+                        ),
+                      )
                     : ListView.builder(
                         itemCount: _filteredUsers.length,
                         itemBuilder: (context, index) {
@@ -2075,20 +2154,80 @@ class _AssigneePickerBottomSheetState
                               user['jabatan']?['nama_jabatan'] ?? '';
                           final String initial =
                               name.isNotEmpty ? name[0].toUpperCase() : '?';
+                          final bool isCurrentUser =
+                              user['id_user'] == widget.currentUserId;
+                          final String? avatarUrl = user['gambar_user'];
+
                           return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  const Color(0xFF1E3A8A).withOpacity(0.1),
-                              child: Text(
-                                initial,
-                                style: const TextStyle(
-                                    color: Color(0xFF1E3A8A),
-                                    fontWeight: FontWeight.bold),
-                              ),
+                            leading: Stack(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor:
+                                      const Color(0xFF1E3A8A).withOpacity(0.1),
+                                  backgroundImage: avatarUrl != null
+                                      ? NetworkImage(avatarUrl)
+                                      : null,
+                                  child: avatarUrl == null
+                                      ? Text(
+                                          initial,
+                                          style: const TextStyle(
+                                              color: Color(0xFF1E3A8A),
+                                              fontWeight: FontWeight.bold),
+                                        )
+                                      : null,
+                                ),
+                                // Badge "Saya" untuk user yang login
+                                if (isCurrentUser)
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF00C9E4),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                        size: 10,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                            title: Text(name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w500)),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(name,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w500)),
+                                ),
+                                if (isCurrentUser)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00C9E4)
+                                          .withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      widget.lang == 'ID'
+                                          ? 'Saya'
+                                          : widget.lang == 'ZH'
+                                              ? '我'
+                                              : 'Me',
+                                      style: const TextStyle(
+                                        color: Color(0xFF00C9E4),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                             subtitle: role.isNotEmpty ? Text(role) : null,
                             trailing: const Icon(Icons.arrow_forward_ios,
                                 size: 14, color: Colors.grey),
@@ -2209,10 +2348,10 @@ class FullLocationPickerBottomSheet extends StatefulWidget {
   final String lang;
   final bool isProMode;
   final String userRole;
-  final int? userUnitId;
-  final int? userLokasiId;
-  final int? userSubunitId;
-  final int? userAreaId;
+  final String? userUnitId;
+  final String? userLokasiId;
+  final String? userSubunitId;
+  final String? userAreaId;
 
   const FullLocationPickerBottomSheet({
     super.key,
@@ -2320,7 +2459,7 @@ class _FullLocationPickerBottomSheetState
     return texts[['search_lokasi', 'search_unit', 'search_subunit', 'search_area'][_currentLevel]] ?? '';
   }
 
-  Future<void> _fetchData({int? parentId}) async {
+  Future<void> _fetchData({String? parentId}) async {
     setState(() => _isLoading = true);
     _searchController.clear();
     try {
@@ -2437,7 +2576,7 @@ class _FullLocationPickerBottomSheetState
     }
     final prev = _navHistory.removeLast();
     setState(() => _currentLevel--);
-    _fetchData(parentId: _navHistory.isEmpty ? null : _navHistory.last['id']);
+    _fetchData(parentId: _navHistory.isEmpty ? null : _navHistory.last['id'] as String?);
   }
 
   void _navigateDeeper(Map<String, dynamic> item) {
@@ -2445,11 +2584,11 @@ class _FullLocationPickerBottomSheetState
     final tName = _getLevelName();
     _navHistory.add({
       'level': _currentLevel,
-      'id': item['id_$tName'],
+      'id': item['id_$tName']?.toString(),
       'name': item['nama_$tName'],
     });
     setState(() => _currentLevel++);
-    _fetchData(parentId: item['id_${_getLevelName(_currentLevel - 1)}']);
+    _fetchData(parentId: item['id_${_getLevelName(_currentLevel - 1)}']?.toString());
   }
 
   void _selectItem(Map<String, dynamic> item) {
@@ -2518,7 +2657,7 @@ class _FullLocationPickerBottomSheetState
                         _fetchData(
                             parentId: _navHistory.isEmpty
                                 ? null
-                                : _navHistory.last['id']);
+                                : _navHistory.last['id'] as String?);
                       }
                     : null,
                 child: AnimatedContainer(

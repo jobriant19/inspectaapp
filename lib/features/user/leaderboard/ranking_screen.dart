@@ -72,10 +72,10 @@ class _RankingScreenState extends State<RankingScreen> {
   LocationFilter _selectedLocation =
       const LocationFilter(displayName: 'Semua Lokasi');
   List<Map<String, dynamic>> _lokasiList = [];
-  int? _tempLokasiId;
-  int? _tempUnitId;
-  int? _tempSubunitId;
-  int? _tempAreaId;
+  String? _tempLokasiId;
+  String? _tempUnitId;
+  String? _tempSubunitId;
+  String? _tempAreaId;
   List<Map<String, dynamic>> _tempUnitList = [];
   List<Map<String, dynamic>> _tempSubunitList = [];
   List<Map<String, dynamic>> _tempAreaList = [];
@@ -192,7 +192,7 @@ class _RankingScreenState extends State<RankingScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchUnitByLokasi(int idLokasi) async {
+  Future<List<Map<String, dynamic>>> _fetchUnitByLokasi(String idLokasi) async {
     try {
       final response = await _supabase
           .from('unit')
@@ -205,7 +205,7 @@ class _RankingScreenState extends State<RankingScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchSubunitByUnit(int idUnit) async {
+  Future<List<Map<String, dynamic>>> _fetchSubunitByUnit(String idUnit) async {
     try {
       final response = await _supabase
           .from('subunit')
@@ -219,7 +219,7 @@ class _RankingScreenState extends State<RankingScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _fetchAreaBySubunit(
-      int idSubunit) async {
+      String idSubunit) async {
     try {
       final response = await _supabase
           .from('area')
@@ -241,19 +241,14 @@ class _RankingScreenState extends State<RankingScreen> {
 
     // ── Tentukan parameter filter paling spesifik ──────────────────────
     // Prioritas: area > subunit > unit > lokasi
-    final int selectedAreaId    = _selectedLocation.idArea    ?? 0;
-    final int selectedSubunitId = _selectedLocation.idSubunit ?? 0;
-    final int selectedUnitId    = _selectedLocation.idUnit    ?? 0;
-    final int selectedLokasiId  = _selectedLocation.idLokasi  ?? 0;
-
     _leaderboardFuture = _supabase
-        .rpc('get_monthly_leaderboard', params: {
-      'selected_month'    : now.month,
-      'selected_year'     : now.year,
-      'selected_unit_id'  : selectedUnitId,
-      'selected_lokasi_id': selectedLokasiId,
-      'selected_subunit_id': selectedSubunitId,
-      'selected_area_id'  : selectedAreaId,
+      .rpc('get_monthly_leaderboard', params: {
+        'selected_month'     : now.month,
+        'selected_year'      : now.year,
+        'selected_unit_id'   : _selectedLocation.idUnit,
+        'selected_lokasi_id' : _selectedLocation.idLokasi,
+        'selected_subunit_id': _selectedLocation.idSubunit,
+        'selected_area_id'   : _selectedLocation.idArea,
     }).then((response) {
       final List<dynamic> data = response;
       if (!mounted) return <_RankMember>[];
@@ -557,11 +552,11 @@ class _RankingScreenState extends State<RankingScreen> {
     required StateSetter setSheetState,
     required String label,
     required IconData icon,
-    required int? selectedId,
+    required String? selectedId,
     required List<Map<String, dynamic>> items,
     required String idKey,
     required String nameKey,
-    required Function(int id) onSelect,
+    required Function(String id) onSelect,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -582,7 +577,7 @@ class _RankingScreenState extends State<RankingScreen> {
           spacing: 8,
           runSpacing: 8,
           children: items.map((item) {
-            final id = item[idKey] as int;
+            final id = item[idKey].toString();
             final name = item[nameKey] as String;
             final isSelected = selectedId == id;
             return GestureDetector(

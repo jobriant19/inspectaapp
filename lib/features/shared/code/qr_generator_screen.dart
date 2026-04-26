@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class QRGeneratorScreen extends StatefulWidget {
   final String lang;
   final String levelName; // e.g., 'lokasi', 'unit'
-  final int levelId;
+  final String levelId;
   final String itemName;
 
   const QRGeneratorScreen({

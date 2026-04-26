@@ -69,6 +69,7 @@ const Map<String, Map<String, String>> _riwayatTexts = {
     'ended': 'Berakhir',
     'participants': 'Peserta',
     'winners': 'Pemenang',
+    'winners_temp': 'Pemenang Sementara',
     'no_winner': 'Belum ada data pemenang',
     'no_history': 'Tidak ada riwayat musim ditemukan.',
     'loading_error': 'Gagal memuat riwayat',
@@ -84,6 +85,7 @@ const Map<String, Map<String, String>> _riwayatTexts = {
     'ended': 'Ended',
     'participants': 'Participants',
     'winners': 'Winners',
+    'winners_temp': 'Current Leader',
     'no_winner': 'No winner data yet',
     'no_history': 'No season history found.',
     'loading_error': 'Failed to load history',
@@ -99,6 +101,7 @@ const Map<String, Map<String, String>> _riwayatTexts = {
     'ended': '已结束',
     'participants': '参与者',
     'winners': '获胜者',
+    'winners_temp': '暂时领先',
     'no_winner': '暂无获胜者数据',
     'no_history': '未找到赛季历史。',
     'loading_error': '加载历史失败',
@@ -167,19 +170,16 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
     _winnerCache[key] ??= _supabase.rpc('get_monthly_leaderboard', params: {
       'selected_month'     : month,
       'selected_year'      : year,
-      'selected_unit_id'   : 0,
-      'selected_lokasi_id' : 0,
-      'selected_subunit_id': 0,
-      'selected_area_id'   : 0,
+      // ← Hapus semua parameter UUID, biarkan default NULL di SQL
     }).then((response) {
       final List<dynamic> data = response;
       return data
           .take(3)
           .map((item) => SeasonWinner(
-                rank     : item['rank_num'] as int,
+                rank     : (item['rank_num'] as num).toInt(),
                 name     : item['nama'] as String,
                 avatarUrl: item['gambar_user'] as String?,
-                score    : item['poin'] as int,  // ← DIPERBAIKI
+                score    : item['poin'] as int,
               ))
           .toList();
     }).catchError((_) => <SeasonWinner>[]);
@@ -442,6 +442,8 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
   // ── Winners Section ─────────────────────────────────────────────────────────
 
   Widget _buildWinnersSection(SeasonHistory item) {
+    final isOngoing = item.status == 'ongoing';
+
     return FutureBuilder<List<SeasonWinner>>(
       future: _fetchWinners(item.year, item.month),
       builder: (context, snapshot) {
@@ -450,7 +452,6 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
         }
 
         final winners = snapshot.data ?? [];
-        // Ambil hanya juara 1
         final champion = winners.isEmpty
             ? null
             : winners.firstWhere(
@@ -458,25 +459,64 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                 orElse: () => winners.first,
               );
 
+        // Label berbeda untuk ongoing vs ended
+        final sectionLabel = isOngoing
+            ? _t('winners_temp')
+            : _t('winners');
+
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Label section
               Row(
                 children: [
-                  const Icon(Icons.emoji_events_rounded,
-                      size: 15, color: Color(0xFFF59E0B)),
+                  Icon(
+                    isOngoing
+                        ? Icons.leaderboard_rounded
+                        : Icons.emoji_events_rounded,
+                    size: 15,
+                    color: isOngoing
+                        ? const Color(0xFF0EA5E9)
+                        : const Color(0xFFF59E0B),
+                  ),
                   const SizedBox(width: 6),
                   Text(
-                    _t('winners'),
-                    style: const TextStyle(
+                    sectionLabel,
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF0C4A6E),
+                      color: isOngoing
+                          ? const Color(0xFF0EA5E9)
+                          : const Color(0xFF0C4A6E),
                     ),
                   ),
+                  // Badge "sementara" untuk ongoing
+                  if (isOngoing) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: const Color(0xFF0EA5E9).withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        widget.lang == 'ID'
+                            ? 'Live'
+                            : widget.lang == 'ZH'
+                                ? '实时'
+                                : 'Live',
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0EA5E9),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 10),
@@ -498,7 +538,7 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                   ),
                 )
               else
-                _buildChampionRow(champion),
+                _buildChampionRow(champion, isOngoing: isOngoing),
             ],
           ),
         );
@@ -506,30 +546,45 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
     );
   }
 
-  Widget _buildChampionRow(SeasonWinner winner) {
+  Widget _buildChampionRow(SeasonWinner winner, {bool isOngoing = false}) {
+    final Color borderColor = isOngoing
+        ? const Color(0xFF7DD3FC)
+        : const Color(0xFFFFD700);
+    final Color bgColor = isOngoing
+        ? const Color(0xFFE0F2FE)
+        : const Color(0xFFFFFDE7);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFE0F2FE),
+        color: bgColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF7DD3FC)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
-          // Medali
-          const Text('🥇', style: TextStyle(fontSize: 28)),
+          // Medali — jam pasir untuk ongoing, trofi untuk ended
+          Text(
+            isOngoing ? '🏃' : '🥇',
+            style: const TextStyle(fontSize: 26),
+          ),
           const SizedBox(width: 12),
           // Avatar
           Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: const Color(0xFF0EA5E9),
+                color: isOngoing
+                    ? const Color(0xFF0EA5E9)
+                    : const Color(0xFFF59E0B),
                 width: 2.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.25),
+                  color: (isOngoing
+                          ? const Color(0xFF0EA5E9)
+                          : const Color(0xFFF59E0B))
+                      .withValues(alpha: 0.25),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
@@ -537,27 +592,32 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
             ),
             child: CircleAvatar(
               radius: 24,
-              backgroundColor: const Color(0xFFBAE6FD),
-              backgroundImage: (winner.avatarUrl != null &&
-                      winner.avatarUrl!.isNotEmpty)
-                  ? NetworkImage(winner.avatarUrl!)
-                  : null,
-              child: (winner.avatarUrl == null || winner.avatarUrl!.isEmpty)
-                  ? Text(
-                      winner.name
-                          .trim()
-                          .split(' ')
-                          .take(2)
-                          .map((w) =>
-                              w.isNotEmpty ? w[0].toUpperCase() : '')
-                          .join(),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0369A1),
-                      ),
-                    )
-                  : null,
+              backgroundColor: isOngoing
+                  ? const Color(0xFFBAE6FD)
+                  : const Color(0xFFFFF9C4),
+              backgroundImage:
+                  (winner.avatarUrl != null && winner.avatarUrl!.isNotEmpty)
+                      ? NetworkImage(winner.avatarUrl!)
+                      : null,
+              child:
+                  (winner.avatarUrl == null || winner.avatarUrl!.isEmpty)
+                      ? Text(
+                          winner.name
+                              .trim()
+                              .split(' ')
+                              .take(2)
+                              .map((w) =>
+                                  w.isNotEmpty ? w[0].toUpperCase() : '')
+                              .join(),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: isOngoing
+                                ? const Color(0xFF0369A1)
+                                : const Color(0xFF7B5800),
+                          ),
+                        )
+                      : null,
             ),
           ),
           const SizedBox(width: 12),
@@ -568,10 +628,12 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
               children: [
                 Text(
                   winner.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF0C4A6E),
+                    color: isOngoing
+                        ? const Color(0xFF0C4A6E)
+                        : const Color(0xFF3B2800),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -579,10 +641,12 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                 const SizedBox(height: 2),
                 Text(
                   '${winner.score} ${_t('pts')}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF0369A1),
+                    color: isOngoing
+                        ? const Color(0xFF0369A1)
+                        : const Color(0xFFF59E0B),
                   ),
                 ),
               ],
@@ -593,14 +657,16 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
             padding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0C4A6E), Color(0xFF0EA5E9)],
+              gradient: LinearGradient(
+                colors: isOngoing
+                    ? [const Color(0xFF0C4A6E), const Color(0xFF0EA5E9)]
+                    : [const Color(0xFFF59E0B), const Color(0xFFFFD54F)],
               ),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Text(
+            child: Text(
               '#1',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,

@@ -25,8 +25,8 @@ class HomeContent extends StatefulWidget {
   final int userPoin;
   final int displayedPoin;
   final String? userImage;
-  final int? userUnitId;
-  final int? userLokasiId;
+  final String? userUnitId;
+  final String? userLokasiId;
   final Map<String, dynamic>? latestLogPoin;
   final bool isLatestLogLoading;
   final VoidCallback? onRequestRefresh;
@@ -833,8 +833,8 @@ class HomeContentState extends State<HomeContent> {
                   lang: widget.lang,
                   isProMode: widget.isProMode,
                   userRole: widget.userRole,
-                  userUnitId: widget.userUnitId,
-                  userLokasiId: widget.userLokasiId,
+                  userUnitId: widget.userUnitId?.toString(),
+                  userLokasiId: widget.userLokasiId?.toString(),
                 ),
               ),
             ),

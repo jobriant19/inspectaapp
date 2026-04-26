@@ -10,10 +10,10 @@ class CameraFindingScreen extends StatefulWidget {
   final bool isVisitorMode;
   
   final String selectedLocationName;
-  final int? selectedLocationId;
-  final int? selectedUnitId;
-  final int? selectedSubunitId;
-  final int? selectedAreaId;
+  final String? selectedLocationId;
+  final String? selectedUnitId;
+  final String? selectedSubunitId;
+  final String? selectedAreaId;
 
   const CameraFindingScreen({
     super.key,
@@ -115,11 +115,6 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
   Future<void> _navigateToForm(XFile imageXFile) async {
     if (!mounted) return;
 
-    // DIHAPUS: Validasi 24 jam dihapus karena file.lastModified() tidak berfungsi di web.
-    // Anda bisa menambahkan kembali validasi ini dengan logika yang lebih kompleks jika sangat dibutuhkan,
-    // tetapi untuk memperbaiki fungsionalitas inti, kita nonaktifkan dulu.
-    
-    // Langsung navigasi ke AddFindingFlowScreen dengan membawa XFile
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -127,8 +122,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
           lang: widget.lang,
           isProMode: widget.isProMode,
           isVisitorMode: widget.isVisitorMode,
-          // DIUBAH: Mengirim XFile, bukan File. Nama parameter juga kita ubah.
-          initialImageXFile: imageXFile, 
+          initialImageXFile: imageXFile,
           preSelectedLocationName: widget.selectedLocationName,
           preSelectedLocationId: widget.selectedLocationId,
           preSelectedUnitId: widget.selectedUnitId,
@@ -137,9 +131,10 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
         ),
       ),
     );
-    
-    if (result == true) {
-      if (mounted) Navigator.pop(context, true);
+
+    // ← Langsung pop CameraFindingScreen juga, teruskan result ke atas
+    if (mounted) {
+      Navigator.pop(context, result == true ? true : null);
     }
   }
 
@@ -180,11 +175,9 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
   @override
   Widget build(BuildContext context) {
     if (!_isCameraInitialized || _cameraController == null) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
+        body: _CameraLoadingScreen(lang: widget.lang),
       );
     }
 
@@ -209,7 +202,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () => Navigator.pop(context, null),
                     ),
                     Expanded(
                       child: Center(
@@ -294,6 +287,199 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
           )
         ],
       ),
+    );
+  }
+}
+
+// ============================================================
+// WIDGET: Loading kamera yang menarik
+// ============================================================
+class _CameraLoadingScreen extends StatelessWidget {
+  final String lang;
+  const _CameraLoadingScreen({this.lang = 'ID'});
+
+  String get _title {
+    switch (lang) {
+      case 'EN': return 'Loading Camera';
+      case 'ZH': return '正在加载相机';
+      default:   return 'Memuat Kamera';
+    }
+  }
+
+  String get _subtitle {
+    switch (lang) {
+      case 'EN': return 'Preparing lens for you...';
+      case 'ZH': return '正在为您准备镜头...';
+      default:   return 'Menyiapkan lensa untuk Anda...';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF0A0E1A),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Ikon kamera dalam ring ──
+            _PulsingCameraIcon(),
+            const SizedBox(height: 32),
+            // ── Teks loading ──
+            Text(
+              _title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _subtitle,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.45),
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 28),
+            // ── Progress bar tipis ──
+            SizedBox(
+              width: 120,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  minHeight: 3,
+                  backgroundColor:
+                      const Color(0xFF00C9E4).withOpacity(0.15),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFF00C9E4)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Ikon kamera berdenyut ──
+class _PulsingCameraIcon extends StatefulWidget {
+  @override
+  State<_PulsingCameraIcon> createState() => _PulsingCameraIconState();
+}
+
+class _PulsingCameraIconState extends State<_PulsingCameraIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _pulse = Tween<double>(begin: 0.92, end: 1.08).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (_, __) => Transform.scale(
+        scale: _pulse.value,
+        child: Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFF00C9E4).withOpacity(0.12),
+            border: Border.all(
+              color: const Color(0xFF00C9E4).withOpacity(0.5),
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00C9E4)
+                    .withOpacity(0.2 * _pulse.value),
+                blurRadius: 24,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.camera_alt_rounded,
+            color: Color(0xFF00C9E4),
+            size: 42,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Widget dot animasi ──
+class _AnimatedDots extends StatefulWidget {
+  @override
+  State<_AnimatedDots> createState() => _AnimatedDotsState();
+}
+
+class _AnimatedDotsState extends State<_AnimatedDots>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            final delay = i / 3;
+            final value = ((_ctrl.value - delay) % 1.0).clamp(0.0, 1.0);
+            final opacity = value < 0.5
+                ? value * 2
+                : (1.0 - value) * 2;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF00C9E4).withOpacity(0.3 + opacity * 0.7),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

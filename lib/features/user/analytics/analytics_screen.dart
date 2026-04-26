@@ -184,7 +184,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   // ─── State untuk Filter ──────────────────────────────────────────────────
   String _selectedMonth = 'Apr';
-  int _selectedUnitId = 0;
+  String? _selectedUnitId;
   String _selectedInspectionRole = 'Eksekutif';
   String _selectedLocationLevel = 'Lokasi';
   DateTime? _lastUpdated;
@@ -417,7 +417,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   // ─── Fungsi Pengambilan Data dari Supabase (RPC) ─────────────────────────
-  Future<List<MemberData>> _fetchAnggotaData(int month, int year, int unitId) async { // Tambahkan 'year'
+  Future<List<MemberData>> _fetchAnggotaData(int month, int year, String? unitId) async { // Tambahkan 'year'
     try {
       final List<dynamic> response = await _supabase.rpc('get_anggota_stats',
           params: {
@@ -570,13 +570,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Widget _buildGroupDropdown() {
     // Buat item dropdown secara dinamis dari _unitList
-    List<DropdownMenuItem<int>> dropdownItems = [
-      DropdownMenuItem(value: 0, child: Text(getTxt('semua_grup'))),
+    List<DropdownMenuItem<String?>> dropdownItems = [
+      DropdownMenuItem(value: null, child: Text(getTxt('semua_grup'))),
     ];
 
     dropdownItems.addAll(_unitList.map((unit) {
       return DropdownMenuItem(
-        value: unit['id_unit'] as int,
+        value: unit['id_unit'].toString(),
         child: Text(unit['nama_unit'] as String),
       );
     }));
@@ -590,7 +590,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: _AppColors.divider, width: 1.0),
         ),
-        child: DropdownButton<int>(
+        child: DropdownButton<String?>(
           value: _selectedUnitId,
           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _AppColors.textSecondary, size: 20),
           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _AppColors.textPrimary),
@@ -598,10 +598,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           borderRadius: BorderRadius.circular(12),
           items: dropdownItems,
           onChanged: (value) {
-            if (value != null) {
-              setState(() => _selectedUnitId = value);
-              _fetchAllData(); // Ambil data baru saat grup berubah
-            }
+            setState(() => _selectedUnitId = value);
+            _fetchAllData();
           },
         ),
       ),
