@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 
@@ -29,16 +28,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   String _email = '', _jabatan = '', _lokasi = '';
   String? _initialName, _imageUrl;
-  XFile? _imageFile; // Variabel ini kunci untuk preview gambar baru
+  XFile? _imageFile;
+  Uint8List? _imageBytes;
+  String? _imageExt;
   bool _isSaving = false;
   bool _isScreenLoading = true;
   bool _isEditMode = false;
   bool _hasChanges = false;
 
   final Map<String, Map<String, String>> _txt = {
-    'EN': { 'profile_title': 'My Profile', 'edit_title': 'Edit Profile', 'name': 'Name', 'email': 'Email Address', 'role': 'Job Title', 'location': 'Location', 'save': 'Save Changes', 'success': 'Profile Updated', 'edit': 'Edit', 'verifier': 'Verifier', 'error_update': 'Failed to update profile. Please try again.' },
-    'ID': { 'profile_title': 'Profil Saya', 'edit_title': 'Ubah Profil', 'name': 'Nama', 'email': 'Alamat Email', 'role': 'Jabatan', 'location': 'Lokasi', 'save': 'Simpan Perubahan', 'success': 'Profil Diperbarui', 'edit': 'Ubah', 'verifier': 'Verifier', 'error_update': 'Gagal memperbarui profil. Silakan coba lagi.' },
-    'ZH': { 'profile_title': '我的资料', 'edit_title': '编辑资料', 'name': '姓名', 'email': '电子邮件', 'role': '职位', 'location': '地点', 'save': '保存更改', 'success': '资料已更新', 'edit': '编辑', 'verifier': '验证者', 'error_update': '无法更新资料，请重试.' },
+    'EN': { 'profile_title': 'My Profile', 'edit_title': 'Edit Profile', 'name': 'Name', 'email': 'Email Address', 'role': 'Job Title', 'location': 'Location', 'save': 'Save Changes', 'success': 'Profile Updated!', 'success_body': 'Your profile has been successfully updated.', 'edit': 'Edit', 'verifier': 'Verifier', 'error_update': 'Update Failed', 'error_body': 'Failed to update profile. Please try again.', 'close': 'Close', 'saving': 'Saving your profile...', 'uploading': 'Uploading photo...' },
+    'ID': { 'profile_title': 'Profil Saya', 'edit_title': 'Ubah Profil', 'name': 'Nama', 'email': 'Alamat Email', 'role': 'Jabatan', 'location': 'Lokasi', 'save': 'Simpan Perubahan', 'success': 'Profil Diperbarui!', 'success_body': 'Profil Anda berhasil diperbarui.', 'edit': 'Ubah', 'verifier': 'Verifier', 'error_update': 'Gagal Memperbarui', 'error_body': 'Gagal memperbarui profil. Silakan coba lagi.', 'close': 'Tutup', 'saving': 'Menyimpan profil Anda...', 'uploading': 'Mengunggah foto...' },
+    'ZH': { 'profile_title': '我的资料', 'edit_title': '编辑资料', 'name': '姓名', 'email': '电子邮件', 'role': '职位', 'location': '地点', 'save': '保存更改', 'success': '资料已更新！', 'success_body': '您的资料已成功更新。', 'edit': '编辑', 'verifier': '验证者', 'error_update': '更新失败', 'error_body': '无法更新资料，请重试。', 'close': '关闭', 'saving': '正在保存资料...', 'uploading': '正在上传照片...' },
   };
   String getTxt(String key) => _txt[widget.lang]?[key] ?? key;
 
@@ -130,46 +131,168 @@ class _ProfileScreenState extends State<ProfileScreen> {
       maxHeight: 800,
     );
     if (picked != null) {
+      final bytes = await picked.readAsBytes(); // Baca langsung ke bytes
+      final ext = picked.name.split('.').last.toLowerCase();
       setState(() {
         _imageFile = picked;
+        _imageBytes = bytes;
+        _imageExt = ext.isEmpty ? 'jpg' : ext;
         _hasChanges = true;
       });
     }
   }
 
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 30, offset: const Offset(0, 10))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 64,
+                height: 64,
+                child: CircularProgressIndicator(
+                  strokeWidth: 5,
+                  valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF1D72F3)),
+                  backgroundColor: const Color(0xFFEFF6FF),
+                ),
+              ),
+              const SizedBox(height: 22),
+              Text(
+                _imageBytes != null ? getTxt('uploading') : getTxt('saving'),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '...',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showResultDialog({required bool isSuccess, String? errorDetail}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 30, offset: const Offset(0, 10))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: isSuccess ? const Color(0xFFDCFCE7) : Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isSuccess ? Icons.check_circle_rounded : Icons.error_rounded,
+                  color: isSuccess ? const Color(0xFF16A34A) : Colors.red.shade400,
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                getTxt(isSuccess ? 'success' : 'error_update'),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isSuccess ? const Color(0xFF16A34A) : Colors.red.shade600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                isSuccess ? getTxt('success_body') : '${getTxt('error_body')}\n\n$errorDetail',
+                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B), height: 1.5),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isSuccess ? const Color(0xFF16A34A) : Colors.red.shade400,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(getTxt('close'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // --- BAGIAN UTAMA PERBAIKAN: METHOD UNTUK MENYIMPAN PROFIL ---
   Future<void> _updateProfile() async {
     setState(() => _isSaving = true);
+    _showLoadingDialog(); // Tampilkan loading dialog
 
     final user = Supabase.instance.client.auth.currentUser!;
     String? finalImageUrl = _imageUrl;
 
     try {
-      // Upload gambar baru jika ada
-      if (_imageFile != null) {
-        final ext = _imageFile!.path.split('.').last.toLowerCase();
-        final fileName =
-            '${user.id}-${DateTime.now().millisecondsSinceEpoch}.$ext';
+      if (_imageBytes != null && _imageExt != null) {
+        final ext = _imageExt!;
+        final fileName = '${user.id}-${DateTime.now().millisecondsSinceEpoch}.$ext';
         final filePath = 'avatars/$fileName';
-        final bytes = await _imageFile!.readAsBytes();
+
+        final String contentType;
+        if (ext == 'png') {
+          contentType = 'image/png';
+        } else if (ext == 'gif') {
+          contentType = 'image/gif';
+        } else if (ext == 'webp') {
+          contentType = 'image/webp';
+        } else {
+          contentType = 'image/jpeg';
+        }
 
         await Supabase.instance.client.storage
-            .from('temuan_images')
+            .from('avatars')
             .uploadBinary(
               filePath,
-              bytes,
-              fileOptions: FileOptions(
-                contentType: 'image/$ext',
-                upsert: true,
-              ),
+              _imageBytes!,
+              fileOptions: FileOptions(contentType: contentType, upsert: true),
             );
 
         finalImageUrl = Supabase.instance.client.storage
-            .from('temuan_images')
+            .from('avatars')
             .getPublicUrl(filePath);
       }
 
-      // Update tabel User
       await Supabase.instance.client
           .from('User')
           .update({
@@ -179,145 +302,261 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .eq('id_user', user.id);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(getTxt('success')),
-            backgroundColor: Colors.green,
-          ),
-        );
+        Navigator.of(context).pop(); // Tutup loading dialog
         setState(() {
           _initialName = _nameController.text.trim();
           _imageUrl = finalImageUrl;
           _imageFile = null;
+          _imageBytes = null;
+          _imageExt = null;
           _isEditMode = false;
           _hasChanges = false;
         });
+        _showResultDialog(isSuccess: true);
       }
     } catch (e) {
       debugPrint('Error updating profile: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${getTxt('error_update')}\nDetail: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        Navigator.of(context).pop(); // Tutup loading dialog
+        _showResultDialog(isSuccess: false, errorDetail: e.toString());
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
+
+  Widget _buildRoleBadge() {
+    List<Color> gradientColors;
+    IconData roleIcon;
+    final jabatanLower = _jabatan.toLowerCase();
+
+    if (jabatanLower.contains('eksekutif') || jabatanLower.contains('executive')) {
+      gradientColors = [const Color(0xFFFA527B), const Color(0xFF6A041D)];
+      roleIcon = Icons.workspace_premium_rounded;
+    } else if (jabatanLower.contains('manager') || jabatanLower.contains('manajer')) {
+      gradientColors = [const Color(0xFF1D72F3), const Color(0xFF00C9E4)];
+      roleIcon = Icons.workspace_premium_rounded;
+    } else if (jabatanLower.contains('kasi') || jabatanLower.contains('kassie') || jabatanLower.contains('kepala seksi')) {
+      gradientColors = [const Color(0xFF26D0CE), const Color(0xFF1A2980)];
+      roleIcon = Icons.manage_accounts_rounded;
+    } else if (jabatanLower.contains('hrd') || jabatanLower.contains('human resource')) {
+      gradientColors = [const Color(0xFFEC4899), const Color(0xFFDB2777)];
+      roleIcon = Icons.people_rounded;
+    } else if (jabatanLower.contains('verif')) {
+      gradientColors = [const Color(0xFF059669), const Color(0xFF065F46)];
+      roleIcon = Icons.verified_rounded;
+    } else if (jabatanLower.contains('visitor') || jabatanLower.contains('pengunjung')) {
+      gradientColors = [const Color(0xFF94A3B8), const Color(0xFF64748B)];
+      roleIcon = Icons.person_pin_rounded;
+    } else {
+      gradientColors = [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)];
+      roleIcon = Icons.badge_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: gradientColors.last.withOpacity(0.35),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(roleIcon, color: Colors.white, size: 15),
+          const SizedBox(width: 6),
+          Text(
+            _jabatan,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  PageRoute _buildPageRoute() {
+    return PageRouteBuilder(
+      pageBuilder: (_, __, ___) => const SizedBox(),
+      transitionsBuilder: (_, animation, __, child) {
+        final slide = Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(1.0, 0.0),
+        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeInOut));
+        return SlideTransition(position: slide, child: child);
+      },
+    );
+  }
   
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1E3A8A)),
-          onPressed: () {
-            if (_isEditMode) {
-              setState(() {
-                _isEditMode = false;
-                _nameController.text = _initialName ?? '';
-                _imageFile = null;
-                _hasChanges = false;
-              });
-            } else {
-              Navigator.pop(context);
-            }
-          },
+    return PopScope(
+      canPop: !_isEditMode, // Izinkan swipe back langsung jika bukan edit mode
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        // Hanya masuk sini jika canPop = false (yaitu saat _isEditMode = true)
+        setState(() {
+          _isEditMode = false;
+          _nameController.text = _initialName ?? '';
+          _imageFile = null;
+          _imageBytes = null;
+          _imageExt = null;
+          _hasChanges = false;
+        });
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFEFF6FF),
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1D72F3)),
+            onPressed: () {
+              if (_isEditMode) {
+                setState(() {
+                  _isEditMode = false;
+                  _nameController.text = _initialName ?? '';
+                  _imageFile = null;
+                  _imageBytes = null;
+                  _imageExt = null;
+                  _hasChanges = false;
+                });
+              } else {
+                Navigator.of(context).pop();
+              }
+            },
+          ),
+          title: Text(
+            getTxt(_isEditMode ? 'edit_title' : 'profile_title'),
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1D72F3), fontSize: 18),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 1,
+          shadowColor: Colors.black.withOpacity(0.08),
+          iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
+          actions: [
+            if (!_isEditMode && !_isScreenLoading)
+              TextButton.icon(
+                icon: const Icon(Icons.edit_rounded, color: Color(0xFF1D72F3), size: 18),
+                label: Text(getTxt('edit'), style: const TextStyle(color: Color(0xFF1D72F3), fontWeight: FontWeight.bold)),
+                onPressed: () => setState(() => _isEditMode = true),
+                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16)),
+              ),
+          ],
         ),
-        title: Text(getTxt(_isEditMode ? 'edit_title' : 'profile_title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
-        backgroundColor: Colors.white,
-        elevation: 1,
-        shadowColor: Colors.black.withOpacity(0.1),
-        iconTheme: const IconThemeData(color: Color(0xFF1E3A8A)),
-        actions: [
-          if (!_isEditMode && !_isScreenLoading)
-            TextButton.icon(
-              icon: const Icon(Icons.edit_rounded, color: Color(0xFF1E3A8A), size: 20),
-              label: Text(getTxt('edit'), style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
-              onPressed: () => setState(() => _isEditMode = true),
-              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
-            ),
-        ],
-      ),
-      body: _isScreenLoading
-          ? _buildSkeletonBody()
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: _pickImage,
-                    child: Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        FutureBuilder<Uint8List?>(
-                          future: _imageFile != null ? _imageFile!.readAsBytes() : null,
-                          builder: (context, snapshot) {
-                            ImageProvider? imageProvider;
-
-                            if (_imageFile != null && snapshot.hasData) {
-                              // Preview gambar baru dari file lokal
-                              imageProvider = MemoryImage(snapshot.data!);
-                            } else if (_imageUrl != null && _imageUrl!.isNotEmpty) {
-                              // Gambar dari server
-                              imageProvider = NetworkImage(_imageUrl!);
-                            }
-
-                            return CircleAvatar(
-                              radius: 60,
-                              backgroundColor: Colors.grey.shade200,
-                              backgroundImage: imageProvider,
-                              child: imageProvider == null
-                                  ? const Icon(Icons.person, size: 60,
-                                      color: Color(0xFF00C9E4))
-                                  : null,
-                            );
-                          },
-                        ),
-                        if (_isEditMode)
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF00C9E4),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: const Icon(Icons.camera_alt,
-                                color: Colors.white, size: 18),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  _buildField(_nameController, getTxt('name'), Icons.person_outline, enabled: _isEditMode),
-                  _buildInfoField(_email, getTxt('email'), Icons.email_outlined),
-                  _buildInfoField(_jabatan, getTxt('role'), Icons.work_outline),
-                  _buildInfoField(_lokasi, getTxt('location'), Icons.location_on_outlined),
-                  const SizedBox(height: 30),
-                  if (_isEditMode)
-                    SizedBox(
+        body: _isScreenLoading
+            ? _buildSkeletonBody()
+            : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    // Header avatar biru
+                    Container(
                       width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00C9E4),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                          disabledBackgroundColor: Colors.grey.shade300,
+                      padding: const EdgeInsets.only(top: 30, bottom: 36),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF1D72F3), Color(0xFF00C9E4)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        onPressed: _hasChanges && !_isSaving ? _updateProfile : null,
-                        child: _isSaving
-                            ? const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white))
-                            : Text(getTxt('save'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                        borderRadius: BorderRadius.only(
+                          bottomLeft: Radius.circular(36),
+                          bottomRight: Radius.circular(36),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          GestureDetector(
+                            onTap: _pickImage,
+                            child: Stack(
+                              alignment: Alignment.bottomRight,
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 4),
+                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 16, offset: const Offset(0, 6))],
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 56,
+                                    backgroundColor: const Color(0xFFBFDBFE),
+                                    backgroundImage: _imageBytes != null
+                                        ? MemoryImage(_imageBytes!) as ImageProvider
+                                        : (_imageUrl != null && _imageUrl!.isNotEmpty ? NetworkImage(_imageUrl!) : null),
+                                    child: (_imageBytes == null && (_imageUrl == null || _imageUrl!.isEmpty))
+                                        ? const Icon(Icons.person, size: 56, color: Color(0xFF1D72F3))
+                                        : null,
+                                  ),
+                                ),
+                                if (_isEditMode)
+                                  Container(
+                                    padding: const EdgeInsets.all(7),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: const Color(0xFF1D72F3), width: 2),
+                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8)],
+                                    ),
+                                    child: const Icon(Icons.camera_alt, color: Color(0xFF1D72F3), size: 18),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                            _buildRoleBadge(),
+                        ],
                       ),
                     ),
-                ],
+
+                    // Form fields
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildInfoFieldEditable(
+                            controller: _nameController,
+                            label: getTxt('name'),
+                            icon: Icons.person_outline,
+                            enabled: _isEditMode,
+                          ),
+                          _buildInfoField(_email, getTxt('email'), Icons.email_outlined),
+                          _buildInfoField(_jabatan, getTxt('role'), Icons.work_outline),
+                          _buildInfoField(_lokasi, getTxt('location'), Icons.location_on_outlined),
+                          const SizedBox(height: 24),
+                          if (_isEditMode)
+                            SizedBox(
+                              width: double.infinity,
+                              height: 52,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _hasChanges ? const Color(0xFF1D72F3) : Colors.grey.shade300,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  elevation: _hasChanges ? 4 : 0,
+                                  shadowColor: const Color(0xFF1D72F3).withOpacity(0.35),
+                                ),
+                                onPressed: _hasChanges && !_isSaving ? _updateProfile : null,
+                                child: Text(
+                                  getTxt('save'),
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 
@@ -350,53 +589,105 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildField(TextEditingController c, String label, IconData icon, {bool enabled = false}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      decoration: BoxDecoration(
-        color: enabled ? Colors.white : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [if (enabled) BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-      ),
-      child: TextField(
-        controller: c,
-        enabled: enabled,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, color: Colors.grey.shade600),
-          labelStyle: TextStyle(color: Colors.grey.shade600),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+  Widget _buildInfoFieldEditable({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool enabled = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1D72F3), letterSpacing: 0.3),
+          ),
         ),
-      ),
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14), // sama persis dengan _buildInfoField
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: enabled ? const Color(0xFF1D72F3) : Colors.transparent,
+              width: 1.5,
+            ),
+            boxShadow: [BoxShadow(color: const Color(0xFF1D72F3).withOpacity(0.07), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: const Color(0xFF1D72F3), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  enabled: enabled,
+                  style: const TextStyle(fontSize: 15, color: Color(0xFF1E293B), fontWeight: FontWeight.w500),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildInfoField(String value, String label, IconData icon) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.grey.shade600),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
-              ],
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1D72F3), letterSpacing: 0.3),
           ),
-        ],
-      ),
+        ),
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: const Color(0xFF1D72F3).withOpacity(0.07), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: const Color(0xFF1D72F3), size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  value,
+                  style: const TextStyle(fontSize: 15, color: Color(0xFF1E293B), fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

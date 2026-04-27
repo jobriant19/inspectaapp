@@ -250,9 +250,9 @@ class _AccountScreenState extends State<AccountScreen> {
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF00C9E4).withOpacity(0.1) : Colors.grey.shade100,
+                      color: isSelected ? const Color(0xFF1D72F3).withOpacity(0.1) : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(15),
-                      border: isSelected ? Border.all(color: const Color(0xFF00C9E4), width: 2) : null,
+                      border: isSelected ? Border.all(color: const Color(0xFF1D72F3), width: 2) : null,
                     ),
                     child: Row(
                       children: [
@@ -281,10 +281,10 @@ class _AccountScreenState extends State<AccountScreen> {
           icon: const Icon(Icons.arrow_back_ios),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(getTxt('title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+        title: Text(getTxt('title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1D72F3))),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1E3A8A)),
+        iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -383,7 +383,7 @@ class _AccountScreenState extends State<AccountScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon, color: const Color(0xFF1E3A8A)),
+            Icon(icon, color: const Color(0xFF1D72F3)),
             const SizedBox(width: 15),
             Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500))),
             if (trailing != null) trailing,
@@ -395,196 +395,192 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-Widget _buildProfileCard() {
-  // 1. JIKA USER ADALAH VISITOR
-  if (_isVisitor) {
-    return _buildVisitorCard(); // Kita pisahkan ke helper di bawah agar rapi
-  }
+  Widget _buildProfileCard() {
+    if (_isVisitor) {
+      return _buildVisitorCard();
+    }
 
-  // 2. JIKA USER ADALAH KARYAWAN (Eksekutif, Manajer, Kassie, Staff)
-  List<Color> gradientColors;
+    List<Color> gradientColors;
 
-  switch (_userJabatanId) {
-    case 1: // Eksekutif (Pink Mewah ke Merah Tua)
-      gradientColors = [const Color(0xFFFA527B), const Color(0xFF6A041D)];
-      break;
-    case 2: // Manajer
-      gradientColors = [const Color(0xFF00C9E4), const Color(0xFF1E3A8A)];
-      break;
-    case 3: // Kassie (Hijau Eksklusif)
-      gradientColors = [const Color(0xFF26D0CE), const Color(0xFF1A2980)];
-      break;
-    default: // Staff (Ungu Elegan)
-      gradientColors = [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)];
-  }
+    switch (_userJabatanId) {
+      case 1: // Eksekutif
+        gradientColors = [const Color(0xFFFA527B), const Color(0xFF6A041D)];
+        break;
+      case 2: // Manajer
+        gradientColors = [const Color(0xFF1D72F3), const Color(0xFF1D72F3)];
+        break;
+      case 3: // Kassie
+        gradientColors = [const Color(0xFF26D0CE), const Color(0xFF1A2980)];
+        break;
+      case 4: // HRD
+        gradientColors = [const Color(0xFFEC4899), const Color(0xFFDB2777)];
+        break;
+      default: // Staff
+        gradientColors = [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)];
+    }
 
-  return GestureDetector(
-    onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ProfileScreen(
-            lang: _currentLang,
-            initialUserName: _userName,
-            initialUserImage: _userImage,
-            initialUserRole: _userJabatan,
-            initialUserLocation: _userLokasiSpesifik,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, animation, __) => ProfileScreen(
+              lang: _currentLang,
+              initialUserName: _userName,
+              initialUserImage: _userImage,
+              initialUserRole: _userJabatan,
+              initialUserLocation: _userLokasiSpesifik,
+            ),
+            transitionsBuilder: (_, animation, __, child) {
+              final slide = Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: animation, curve: Curves.easeInOut));
+              return SlideTransition(position: slide, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 300),
           ),
-        ),
-      ).then((_) => _fetchUserDataSilent());
-    },
-    child: Container(
-      height: 140, // Tinggi konsisten
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(25),
-        gradient: LinearGradient(
-          colors: gradientColors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: gradientColors.last.withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
+        ).then((_) => _fetchUserDataSilent());
+      },
+      child: Container(
+        height: 140,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(25),
+          gradient: LinearGradient(
+            colors: gradientColors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(25),
-        child: Stack(
-          children: [
-            // --- CORAK DESAIN ABSTRAK 1 (Top Right) ---
-            Positioned(
-              right: -50,
-              top: -40,
-              child: CircleAvatar(
-                radius: 90,
-                backgroundColor: Colors.white.withOpacity(0.06),
-              ),
-            ),
-            // --- CORAK DESAIN ABSTRAK 2 (Bottom Right) ---
-            Positioned(
-              right: 20,
-              bottom: -70,
-              child: CircleAvatar(
-                radius: 70,
-                backgroundColor: Colors.white.withOpacity(0.04),
-              ),
-            ),
-            // --- CORAK DESAIN ABSTRAK 3 (Left Edge) ---
-            Positioned(
-              left: -30,
-              bottom: -20,
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.black.withOpacity(0.05),
-              ),
-            ),
-            
-            // --- KONTEN UTAMA KARTU ---
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 35,
-                    backgroundColor: Colors.white.withOpacity(0.8),
-                    backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
-                    child: _userImage == null ? const Icon(Icons.person, color: Color(0xFF1E3A8A), size: 35) : null,
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(_userName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, height: 1.2)),
-                        const SizedBox(height: 8),
-
-                        // --- BADGE UNTUK JABATAN ---
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _userJabatan,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.white.withOpacity(0.95),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        // ----------------------------
-
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(Icons.location_on, color: Colors.white.withOpacity(0.8), size: 16),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: Text(
-                                _userLokasiSpesifik,
-                                style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
-                ],
-              ),
+          boxShadow: [
+            BoxShadow(
+              color: gradientColors.last.withOpacity(0.4),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(25),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -50, top: -40,
+                child: CircleAvatar(radius: 90, backgroundColor: Colors.white.withOpacity(0.06)),
+              ),
+              Positioned(
+                right: 20, bottom: -70,
+                child: CircleAvatar(radius: 70, backgroundColor: Colors.white.withOpacity(0.04)),
+              ),
+              Positioned(
+                left: -30, bottom: -20,
+                child: CircleAvatar(radius: 50, backgroundColor: Colors.black.withOpacity(0.05)),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 35,
+                      backgroundColor: Colors.white.withOpacity(0.8),
+                      backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
+                      child: _userImage == null ? const Icon(Icons.person, color: Color(0xFF1D72F3), size: 35) : null,
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(_userName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, height: 1.2)),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              _userJabatan,
+                              style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.95), fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.location_on, color: Colors.white.withOpacity(0.8), size: 16),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  _userLokasiSpesifik,
+                                  style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-// --- HELPER UNTUK KARTU VISITOR ---
-Widget _buildVisitorCard() {
-  return GestureDetector(
-    onTap: () {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(lang: _currentLang)))
-          .then((_) => _fetchUserDataSilent());
-    },
-    child: Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 35,
-            backgroundColor: Colors.grey.shade200,
-            backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
-            child: _userImage == null ? const Icon(Icons.person_outline, color: Color(0xFF1E3A8A), size: 35) : null,
+  // --- HELPER UNTUK KARTU VISITOR ---
+  Widget _buildVisitorCard() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, animation, __) => ProfileScreen(lang: _currentLang),
+            transitionsBuilder: (_, animation, __, child) {
+              final slide = Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: animation, curve: Curves.easeInOut));
+              return SlideTransition(position: slide, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 300),
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_userName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
-                const SizedBox(height: 5),
-                Text(_userJabatan, style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
-              ],
+        ).then((_) => _fetchUserDataSilent());
+      },
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 35,
+              backgroundColor: Colors.grey.shade200,
+              backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
+              child: _userImage == null ? const Icon(Icons.person_outline, color: Color(0xFF1D72F3), size: 35) : null,
             ),
-          ),
-          const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 20),
-        ],
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_userName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1D72F3))),
+                  const SizedBox(height: 5),
+                  Text(_userJabatan, style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 20),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 }

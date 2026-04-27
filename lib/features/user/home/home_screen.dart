@@ -1149,8 +1149,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (_) => AccountScreen(
+                                PageRouteBuilder(
+                                  pageBuilder: (_, animation, __) => AccountScreen(
                                     lang: _lang,
                                     initialUserName: _userName,
                                     initialUserImage: _userImage,
@@ -1159,6 +1159,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                     initialUserJabatanId: _userJabatanId,
                                     initialUserLocation: _userLocationName,
                                   ),
+                                  transitionsBuilder: (_, animation, __, child) {
+                                    final slide = Tween<Offset>(
+                                      begin: const Offset(1.0, 0.0),
+                                      end: Offset.zero,
+                                    ).animate(CurvedAnimation(
+                                      parent: animation,
+                                      curve: Curves.easeInOut,
+                                    ));
+                                    return SlideTransition(position: slide, child: child);
+                                  },
+                                  transitionDuration: const Duration(milliseconds: 300),
                                 ),
                               ).then((_) {
                                 _loadLanguage();
