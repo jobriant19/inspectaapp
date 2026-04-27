@@ -245,9 +245,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
       var query = _client.from('temuan').select('''
         id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, status_temuan,
-        id_kategoritemuan,
+        id_kategoritemuan_uuid,
         penyelesaian:id_penyelesaian (gambar_penyelesaian, catatan_penyelesaian),
-        kategoritemuan:id_kategoritemuan (nama_kategoritemuan),
+        kategoritemuan:id_kategoritemuan_uuid (nama_kategoritemuan),
         lokasi:id_lokasi(nama_lokasi),
         area:id_area(nama_area),
         unit:id_unit(nama_unit)
@@ -297,9 +297,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
         var queryNext = _client.from('temuan').select('''
           id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, status_temuan,
-          id_kategoritemuan,
+          id_kategoritemuan_uuid,
           penyelesaian:id_penyelesaian (gambar_penyelesaian, catatan_penyelesaian),
-          kategoritemuan:id_kategoritemuan (nama_kategoritemuan),
+          kategoritemuan:id_kategoritemuan_uuid (nama_kategoritemuan),
           lokasi:id_lokasi(nama_lokasi),
           area:id_area(nama_area),
           unit:id_unit(nama_unit)

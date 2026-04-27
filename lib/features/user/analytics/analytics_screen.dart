@@ -104,7 +104,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     'ID': {
       'anggota': 'Anggota', 'inspeksi': 'Inspeksi', 'lokasi': 'Lokasi',
       'temuan_berulang': 'Temuan Berulang', 'memuat_data': 'Memuat data...',
-      'diperbarui_pada': 'Terakhir diperbarui pada', 'semua_grup': 'Semua Grup',
+      'diperbarui_pada': 'Terakhir diperbarui pada', 'semua_grup': 'Semua Penemu', 'semua_grup_anggota': 'Semua Grup',
       'gagal_muat_anggota': 'Gagal memuat data Anggota',
       'gagal_muat_inspeksi': 'Gagal memuat data Inspeksi',
       'gagal_muat_lokasi': 'Gagal memuat data Lokasi',
@@ -129,7 +129,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     'EN': {
       'anggota': 'Members', 'inspeksi': 'Inspection', 'lokasi': 'Location',
       'temuan_berulang': 'Recurring Findings', 'memuat_data': 'Loading data...',
-      'diperbarui_pada': 'Last updated at', 'semua_grup': 'All Groups',
+      'diperbarui_pada': 'Last updated at', 'semua_grup': 'All Finders', 'semua_grup_anggota': 'All Groups',
       'gagal_muat_anggota': 'Failed to load Member data',
       'gagal_muat_inspeksi': 'Failed to load Inspection data',
       'gagal_muat_lokasi': 'Failed to load Location data',
@@ -154,7 +154,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     'ZH': {
       'anggota': '成员', 'inspeksi': '检查', 'lokasi': '位置',
       'temuan_berulang': '重复发现', 'memuat_data': '加载数据...',
-      'diperbarui_pada': '最后更新于', 'semua_grup': '所有组',
+      'diperbarui_pada': '最后更新于', 'semua_grup': '所有发现者', 'semua_grup_anggota': '所有组',
       'gagal_muat_anggota': '加载成员数据失败',
       'gagal_muat_inspeksi': '加载检查数据失败',
       'gagal_muat_lokasi': '加载位置数据失败',
@@ -713,7 +713,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   // Group picker popup
   void _showGroupPicker() async {
-    final allItem = {'id_unit': null, 'nama_unit': getTxt('semua_grup')};
+    final allItem = {'id_unit': null, 'nama_unit': getTxt('semua_grup_anggota')};
     final items = [allItem, ..._unitList];
 
     await showDialog(
@@ -1237,7 +1237,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _AppColors.surface,
+      backgroundColor: Colors.transparent,
       body: Column(children: [
         _buildTabBar(),
         Expanded(child: TabBarView(
@@ -1255,29 +1255,38 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   // ── Tab Bar ────────────────────────────────────────────────────────────────
   Widget _buildTabBar() {
-    final tabs = [getTxt('anggota'), getTxt('inspeksi'), getTxt('lokasi'), getTxt('temuan_berulang')];
-    return Container(
-      color: Colors.white,
-      // Tambah padding horizontal agar sejajar dengan header/navbar
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        indicator: BoxDecoration(
-          color: _AppColors.primary,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        labelColor: Colors.white,
-        unselectedLabelColor: _AppColors.primary,
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
-        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w400, fontSize: 13.5),
-        dividerColor: Colors.transparent,
-        tabs: tabs.map((t) => Tab(text: t)).toList(),
+  final tabs = [getTxt('anggota'), getTxt('inspeksi'), getTxt('lokasi'), getTxt('temuan_berulang')];
+  return Container(
+    color: Colors.transparent,
+    padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+    child: TabBar(
+      controller: _tabController,
+      isScrollable: true,
+      tabAlignment: TabAlignment.start,
+      indicator: BoxDecoration(
+        color: _AppColors.primary,
+        borderRadius: BorderRadius.circular(8),
       ),
-    );
-  }
+      indicatorSize: TabBarIndicatorSize.tab,
+      labelColor: Colors.white,
+      unselectedLabelColor: _AppColors.primary,
+      labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
+      dividerColor: Colors.transparent,
+      // Background putih untuk tab tidak aktif
+      overlayColor: WidgetStateProperty.all(Colors.transparent),
+      tabs: tabs.map((t) => Tab(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.transparent, // dihandle oleh indicator & unselected style
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(t),
+        ),
+      )).toList(),
+    ),
+  );
+}
 
   Widget _buildLastUpdatedTextWidget() {
     return Padding(
@@ -1292,7 +1301,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     return Column(children: [
       // Filter row — proportional width
       Container(
-        color: Colors.white,
+        color: Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(children: [
           _buildFilterButton(
@@ -1302,7 +1311,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           const SizedBox(width: 10),
           Expanded(child: _buildFilterButton(
             label: _selectedUnitId == null
-                ? getTxt('semua_grup')
+                ? getTxt('semua_grup_anggota')
                 : (_unitList.firstWhere(
                     (u) => u['id_unit'].toString() == _selectedUnitId,
                     orElse: () => {'nama_unit': getTxt('semua_grup')})['nama_unit'] as String),
@@ -1360,7 +1369,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
     return Column(children: [
       Container(
-        color: Colors.white,
+        color: Colors.transparent,
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(children: [
@@ -1451,7 +1460,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Widget _buildLokasiTab() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
-        color: Colors.white,
+        color: Colors.transparent,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(children: [
           _buildFilterButton(
@@ -1467,7 +1476,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       ),
       _buildAuditPeriodBanner(),
       _buildLastUpdatedTextWidget(),
-      _buildTableHeader([getTxt('rank'), getTxt('lokasi'), getTxt('temuan')], flex: [1, 3, 1]),
+      _buildTableHeader([getTxt('rank'), getTxt('lokasi'), getTxt('temuan')], flex: [1, 3, 1], isLocation: true),
       Expanded(child: FutureBuilder<List<LocationData>>(
         future: _lokasiFuture,
         builder: (context, snapshot) {
@@ -1503,7 +1512,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
     return Column(children: [
       Container(
-        color: Colors.white,
+        color: Colors.transparent,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(children: [
           Expanded(child: _buildFilterButton(
@@ -1931,39 +1940,49 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: isLocation
           ? Row(children: [
-              // Rank — fixed 40px
               SizedBox(
                 width: 40,
                 child: Text(cols[0],
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                      color: _AppColors.textSecondary, letterSpacing: 0.2)),
+                  style: const TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w600,
+                    color: _AppColors.textSecondary, letterSpacing: 0.2)),
               ),
-              // Location — expanded
               Expanded(
                 flex: 3,
                 child: Text(cols[1],
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                      color: _AppColors.textSecondary, letterSpacing: 0.2)),
+                  textAlign: TextAlign.left,   // <-- left agar sejajar dengan isi lokasi
+                  style: const TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w600,
+                    color: _AppColors.textSecondary, letterSpacing: 0.2)),
               ),
-              // Findings — fixed 50px
               SizedBox(
                 width: 50,
                 child: Text(cols[2],
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                      color: _AppColors.textSecondary, letterSpacing: 0.2)),
+                  style: const TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.w600,
+                    color: _AppColors.textSecondary, letterSpacing: 0.2)),
               ),
             ])
           : Row(
-              children: List.generate(cols.length, (i) => Expanded(
-                flex: flex[i],
-                child: Text(cols[i],
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                      color: _AppColors.textSecondary, letterSpacing: 0.2)),
-              )),
+              children: List.generate(cols.length, (i) {
+                // Kolom pertama (Name) rata kiri, sisanya center
+                final isFirst = i == 0;
+                return Expanded(
+                  flex: flex[i],
+                  child: Padding(
+                    padding: EdgeInsets.only(left: isFirst ? 44 : 0), // 34 avatar + 10 gap
+                    child: Text(
+                      cols[i],
+                      textAlign: isFirst ? TextAlign.left : TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w600,
+                        color: _AppColors.textSecondary, letterSpacing: 0.2),
+                    ),
+                  ),
+                );
+              }),
             ),
     );
   }
@@ -1976,12 +1995,25 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         border: Border(bottom: BorderSide(color: _AppColors.divider)),
       ),
       child: Row(children: [
-        Expanded(flex: 3, child: Text(vals[0],
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.primary))),
-        ...vals.sublist(1).map((v) => Expanded(flex: 1,
-          child: Text(v, textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.primary)))),
+        Expanded(
+          flex: 3,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 44), // sejajar dengan nama (avatar 34 + gap 10)
+            child: Text(
+              vals[0],
+              textAlign: TextAlign.left,
+              style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.primary),
+            ),
+          ),
+        ),
+        ...vals.sublist(1).map((v) => Expanded(
+          flex: 1,
+          child: Text(v,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.primary)),
+        )),
       ]),
     );
   }
@@ -2017,29 +2049,55 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildSelfPinnedRow(MemberData self) {
-    final target = _targetAnggota;
-    final findingsColor = self.findings >= target ? const Color(0xFF16A34A) : _AppColors.textSecondary;
-    final completedColor = self.completed >= target ? const Color(0xFF16A34A) : _AppColors.textSecondary;
+  final target = _targetAnggota;
+  final findingsColor = self.findings >= target ? const Color(0xFF16A34A) : _AppColors.textSecondary;
+  final completedColor = self.completed >= target ? const Color(0xFF16A34A) : _AppColors.textSecondary;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: _AppColors.selfHighlight,
-        border: Border(top: BorderSide(color: _AppColors.selfHighlightBorder, width: 1.5)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, -2))],
+  return Container(
+    decoration: BoxDecoration(
+      color: _AppColors.selfHighlight,
+      border: Border(top: BorderSide(color: _AppColors.selfHighlightBorder, width: 1.5)),
+      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, -2))],
+    ),
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    child: Row(children: [
+      // Kolom Name — flex 3, SAMA persis dengan _buildMemberRow
+      Expanded(
+        flex: 3,
+        child: Row(children: [
+          _Avatar(name: self.name, avatarUrl: self.avatarUrl, color: self.avatarColor, size: 34),
+          const SizedBox(width: 10),
+          Expanded(child: Text(
+            self.name,
+            style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600, color: _AppColors.textPrimary),
+            overflow: TextOverflow.ellipsis,
+          )),
+        ]),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: [
-        _Avatar(name: self.name, avatarUrl: self.avatarUrl, color: self.avatarColor, size: 34),
-        const SizedBox(width: 10),
-        Expanded(child: Text(self.name,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _AppColors.textPrimary))),
-        SizedBox(width: 60, child: Text('${self.findings}', textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: findingsColor))),
-        SizedBox(width: 60, child: Text('${self.completed}', textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: completedColor))),
-      ]),
-    );
-  }
+      // Kolom Findings — flex 1, SAMA dengan header & member row
+      Expanded(
+        flex: 1,
+        child: Text(
+          '${self.findings}',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.5, fontWeight: FontWeight.w600, color: findingsColor),
+        ),
+      ),
+      // Kolom Completed — flex 1, SAMA dengan header & member row
+      Expanded(
+        flex: 1,
+        child: Text(
+          '${self.completed}',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.5, fontWeight: FontWeight.w600, color: completedColor),
+        ),
+      ),
+    ]),
+  );
+}
 
   Widget _buildInspectionRow(InspectionData item) {
     final target = _targetInspeksi;
