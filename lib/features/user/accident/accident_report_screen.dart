@@ -22,10 +22,14 @@ class AccidentReportListScreen extends StatefulWidget {
 }
 
 class _AccidentReportListScreenState
-    extends State<AccidentReportListScreen> {
+    extends State<AccidentReportListScreen>
+    with AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> _reports = [];
   bool _isLoading = true;
   String? _currentUserId;
+
+  @override
+  bool get wantKeepAlive => true;
 
   Map<String, String> get t => _txt[widget.lang] ?? _txt['ID']!;
   static const Map<String, Map<String, String>> _txt = {
@@ -292,6 +296,7 @@ class _AccidentReportListScreenState
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
       appBar: AppBar(
@@ -733,8 +738,8 @@ class _AccidentReportListScreenState
 
   Widget _buildShimmer() {
     return Shimmer.fromColors(
-      baseColor: const Color(0xFFE2E8F0),
-      highlightColor: const Color(0xFFF8FAFF),
+      baseColor: const Color(0xFFFFCDD2),
+      highlightColor: const Color(0xFFFFEBEE),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
         child: Column(
@@ -2697,8 +2702,8 @@ class _AccidentReportDetailScreenState
 
   Widget _buildDetailShimmer() {
     return Shimmer.fromColors(
-      baseColor: const Color(0xFFE2E8F0),
-      highlightColor: const Color(0xFFF8FAFF),
+      baseColor: const Color(0xFFFFCDD2),
+      highlightColor: const Color(0xFFFFEBEE),
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(
             vertical: 20, horizontal: 16),
@@ -3729,8 +3734,8 @@ class _AccidentLocationPickerState
           Expanded(
             child: _isLoading
                 ? Shimmer.fromColors(
-                    baseColor: const Color(0xFFE2E8F0),
-                    highlightColor: const Color(0xFFF8FAFF),
+                    baseColor: const Color(0xFFFFCDD2),
+                    highlightColor: const Color(0xFFFFEBEE),
                     child: ListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: 6,
@@ -4546,8 +4551,8 @@ class _AccidentResolutionScreenState
 
   Widget _buildShimmer() {
     return Shimmer.fromColors(
-      baseColor: const Color(0xFFE2E8F0),
-      highlightColor: const Color(0xFFF8FAFF),
+      baseColor: const Color(0xFFFFCDD2),
+      highlightColor: const Color(0xFFFFEBEE),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
         child: Column(

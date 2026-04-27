@@ -82,6 +82,19 @@ class HomeContentState extends State<HomeContent> {
   String _activeTypeFilter = '';
   Future<List<Map<String, dynamic>>>? _findingsFuture;
 
+  // Cache untuk screen yang sudah pernah dibuka
+  final Map<String, Widget> _cachedScreens = {};
+
+  void _navigateCached(BuildContext context, String key, Widget screen) {
+    Navigator.push(
+      context,
+      _KeepAlivePageRoute(
+        builder: (_) => screen,
+        cacheKey: key,
+      ),
+    );
+  }
+
   static const Map<String, Map<String, String>> _texts = {
     'EN': {
       'inspeksi': 'Inspection',
@@ -162,7 +175,7 @@ class HomeContentState extends State<HomeContent> {
   void didUpdateWidget(HomeContent oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Refresh findings jika dipicu dari luar
-    if (widget.shouldRefreshFindings == true && 
+    if (widget.shouldRefreshFindings == true &&
         oldWidget.shouldRefreshFindings == false) {
       setState(() {
         _activeTabs = {'my'};
@@ -184,48 +197,73 @@ class HomeContentState extends State<HomeContent> {
     if (activeTabs.contains('my')) {
       var q = Supabase.instance.client
           .from('temuan')
-          .select('id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)')
+          .select(
+            'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)',
+          )
           .eq('id_user', userId);
-      if (_activeTypeFilter == '5r') q = q.neq('jenis_temuan', 'KTS Production');
-      if (_activeTypeFilter == 'kts') q = q.eq('jenis_temuan', 'KTS Production');
-      futures.add(q.order('created_at', ascending: false).limit(10).then((v) => List<Map<String, dynamic>>.from(v)));
+      if (_activeTypeFilter == '5r')
+        q = q.neq('jenis_temuan', 'KTS Production');
+      if (_activeTypeFilter == 'kts')
+        q = q.eq('jenis_temuan', 'KTS Production');
+      futures.add(
+        q
+            .order('created_at', ascending: false)
+            .limit(10)
+            .then((v) => List<Map<String, dynamic>>.from(v)),
+      );
     }
 
     if (activeTabs.contains('assigned')) {
       var q = Supabase.instance.client
           .from('temuan')
-          .select('id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)')
+          .select(
+            'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)',
+          )
           .eq('id_penanggung_jawab', userId);
-      if (_activeTypeFilter == '5r') q = q.neq('jenis_temuan', 'KTS Production');
-      if (_activeTypeFilter == 'kts') q = q.eq('jenis_temuan', 'KTS Production');
-      futures.add(q.order('created_at', ascending: false).limit(10).then((v) => List<Map<String, dynamic>>.from(v)));
+      if (_activeTypeFilter == '5r')
+        q = q.neq('jenis_temuan', 'KTS Production');
+      if (_activeTypeFilter == 'kts')
+        q = q.eq('jenis_temuan', 'KTS Production');
+      futures.add(
+        q
+            .order('created_at', ascending: false)
+            .limit(10)
+            .then((v) => List<Map<String, dynamic>>.from(v)),
+      );
     }
 
     if (activeTabs.contains('resolved')) {
       futures.add(
         Supabase.instance.client
             .from('penyelesaian')
-            .select('id_penyelesaian, temuan(id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan))')
+            .select(
+              'id_penyelesaian, temuan(id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan))',
+            )
             .eq('id_user', userId)
             .order('tanggal_selesai', ascending: false)
             .limit(10)
             .then((v) {
-          final result = <Map<String, dynamic>>[];
-          for (final item in v) {
-            final temuanRaw = item['temuan'];
-            if (temuanRaw == null) continue;
-            Map<String, dynamic> t;
-            if (temuanRaw is List && temuanRaw.isNotEmpty) {
-              t = Map<String, dynamic>.from(temuanRaw.first);
-            } else if (temuanRaw is Map) {
-              t = Map<String, dynamic>.from(temuanRaw);
-            } else continue;
-            if (_activeTypeFilter == '5r' && t['jenis_temuan'] == 'KTS Production') continue;
-            if (_activeTypeFilter == 'kts' && t['jenis_temuan'] != 'KTS Production') continue;
-            result.add(t);
-          }
-          return result;
-        }),
+              final result = <Map<String, dynamic>>[];
+              for (final item in v) {
+                final temuanRaw = item['temuan'];
+                if (temuanRaw == null) continue;
+                Map<String, dynamic> t;
+                if (temuanRaw is List && temuanRaw.isNotEmpty) {
+                  t = Map<String, dynamic>.from(temuanRaw.first);
+                } else if (temuanRaw is Map) {
+                  t = Map<String, dynamic>.from(temuanRaw);
+                } else
+                  continue;
+                if (_activeTypeFilter == '5r' &&
+                    t['jenis_temuan'] == 'KTS Production')
+                  continue;
+                if (_activeTypeFilter == 'kts' &&
+                    t['jenis_temuan'] != 'KTS Production')
+                  continue;
+                result.add(t);
+              }
+              return result;
+            }),
       );
     }
 
@@ -241,8 +279,12 @@ class HomeContentState extends State<HomeContent> {
         }
       }
       combined.sort((a, b) {
-        final da = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
-        final db = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
+        final da =
+            DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+            DateTime(2000);
+        final db =
+            DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+            DateTime(2000);
         return db.compareTo(da);
       });
       return combined;
@@ -254,7 +296,6 @@ class HomeContentState extends State<HomeContent> {
     return GestureDetector(
       onTap: () => setState(() {
         if (isActive && _activeTabs.length == 1) {
-          
         } else if (isActive) {
           _activeTabs.remove(tabKey);
         } else {
@@ -273,7 +314,13 @@ class HomeContentState extends State<HomeContent> {
             width: 1.5,
           ),
           boxShadow: isActive
-              ? [BoxShadow(color: const Color(0xFF00C9E4).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3))]
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF00C9E4).withOpacity(0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
               : [],
         ),
         child: Center(
@@ -317,7 +364,13 @@ class HomeContentState extends State<HomeContent> {
                   width: 1.5,
                 ),
                 boxShadow: _activeTypeFilter == '5r'
-                    ? [BoxShadow(color: const Color(0xFF38BDF8).withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4))]
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF38BDF8).withOpacity(0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
                     : [],
               ),
               child: Center(
@@ -326,7 +379,9 @@ class HomeContentState extends State<HomeContent> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: _activeTypeFilter == '5r' ? Colors.white : const Color(0xFF38BDF8),
+                    color: _activeTypeFilter == '5r'
+                        ? Colors.white
+                        : const Color(0xFF38BDF8),
                   ),
                 ),
               ),
@@ -355,7 +410,13 @@ class HomeContentState extends State<HomeContent> {
                   width: 1.5,
                 ),
                 boxShadow: _activeTypeFilter == 'kts'
-                    ? [BoxShadow(color: const Color(0xFFFBBF24).withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4))]
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFFBBF24).withOpacity(0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
                     : [],
               ),
               child: Center(
@@ -364,7 +425,9 @@ class HomeContentState extends State<HomeContent> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: _activeTypeFilter == 'kts' ? Colors.white : const Color(0xFFFBBF24),
+                    color: _activeTypeFilter == 'kts'
+                        ? Colors.white
+                        : const Color(0xFFFBBF24),
                   ),
                 ),
               ),
@@ -376,19 +439,22 @@ class HomeContentState extends State<HomeContent> {
   }
 
   static const int _kMaxHomeCards = 5;
- 
+
   String _lihatSemuaLabel() {
     switch (widget.lang) {
-      case 'EN': return 'View All';
-      case 'ZH': return '查看全部';
-      default: return 'Lihat Semua';
+      case 'EN':
+        return 'View All';
+      case 'ZH':
+        return '查看全部';
+      default:
+        return 'Lihat Semua';
     }
   }
-  
+
   Widget _buildFindingsTab() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return const SizedBox();
-  
+
     return FutureBuilder<List<Map<String, dynamic>>>(
       key: ValueKey('findings_future_${_activeTabs.join("_")}'),
       future: _findingsFuture,
@@ -406,14 +472,20 @@ class HomeContentState extends State<HomeContent> {
                     'assets/images/team_illustration.png',
                     height: 150,
                     fit: BoxFit.contain,
-                    errorBuilder: (c, e, s) =>
-                        const Icon(Icons.search_off, size: 80, color: Colors.grey),
+                    errorBuilder: (c, e, s) => const Icon(
+                      Icons.search_off,
+                      size: 80,
+                      color: Colors.grey,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     _t('no_findings_title'),
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E3A8A),
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 6),
@@ -427,12 +499,12 @@ class HomeContentState extends State<HomeContent> {
             ),
           );
         }
-  
+
         final allFindings = snapshot.data!;
         // Batasi maksimum 5 card di home
         final findings = allFindings.take(_kMaxHomeCards).toList();
         final hasMore = allFindings.length > _kMaxHomeCards;
-  
+
         return Column(
           children: [
             ListView.builder(
@@ -442,7 +514,7 @@ class HomeContentState extends State<HomeContent> {
               itemBuilder: (context, index) {
                 final item = findings[index];
                 final isKts = (item['jenis_temuan'] ?? '') == 'KTS Production';
-  
+
                 if (isKts) {
                   // Card KTS
                   return KtsFindingCard(
@@ -459,12 +531,14 @@ class HomeContentState extends State<HomeContent> {
                           ),
                         ),
                       );
-                      setState(() { _findingsFuture = _buildFindingsFuture(); });
+                      setState(() {
+                        _findingsFuture = _buildFindingsFuture();
+                      });
                       widget.onRefresh();
                     },
                   );
                 }
-  
+
                 // Card 5R biasa
                 return FindingCard(
                   data: item,
@@ -479,13 +553,15 @@ class HomeContentState extends State<HomeContent> {
                         ),
                       ),
                     );
-                    setState(() { _findingsFuture = _buildFindingsFuture(); });
+                    setState(() {
+                      _findingsFuture = _buildFindingsFuture();
+                    });
                     widget.onRefresh();
                   },
                 );
               },
             ),
-  
+
             // Tombol "Lihat Semua" jika data > 5
             if (hasMore) ...[
               const SizedBox(height: 4),
@@ -499,7 +575,10 @@ class HomeContentState extends State<HomeContent> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF00C9E4).withOpacity(0.4), width: 1.5),
+                    border: Border.all(
+                      color: const Color(0xFF00C9E4).withOpacity(0.4),
+                      width: 1.5,
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -513,7 +592,11 @@ class HomeContentState extends State<HomeContent> {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Icon(Icons.arrow_forward_rounded, size: 16, color: Color(0xFF00C9E4)),
+                      const Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 16,
+                        color: Color(0xFF00C9E4),
+                      ),
                     ],
                   ),
                 ),
@@ -545,8 +628,9 @@ class HomeContentState extends State<HomeContent> {
           margin: const EdgeInsets.only(bottom: 16),
           height: 116,
           decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20)),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
         ),
       ),
     );
@@ -557,17 +641,18 @@ class HomeContentState extends State<HomeContent> {
       baseColor: Colors.grey.shade300,
       highlightColor: Colors.grey.shade100,
       child: Container(
-          height: 140,
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24))),
+        height: 140,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+      ),
     );
   }
 
   // ── WIDGET BARU: Choose Mode Button ──
   Widget _buildChooseModeButton() {
-    final bool anyActive =
-        widget.isProMode || widget.isVisitorMode;
+    final bool anyActive = widget.isProMode || widget.isVisitorMode;
 
     return GestureDetector(
       onTap: () {
@@ -583,8 +668,7 @@ class HomeContentState extends State<HomeContent> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-            horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           gradient: anyActive
               ? const LinearGradient(
@@ -603,8 +687,9 @@ class HomeContentState extends State<HomeContent> {
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00C9E4)
-                  .withOpacity(anyActive ? 0.25 : 0.08),
+              color: const Color(
+                0xFF00C9E4,
+              ).withOpacity(anyActive ? 0.25 : 0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -625,9 +710,7 @@ class HomeContentState extends State<HomeContent> {
               child: Icon(
                 Icons.tune_rounded,
                 size: 20,
-                color: anyActive
-                    ? Colors.white
-                    : const Color(0xFF00C9E4),
+                color: anyActive ? Colors.white : const Color(0xFF00C9E4),
               ),
             ),
             const SizedBox(width: 12),
@@ -642,43 +725,42 @@ class HomeContentState extends State<HomeContent> {
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: anyActive
-                          ? Colors.white
-                          : const Color(0xFF1E3A8A),
+                      color: anyActive ? Colors.white : const Color(0xFF1E3A8A),
                     ),
                   ),
                   if (anyActive) ...[
                     const SizedBox(height: 3),
-                    Row(children: [
-                      if (widget.isProMode)
-                        _ModeBadge(
-                          label: widget.lang == 'ZH'
-                              ? '专业'
-                              : widget.lang == 'ID'
-                                  ? 'Pro'
-                                  : 'Pro',
-                          color: const Color(0xFF4ADE80),
-                        ),
-                      if (widget.isProMode &&
-                          widget.isVisitorMode)
-                        const SizedBox(width: 6),
-                      if (widget.isVisitorMode)
-                        _ModeBadge(
-                          label: widget.lang == 'ZH'
-                              ? '访客'
-                              : widget.lang == 'ID'
-                                  ? 'Pengunjung'
-                                  : 'Visitor',
-                          color: const Color(0xFFFBBF24),
-                        ),
-                    ]),
+                    Row(
+                      children: [
+                        if (widget.isProMode)
+                          _ModeBadge(
+                            label: widget.lang == 'ZH'
+                                ? '专业'
+                                : widget.lang == 'ID'
+                                ? 'Pro'
+                                : 'Pro',
+                            color: const Color(0xFF4ADE80),
+                          ),
+                        if (widget.isProMode && widget.isVisitorMode)
+                          const SizedBox(width: 6),
+                        if (widget.isVisitorMode)
+                          _ModeBadge(
+                            label: widget.lang == 'ZH'
+                                ? '访客'
+                                : widget.lang == 'ID'
+                                ? 'Pengunjung'
+                                : 'Visitor',
+                            color: const Color(0xFFFBBF24),
+                          ),
+                      ],
+                    ),
                   ] else
                     Text(
                       widget.lang == 'ZH'
                           ? '点击以自定义模式'
                           : widget.lang == 'ID'
-                              ? 'Ketuk untuk atur mode'
-                              : 'Tap to customize mode',
+                          ? 'Ketuk untuk atur mode'
+                          : 'Tap to customize mode',
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         color: Colors.grey.shade500,
@@ -692,9 +774,7 @@ class HomeContentState extends State<HomeContent> {
             Icon(
               Icons.arrow_forward_ios_rounded,
               size: 14,
-              color: anyActive
-                  ? Colors.white70
-                  : Colors.grey.shade400,
+              color: anyActive ? Colors.white70 : Colors.grey.shade400,
             ),
           ],
         ),
@@ -708,19 +788,27 @@ class HomeContentState extends State<HomeContent> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => VerificationIntroScreen(
+          PageRouteBuilder(
+            pageBuilder: (_, animation, __) => VerificationIntroScreen(
               lang: widget.lang,
               userJabatanId: widget.userJabatanId,
-              onPointEarned: widget.onVerifPointEarned, // TAMBAH INI
+              onPointEarned: widget.onVerifPointEarned,
             ),
+            transitionsBuilder: (_, animation, __, child) {
+              final slide = Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                  parent: animation, curve: Curves.easeInOut));
+              return SlideTransition(position: slide, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 300),
           ),
         );
       },
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-            horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF1E3A8A), Color(0xFF0891B2)],
@@ -793,8 +881,7 @@ class HomeContentState extends State<HomeContent> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(
-          left: 20, right: 20, top: 10, bottom: 10),
+      padding: const EdgeInsets.only(left: 20, right: 20, top: 10, bottom: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -826,16 +913,15 @@ class HomeContentState extends State<HomeContent> {
             iconColor: Colors.lightBlue,
             iconBg: Colors.blue.withOpacity(0.1),
             label: _t('lokasi'),
-            onTap: () => Navigator.push(
+            onTap: () => _navigateCached(
               context,
-              MaterialPageRoute(
-                builder: (_) => LocationScreen(
-                  lang: widget.lang,
-                  isProMode: widget.isProMode,
-                  userRole: widget.userRole,
-                  userUnitId: widget.userUnitId?.toString(),
-                  userLokasiId: widget.userLokasiId?.toString(),
-                ),
+              'location',
+              LocationScreen(
+                lang: widget.lang,
+                isProMode: widget.isProMode,
+                userRole: widget.userRole,
+                userUnitId: widget.userUnitId?.toString(),
+                userLokasiId: widget.userLokasiId?.toString(),
               ),
             ),
           ),
@@ -845,11 +931,10 @@ class HomeContentState extends State<HomeContent> {
             iconColor: Colors.orange,
             iconBg: Colors.orange.withOpacity(0.1),
             label: _t('kts_produksi'),
-            onTap: () => Navigator.push(
+            onTap: () => _navigateCached(
               context,
-              MaterialPageRoute(
-                  builder: (_) =>
-                      KtsProduksiListScreen(lang: widget.lang)),
+              'kts_produksi',
+              KtsProduksiListScreen(lang: widget.lang),
             ),
           ),
           const SizedBox(height: 12),
@@ -858,11 +943,10 @@ class HomeContentState extends State<HomeContent> {
             iconColor: Colors.redAccent,
             iconBg: Colors.red.withOpacity(0.1),
             label: _t('laporan'),
-            onTap: () => Navigator.push(
+            onTap: () => _navigateCached(
               context,
-              MaterialPageRoute(
-                  builder: (_) => AccidentReportListScreen(
-                      lang: widget.lang)),
+              'accident',
+              AccidentReportListScreen(lang: widget.lang),
             ),
           ),
           const SizedBox(height: 25),
@@ -885,7 +969,9 @@ class HomeContentState extends State<HomeContent> {
           ),
           const SizedBox(height: 12),
           KeyedSubtree(
-            key: ValueKey('findings_tab_${_activeTabs.join("_")}_$_activeTypeFilter'),
+            key: ValueKey(
+              'findings_tab_${_activeTabs.join("_")}_$_activeTypeFilter',
+            ),
             child: _buildFindingsTab(),
           ),
         ],
@@ -894,12 +980,13 @@ class HomeContentState extends State<HomeContent> {
   }
 
   Widget _buildSectionLabel(String text) => Text(
-        text,
-        style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: Colors.black54),
-      );
+    text,
+    style: GoogleFonts.inter(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      color: Colors.black54,
+    ),
+  );
 
   Widget _buildNavTile({
     required IconData icon,
@@ -910,29 +997,56 @@ class HomeContentState extends State<HomeContent> {
   }) {
     return Container(
       decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: Colors.grey.shade200, width: 1.5)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+      ),
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 15, vertical: 2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 2),
         leading: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-                color: iconBg, shape: BoxShape.circle),
-            child: Icon(icon, color: iconColor, size: 24)),
-        title: Text(label,
-            style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1E3A8A))),
-        trailing: const Icon(Icons.arrow_forward_ios,
-            size: 16, color: Colors.black38),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+          child: Icon(icon, color: iconColor, size: 24),
+        ),
+        title: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1E3A8A),
+          ),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Colors.black38,
+        ),
         onTap: onTap,
       ),
     );
   }
+}
+
+// ── Route khusus yang mempertahankan state screen ──
+class _KeepAlivePageRoute extends PageRouteBuilder {
+  _KeepAlivePageRoute({
+    required WidgetBuilder builder,
+    required String cacheKey,
+  }) : super(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              builder(context),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final slide = Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeInOut));
+            return SlideTransition(position: slide, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 300),
+          // Kunci utama: maintainState = true mencegah dispose saat pop
+          maintainState: true,
+        );
 }
 
 // ── Helper badge untuk mode aktif ──
@@ -945,8 +1059,7 @@ class _ModeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: color.withOpacity(0.25),
         borderRadius: BorderRadius.circular(6),

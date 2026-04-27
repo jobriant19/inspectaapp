@@ -20,10 +20,14 @@ class KtsProduksiListScreen extends StatefulWidget {
   State<KtsProduksiListScreen> createState() => _KtsProduksiListScreenState();
 }
 
-class _KtsProduksiListScreenState extends State<KtsProduksiListScreen> {
+class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
+    with AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> _reports = [];
   bool _isLoading = true;
   String? _currentUserId;
+
+  @override
+  bool get wantKeepAlive => true;
 
   Map<String, String> get t => _txt[widget.lang] ?? _txt['ID']!;
   static const Map<String, Map<String, String>> _txt = {
@@ -253,6 +257,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
       appBar: AppBar(

@@ -216,10 +216,14 @@ class LocationScreen extends StatefulWidget {
   State<LocationScreen> createState() => _LocationScreenState();
 }
 
-class _LocationScreenState extends State<LocationScreen> {
+class _LocationScreenState extends State<LocationScreen>
+    with AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
 
   int  _currentLevel = 0;
+
+  @override
+  bool get wantKeepAlive => true;
   bool _isLoading    = true;
   List<dynamic> _currentData  = [];
   List<dynamic> _filteredData = [];
@@ -410,7 +414,6 @@ class _LocationScreenState extends State<LocationScreen> {
   /// Hasilnya disimpan ke cache, lalu setState agar card langsung update.
   Future<void> _prefetchAllActivities(
       String tName, List<dynamic> items) async {
-    // Kumpulkan id yang belum ada di cache
     final toFetch = <String>[];
     for (final item in items) {
       final id = item['id_$tName']?.toString();
@@ -423,11 +426,18 @@ class _LocationScreenState extends State<LocationScreen> {
       return;
     }
 
-    // Fetch paralel, max 5 request bersamaan untuk efisiensi
     const batchSize = 5;
     for (int i = 0; i < toFetch.length; i += batchSize) {
       final batch = toFetch.skip(i).take(batchSize).toList();
-      await Future.wait(batch.map((id) => _fetchActivity(tName, id)));
+      try {
+        await Future.wait(batch.map((id) => _fetchActivity(tName, id)));
+      } catch (e) {
+        // Jika RPC gagal (misal tipe id tidak cocok), isi cache dengan kosong
+        for (final id in batch) {
+          _activityCache['$tName:$id'] = const _LastActivity();
+        }
+        debugPrint('Prefetch activity error: $e');
+      }
     }
     if (mounted) setState(() {});
   }
@@ -438,7 +448,7 @@ class _LocationScreenState extends State<LocationScreen> {
     try {
       final rows = await _supabase.rpc('get_location_last_activity', params: {
         'p_level_type': levelType,
-        'p_level_id'  : levelId,
+        'p_level_id'  : levelId.toString(),
       });
       final row = (rows as List).isNotEmpty ? rows[0] : null;
       final activity = _LastActivity(
@@ -632,6 +642,7 @@ class _LocationScreenState extends State<LocationScreen> {
   // ══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final title = _navHistory.isEmpty
         ? _getLevelName().toUpperCase()
         : _navHistory.last['name'] as String;
@@ -654,22 +665,46 @@ class _LocationScreenState extends State<LocationScreen> {
 
   // ── AppBar ────────────────────────────────────────────────────────────────
   PreferredSizeWidget _buildAppBar(String title) {
+    // Judul AppBar disesuaikan dengan bahasa
+    final Map<String, String> screenTitles = {
+      'ID': 'Lokasi',
+      'EN': 'Location',
+      'ZH': '位置',
+    };
+    final appBarTitle = _navHistory.isEmpty
+        ? (screenTitles[widget.lang] ?? 'Lokasi')
+        : title;
+
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
+      scrolledUnderElevation: 0,
       centerTitle: true,
       surfaceTintColor: Colors.transparent,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded,
-            color: _C.primaryDark, size: 20),
+            color: Color(0xFF2563EB), size: 20),
         onPressed: _goBack,
       ),
-      title: Text(title,
-          style: const TextStyle(
-              color: _C.textDark, fontWeight: FontWeight.bold, fontSize: 17)),
+      title: Text(
+        appBarTitle,
+        style: const TextStyle(
+            color: Color(0xFF2563EB),
+            fontWeight: FontWeight.w700,
+            fontSize: 17),
+      ),
+      actions: [
+        IconButton(
+          onPressed: () => _fetchData(
+            parentId: _navHistory.isNotEmpty ? _navHistory.last['id'] : null,
+            parentData: _currentParentData,
+          ),
+          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF2563EB)),
+        ),
+      ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: _C.border),
+        child: Container(height: 1, color: const Color(0xFFBAE6FD)),
       ),
     );
   }
@@ -758,8 +793,8 @@ class _LocationScreenState extends State<LocationScreen> {
   /// Widget shimmer yang ditampilkan selama loading data
   Widget _buildShimmerList() {
     return Shimmer.fromColors(
-      baseColor  : _C.shimmerBase,
-      highlightColor: _C.shimmerHigh,
+      baseColor: const Color(0xFFBAE6FD),
+      highlightColor: const Color(0xFFE0F2FE),
       period: const Duration(milliseconds: 1200),
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -1478,8 +1513,8 @@ class _LocationScreenState extends State<LocationScreen> {
       child: activity == null
           // Shimmer kecil saat aktivitas belum ada di cache
           ? Shimmer.fromColors(
-              baseColor     : _C.shimmerBase,
-              highlightColor: _C.shimmerHigh,
+              baseColor: const Color(0xFFBAE6FD),
+              highlightColor: const Color(0xFFE0F2FE),
               period: const Duration(milliseconds: 1200),
               child: Container(
                 height: 16,
@@ -1658,7 +1693,7 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
               index: _tabIndex,
               children: [
                 _buildInfoTab(tName),
-                _buildAnggotaTab(widget.data['id_$tName']),
+                _buildAnggotaTab(widget.data['id_$tName']?.toString() ?? ''),
                 _buildQrTab(tName),
               ],
             ),
@@ -1826,7 +1861,7 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
     );
   }
 
-  Widget _buildAnggotaTab(int idValue) {
+  Widget _buildAnggotaTab(String idValue) {
     Color roleColor(String r) {
       switch (r.toLowerCase()) {
         case 'eksekutif': return const Color(0xFF6B21A8);
@@ -1886,8 +1921,8 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
               if (snap.connectionState == ConnectionState.waiting) {
                 // Shimmer untuk tab anggota
                 return Shimmer.fromColors(
-                  baseColor     : _C.shimmerBase,
-                  highlightColor: _C.shimmerHigh,
+                  baseColor: const Color(0xFFBAE6FD),
+                  highlightColor: const Color(0xFFE0F2FE),
                   period: const Duration(milliseconds: 1200),
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),

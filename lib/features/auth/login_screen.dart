@@ -210,19 +210,10 @@ class _LoginScreenState extends State<LoginScreen>
               }
 
               if (mounted) {
-                final isVerificator = userData['is_verificator'] as bool? ?? false;
-
-                if (isVerificator) {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const VerificatorHomeScreen()),
-                  );
-                } else {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HomeScreen()),
-                  );
-                }
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                );
               }
             }
           } catch (e) {
@@ -439,9 +430,8 @@ class _LoginScreenState extends State<LoginScreen>
             if (logs.isNotEmpty) latestLog = logs.first;
           } catch (_) {}
           if (mounted) {
-            if (userProfile['is_verificator'] == true) {
-              Navigator.pushReplacement(context,
-                  MaterialPageRoute(builder: (context) => const VerificatorHomeScreen()));
+            if (false) {
+              // is_verificator tidak lagi redirect ke VerificatorHomeScreen
             } else {
               // Ambil data user untuk pass ke HomeScreen agar tidak loading
               try {

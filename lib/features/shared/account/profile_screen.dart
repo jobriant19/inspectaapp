@@ -383,20 +383,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
-  @override
-  PageRoute _buildPageRoute() {
-    return PageRouteBuilder(
-      pageBuilder: (_, __, ___) => const SizedBox(),
-      transitionsBuilder: (_, animation, __, child) {
-        final slide = Tween<Offset>(
-          begin: Offset.zero,
-          end: const Offset(1.0, 0.0),
-        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeInOut));
-        return SlideTransition(position: slide, child: child);
-      },
-    );
-  }
   
   @override
   Widget build(BuildContext context) {

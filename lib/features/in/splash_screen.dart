@@ -91,7 +91,16 @@ class _SplashScreenState extends State<SplashScreen> {
 
         if (isVerificator) {
           Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => const VerificatorHomeScreen()));
+              MaterialPageRoute(builder: (_) => HomeScreen(
+                initialUserName: userName ?? metaName,
+                initialUserPoin: userPoin,
+                initialUserImage: userImage ?? metaImage,
+                initialUserRole: userRole,
+                initialUserLocation: locationName,  
+                initialLatestLog: latestLog,
+                initialUserJabatanId: userData['id_jabatan'] as int?,
+                initialIsVerificator: false,
+              )));
         } else {
           Navigator.pushReplacement(context,
               MaterialPageRoute(builder: (_) => HomeScreen(

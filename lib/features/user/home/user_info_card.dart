@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class UserInfoCard extends StatelessWidget {
   final String userName;
@@ -161,8 +162,9 @@ class UserInfoCard extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 24,
                   backgroundColor: const Color(0xFF00C9E4),
-                  backgroundImage:
-                      userImage != null ? NetworkImage(userImage!) : null,
+                  backgroundImage: userImage != null
+                      ? CachedNetworkImageProvider(userImage!)
+                      : null,
                   child: userImage == null
                       ? const Icon(Icons.person, color: Colors.white, size: 26)
                       : null,

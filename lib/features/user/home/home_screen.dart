@@ -13,6 +13,7 @@ import 'dart:ui';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:shimmer/shimmer.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'user_info_card.dart';
 import 'activity_log_dialog.dart';
@@ -80,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<HomeContentState> _homeContentKey = GlobalKey<HomeContentState>();
   VoidCallback? _triggerFindingsRefresh;
   bool _shouldRefreshFindings = false;
+  int _lastRefreshTrigger = 0;
 
   // Dictionary Translate untuk Navigation Bar
   final Map<String, Map<String, String>> _navText = {
@@ -720,38 +722,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkVerificationStatus() async {
-    try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) return;
-
-      final data = await Supabase.instance.client
-          .from('User')
-          .select('is_verificator')
-          .eq('id_user', userId)
-          .single();
-
-      final isVerifier = data['is_verificator'] as bool?;
-
-      if (isVerifier == true && mounted) {
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Text('Akses Ditolak'),
-            content: const Text('Akun verifikator tidak dapat mengakses halaman ini. Anda akan diarahkan keluar.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-        await Supabase.instance.client.auth.signOut();
-      }
-    } catch (e) {
-      debugPrint("Error checking verifier status: $e");
-    }
+    // is_verificator true sekarang tetap di HomeScreen dengan role Verificator
+    // Tidak perlu redirect atau sign out
   }
 
   Future<void> _checkExecutiveVerificatorStatus() async {
@@ -1203,7 +1175,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   radius: 17,
                                   backgroundColor: const Color(0xFF00C9E4),
                                   backgroundImage: _userImage != null
-                                      ? NetworkImage(_userImage!)
+                                      ? CachedNetworkImageProvider(_userImage!)
                                       : null,
                                   child: _userImage == null
                                       ? const Icon(Icons.person, color: Colors.white, size: 18)
@@ -1385,7 +1357,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHomeContent() {
     return HomeContent(
-      key: ValueKey(_findingsRefreshTrigger),
       lang: _lang,
       isProMode: _isProMode,
       isVisitorMode: _isVisitorMode,
@@ -1419,6 +1390,11 @@ class _HomeScreenState extends State<HomeScreen> {
         final int newPoin = _userPoin + earnedPoints;
         setState(() => _userPoin = newPoin);
         _animatePoinUpdate(newPoin);
+      },
+      shouldRefreshFindings: _findingsRefreshTrigger > 0 &&
+          _findingsRefreshTrigger != _lastRefreshTrigger,
+      onRefreshDone: () {
+        setState(() => _lastRefreshTrigger = _findingsRefreshTrigger);
       },
       buildInfoCard: () => UserInfoCard(
         userName: _userName,
