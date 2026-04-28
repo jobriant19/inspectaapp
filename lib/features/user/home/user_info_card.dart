@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class UserInfoCard extends StatelessWidget {
+class UserInfoCard extends StatefulWidget {
   final String userName;
   final String userRole;
   final String? userImage;
@@ -25,6 +26,70 @@ class UserInfoCard extends StatelessWidget {
     this.latestLogPoin,
     this.isLatestLogLoading = false,
   });
+
+  @override
+  State<UserInfoCard> createState() => _UserInfoCardState();
+}
+
+class _UserInfoCardState extends State<UserInfoCard> {
+  int _monthlyPoin = 0;
+  bool _isLoadingMonthly = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMonthlyPoin();
+  }
+
+  @override
+  void didUpdateWidget(UserInfoCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-fetch jika userPoin berubah (ada poin baru masuk)
+    if (oldWidget.userPoin != widget.userPoin) {
+      _fetchMonthlyPoin();
+    }
+  }
+
+  Future<void> _fetchMonthlyPoin() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final now = DateTime.now();
+      final startOfMonth =
+          DateTime(now.year, now.month, 1).toIso8601String();
+      final endOfMonth =
+          DateTime(now.year, now.month + 1, 1).toIso8601String();
+
+      final List<dynamic> logs = await supabase
+          .from('log_poin')
+          .select('poin')
+          .eq('id_user', userId)
+          .gte('created_at', startOfMonth)
+          .lt('created_at', endOfMonth);
+
+      int total = 0;
+      for (final log in logs) {
+        total += ((log['poin'] as num?)?.toInt() ?? 0);
+      }
+
+      if (mounted) {
+        setState(() {
+          _monthlyPoin = total;
+          _isLoadingMonthly = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching monthly poin: $e');
+      if (mounted) {
+        setState(() {
+          _monthlyPoin = widget.userPoin;
+          _isLoadingMonthly = false;
+        });
+      }
+    }
+  }
 
   // ── Warna api berdasarkan poin ──
   Color _getFireColor(int points) {
@@ -58,15 +123,15 @@ class UserInfoCard extends StatelessWidget {
         'latest_activity': '位置:',
       },
     };
-    return texts[lang]?[key] ?? key;
+    return texts[widget.lang]?[key] ?? key;
   }
 
   Widget _buildLatestLog() {
-    if (latestLogPoin == null) return const SizedBox();
+    if (widget.latestLogPoin == null) return const SizedBox();
 
     // Aman: ambil poin sebagai num lalu konversi ke int
-    final int poin = (latestLogPoin!['poin'] as num).toInt();
-    final String deskripsi = (latestLogPoin!['deskripsi'] ?? '').toString();
+    final int poin = (widget.latestLogPoin!['poin'] as num).toInt();
+    final String deskripsi = (widget.latestLogPoin!['deskripsi'] ?? '').toString();
     final bool isPositive = poin >= 0;
 
     return Column(
@@ -109,8 +174,8 @@ class UserInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fireColor = _getFireColor(userPoin);
-    final pointProgress = _getPointProgress(userPoin);
+    final fireColor = _getFireColor(_monthlyPoin);
+    final pointProgress = _getPointProgress(_monthlyPoin);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 25),
@@ -162,10 +227,10 @@ class UserInfoCard extends StatelessWidget {
                 child: CircleAvatar(
                   radius: 24,
                   backgroundColor: const Color(0xFF00C9E4),
-                  backgroundImage: userImage != null
-                      ? CachedNetworkImageProvider(userImage!)
+                  backgroundImage: widget.userImage != null
+                      ? CachedNetworkImageProvider(widget.userImage!)
                       : null,
-                  child: userImage == null
+                  child: widget.userImage == null
                       ? const Icon(Icons.person, color: Colors.white, size: 26)
                       : null,
                 ),
@@ -178,7 +243,7 @@ class UserInfoCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      userName,
+                      widget.userName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
@@ -189,7 +254,7 @@ class UserInfoCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      userRole,
+                      widget.userRole,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(
@@ -227,7 +292,7 @@ class UserInfoCard extends StatelessWidget {
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
-                        userLocationName,
+                        widget.userLocationName,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.poppins(
@@ -315,7 +380,7 @@ class UserInfoCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          '$userPoin P',
+                          _isLoadingMonthly ? '... P' : '$_monthlyPoin P',
                           style: GoogleFonts.poppins(
                             color: fireColor,
                             fontWeight: FontWeight.bold,
@@ -337,7 +402,7 @@ class UserInfoCard extends StatelessWidget {
             children: [
               // Kiri: Log aktivitas terbaru
               Expanded(
-                child: isLatestLogLoading
+                child: widget.isLatestLogLoading
                     ? Row(
                         children: [
                           Container(
@@ -351,7 +416,7 @@ class UserInfoCard extends StatelessWidget {
                           Text('...', style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey)),
                         ],
                       )
-                    : latestLogPoin == null
+                    : widget.latestLogPoin == null
                         ? Text(
                             '-',
                             style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey),
@@ -362,7 +427,7 @@ class UserInfoCard extends StatelessWidget {
 
               // Kanan: Tombol View More
               ElevatedButton(
-                onPressed: onViewMoreTap,
+                onPressed: widget.onViewMoreTap,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black87,
                   foregroundColor: Colors.white,

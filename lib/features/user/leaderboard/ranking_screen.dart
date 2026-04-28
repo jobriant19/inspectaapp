@@ -28,6 +28,7 @@ class _RankMember {
   final int rank;
   final String name;
   final int score;
+  final int monthlyPoints;
   final String? avatarUrl;
   final Color avatarColor;
   final bool isSelf;
@@ -37,12 +38,12 @@ class _RankMember {
     required this.rank,
     required this.name,
     required this.score,
+    required this.monthlyPoints,
     this.avatarUrl,
     required this.avatarColor,
     this.isSelf = false,
   });
 
-  String get altitudeLabel => '${score * 10} ft';
   bool get isTop3 => rank <= 3;
 
   Color get medalColor {
@@ -235,57 +236,114 @@ class _RankingScreenState extends State<RankingScreen> {
   // ── Fetch Leaderboard ──────────────────────────────────────────────────────
 
   void _fetchData() {
-  final now = DateTime.now();
-  setState(() {
-    _lastUpdated = now;
+    final now = DateTime.now();
+    setState(() {
+      _lastUpdated = now;
+      _leaderboardFuture = _fetchLeaderboardFromLogPoin(now);
+    });
+  }
 
-    // ── Tentukan parameter filter paling spesifik ──────────────────────
-    // Prioritas: area > subunit > unit > lokasi
-    _leaderboardFuture = _supabase
-      .rpc('get_monthly_leaderboard', params: {
-        'selected_month'     : now.month,
-        'selected_year'      : now.year,
-        'selected_unit_id'   : _selectedLocation.idUnit,
-        'selected_lokasi_id' : _selectedLocation.idLokasi,
-        'selected_subunit_id': _selectedLocation.idSubunit,
-        'selected_area_id'   : _selectedLocation.idArea,
-    }).then((response) {
-      final List<dynamic> data = response;
-      if (!mounted) return <_RankMember>[];
+  Future<List<_RankMember>> _fetchLeaderboardFromLogPoin(DateTime now) async {
+    try {
+      final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+      final endOfMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
+      final currentUserId = _supabase.auth.currentUser?.id;
 
-      List<_RankMember> members = data.map((item) {
-        return _RankMember(
-          id      : item['id_user'].toString(),
-          rank    : item['rank_num']      as int,
-          name    : item['nama']          as String,
-          // ── SINKRON: gunakan poin total dari kolom 'poin' tabel User ──
-          score   : item['poin']          as int,
-          avatarUrl: item['gambar_user']  as String?,
-          isSelf  : item['is_self']       as bool,
-          avatarColor: _AppColors.primary,
-        );
-      }).toList();
+      // 1. Ambil semua log_poin bulan ini dalam SATU query
+      final List<dynamic> logData = await _supabase
+          .from('log_poin')
+          .select('id_user, poin, created_at')
+          .gte('created_at', startOfMonth)
+          .lt('created_at', endOfMonth);
 
+      // 2. Hitung total poin per user dari log_poin
+      final Map<String, int> monthlyMap = {};
+      for (final log in logData) {
+        final uid = log['id_user']?.toString() ?? '';
+        if (uid.isEmpty) continue;
+        final p = (log['poin'] as num?)?.toInt() ?? 0;
+        monthlyMap[uid] = (monthlyMap[uid] ?? 0) + p;
+      }
+
+      if (monthlyMap.isEmpty) return [];
+
+      // 3. Ambil data profil user sekaligus dengan filter lokasi
+      // gunakan user id yang ada di monthlyMap
+      final List<String> userIds = monthlyMap.keys.toList();
+
+      var userQuery = _supabase
+          .from('User')
+          .select('id_user, nama, gambar_user, id_lokasi, id_unit, id_subunit, id_area, is_visitor')
+          .inFilter('id_user', userIds)
+          .or('is_visitor.is.null,is_visitor.eq.false');
+
+      // Filter lokasi jika ada
+      if (_selectedLocation.idArea != null) {
+        userQuery = userQuery.eq('id_area', _selectedLocation.idArea!);
+      } else if (_selectedLocation.idSubunit != null) {
+        userQuery = userQuery.eq('id_subunit', _selectedLocation.idSubunit!);
+      } else if (_selectedLocation.idUnit != null) {
+        userQuery = userQuery.eq('id_unit', _selectedLocation.idUnit!);
+      } else if (_selectedLocation.idLokasi != null) {
+        userQuery = userQuery.eq('id_lokasi', _selectedLocation.idLokasi!);
+      }
+
+      final List<dynamic> userData = await userQuery;
+
+      // 4. Gabungkan & hitung rank
+      final List<Map<String, dynamic>> combined = [];
+      for (final user in userData) {
+        final uid = user['id_user']?.toString() ?? '';
+        final mp = monthlyMap[uid] ?? 0;
+        combined.add({
+          'id_user'     : uid,
+          'nama'        : user['nama'] as String,
+          'gambar_user' : user['gambar_user'] as String?,
+          'monthlyPoints': mp,
+        });
+      }
+
+      // 5. Urutkan berdasarkan monthly points DESC
+      combined.sort((a, b) =>
+          (b['monthlyPoints'] as int).compareTo(a['monthlyPoints'] as int));
+
+      // 6. Buat member list dengan rank
+      final List<_RankMember> members = [];
+      for (int i = 0; i < combined.length; i++) {
+        final item = combined[i];
+        final uid = item['id_user'] as String;
+        members.add(_RankMember(
+          id           : uid,
+          rank         : i + 1,
+          name         : item['nama'] as String,
+          score        : item['monthlyPoints'] as int,
+          monthlyPoints: item['monthlyPoints'] as int,
+          avatarUrl    : item['gambar_user'] as String?,
+          isSelf       : uid == currentUserId,
+          avatarColor  : _AppColors.primary,
+        ));
+      }
+
+      // 7. Set selfData dan trigger rebuild
+      _RankMember? foundSelf;
       try {
-        _selfData = members.firstWhere((m) => m.isSelf);
-      } catch (e) {
-        _selfData = null;
+        foundSelf = members.firstWhere((m) => m.isSelf);
+      } catch (_) {
+        foundSelf = null;
+      }
+      // setState agar _buildSelfPinnedRow ikut rebuild
+      if (mounted) {
+        setState(() {
+          _selfData = foundSelf;
+        });
       }
 
       return members;
-    }).catchError((error) {
-      debugPrint('Error fetching leaderboard: $error');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Gagal memuat papan peringkat: $error'),
-              backgroundColor: Colors.red),
-        );
-      }
-      return <_RankMember>[];
-    });
-  });
-}
+    } catch (e) {
+      debugPrint('Error fetching leaderboard from log_poin: $e');
+      return [];
+    }
+  }
 
   // ── Bottom Sheet Filter Lokasi ─────────────────────────────────────────────
 
@@ -807,6 +865,34 @@ class _RankingScreenState extends State<RankingScreen> {
             ? '剩余时间:'
             : 'Time left:';
 
+    final now = DateTime.now();
+    final endOfMonth = DateTime(now.year, now.month + 1, 1)
+        .subtract(const Duration(seconds: 1));
+    final diff = endOfMonth.difference(now);
+    final daysLeft = diff.inDays;
+    final hoursLeft = diff.inHours % 24;
+
+    String timeLeftStr;
+    if (diff.isNegative) {
+      timeLeftStr = widget.lang == 'ID'
+          ? 'Sudah berakhir'
+          : widget.lang == 'ZH'
+              ? '已结束'
+              : 'Ended';
+    } else if (daysLeft > 0) {
+      timeLeftStr = widget.lang == 'ID'
+          ? '$daysLeft hari $hoursLeft jam'
+          : widget.lang == 'ZH'
+              ? '$daysLeft 天 $hoursLeft 小时'
+              : '$daysLeft days $hoursLeft hrs';
+    } else {
+      timeLeftStr = widget.lang == 'ID'
+          ? '$hoursLeft jam'
+          : widget.lang == 'ZH'
+              ? '$hoursLeft 小时'
+              : '$hoursLeft hrs';
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Row(
@@ -864,20 +950,12 @@ class _RankingScreenState extends State<RankingScreen> {
                   style: const TextStyle(
                       color: _AppColors.textSecondary, fontSize: 12)),
               const SizedBox(height: 2),
-              Builder(
-                builder: (context) {
-                  final now = DateTime.now();
-                  final endOfMonth =
-                      DateTime(now.year, now.month + 1, 0);
-                  final daysLeft = endOfMonth.difference(now).inDays;
-                  return Text(
-                    'Sisa $daysLeft hari',
-                    style: const TextStyle(
-                        color: _AppColors.textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold),
-                  );
-                },
+              Text(
+                timeLeftStr,
+                style: const TextStyle(
+                    color: _AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -1135,26 +1213,12 @@ class _RankingScreenState extends State<RankingScreen> {
   }
 
   Widget _buildTableHeader() {
-    final String rankCol = widget.lang == 'ID'
-        ? 'Rank'
-        : widget.lang == 'ZH'
-            ? '排名'
-            : 'Rank';
-    final String nameCol = widget.lang == 'ID'
-        ? 'Nama'
-        : widget.lang == 'ZH'
-            ? '姓名'
-            : 'Name';
-    final String altCol = widget.lang == 'ID'
-        ? 'Ketinggian'
-        : widget.lang == 'ZH'
-            ? '高度'
-            : 'Altitude';
-    final String scoreCol = widget.lang == 'ID'
-        ? 'Poin'
-        : widget.lang == 'ZH'
-            ? '积分'
-            : 'Score';
+    final String rankCol = widget.lang == 'ID' ? 'Rank'
+        : widget.lang == 'ZH' ? '排名' : 'Rank';
+    final String nameCol = widget.lang == 'ID' ? 'Nama'
+        : widget.lang == 'ZH' ? '姓名' : 'Name';
+    final String scoreCol = widget.lang == 'ID' ? 'Poin Bulan Ini'
+        : widget.lang == 'ZH' ? '本月积分' : 'Monthly Points';
 
     return Container(
       color: const Color(0xFFF8FAFF),
@@ -1163,77 +1227,52 @@ class _RankingScreenState extends State<RankingScreen> {
       child: Row(
         children: [
           SizedBox(
-              width: 48,
-              child: Text(rankCol,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: _AppColors.textSecondary))),
+            width: 48,
+            child: Text(rankCol,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12.5, fontWeight: FontWeight.w600,
+                color: _AppColors.textSecondary))),
           Expanded(
-              child: Text(nameCol,
-                  style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: _AppColors.textSecondary))),
+            child: Text(nameCol,
+              style: const TextStyle(
+                fontSize: 12.5, fontWeight: FontWeight.w600,
+                color: _AppColors.textSecondary))),
           SizedBox(
-              width: 80,
-              child: Text(altCol,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: _AppColors.textSecondary))),
-          SizedBox(
-              width: 56,
-              child: Text(scoreCol,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: _AppColors.textSecondary))),
+            width: 100,
+            child: Text(scoreCol,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 12.5, fontWeight: FontWeight.w600,
+                color: _AppColors.textSecondary))),
         ],
       ),
     );
   }
 
   Widget _buildTargetRow() {
-    final String targetText = widget.lang == 'ID'
-        ? 'Target Bulanan'
-        : widget.lang == 'ZH'
-            ? '月度目标'
-            : 'Monthly Target';
+    final String targetText = widget.lang == 'ID' ? 'Target Bulanan'
+        : widget.lang == 'ZH' ? '月度目标' : 'Monthly Target';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
       decoration: BoxDecoration(
-          color: _AppColors.primaryLight,
-          border:
-              Border(bottom: BorderSide(color: _AppColors.divider))),
+        color: _AppColors.primaryLight,
+        border: Border(bottom: BorderSide(color: _AppColors.divider))),
       child: Row(
         children: [
           const SizedBox(width: 48),
           Expanded(
-              child: Text(targetText,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _AppColors.primary))),
+            child: Text(targetText,
+              style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w700,
+                color: _AppColors.primary))),
           const SizedBox(
-              width: 80,
-              child: Text('-',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _AppColors.primary))),
-          const SizedBox(
-              width: 56,
-              child: Text('1000',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _AppColors.primary))),
+            width: 100,
+            child: Text('1000',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w700,
+                color: _AppColors.primary))),
         ],
       ),
     );
@@ -1285,18 +1324,18 @@ class _RankingScreenState extends State<RankingScreen> {
         child: Row(
           children: [
             SizedBox(
-                width: 48,
-                child: Center(child: _RankBadge(member: m))),
+              width: 48,
+              child: Center(child: _RankBadge(member: m))),
             Expanded(
               child: Row(
                 children: [
                   _Avatar(
-                      name: m.name,
-                      avatarUrl: m.avatarUrl,
-                      color: m.avatarColor,
-                      size: 34,
-                      showRing: isTop3,
-                      ringColor: m.medalColor),
+                    name: m.name,
+                    avatarUrl: m.avatarUrl,
+                    color: m.avatarColor,
+                    size: 34,
+                    showRing: isTop3,
+                    ringColor: m.medalColor),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -1306,49 +1345,33 @@ class _RankingScreenState extends State<RankingScreen> {
                         Text(
                           m.name,
                           style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: isTop3
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: _AppColors.textPrimary),
+                            fontSize: 13,
+                            fontWeight: isTop3 ? FontWeight.w700 : FontWeight.w500,
+                            color: _AppColors.textPrimary),
                           overflow: TextOverflow.ellipsis,
                         ),
                         if (isTop3)
                           Text(_badgeLabel(m.rank),
-                              style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: m.medalColor)),
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: m.medalColor)),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
+            // Monthly Points dari log_poin
             SizedBox(
-              width: 80,
+              width: 100,
               child: Text(
-                m.altitudeLabel,
+                '${m.monthlyPoints}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w500,
-                    color: isTop3
-                        ? m.medalColor
-                        : _AppColors.textSecondary),
-              ),
-            ),
-            SizedBox(
-              width: 56,
-              child: Text(
-                '${m.score}',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: isTop3
-                        ? m.medalColor
-                        : _AppColors.primaryDark),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: isTop3 ? m.medalColor : _AppColors.primaryDark),
               ),
             ),
           ],
@@ -1399,15 +1422,8 @@ class _RankingScreenState extends State<RankingScreen> {
                       color: _AppColors.textPrimary),
                   overflow: TextOverflow.ellipsis)),
           SizedBox(
-              width: 80,
-              child: Text(self.altitudeLabel,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 11.5,
-                      color: _AppColors.textSecondary))),
-          SizedBox(
-              width: 56,
-              child: Text('${self.score}',
+              width: 100,
+              child: Text('${self.monthlyPoints}',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontSize: 14,

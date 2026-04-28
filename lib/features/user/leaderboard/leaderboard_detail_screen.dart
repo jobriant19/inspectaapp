@@ -30,6 +30,7 @@ class LeaderboardMember {
   final String name;
   final String? avatarUrl;
   final int score;
+  final int monthlyPoints; // poin dari log_poin bulan ini
 
   LeaderboardMember({
     this.idUser,
@@ -37,6 +38,7 @@ class LeaderboardMember {
     required this.name,
     this.avatarUrl,
     required this.score,
+    this.monthlyPoints = 0,
   });
 
   String get altitudeLabel => '${score * 10} ft';
@@ -335,10 +337,10 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
       if (_filterType == FilterType.monthly) {
         _dailyPieFuture = null;
 
-        // Fetch target dari database
+        // Fetch target
         _chartTargetFuture = _supabase.rpc('get_chart_target', params: {
           'selected_month': _selectedDate.month,
-          'selected_year': _selectedDate.year,
+          'selected_year' : _selectedDate.year,
           'selected_unit_id': _selectedLocation.idUnit,
         }).then((response) {
           final List<dynamic> data = response;
@@ -346,31 +348,13 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
             return const ChartTarget(targetTemuan: 5, targetPenyelesaian: 4);
           }
           return ChartTarget(
-            targetTemuan: data[0]['target_temuan'] as int,
+            targetTemuan      : data[0]['target_temuan'] as int,
             targetPenyelesaian: data[0]['target_penyelesaian'] as int,
           );
-        }).catchError((_) {
-          return const ChartTarget(targetTemuan: 5, targetPenyelesaian: 4);
-        });
+        }).catchError((_) =>
+            const ChartTarget(targetTemuan: 5, targetPenyelesaian: 4));
 
-        _leaderboardFuture = _supabase.rpc('get_monthly_leaderboard', params: {
-          'selected_month'     : _selectedDate.month,
-          'selected_year'      : _selectedDate.year,
-          'selected_unit_id'   : _selectedLocation.idUnit,
-          'selected_lokasi_id' : _selectedLocation.idLokasi,
-          'selected_subunit_id': _selectedLocation.idSubunit,
-          'selected_area_id'   : _selectedLocation.idArea,
-        }).then((response) {
-          final List<dynamic> data = response;
-          return data.map((item) => LeaderboardMember(
-            idUser   : item['id_user']?.toString(),
-            rank     : (item['rank_num'] as num).toInt(),
-            name     : item['nama'] as String,
-            avatarUrl: item['gambar_user'] as String?,
-            score    : item['poin'] as int,
-          )).toList();
-        });
-
+        // Fetch chart data
         _chartFuture = _supabase.rpc('get_daily_chart_data', params: {
           'selected_month'     : _selectedDate.month,
           'selected_year'      : _selectedDate.year,
@@ -387,12 +371,15 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           )).toList();
         });
 
+        // Fetch leaderboard MONTHLY dari log_poin
+        _leaderboardFuture = _fetchMonthlyLeaderboardFromLogPoin();
+
       } else {
-        // Mode harian - fetch data untuk pie chart
+        // Mode harian
         _chartTargetFuture = null;
         _chartFuture = null;
 
-        // Fetch data pie chart harian
+        // Fetch pie chart harian
         _dailyPieFuture = _supabase.rpc('get_daily_chart_data', params: {
           'selected_month'     : _selectedDate.month,
           'selected_year'      : _selectedDate.year,
@@ -414,35 +401,206 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           );
         });
 
-        _leaderboardFuture = _supabase.rpc('get_daily_leaderboard', params: {
-          'selected_date'   : DateFormat('yyyy-MM-dd').format(_selectedDate),
-          'selected_unit_id': _selectedLocation.idUnit, // UUID string atau null
-        }).then((response) {
-          final List<dynamic> data = response;
-          return data.map((item) => LeaderboardMember(
-            idUser   : item['id_user']?.toString(),
-            rank     : (item['rank_num'] as num).toInt(),
-            name     : item['nama'] as String,
-            avatarUrl: item['gambar_user'] as String?,
-            score    : item['daily_score'] as int,  // ← nama kolom sesuai SQL baru
-          )).toList();
-        });
+        // Fetch leaderboard DAILY dari log_poin
+        _leaderboardFuture = _fetchDailyLeaderboardFromLogPoin();
       }
     });
   }
 
+  // ── Monthly leaderboard dari log_poin ──────────────────────────────────────
+  Future<List<LeaderboardMember>> _fetchMonthlyLeaderboardFromLogPoin() async {
+    try {
+      final startOfMonth =
+          DateTime(_selectedDate.year, _selectedDate.month, 1).toIso8601String();
+      final endOfMonth =
+          DateTime(_selectedDate.year, _selectedDate.month + 1, 1).toIso8601String();
+
+      // 1. Ambil log_poin bulan ini
+      final List<dynamic> logData = await _supabase
+          .from('log_poin')
+          .select('id_user, poin')
+          .gte('created_at', startOfMonth)
+          .lt('created_at', endOfMonth);
+
+      // 2. Hitung total per user
+      final Map<String, int> monthlyMap = {};
+      for (final log in logData) {
+        final uid = log['id_user']?.toString() ?? '';
+        if (uid.isEmpty) continue;
+        final p = (log['poin'] as num?)?.toInt() ?? 0;
+        monthlyMap[uid] = (monthlyMap[uid] ?? 0) + p;
+      }
+
+      if (monthlyMap.isEmpty) return [];
+
+      // 3. Ambil profil user dengan filter lokasi
+      var userQuery = _supabase
+          .from('User')
+          .select('id_user, nama, gambar_user')
+          .inFilter('id_user', monthlyMap.keys.toList())
+          .or('is_visitor.is.null,is_visitor.eq.false');
+
+      if (_selectedLocation.idArea != null) {
+        userQuery = userQuery.eq('id_area', _selectedLocation.idArea!);
+      } else if (_selectedLocation.idSubunit != null) {
+        userQuery = userQuery.eq('id_subunit', _selectedLocation.idSubunit!);
+      } else if (_selectedLocation.idUnit != null) {
+        userQuery = userQuery.eq('id_unit', _selectedLocation.idUnit!);
+      } else if (_selectedLocation.idLokasi != null) {
+        userQuery = userQuery.eq('id_lokasi', _selectedLocation.idLokasi!);
+      }
+
+      final List<dynamic> userData = await userQuery;
+
+      // 4. Gabungkan & urutkan
+      final List<Map<String, dynamic>> combined = [];
+      for (final user in userData) {
+        final uid = user['id_user']?.toString() ?? '';
+        combined.add({
+          'uid'        : uid,
+          'nama'       : user['nama'] as String,
+          'gambar_user': user['gambar_user'] as String?,
+          'poin'       : monthlyMap[uid] ?? 0,
+        });
+      }
+      combined.sort((a, b) =>
+          (b['poin'] as int).compareTo(a['poin'] as int));
+
+      // 5. Map ke model
+      return combined.asMap().entries.map((e) {
+        final item = e.value;
+        return LeaderboardMember(
+          idUser       : item['uid'] as String,
+          rank         : e.key + 1,
+          name         : item['nama'] as String,
+          avatarUrl    : item['gambar_user'] as String?,
+          score        : item['poin'] as int,
+          monthlyPoints: item['poin'] as int,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('Error fetching monthly leaderboard from log_poin: $e');
+      return [];
+    }
+  }
+
+  // ── Daily leaderboard dari log_poin ────────────────────────────────────────
+  Future<List<LeaderboardMember>> _fetchDailyLeaderboardFromLogPoin() async {
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final startOfDay = '${dateStr}T00:00:00.000Z';
+      final endOfDay   = '${dateStr}T23:59:59.999Z';
+
+      // 1. Ambil log_poin hari ini
+      final List<dynamic> logData = await _supabase
+          .from('log_poin')
+          .select('id_user, poin')
+          .gte('created_at', startOfDay)
+          .lte('created_at', endOfDay);
+
+      // 2. Hitung total per user
+      final Map<String, int> dailyMap = {};
+      for (final log in logData) {
+        final uid = log['id_user']?.toString() ?? '';
+        if (uid.isEmpty) continue;
+        final p = (log['poin'] as num?)?.toInt() ?? 0;
+        dailyMap[uid] = (dailyMap[uid] ?? 0) + p;
+      }
+
+      if (dailyMap.isEmpty) return [];
+
+      // 3. Ambil profil user dengan filter lokasi
+      var userQuery = _supabase
+          .from('User')
+          .select('id_user, nama, gambar_user')
+          .inFilter('id_user', dailyMap.keys.toList())
+          .or('is_visitor.is.null,is_visitor.eq.false');
+
+      if (_selectedLocation.idArea != null) {
+        userQuery = userQuery.eq('id_area', _selectedLocation.idArea!);
+      } else if (_selectedLocation.idSubunit != null) {
+        userQuery = userQuery.eq('id_subunit', _selectedLocation.idSubunit!);
+      } else if (_selectedLocation.idUnit != null) {
+        userQuery = userQuery.eq('id_unit', _selectedLocation.idUnit!);
+      } else if (_selectedLocation.idLokasi != null) {
+        userQuery = userQuery.eq('id_lokasi', _selectedLocation.idLokasi!);
+      }
+
+      final List<dynamic> userData = await userQuery;
+
+      // 4. Gabungkan & urutkan, hanya tampilkan yang > 0
+      final List<Map<String, dynamic>> combined = [];
+      for (final user in userData) {
+        final uid = user['id_user']?.toString() ?? '';
+        final dp = dailyMap[uid] ?? 0;
+        if (dp > 0) {
+          combined.add({
+            'uid'        : uid,
+            'nama'       : user['nama'] as String,
+            'gambar_user': user['gambar_user'] as String?,
+            'poin'       : dp,
+          });
+        }
+      }
+      combined.sort((a, b) =>
+          (b['poin'] as int).compareTo(a['poin'] as int));
+
+      // 5. Map ke model
+      return combined.asMap().entries.map((e) {
+        final item = e.value;
+        return LeaderboardMember(
+          idUser       : item['uid'] as String,
+          rank         : e.key + 1,
+          name         : item['nama'] as String,
+          avatarUrl    : item['gambar_user'] as String?,
+          score        : item['poin'] as int,
+          monthlyPoints: item['poin'] as int,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('Error fetching daily leaderboard from log_poin: $e');
+      return [];
+    }
+  }
+
   Future<void> _pickDate() async {
-    final pickedDate = await showDatePicker(
+    final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+      firstDate: DateTime(widget.year, widget.month, 1),
+      lastDate: DateTime(widget.year, widget.month + 1, 0),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF0EA5E9),        // warna terpilih
+              onPrimary: Colors.white,            // teks pada warna terpilih
+              surface: Colors.white,              // background kalender
+              onSurface: Color(0xFF0C4A6E),       // warna teks hari
+              secondary: Color(0xFF38BDF8),
+              onSecondary: Colors.white,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF0EA5E9), // warna tombol Cancel/OK
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            dialogBackgroundColor: Colors.white,
+          ),
+          child: child!,
+        );
+      },
     );
-    if (pickedDate != null && pickedDate != _selectedDate) {
+
+    if (picked != null && picked != _selectedDate) {
       setState(() {
-        _selectedDate = pickedDate;
-        _fetchData();
+        _selectedDate = picked;
       });
+      _fetchData();
     }
   }
 
@@ -795,8 +953,33 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
 
   Widget _buildHeader() {
     final now = DateTime.now();
-    final endOfMonth = DateTime(now.year, now.month + 1, 0);
-    final daysLeft = endOfMonth.difference(now).inDays;
+    final endOfMonth = DateTime(
+        widget.year, widget.month + 1, 1)
+        .subtract(const Duration(seconds: 1));
+    final diff = endOfMonth.difference(now);
+    final daysLeft = diff.inDays;
+    final hoursLeft = diff.inHours % 24;
+
+    String timeLeftStr;
+    if (diff.isNegative) {
+      timeLeftStr = widget.lang == 'ID'
+          ? 'Sudah berakhir'
+          : widget.lang == 'ZH'
+              ? '已结束'
+              : 'Ended';
+    } else if (daysLeft > 0) {
+      timeLeftStr = widget.lang == 'ID'
+          ? '$daysLeft hari $hoursLeft jam'
+          : widget.lang == 'ZH'
+              ? '$daysLeft 天 $hoursLeft 小时'
+              : '$daysLeft days $hoursLeft hrs';
+    } else {
+      timeLeftStr = widget.lang == 'ID'
+          ? '$hoursLeft jam'
+          : widget.lang == 'ZH'
+              ? '$hoursLeft 小时'
+              : '$hoursLeft hrs';
+    }
 
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
@@ -830,13 +1013,14 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(_getTxt('time_left'),
-                  style:
-                      const TextStyle(fontSize: 11, color: Colors.white70)),
-              Text('$daysLeft ${_getTxt('days')}',
-                  style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFFFCD34D))),
+                  style: const TextStyle(fontSize: 11, color: Colors.white70)),
+              Text(
+                timeLeftStr,
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFFCD34D)),
+              ),
               const SizedBox(height: 4),
               OutlinedButton.icon(
                 onPressed: () => Navigator.pop(context),
@@ -1725,61 +1909,49 @@ Widget _buildPieInfoCard({
         children: [
           // Header
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: AppColors.primaryLight,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(
               children: [
                 _th('Rank', 44),
                 Expanded(
-                    child: Text(_getTxt('name_col'),
-                        style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textSecondary))),
-                _th(_getTxt('alt_col'), 72, center: true),
-                _th(_getTxt('score_col'), 48, center: true),
+                  child: Text(_getTxt('name_col'),
+                    style: const TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.w700,
+                      color: AppColors.textSecondary))),
+                _th(
+                  widget.lang == 'ID' ? 'Poin Bulan Ini'
+                  : widget.lang == 'ZH' ? '本月积分'
+                  : 'Monthly Pts',
+                  90, center: true),
               ],
             ),
           ),
           // Target row
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: const Color(0xFFEFF6FF),
-              border: Border(
-                  bottom: BorderSide(color: AppColors.border, width: 0.5)),
+              border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
             ),
             child: Row(
               children: [
                 const SizedBox(width: 44),
                 Expanded(
-                    child: Text(_getTxt('monthly_target'),
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryColor))),
-                SizedBox(
-                    width: 72,
-                    child: const Text('—',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primaryColor))),
-                SizedBox(
-                    width: 48,
-                    child: const Text('1000',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primaryColor))),
+                  child: Text(_getTxt('monthly_target'),
+                    style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700,
+                      color: AppColors.primaryColor))),
+                const SizedBox(
+                  width: 90,
+                  child: Text('1000',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w800,
+                      color: AppColors.primaryColor))),
               ],
             ),
           ),
@@ -1853,10 +2025,10 @@ Widget _buildPieInfoCard({
       badge = SizedBox(
         width: 28,
         child: Text('${item.rank}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary)),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 12, fontWeight: FontWeight.w700,
+            color: AppColors.textSecondary)),
       );
     }
 
@@ -1899,8 +2071,7 @@ Widget _buildPieInfoCard({
                 children: [
                   CircleAvatar(
                     radius: 15,
-                    backgroundImage: (item.avatarUrl != null &&
-                            item.avatarUrl!.isNotEmpty)
+                    backgroundImage: (item.avatarUrl != null && item.avatarUrl!.isNotEmpty)
                         ? NetworkImage(item.avatarUrl!)
                         : null,
                     backgroundColor: AppColors.primaryLight,
@@ -1910,8 +2081,8 @@ Widget _buildPieInfoCard({
                                 .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
                                 .join(),
                             style: const TextStyle(
-                                fontSize: 10, fontWeight: FontWeight.w700,
-                                color: AppColors.primaryColor))
+                              fontSize: 10, fontWeight: FontWeight.w700,
+                              color: AppColors.primaryColor))
                         : null,
                   ),
                   const SizedBox(width: 8),
@@ -1920,39 +2091,30 @@ Widget _buildPieInfoCard({
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(item.name,
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: item.rank <= 3
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: AppColors.textPrimary),
-                            overflow: TextOverflow.ellipsis),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: item.rank <= 3 ? FontWeight.w700 : FontWeight.w500,
+                            color: AppColors.textPrimary),
+                          overflow: TextOverflow.ellipsis),
                         if (subLabel != null)
                           Text(subLabel,
-                              style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: scoreColor)),
+                            style: TextStyle(
+                              fontSize: 9, fontWeight: FontWeight.w700,
+                              color: scoreColor)),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
+            // Monthly Points
             SizedBox(
-                width: 72,
-                child: Text(item.altitudeLabel,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 11, fontWeight: FontWeight.w500,
-                        color: item.rank <= 3 ? scoreColor : AppColors.textSecondary))),
-            SizedBox(
-                width: 48,
-                child: Text('${item.score}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w800,
-                        color: scoreColor))),
+              width: 90,
+              child: Text('${item.monthlyPoints}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w800,
+                  color: scoreColor))),
           ],
         ),
       ),

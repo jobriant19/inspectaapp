@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'leaderboard_detail_screen.dart';
 
@@ -167,22 +168,65 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
 
   Future<List<SeasonWinner>> _fetchWinners(int year, int month) {
     final key = '$year-$month';
-    _winnerCache[key] ??= _supabase.rpc('get_monthly_leaderboard', params: {
-      'selected_month'     : month,
-      'selected_year'      : year,
-      // ← Hapus semua parameter UUID, biarkan default NULL di SQL
-    }).then((response) {
-      final List<dynamic> data = response;
-      return data
-          .take(3)
-          .map((item) => SeasonWinner(
-                rank     : (item['rank_num'] as num).toInt(),
-                name     : item['nama'] as String,
-                avatarUrl: item['gambar_user'] as String?,
-                score    : item['poin'] as int,
-              ))
-          .toList();
-    }).catchError((_) => <SeasonWinner>[]);
+    _winnerCache[key] ??= () async {
+      try {
+        final startOfMonth = DateTime(year, month, 1).toIso8601String();
+        final endOfMonth = DateTime(year, month + 1, 1).toIso8601String();
+
+        // 1. Ambil semua log_poin bulan tersebut
+        final List<dynamic> logData = await _supabase
+            .from('log_poin')
+            .select('id_user, poin')
+            .gte('created_at', startOfMonth)
+            .lt('created_at', endOfMonth);
+
+        // 2. Hitung total poin per user
+        final Map<String, int> monthlyMap = {};
+        for (final log in logData) {
+          final uid = log['id_user']?.toString() ?? '';
+          if (uid.isEmpty) continue;
+          final p = (log['poin'] as num?)?.toInt() ?? 0;
+          monthlyMap[uid] = (monthlyMap[uid] ?? 0) + p;
+        }
+
+        if (monthlyMap.isEmpty) return <SeasonWinner>[];
+
+        // 3. Ambil profil user
+        final List<dynamic> userData = await _supabase
+            .from('User')
+            .select('id_user, nama, gambar_user')
+            .inFilter('id_user', monthlyMap.keys.toList())
+            .or('is_visitor.is.null,is_visitor.eq.false');
+
+        // 4. Gabungkan & urutkan
+        final List<Map<String, dynamic>> combined = [];
+        for (final user in userData) {
+          final uid = user['id_user']?.toString() ?? '';
+          combined.add({
+            'uid'        : uid,
+            'nama'       : user['nama'] as String,
+            'gambar_user': user['gambar_user'] as String?,
+            'poin'       : monthlyMap[uid] ?? 0,
+          });
+        }
+        combined.sort((a, b) =>
+            (b['poin'] as int).compareTo(a['poin'] as int));
+
+        // 5. Ambil top 3
+        return combined.take(3).toList().asMap().entries.map((e) {
+          final item = e.value;
+          return SeasonWinner(
+            rank     : e.key + 1,
+            name     : item['nama'] as String,
+            avatarUrl: item['gambar_user'] as String?,
+            score    : item['poin'] as int,
+          );
+        }).toList();
+      } catch (e) {
+        debugPrint('Error fetching winners from log_poin: $e');
+        return <SeasonWinner>[];
+      }
+    }();
     return _winnerCache[key]!;
   }
 
@@ -754,11 +798,36 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
   Widget _buildWinnersShimmer() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-      child: Container(
-        height: 70,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(14),
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey[200]!,
+        highlightColor: Colors.grey[50]!,
+        child: Container(
+          height: 80,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 14),
+              Container(
+                width: 52, height: 52,
+                decoration: const BoxDecoration(
+                  color: Colors.white, shape: BoxShape.circle)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(height: 14, width: 120, color: Colors.white),
+                    const SizedBox(height: 6),
+                    Container(height: 11, width: 80, color: Colors.white),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
