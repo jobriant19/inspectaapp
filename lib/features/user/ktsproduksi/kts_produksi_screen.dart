@@ -122,7 +122,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
     }
   }
 
-  Future<void> _deleteReport(int id) async {
+  Future<void> _deleteReport(String id) async {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
@@ -420,7 +420,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
           context,
           MaterialPageRoute(
             builder: (_) => KtsProduksiDetailScreen(
-              ktsId: r['id_temuan'] as int,
+              ktsId: r['id_temuan'].toString(),
               lang: widget.lang,
             ),
           ),
@@ -602,7 +602,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
                       icon: CupertinoIcons.trash,
                       color: const Color(0xFFEF4444),
                       bgColor: const Color(0xFFFFF1F2),
-                      onTap: () => _deleteReport(r['id_temuan']),
+                      onTap: () => _deleteReport(r['id_temuan'].toString()),
                     ),
                   ],
                 ],
@@ -2071,7 +2071,7 @@ class _KtsProduksiFormScreenState
 // LAYAR DETAIL KTS PRODUKSI
 // ============================================================
 class KtsProduksiDetailScreen extends StatefulWidget {
-  final int ktsId;
+  final String ktsId;
   final String lang;
 
   const KtsProduksiDetailScreen(
@@ -2390,8 +2390,7 @@ class _KtsProduksiDetailScreenState
           .select('id_penyelesaian')
           .single();
 
-      final newPenyelesaianId =
-          insertRes['id_penyelesaian'] as int;
+      final String newPenyelesaianId = insertRes['id_penyelesaian'].toString();
 
       await supabase.from('temuan').update({
         'status_temuan': 'Selesai',

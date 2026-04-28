@@ -12,7 +12,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 /// Screen detail KTS yang bisa dipanggil dari home maupun explore_screen.
 /// Tidak memiliki tombol Edit/Delete.
 class KtsDetailScreen extends StatefulWidget {
-  final int ktsId;
+  final String ktsId;
   final String lang;
   /// Data awal (opsional) untuk mengurangi loading awal
   final Map<String, dynamic>? initialData;
@@ -360,7 +360,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
           .select('id_penyelesaian')
           .single();
 
-      final newPenyelesaianId = insertRes['id_penyelesaian'] as int;
+      final String newPenyelesaianId = insertRes['id_penyelesaian'].toString();
 
       await supabase.from('temuan').update({
         'status_temuan': 'Selesai',

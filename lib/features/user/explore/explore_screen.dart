@@ -1516,7 +1516,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         onTap: () {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (context) => KtsDetailScreen(
-              ktsId: data['id_temuan'] as int,
+              ktsId: data['id_temuan'].toString(),
               lang: widget.lang,
               initialData: data,
             ),
@@ -1531,7 +1531,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         if (isKts) {
           Navigator.of(context).push(MaterialPageRoute(
             builder: (context) => KtsDetailScreen(
-              ktsId: data['id_temuan'] as int,
+              ktsId: data['id_temuan'].toString(),
               lang: widget.lang,
               initialData: data,
             ),
@@ -1612,15 +1612,19 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                               ),
                             ),
                             const SizedBox(width: 8),
-                            // Label jenis temuan (KTS / 5R)
+                            
+                            // ✅ Badge Jenis Temuan (KTS / 5R)
                             () {
                               final jenis = (data['jenis_temuan'] ?? '').toString();
                               final isKts = jenis == 'KTS Production';
                               final labelText = isKts ? 'KTS' : '5R';
-                              final labelColor = isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
+                              final labelColor = isKts 
+                                  ? const Color(0xFFFBBF24) 
+                                  : const Color(0xFF38BDF8);
                               return Container(
                                 margin: const EdgeInsets.only(right: 5),
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 7, vertical: 5),
                                 decoration: BoxDecoration(
                                   color: labelColor.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(9),
@@ -1636,7 +1640,49 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                 ),
                               );
                             }(),
-                            const SizedBox(width: 0),
+                            
+                            // ✅ TAMBAHAN: Badge Poin (sama seperti di FindingCard & KtsFindingCard)
+                            if (poin > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 7, vertical: 5),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.local_fire_department_rounded,
+                                      size: 12,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      '$poin',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 2),
+                                    const Text(
+                                      'Poin',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 9,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                           ],
                         ),
 

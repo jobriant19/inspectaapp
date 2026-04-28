@@ -424,6 +424,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     try {
       final userId = _client.auth.currentUser!.id;
 
+      final String temuanId = _temuanData!['id_temuan'].toString();
+
       // Catat vote
       await _client.rpc('handle_verification_vote', params: {
         'p_temuan_id': temuanId,

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
-import '../finding/finding_detail_screen.dart'; // adjust path as needed
+import '../finding/finding_detail_screen.dart';
+import '../home/kts_finding_card.dart'; // adjust path as needed
 
 // ─── Warna & Tema ──────────────────────────────────────────────────────────
 class _AppColors {
@@ -354,10 +355,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab,
             lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area),
             kategoritemuan(nama_kategoritemuan),
-            is_pro, is_visitor, is_eksekutif,
+            is_pro, is_visitor, is_eksekutif, no_order, jumlah_item,
             penyelesaian!temuan_id_penyelesaian_fkey(*, User_Solver:User!id_user(nama, gambar_user)),
-            User_Creator:User!id_user(nama, gambar_user),
-            User_PIC:id_penanggung_jawab(nama, gambar_user),
+            User_Creator:User!temuan_id_user_fkey(nama, gambar_user),
+            User_PIC:User!temuan_id_penanggung_jawab_fkey(nama, gambar_user),
             subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)
           ''')
           .gte('created_at', _recurringFrom.toIso8601String())
@@ -371,9 +372,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       final findings = List<Map<String, dynamic>>.from(response);
 
       // Group by similar judul_temuan (normalize)
+      // Group by judul_temuan + jenis_temuan + id_kategoritemuan_uuid + id_subkategoritemuan_uuid
       final Map<String, List<Map<String, dynamic>>> grouped = {};
       for (final f in findings) {
-        final key = (f['judul_temuan'] as String).trim().toLowerCase();
+        final judul = (f['judul_temuan'] as String).trim().toLowerCase();
+        final jenis = (f['jenis_temuan'] ?? '').toString().trim().toLowerCase();
+        final kategori = (f['id_kategoritemuan_uuid'] ?? '').toString();
+        final subKategori = (f['id_subkategoritemuan_uuid'] ?? '').toString();
+        final key = '$judul||$jenis||$kategori||$subKategori';
         grouped.putIfAbsent(key, () => []).add(f);
       }
 
@@ -382,11 +388,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       grouped.forEach((key, items) {
         if (items.length >= 2) {
           final first = items.first;
+          final isKts = (first['jenis_temuan'] ?? '') == 'KTS Production';
+
+          // Lokasi hanya untuk 5R
           String location = '';
-          if (first['area'] != null) location = first['area']['nama_area'] ?? '';
-          else if (first['subunit'] != null) location = first['subunit']['nama_subunit'] ?? '';
-          else if (first['unit'] != null) location = first['unit']['nama_unit'] ?? '';
-          else if (first['lokasi'] != null) location = first['lokasi']['nama_lokasi'] ?? '';
+          if (!isKts) {
+            if (first['area'] != null) location = first['area']['nama_area'] ?? '';
+            else if (first['subunit'] != null) location = first['subunit']['nama_subunit'] ?? '';
+            else if (first['unit'] != null) location = first['unit']['nama_unit'] ?? '';
+            else if (first['lokasi'] != null) location = first['lokasi']['nama_lokasi'] ?? '';
+          } else {
+            // KTS: tampilkan no_order sebagai pengganti lokasi
+            final noOrder = (first['no_order'] ?? '').toString();
+            location = noOrder.isNotEmpty ? noOrder : '-';
+          }
 
           result.add(RecurringTopic(
             topic: first['judul_temuan'] as String,
@@ -1596,19 +1611,35 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           const SizedBox(width: 12),
           Expanded(child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(topic.topic,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _AppColors.textPrimary),
-                maxLines: 2, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              Row(children: [
-                const Icon(Icons.location_on_rounded, size: 13, color: _AppColors.primary),
-                const SizedBox(width: 3),
-                Expanded(child: Text('${getTxt('di_sekitar')} ${topic.locationArea}',
-                  style: const TextStyle(fontSize: 12, color: _AppColors.textSecondary),
-                  maxLines: 1, overflow: TextOverflow.ellipsis)),
-              ]),
-            ]),
+            child: Builder(builder: (context) {
+              // Cek apakah topic ini KTS dari findings pertama
+              final isKts = topic.findings.isNotEmpty &&
+                  (topic.findings.first['jenis_temuan'] ?? '') == 'KTS Production';
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(topic.topic,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _AppColors.textPrimary),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                Row(children: [
+                  Icon(
+                    isKts ? Icons.tag_rounded : Icons.location_on_rounded,
+                    size: 13,
+                    color: isKts ? const Color(0xFFD97706) : _AppColors.primary,
+                  ),
+                  const SizedBox(width: 3),
+                  Expanded(child: Text(
+                    isKts
+                        ? '${widget.lang == 'ID' ? 'No. Order' : widget.lang == 'ZH' ? '订单号' : 'Order No.'}: ${topic.locationArea}'
+                        : topic.locationArea,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isKts ? const Color(0xFFD97706) : _AppColors.textSecondary,
+                    ),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                  )),
+                ]),
+              ]);
+            }),
           )),
           // Total badge
           Container(
@@ -1652,17 +1683,33 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(topic.topic, style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold, color: _AppColors.textPrimary)),
-                  const SizedBox(height: 2),
-                  Row(children: [
-                    const Icon(Icons.location_on_rounded, size: 13, color: _AppColors.primary),
-                    const SizedBox(width: 3),
-                    Text('${getTxt('di_sekitar')} ${topic.locationArea}',
-                      style: const TextStyle(fontSize: 12, color: _AppColors.textSecondary)),
-                  ]),
-                ])),
+                Expanded(child: Builder(builder: (context) {
+                  final isKts = topic.findings.isNotEmpty &&
+                      (topic.findings.first['jenis_temuan'] ?? '') == 'KTS Production';
+                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(topic.topic, style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold, color: _AppColors.textPrimary)),
+                    const SizedBox(height: 2),
+                    Row(children: [
+                      Icon(
+                        isKts ? Icons.tag_rounded : Icons.location_on_rounded,
+                        size: 13,
+                        color: isKts ? const Color(0xFFD97706) : _AppColors.primary,
+                      ),
+                      const SizedBox(width: 3),
+                      Flexible(child: Text(
+                        isKts
+                            ? '${widget.lang == 'ID' ? 'No. Order' : widget.lang == 'ZH' ? '订单号' : 'Order No.'}: ${topic.locationArea}'
+                            : '${getTxt('di_sekitar')} ${topic.locationArea}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isKts ? const Color(0xFFD97706) : _AppColors.textSecondary,
+                        ),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      )),
+                    ]),
+                  ]);
+                })),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -1696,6 +1743,25 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildRecurringFindingCard(Map<String, dynamic> data) {
+    final isKts = (data['jenis_temuan'] ?? '') == 'KTS Production';
+
+    if (isKts) {
+      return KtsFindingCard(
+        data: data,
+        lang: widget.lang,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => FindingDetailScreen(
+              initialData: data,
+              lang: widget.lang,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Card 5R biasa — kode lama tetap di bawah ini (tidak diubah)
     final imageUrl = (data['gambar_temuan'] ?? '').toString();
     final title = (data['judul_temuan'] ?? '-').toString();
     final status = (data['status_temuan'] ?? '').toString();
@@ -1705,7 +1771,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     final isVisitor = data['is_visitor'] == true;
     final isEksekutif = data['is_eksekutif'] == true;
     final poin = int.tryParse((data['poin_temuan'] ?? 0).toString()) ?? 0;
-    final isKts = (data['jenis_temuan'] ?? '') == 'KTS Production';
+    final isKtsCard = (data['jenis_temuan'] ?? '') == 'KTS Production';
 
     final tanggal = () {
       final v = data['created_at'];
@@ -1737,19 +1803,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     if (isPro) inspTypes.add('pro');
     if (isVisitor) inspTypes.add('visitor');
     if (isEksekutif) inspTypes.add('eksekutif');
-    inspTypes.sort();
-    final combinationKey = inspTypes.join('+');
 
-    Color borderColor;
-    if (isKts) {
-      borderColor = const Color(0xFFFDE68A);
-    } else if (combinationKey.isNotEmpty) {
-      borderColor = const Color(0xFF38BDF8);
-    } else {
-      borderColor = const Color(0xFF38BDF8);
-    }
+    Color borderColor = isKtsCard ? const Color(0xFFFDE68A) : const Color(0xFF38BDF8);
 
-    // Deadline indicator
     Widget? timeIndicator;
     if (isFinished) {
       final penyelesaianData = data['penyelesaian'] as Map<String, dynamic>?;
@@ -1838,7 +1894,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           Padding(
             padding: const EdgeInsets.fromLTRB(11, 11, 11, 11),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Image
               Container(
                 width: 88, height: 88,
                 decoration: BoxDecoration(
@@ -1856,23 +1911,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 ),
               ),
               const SizedBox(width: 10),
-              // Content
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(child: Text(title,
                     style: const TextStyle(fontSize: 14, height: 1.3, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
                     maxLines: 2, overflow: TextOverflow.ellipsis)),
                   const SizedBox(width: 6),
-                  // Jenis label
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                     decoration: BoxDecoration(
-                      color: (isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8)).withOpacity(0.15),
+                      color: const Color(0xFF38BDF8).withOpacity(0.15),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8), width: 1.1)),
-                    child: Text(isKts ? 'KTS' : '5R', style: TextStyle(
-                      color: isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8),
-                      fontWeight: FontWeight.w900, fontSize: 9)),
+                      border: Border.all(color: const Color(0xFF38BDF8), width: 1.1)),
+                    child: const Text('5R', style: TextStyle(
+                      color: Color(0xFF38BDF8), fontWeight: FontWeight.w900, fontSize: 9)),
                   ),
                   if (poin > 0) ...[
                     const SizedBox(width: 4),

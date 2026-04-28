@@ -190,21 +190,30 @@ class HomeContentState extends State<HomeContent> {
     if (userId == null) return Future.value([]);
 
     final List<Future<List<Map<String, dynamic>>>> futures = [];
-
-    // Jika tidak ada tab yang dipilih, default tampilkan semua (my findings)
     final activeTabs = _activeTabs.isEmpty ? {'my'} : _activeTabs;
 
     if (activeTabs.contains('my')) {
       var q = Supabase.instance.client
           .from('temuan')
           .select(
-            'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)',
+            'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, '
+            'poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, '
+            'id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, '
+            'nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), '
+            'subunit(nama_subunit), area(nama_area), is_pro, is_visitor, '
+            'is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), '
+            'subkategoritemuan:id_subkategoritemuan_uuid('
+            'id_subkategoritemuan, nama_subkategoritemuan)',
           )
           .eq('id_user', userId);
-      if (_activeTypeFilter == '5r')
+
+      if (_activeTypeFilter == '5r') {
         q = q.neq('jenis_temuan', 'KTS Production');
-      if (_activeTypeFilter == 'kts')
+      }
+      if (_activeTypeFilter == 'kts') {
         q = q.eq('jenis_temuan', 'KTS Production');
+      }
+
       futures.add(
         q
             .order('created_at', ascending: false)
@@ -217,13 +226,24 @@ class HomeContentState extends State<HomeContent> {
       var q = Supabase.instance.client
           .from('temuan')
           .select(
-            'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan)',
+            'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, '
+            'poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, '
+            'id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, '
+            'nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), '
+            'subunit(nama_subunit), area(nama_area), is_pro, is_visitor, '
+            'is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), '
+            'subkategoritemuan:id_subkategoritemuan_uuid('
+            'id_subkategoritemuan, nama_subkategoritemuan)',
           )
           .eq('id_penanggung_jawab', userId);
-      if (_activeTypeFilter == '5r')
+
+      if (_activeTypeFilter == '5r') {
         q = q.neq('jenis_temuan', 'KTS Production');
-      if (_activeTypeFilter == 'kts')
+      }
+      if (_activeTypeFilter == 'kts') {
         q = q.eq('jenis_temuan', 'KTS Production');
+      }
+
       futures.add(
         q
             .order('created_at', ascending: false)
@@ -237,7 +257,19 @@ class HomeContentState extends State<HomeContent> {
         Supabase.instance.client
             .from('penyelesaian')
             .select(
-              'id_penyelesaian, temuan(id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), is_pro, is_visitor, is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan))',
+              // ✅ Gunakan hint FK eksplisit setelah migrasi UUID
+              'id_penyelesaian, '
+              'temuan!temuan_id_penyelesaian_fkey('
+              'id_temuan, judul_temuan, gambar_temuan, created_at, '
+              'status_temuan, poin_temuan, target_waktu_selesai, '
+              'id_lokasi, id_unit, id_subunit, id_area, '
+              'id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, '
+              'nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), '
+              'subunit(nama_subunit), area(nama_area), is_pro, is_visitor, '
+              'is_eksekutif, '
+              'item_produksi:id_item(id_item, nama_item, gambar_item), '
+              'subkategoritemuan:id_subkategoritemuan_uuid('
+              'id_subkategoritemuan, nama_subkategoritemuan))',
             )
             .eq('id_user', userId)
             .order('tanggal_selesai', ascending: false)
@@ -247,19 +279,21 @@ class HomeContentState extends State<HomeContent> {
               for (final item in v) {
                 final temuanRaw = item['temuan'];
                 if (temuanRaw == null) continue;
+
                 Map<String, dynamic> t;
                 if (temuanRaw is List && temuanRaw.isNotEmpty) {
                   t = Map<String, dynamic>.from(temuanRaw.first);
                 } else if (temuanRaw is Map) {
                   t = Map<String, dynamic>.from(temuanRaw);
-                } else
+                } else {
                   continue;
+                }
+
                 if (_activeTypeFilter == '5r' &&
-                    t['jenis_temuan'] == 'KTS Production')
-                  continue;
+                    t['jenis_temuan'] == 'KTS Production') continue;
                 if (_activeTypeFilter == 'kts' &&
-                    t['jenis_temuan'] != 'KTS Production')
-                  continue;
+                    t['jenis_temuan'] != 'KTS Production') continue;
+
                 result.add(t);
               }
               return result;
@@ -270,23 +304,25 @@ class HomeContentState extends State<HomeContent> {
     if (futures.isEmpty) return Future.value([]);
 
     return Future.wait(futures).then((lists) {
-      final seen = <int>{};
+      // ✅ FIX UTAMA: Gunakan String bukan int untuk UUID
+      final seen = <String>{};
       final combined = <Map<String, dynamic>>[];
+
       for (final list in lists) {
         for (final item in list) {
-          final id = item['id_temuan'] as int?;
+          final id = item['id_temuan']?.toString(); // ✅ UUID sebagai String
           if (id != null && seen.add(id)) combined.add(item);
         }
       }
+
       combined.sort((a, b) {
-        final da =
-            DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+        final da = DateTime.tryParse(a['created_at']?.toString() ?? '') ??
             DateTime(2000);
-        final db =
-            DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+        final db = DateTime.tryParse(b['created_at']?.toString() ?? '') ??
             DateTime(2000);
         return db.compareTo(da);
       });
+
       return combined;
     });
   }
@@ -525,7 +561,7 @@ class HomeContentState extends State<HomeContent> {
                         context,
                         MaterialPageRoute(
                           builder: (_) => KtsDetailScreen(
-                            ktsId: item['id_temuan'] as int,
+                            ktsId: item['id_temuan'].toString(),
                             lang: widget.lang,
                             initialData: item,
                           ),

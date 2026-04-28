@@ -64,6 +64,9 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   final _resolutionNotesController = TextEditingController();
   final _resolutionCostController = TextEditingController();
   bool _isFinishing = false;
+  bool _isExtending = false;
+  final _extensionReasonController = TextEditingController();
+  DateTime? _extensionNewDate;
 
   // Comment State
   final _commentController = TextEditingController();
@@ -85,18 +88,19 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     _resolutionNotesController.dispose();
     _resolutionCostController.dispose();
     _commentController.dispose();
+    _extensionReasonController.dispose();
     super.dispose();
   }
 
   void _loadData({bool silent = false}) {
-    final findingId = widget.initialData['id_temuan'];
+    final findingId = widget.initialData['id_temuan'].toString();
     _findingDetailFuture = _fetchFindingDetails(findingId);
     _commentsFuture = _fetchComments(findingId);
     if (!silent) setState(() {});
   }
 
   // ===== DATA FETCHING =====
-  Future<Map<String, dynamic>> _fetchFindingDetails(int findingId) async {
+  Future<Map<String, dynamic>> _fetchFindingDetails(String findingId) async {
     final response = await Supabase.instance.client
         .from('temuan')
         .select('''
@@ -107,8 +111,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           area(nama_area),
           kategoritemuan(nama_kategoritemuan),
           subkategoritemuan(nama_subkategoritemuan),
-          User_PIC:id_penanggung_jawab(nama, gambar_user),
-          User_Creator:User!id_user(nama, gambar_user),
+          User_PIC:User!temuan_id_penanggung_jawab_fkey(nama, gambar_user),
+          User_Creator:User!temuan_id_user_fkey(nama, gambar_user),
           penyelesaian!temuan_id_penyelesaian_fkey( 
             *,
             User_Solver:User!id_user(nama, gambar_user)
@@ -119,7 +123,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     return response;
   }
 
-  Future<List<Comment>> _fetchComments(int findingId) async {
+  Future<List<Comment>> _fetchComments(String findingId) async {
     final response = await Supabase.instance.client
         .from('komentar')
         .select('*, User(nama, gambar_user)')
@@ -156,7 +160,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           .toList();
 
       await Supabase.instance.client.from('komentar').insert({
-        'id_temuan': widget.initialData['id_temuan'],
+        'id_temuan': widget.initialData['id_temuan'].toString(),
         'id_user': user.id,
         'isi_komentar': content,
         'mentioned_users': mentionedUserIds.isNotEmpty
@@ -172,6 +176,293 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     } finally {
       if (mounted) setState(() => _isPostingComment = false);
     }
+  }
+
+  Future<void> _submitExtension() async {
+    if (_extensionReasonController.text.trim().isEmpty) {
+      _showErrorSnackbar(_texts['extension_err_reason']!);
+      return;
+    }
+    if (_extensionNewDate == null) {
+      _showErrorSnackbar(_texts['extension_err_date']!);
+      return;
+    }
+
+    // Validasi: tanggal baru harus setelah deadline lama (jika ada)
+    final currentDeadline = _currentFindingData != null
+        ? DateTime.tryParse(_currentFindingData!['target_waktu_selesai']?.toString() ?? '')
+        : null;
+
+    if (currentDeadline != null && _extensionNewDate!.isBefore(currentDeadline)) {
+      _showErrorSnackbar(_texts['extension_err_date_past']!);
+      return;
+    }
+
+    setState(() => _isExtending = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+
+      // 1. Insert ke tabel perpanjang
+      final perpanjangResponse = await supabase
+          .from('perpanjang')
+          .insert({
+            'waktu_perpanjang': DateTime.now().toIso8601String(),
+            'alasan_perpanjang': _extensionReasonController.text.trim(),
+            'tanggal_selesai': _extensionNewDate!.toIso8601String(),
+          })
+          .select()
+          .single();
+
+      final perpanjangId = perpanjangResponse['id_perpanjang'].toString();
+
+      // 2. Update temuan: set id_perpanjang dan target_waktu_selesai baru
+      await supabase
+          .from('temuan')
+          .update({
+            'id_perpanjang': perpanjangId,
+            'target_waktu_selesai': _extensionNewDate!.toIso8601String(),
+          })
+          .eq('id_temuan', widget.initialData['id_temuan'].toString());
+
+      if (mounted) {
+        Navigator.pop(context); // tutup bottom sheet
+        _showSuccessSnackbar(_texts['extension_success']!);
+        _loadData(); // refresh data
+      }
+    } catch (e) {
+      debugPrint('Extension error: $e');
+      if (mounted) {
+        _showErrorSnackbar('${_texts['extension_fail']!}: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isExtending = false);
+    }
+  }
+
+  void _showExtensionBottomSheet(Map<String, dynamic> data) {
+    _extensionReasonController.clear();
+    _extensionNewDate = null;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E3A8A).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.schedule_rounded,
+                            color: Color(0xFF1E3A8A), size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _texts['extension']!,
+                        style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E3A8A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Deadline lama (jika ada)
+                  if (data['target_waktu_selesai'] != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.timer_outlined,
+                              color: Colors.orange.shade700, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Deadline saat ini: ${_formatDateTime(data['target_waktu_selesai'], format: 'dd MMM yyyy')}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.orange.shade800,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Alasan
+                  Text(_texts['extension_reason']!,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Color(0xFF475569))),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _extensionReasonController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: _texts['extension_reason_hint']!,
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFF),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1E3A8A), width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1E3A8A), width: 1.5),
+                      ),
+                      contentPadding: const EdgeInsets.all(14),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Pilih tanggal baru
+                  Text(_texts['extension_new_date']!,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: Color(0xFF475569))),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: DateTime.now().add(const Duration(days: 1)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                        builder: (context, child) => Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: const ColorScheme.light(
+                              primary: Color(0xFF1E3A8A),
+                              onPrimary: Colors.white,
+                            ),
+                          ),
+                          child: child!,
+                        ),
+                      );
+                      if (picked != null) {
+                        setModalState(() => _extensionNewDate = picked);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: _extensionNewDate != null
+                            ? const Color(0xFF1E3A8A).withOpacity(0.05)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _extensionNewDate != null
+                              ? const Color(0xFF1E3A8A)
+                              : Colors.grey.shade300,
+                          width: _extensionNewDate != null ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.calendar_today_outlined,
+                              color: const Color(0xFF1E3A8A), size: 20),
+                          const SizedBox(width: 12),
+                          Text(
+                            _extensionNewDate != null
+                                ? DateFormat('EEEE, d MMMM yyyy').format(_extensionNewDate!)
+                                : (_texts['extension_new_date']!),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: _extensionNewDate != null
+                                  ? Colors.black87
+                                  : Colors.grey.shade500,
+                              fontWeight: _extensionNewDate != null
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Tombol submit
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isExtending ? null : _submitExtension,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E3A8A),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: _isExtending
+                          ? const SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.schedule_send_rounded, size: 18),
+                                const SizedBox(width: 8),
+                                Text(_texts['extension_submit']!,
+                                    style: const TextStyle(
+                                        fontSize: 15, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _finishFinding({bool createNewAfter = false}) async {
@@ -250,7 +541,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       final temuanData = await supabase
           .from('temuan')
           .select('poin_temuan')
-          .eq('id_temuan', widget.initialData['id_temuan'])
+          .eq('id_temuan', widget.initialData['id_temuan'].toString())
           .maybeSingle();
 
       final int poinPenyelesaian =
@@ -269,7 +560,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           .select()
           .single();
 
-      final penyelesaianId = penyelesaianResponse['id_penyelesaian'];
+      final penyelesaianId = penyelesaianResponse['id_penyelesaian'].toString();
 
       await supabase
           .from('temuan')
@@ -277,7 +568,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             'status_temuan': 'Selesai',
             'id_penyelesaian': penyelesaianId,
           })
-          .eq('id_temuan', widget.initialData['id_temuan']);
+          .eq('id_temuan', widget.initialData['id_temuan'].toString());
 
       // Tutup loading dialog
       if (mounted && Navigator.canPop(context)) Navigator.pop(context);
@@ -1682,72 +1973,99 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
   // WIDGET BARU
   Widget _buildActionButtons() {
+    // Cek apakah user yang login adalah penanggung jawab
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final picId = _currentFindingData?['id_penanggung_jawab']?.toString();
+    final isPIC = currentUserId != null && picId == currentUserId;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Tombol selesaikan
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
             onPressed: _isFinishing ? null : () => _finishFinding(),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(
-                0xFF00C9E4,
-              ), // sama dengan buat temuan
+              backgroundColor: const Color(0xFF00C9E4),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               elevation: 2,
               shadowColor: const Color(0xFF00C9E4).withOpacity(0.4),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+                  borderRadius: BorderRadius.circular(14)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.save_outlined, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  _texts['finish']!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(_texts['finish']!,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
         ),
         const SizedBox(height: 12),
+
+        // Tombol selesaikan & buat baru
         SizedBox(
           width: double.infinity,
           child: OutlinedButton(
-            onPressed: _isFinishing
-                ? null
-                : () => _finishFinding(createNewAfter: true),
+            onPressed: _isFinishing ? null : () => _finishFinding(createNewAfter: true),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Color(0xFF00C9E4), width: 1.5),
               foregroundColor: const Color(0xFF00C9E4),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+                  borderRadius: BorderRadius.circular(14)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.add_circle_outline, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  _texts['finish_and_new']!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(_texts['finish_and_new']!,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
         ),
+
+        // Tombol perpanjang — hanya muncul jika user adalah PIC
+        if (isPIC) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: _isExtending
+                  ? null
+                  : () => _showExtensionBottomSheet(_currentFindingData!),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF1E3A8A), width: 1.5),
+                foregroundColor: const Color(0xFF1E3A8A),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.schedule_rounded, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    _texts['btn_extend'] ??
+                        (widget.lang == 'EN' ? 'Extend Deadline' : 'Perpanjang Deadline'),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1783,6 +2101,17 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'notes': 'Catatan:', // <-- BARU
         'cost': 'Biaya yang Dikeluarkan:', // <-- BARU
         'resolved': 'Temuan Selesai',
+        'extension': 'Perpanjangan Deadline',
+        'extension_reason': 'Alasan Perpanjangan',
+        'extension_reason_hint': 'Jelaskan alasan perpanjangan deadline...',
+        'extension_new_date': 'Tanggal Deadline Baru',
+        'extension_submit': 'Ajukan Perpanjangan',
+        'extension_success': 'Perpanjangan berhasil diajukan!',
+        'extension_fail': 'Gagal mengajukan perpanjangan',
+        'extension_err_reason': 'Alasan perpanjangan wajib diisi!',
+        'extension_err_date': 'Tanggal baru wajib dipilih!',
+        'extension_err_date_past': 'Tanggal baru harus setelah deadline saat ini!',
+        'btn_extend': 'Perpanjang Deadline',
       },
       'EN': {
         'detail_title': 'Finding Detail',
@@ -1812,6 +2141,17 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'notes': 'Notes:', // <-- BARU
         'cost': 'Cost Incurred:', // <-- BARU
         'resolved': 'Finding Resolved',
+        'extension': 'Deadline Extension',
+        'extension_reason': 'Extension Reason',
+        'extension_reason_hint': 'Explain the reason for extending...',
+        'extension_new_date': 'New Deadline Date',
+        'extension_submit': 'Submit Extension',
+        'extension_success': 'Extension submitted successfully!',
+        'extension_fail': 'Failed to submit extension',
+        'extension_err_reason': 'Extension reason is required!',
+        'extension_err_date': 'New date is required!',
+        'extension_err_date_past': 'New date must be after current deadline!',
+        'btn_extend': 'Extend Deadline',
       },
       'ZH': {
         'detail_title': '发现详情',
@@ -1841,6 +2181,17 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'notes': '笔记：', // <-- BARU
         'cost': '产生的费用：', // <-- BARU
         'resolved': '发现已完成',
+        'extension': '截止日期延期',
+        'extension_reason': '延期原因',
+        'extension_reason_hint': '说明延期原因...',
+        'extension_new_date': '新截止日期',
+        'extension_submit': '提交延期',
+        'extension_success': '延期申请成功！',
+        'extension_fail': '延期申请失败',
+        'extension_err_reason': '延期原因为必填项！',
+        'extension_err_date': '新日期为必填项！',
+        'extension_err_date_past': '新日期必须晚于当前截止日期！',
+        'btn_extend': '延期截止日期',
       },
     };
     _texts = translations[widget.lang] ?? translations['EN']!;
