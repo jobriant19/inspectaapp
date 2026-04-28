@@ -629,7 +629,7 @@ class _RankingScreenState extends State<RankingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _AppColors.surface,
+      backgroundColor: Colors.transparent,
       body: Column(
         children: [
           Expanded(
@@ -689,7 +689,7 @@ class _RankingScreenState extends State<RankingScreen> {
                       );
                     },
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 0)),
                 ],
               ),
             ),

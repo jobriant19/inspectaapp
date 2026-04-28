@@ -416,22 +416,20 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             child: FutureBuilder<List<Map<String, dynamic>>>(
               future: _findingsFuture,
               builder: (context, snapshot) {
-                // 1. Tampilkan loading indicator saat menunggu
-                if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+                // Tampilkan shimmer saat waiting ATAU saat future null (belum di-set)
+                if (_findingsFuture == null ||
+                    snapshot.connectionState == ConnectionState.waiting) {
                   return _buildShimmerLoader();
                 }
 
-                // 2. Tampilkan pesan error jika terjadi kesalahan
                 if (snapshot.hasError) {
                   return Center(
                     child: Text('Gagal memuat temuan. Error: ${snapshot.error}'),
                   );
                 }
 
-                // 3. Jika data berhasil dimuat (bahkan jika kosong)
                 final allData = snapshot.data ?? [];
 
-                // 4. Tampilkan UI "Data Kosong" jika list kosong
                 if (allData.isEmpty) {
                   return Center(
                     child: SingleChildScrollView(
@@ -450,7 +448,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                           ),
                           const SizedBox(height: 20),
                           Text(
-                            // Gunakan teks berbeda jika filter aktif
                             _appliedLocationFilter != null ||
                                     _appliedInspectionType.isNotEmpty
                                 ? getTxt('temuan_kosong_filter')
@@ -467,7 +464,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                   );
                 }
 
-                // 5. Tampilkan ListView jika ada data
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 15,
@@ -476,7 +472,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                   physics: const BouncingScrollPhysics(),
                   itemCount: allData.length,
                   itemBuilder: (context, index) {
-                    // Anda tidak perlu lagi variabel 'filteredData'
                     return _buildFindingCard(allData[index]);
                   },
                 );
@@ -1189,15 +1184,25 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       'jenis:${_appliedJenisTemuan}';
 
     if (_findingsCache.containsKey(cacheKey)) {
-      setState(() {
-        _findingsFuture = _findingsCache[cacheKey];
-      });
+      if (mounted) {
+        setState(() {
+          _findingsFuture = _findingsCache[cacheKey];
+        });
+      }
     } else {
+      // Set future dulu ke null agar FutureBuilder reset ke waiting state
+      if (mounted) {
+        setState(() {
+          _findingsFuture = null;
+        });
+      }
       final newFuture = _fetchFindings();
       _findingsCache[cacheKey] = newFuture;
-      setState(() {
-        _findingsFuture = newFuture;
-      });
+      if (mounted) {
+        setState(() {
+          _findingsFuture = newFuture;
+        });
+      }
     }
   }
 

@@ -200,7 +200,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Future<List<RecurringTopic>>? _recurringFuture;
 
   List<Map<String, dynamic>> _unitList = [];
-  int _targetAnggota = 30;
+  int _targetAnggota = 2;
   int _targetInspeksi = 2;
 
   late List<String> _translatedMonths;
@@ -262,7 +262,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           .maybeSingle();
       if (mounted && data != null) {
         setState(() {
-          _targetAnggota = data['target_anggota'] ?? 30;
+          _targetAnggota = data['target_anggota'] ?? 2;
           _targetInspeksi = data['target_inspeksi'] ?? 2;
         });
       }
@@ -1254,36 +1254,36 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   // ── Tab Bar ────────────────────────────────────────────────────────────────
-  Widget _buildTabBar() {
+ Widget _buildTabBar() {
   final tabs = [getTxt('anggota'), getTxt('inspeksi'), getTxt('lokasi'), getTxt('temuan_berulang')];
   return Container(
     color: Colors.transparent,
     padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-    child: TabBar(
-      controller: _tabController,
-      isScrollable: true,
-      tabAlignment: TabAlignment.start,
-      indicator: BoxDecoration(
-        color: _AppColors.primary,
-        borderRadius: BorderRadius.circular(8),
+    child: Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
       ),
-      indicatorSize: TabBarIndicatorSize.tab,
-      labelColor: Colors.white,
-      unselectedLabelColor: _AppColors.primary,
-      labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
-      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
-      dividerColor: Colors.transparent,
-      // Background putih untuk tab tidak aktif
-      overlayColor: WidgetStateProperty.all(Colors.transparent),
-      tabs: tabs.map((t) => Tab(
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.transparent, // dihandle oleh indicator & unselected style
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(t),
+      padding: const EdgeInsets.all(3),
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        indicator: BoxDecoration(
+          color: _AppColors.primary,
+          borderRadius: BorderRadius.circular(8),
         ),
-      )).toList(),
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelColor: Colors.white,
+        unselectedLabelColor: _AppColors.primary,
+        labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+        dividerColor: Colors.transparent,
+        overlayColor: WidgetStateProperty.all(Colors.transparent),
+        tabs: tabs.map((t) => Tab(
+          child: Text(t),
+        )).toList(),
+      ),
     ),
   );
 }
@@ -1951,13 +1951,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               Expanded(
                 flex: 3,
                 child: Text(cols[1],
-                  textAlign: TextAlign.left,   // <-- left agar sejajar dengan isi lokasi
+                  textAlign: TextAlign.left,
                   style: const TextStyle(
                     fontSize: 12.5, fontWeight: FontWeight.w600,
                     color: _AppColors.textSecondary, letterSpacing: 0.2)),
               ),
               SizedBox(
-                width: 50,
+                width: 70,
                 child: Text(cols[2],
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -1967,12 +1967,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             ])
           : Row(
               children: List.generate(cols.length, (i) {
-                // Kolom pertama (Name) rata kiri, sisanya center
                 final isFirst = i == 0;
                 return Expanded(
                   flex: flex[i],
                   child: Padding(
-                    padding: EdgeInsets.only(left: isFirst ? 44 : 0), // 34 avatar + 10 gap
+                    padding: EdgeInsets.only(left: isFirst ? 44 : 0),
                     child: Text(
                       cols[i],
                       textAlign: isFirst ? TextAlign.left : TextAlign.center,
@@ -2167,23 +2166,37 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(children: [
-        SizedBox(width: 40, child: Text('$rank', textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 13, color: _AppColors.textSecondary, fontWeight: FontWeight.w500))),
-        Expanded(flex: 3, child: Row(children: [
-          Container(width: 38, height: 38,
-            decoration: BoxDecoration(color: _AppColors.primaryLight, borderRadius: BorderRadius.circular(10)),
-            child: Icon(Icons.location_city_rounded, color: _AppColors.primary, size: 20)),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(loc.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _AppColors.textPrimary),
-              overflow: TextOverflow.ellipsis),
-            Text(loc.pic, style: const TextStyle(fontSize: 11.5, color: _AppColors.textSecondary),
-              overflow: TextOverflow.ellipsis),
+        SizedBox(
+          width: 40,
+          child: Text('$rank',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: _AppColors.textSecondary, fontWeight: FontWeight.w500))),
+        Expanded(
+          flex: 3,
+          child: Row(children: [
+            Container(
+              width: 38, height: 38,
+              decoration: BoxDecoration(color: _AppColors.primaryLight, borderRadius: BorderRadius.circular(10)),
+              child: Icon(Icons.location_city_rounded, color: _AppColors.primary, size: 20)),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(loc.name,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _AppColors.textPrimary),
+                overflow: TextOverflow.ellipsis),
+              Text(loc.pic,
+                style: const TextStyle(fontSize: 11.5, color: _AppColors.textSecondary),
+                overflow: TextOverflow.ellipsis),
+            ])),
           ])),
-        ])),
-        SizedBox(width: 50, child: Text(loc.value ?? '0', textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-            color: (int.tryParse(loc.value ?? '0') ?? 0) > 0 ? _AppColors.primaryDark : _AppColors.textMuted))),
+        SizedBox(
+          width: 70,
+          child: Text(loc.value ?? '0',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600,
+              color: (int.tryParse(loc.value ?? '0') ?? 0) > 0
+                  ? _AppColors.primaryDark
+                  : _AppColors.textMuted))),
       ]),
     );
   }
