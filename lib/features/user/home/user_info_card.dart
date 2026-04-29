@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/utils/jabatan_helper.dart';
+
 class UserInfoCard extends StatefulWidget {
   final String userName;
   final String userRole;
@@ -12,6 +14,8 @@ class UserInfoCard extends StatefulWidget {
   final Map<String, dynamic>? latestLogPoin;
   final bool isLatestLogLoading;
   final String lang;
+  final bool? isVerificator;
+  final int? userJabatanId;
   final VoidCallback onViewMoreTap;
 
   const UserInfoCard({
@@ -25,6 +29,8 @@ class UserInfoCard extends StatefulWidget {
     this.userImage,
     this.latestLogPoin,
     this.isLatestLogLoading = false,
+    this.isVerificator,
+    this.userJabatanId,
   });
 
   @override
@@ -184,16 +190,14 @@ class _UserInfoCardState extends State<UserInfoCard> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFB8F0FF),
-            Color(0xFFE8FAFF),
-            Color(0xFFFFFBD6),
-            Color(0xFFB6F5C8),
-          ],
-          stops: [0.0, 0.35, 0.65, 1.0],
+          colors: JabatanHelper.getCardGradient(
+            isVerificatorFlag: widget.isVerificator,
+            idJabatan: widget.userJabatanId,
+          ),
+          stops: const [0.0, 0.35, 0.65, 1.0],
         ),
         boxShadow: [
           BoxShadow(
@@ -254,7 +258,11 @@ class _UserInfoCardState extends State<UserInfoCard> {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      widget.userRole,
+                      // Fallback: jika isVerificator true tapi userRole belum terupdate
+                      (widget.isVerificator == true &&
+                          !widget.userRole.toLowerCase().contains('verif'))
+                          ? (widget.lang == 'ZH' ? '验证者' : 'Verificator')
+                          : widget.userRole,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.poppins(

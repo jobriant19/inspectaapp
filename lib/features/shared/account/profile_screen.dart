@@ -4,12 +4,16 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/utils/jabatan_helper.dart';
+
 class ProfileScreen extends StatefulWidget {
   final String lang;
   final String? initialUserName;
   final String? initialUserImage;
   final String? initialUserRole;
   final String? initialUserLocation;
+  final bool? isVerificator;
+  final int? userJabatanId;
 
   const ProfileScreen({
     super.key, 
@@ -18,6 +22,8 @@ class ProfileScreen extends StatefulWidget {
     this.initialUserImage,
     this.initialUserRole,
     this.initialUserLocation,
+    this.isVerificator,
+    this.userJabatanId,
   });
 
   @override
@@ -60,7 +66,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _nameController.text = widget.initialUserName!;
         _initialName = widget.initialUserName!;
         _imageUrl = widget.initialUserImage;
-        _jabatan = widget.initialUserRole!;
+        _jabatan = (widget.isVerificator == true)
+          ? getTxt('verifier')
+          : widget.initialUserRole!;
         _lokasi = widget.initialUserLocation!;
         _email = Supabase.instance.client.auth.currentUser?.email ?? '';
         _isScreenLoading = false;
@@ -326,45 +334,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildRoleBadge() {
-    List<Color> gradientColors;
-    IconData roleIcon;
-    final jabatanLower = _jabatan.toLowerCase();
+    // is_verificator TRUE selalu menang, abaikan id_jabatan
+    final bool isVerif = widget.isVerificator == true ||
+        _jabatan.toLowerCase().contains('verif');
 
-    if (jabatanLower.contains('eksekutif') || jabatanLower.contains('executive')) {
-      gradientColors = [const Color(0xFFFA527B), const Color(0xFF6A041D)];
-      roleIcon = Icons.workspace_premium_rounded;
-    } else if (jabatanLower.contains('manager') || jabatanLower.contains('manajer')) {
-      gradientColors = [const Color(0xFF1D72F3), const Color(0xFF00C9E4)];
-      roleIcon = Icons.workspace_premium_rounded;
-    } else if (jabatanLower.contains('kasi') || jabatanLower.contains('kassie') || jabatanLower.contains('kepala seksi')) {
-      gradientColors = [const Color(0xFF26D0CE), const Color(0xFF1A2980)];
-      roleIcon = Icons.manage_accounts_rounded;
-    } else if (jabatanLower.contains('hrd') || jabatanLower.contains('human resource')) {
-      gradientColors = [const Color(0xFFEC4899), const Color(0xFFDB2777)];
-      roleIcon = Icons.people_rounded;
-    } else if (jabatanLower.contains('verif')) {
-      gradientColors = [const Color(0xFF059669), const Color(0xFF065F46)];
-      roleIcon = Icons.verified_rounded;
-    } else if (jabatanLower.contains('visitor') || jabatanLower.contains('pengunjung')) {
-      gradientColors = [const Color(0xFF94A3B8), const Color(0xFF64748B)];
-      roleIcon = Icons.person_pin_rounded;
-    } else {
-      gradientColors = [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)];
-      roleIcon = Icons.badge_rounded;
+    // Resolve id_jabatan dari nama jika parameter tidak tersedia
+    int? resolvedId = widget.userJabatanId;
+    if (!isVerif && resolvedId == null) {
+      final lower = _jabatan.toLowerCase();
+      if (lower.contains('eksekutif') || lower.contains('executive')) resolvedId = 1;
+      else if (lower.contains('manager') || lower.contains('manajer'))  resolvedId = 2;
+      else if (lower.contains('kasi') || lower.contains('kepala seksi')) resolvedId = 3;
+      else resolvedId = 4;
     }
+
+    final colors  = JabatanHelper.getGradientColors(
+      isVerificatorFlag: isVerif ? true : null,
+      idJabatan: resolvedId,
+    );
+    final icon = JabatanHelper.getRoleIcon(
+      isVerificatorFlag: isVerif ? true : null,
+      idJabatan: resolvedId,
+    );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: gradientColors,
+          colors: colors,
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: gradientColors.last.withOpacity(0.35),
+            color: colors.last.withOpacity(0.35),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -373,11 +377,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(roleIcon, color: Colors.white, size: 15),
+          Icon(icon, color: Colors.white, size: 15),
           const SizedBox(width: 6),
           Text(
             _jabatan,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/utils/jabatan_helper.dart';
 import '../../auth/login_screen.dart';
 import 'profile_screen.dart';
 import 'about_inspecta_screen.dart';
@@ -17,6 +18,7 @@ class AccountScreen extends StatefulWidget {
   final String? initialUserLocation;
   final bool? initialIsVisitor;
   final int? initialUserJabatanId;
+  final bool? initialIsVerificator;
   
   const AccountScreen({
     super.key, 
@@ -27,6 +29,7 @@ class AccountScreen extends StatefulWidget {
     this.initialUserLocation,
     this.initialIsVisitor,
     this.initialUserJabatanId,
+    this.initialIsVerificator,
   });
 
   @override
@@ -44,6 +47,7 @@ class _AccountScreenState extends State<AccountScreen> {
   String _userLokasiSpesifik = "Tidak terdefinisi";
   bool _isVisitor = false;
   int? _userJabatanId;
+  bool _isVerificatorUser = false;
 
   // Kamus terjemahan
   final Map<String, Map<String, String>> _txt = {
@@ -117,6 +121,14 @@ class _AccountScreenState extends State<AccountScreen> {
       _userLokasiSpesifik = widget.initialUserLocation ?? '...';
       _isVisitor = widget.initialIsVisitor ?? false;
       _userJabatanId = widget.initialUserJabatanId;
+      _isVerificatorUser  = widget.initialIsVerificator ?? false;
+
+      if (_isVerificatorUser) {
+        _userJabatan = getTxt('verifier_role'); 
+      } else {
+        _userJabatan = widget.initialUserRole ?? '...';
+      }
+
       _isLoading = false;
     }
     _fetchUserDataSilent();
@@ -173,17 +185,17 @@ class _AccountScreenState extends State<AccountScreen> {
       if (userRow == null || !mounted) return;
 
       final isVerificator = userRow['is_verificator'] as bool? ?? false;
-      if (isVerificator) return;
-
       final String? metaImage = userAuth.userMetadata?['avatar_url'] ?? userAuth.userMetadata?['picture'];
       final isVisitor = userRow['is_visitor'] as bool? ?? false;
-      final idJabatan = userRow['id_jabatan'];
-      final idLokasi = userRow['id_lokasi'];
-      final idUnit = userRow['id_unit'];
-      final idSubunit = userRow['id_subunit'];
-      final idArea = userRow['id_area'];
+      final idJabatan = userRow['id_jabatan'] as int?;
 
-      String locationName = _userLokasiSpesifik; // Gunakan yang ada dulu
+      // Resolusi lokasi
+      final idLokasi  = userRow['id_lokasi'];
+      final idUnit    = userRow['id_unit'];
+      final idSubunit = userRow['id_subunit'];
+      final idArea    = userRow['id_area'];
+
+      String locationName = _userLokasiSpesifik;
       if (idArea != null) {
         final data = await Supabase.instance.client.from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
         locationName = data?['nama_area'] ?? locationName;
@@ -198,23 +210,35 @@ class _AccountScreenState extends State<AccountScreen> {
         locationName = data?['nama_lokasi'] ?? locationName;
       }
 
-      String jabatanName = isVisitor ? getTxt('visitor') : (userRow['jabatan']?['nama_jabatan'] ?? 'Staff');
+      // ── Prioritas is_verificator SELALU menang ──
+      String jabatanName;
+      if (isVisitor) {
+        jabatanName = getTxt('visitor');
+      } else if (isVerificator) {
+        // is_verificator TRUE → paksa "Verificator", abaikan id_jabatan
+        jabatanName = getTxt('verifier_role');
+      } else {
+        jabatanName = userRow['jabatan']?['nama_jabatan'] ?? 'Staff';
+      }
+
       String? dbImage = userRow['gambar_user'];
       if (dbImage != null && dbImage.trim().isEmpty) dbImage = null;
 
       if (mounted) {
         setState(() {
-          _userName = userRow['nama'] ?? 'User';
-          _userImage = dbImage ?? metaImage;
-          _userJabatan = jabatanName;
-          _userLokasiSpesifik = locationName;
-          _isVisitor = isVisitor;
-          _userJabatanId = idJabatan;
-          // ← _isLoading TIDAK diubah di sini
+          _userName            = userRow['nama'] ?? 'User';
+          _userImage           = dbImage ?? metaImage;
+          _userJabatan         = jabatanName;          // ← sudah benar: Verificator
+          _userLokasiSpesifik  = locationName;
+          _isVisitor           = isVisitor;
+          _userJabatanId       = idJabatan;
+          _isVerificatorUser   = isVerificator;        // ← set di sini, TIDAK early return
+          _isLoading           = false;                // ← hilangkan loading
         });
       }
     } catch (e) {
       debugPrint("Error fetching user data for account: $e");
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -278,12 +302,13 @@ class _AccountScreenState extends State<AccountScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1D72F3)),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(getTxt('title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1D72F3))),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: Colors.white,
+        elevation: 1,
+        shadowColor: Colors.black.withOpacity(0.08),
         iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
       ),
@@ -400,24 +425,10 @@ class _AccountScreenState extends State<AccountScreen> {
       return _buildVisitorCard();
     }
 
-    List<Color> gradientColors;
-
-    switch (_userJabatanId) {
-      case 1: // Eksekutif
-        gradientColors = [const Color(0xFFFA527B), const Color(0xFF6A041D)];
-        break;
-      case 2: // Manajer
-        gradientColors = [const Color(0xFF1D72F3), const Color(0xFF1D72F3)];
-        break;
-      case 3: // Kassie
-        gradientColors = [const Color(0xFF26D0CE), const Color(0xFF1A2980)];
-        break;
-      case 4: // HRD
-        gradientColors = [const Color(0xFFEC4899), const Color(0xFFDB2777)];
-        break;
-      default: // Staff
-        gradientColors = [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)];
-    }
+    final List<Color> gradientColors = JabatanHelper.getGradientColors(
+      isVerificatorFlag: _isVerificatorUser,
+      idJabatan: _userJabatanId,
+    );
 
     return GestureDetector(
       onTap: () {
@@ -430,6 +441,8 @@ class _AccountScreenState extends State<AccountScreen> {
               initialUserImage: _userImage,
               initialUserRole: _userJabatan,
               initialUserLocation: _userLokasiSpesifik,
+              isVerificator: _isVerificatorUser,
+              userJabatanId: _userJabatanId,
             ),
             transitionsBuilder: (_, animation, __, child) {
               final slide = Tween<Offset>(
@@ -539,7 +552,7 @@ class _AccountScreenState extends State<AccountScreen> {
         Navigator.push(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, animation, __) => ProfileScreen(lang: _currentLang),
+            pageBuilder: (_, animation, __) => ProfileScreen(lang: _currentLang, isVerificator: _isVerificatorUser, userJabatanId: _userJabatanId,),
             transitionsBuilder: (_, animation, __, child) {
               final slide = Tween<Offset>(
                 begin: const Offset(1.0, 0.0),

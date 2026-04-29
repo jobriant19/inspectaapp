@@ -26,10 +26,10 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   Set<String> _activeChips = {};
 
   String? _currentUserId;
-  int? _userLokasiId;
-  int? _userUnitId;
-  int? _userSubunitId;
-  int? _userAreaId;
+  String? _userLokasiId;
+  String? _userUnitId;
+  String? _userSubunitId;
+  String? _userAreaId;
 
   // Filter yang Diterapkan dari BottomSheet
   Map<String, dynamic>? _appliedLocationFilter;
@@ -316,10 +316,10 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       if (mounted && response != null) {
         setState(() {
           _currentUserId = user.id;
-          _userLokasiId = response['id_lokasi'];
-          _userUnitId = response['id_unit'];
-          _userSubunitId = response['id_subunit']; 
-          _userAreaId = response['id_area'];
+          _userLokasiId = response['id_lokasi']?.toString();
+          _userUnitId = response['id_unit']?.toString();
+          _userSubunitId = response['id_subunit']?.toString();
+          _userAreaId = response['id_area']?.toString();
         });
       } else if (mounted) {
         setState(() {
@@ -493,9 +493,14 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             _activeChips.remove(value);
           } else {
             _activeChips.add(value);
-            // Reset filter bottom sheet saat chip diaktifkan
-            _appliedLocationFilter = null;
+            // Reset filter inspection type dari bottom sheet
             _appliedInspectionType = '';
+            // Jika chip yang diaktifkan adalah 'location',
+            // reset filter lokasi dari bottom sheet agar tidak konflik
+            if (value == 'location') {
+              _appliedLocationFilter = null;
+              _selectedLokasiName = '';
+            }
           }
           _loadFindings();
         });
@@ -1263,7 +1268,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           if (orFilters.isNotEmpty) {
             query = query.or(orFilters.join(','));
           } else {
-            query = query.eq('id_temuan', -1);
+            return [];
           }
         }
       }
@@ -1271,7 +1276,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       // Filter lokasi dari bottom sheet (sembunyikan jika KTS)
       if (_appliedLocationFilter != null && _appliedJenisTemuan != 'kts') {
         final level = _appliedLocationFilter!['level'] as int;
-        final id = _appliedLocationFilter!['id'];
+        final id = _appliedLocationFilter!['id'].toString();
         switch (level) {
           case 0: query = query.eq('id_lokasi', id); break;
           case 1: query = query.eq('id_unit', id); break;
@@ -1307,7 +1312,34 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     }
   }
 
-  String _formatLocation(Map<String, dynamic> item) {
+  String _formatLocation(Map<String, dynamic> item, {int? filterLevel}) {
+    // Jika ada filter lokasi aktif, tampilkan level yang difilter
+    // agar label card sesuai dengan yang difilter pengguna
+    if (filterLevel != null) {
+      switch (filterLevel) {
+        case 0: // Lokasi
+          if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
+            return item['lokasi']['nama_lokasi'].toString();
+          }
+          break;
+        case 1: // Unit
+          if (item['unit'] != null && item['unit']['nama_unit'] != null) {
+            return item['unit']['nama_unit'].toString();
+          }
+          break;
+        case 2: // Subunit
+          if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
+            return item['subunit']['nama_subunit'].toString();
+          }
+          break;
+        case 3: // Area
+          if (item['area'] != null && item['area']['nama_area'] != null) {
+            return item['area']['nama_area'].toString();
+          }
+          break;
+      }
+    }
+    // Default: tampilkan lokasi paling spesifik
     if (item['area'] != null && item['area']['nama_area'] != null) {
       return item['area']['nama_area'].toString();
     }
@@ -1334,7 +1366,10 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     // --- A. PARSING DATA & VARIABEL DASAR ---
     final transformedImageUrl = _getTransformedImageUrl((data['gambar_temuan'] ?? '').toString());
     final title = (data['judul_temuan'] ?? '-').toString();
-    final lokasi = _formatLocation(data);
+    final lokasi = _formatLocation(
+      data,
+      filterLevel: _appliedLocationFilter?['level'] as int?,
+    );
     final tanggal = _formatDate(data['created_at']);
     final poin = int.tryParse((data['poin_temuan'] ?? 0).toString()) ?? 0;
     final status = (data['status_temuan'] ?? '').toString();
@@ -1822,20 +1857,39 @@ class _FilterLocationBottomSheetState extends State<FilterLocationBottomSheet> {
     });
   }
 
-  Future<void> _fetch({int? parentId}) async {
+  Future<void> _fetch({dynamic parentId}) async {
     setState(() => _isLoading = true);
     _searchCtrl.clear();
     try {
       final supabase = Supabase.instance.client;
       List<dynamic> data = [];
       if (_level == 0) {
-        data = await supabase.from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi');
-      } else if (_level == 1) {
-        data = await supabase.from('unit').select('id_unit, nama_unit').eq('id_lokasi', parentId!).order('nama_unit');
-      } else if (_level == 2) {
-        data = await supabase.from('subunit').select('id_subunit, nama_subunit').eq('id_unit', parentId!).order('nama_subunit');
-      } else if (_level == 3) {
-        data = await supabase.from('area').select('id_area, nama_area').eq('id_subunit', parentId!).order('nama_area');
+        data = await supabase
+            .from('lokasi')
+            .select('id_lokasi, nama_lokasi')
+            .not('nama_lokasi', 'is', null)
+            .order('nama_lokasi');
+      } else if (_level == 1 && parentId != null) {
+        data = await supabase
+            .from('unit')
+            .select('id_unit, nama_unit')
+            .eq('id_lokasi', parentId.toString())
+            .not('nama_unit', 'is', null)
+            .order('nama_unit');
+      } else if (_level == 2 && parentId != null) {
+        data = await supabase
+            .from('subunit')
+            .select('id_subunit, nama_subunit')
+            .eq('id_unit', parentId.toString())
+            .not('nama_subunit', 'is', null)
+            .order('nama_subunit');
+      } else if (_level == 3 && parentId != null) {
+        data = await supabase
+            .from('area')
+            .select('id_area, nama_area')
+            .eq('id_subunit', parentId.toString())
+            .not('nama_area', 'is', null)
+            .order('nama_area');
       }
       if (mounted) {
         setState(() {

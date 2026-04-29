@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/utils/jabatan_helper.dart';
 import '../../shared/account/account_screen.dart';
 import '../explore/explore_screen.dart';
 import '../analytics/analytics_screen.dart';
@@ -273,7 +274,17 @@ class _HomeScreenState extends State<HomeScreen> {
       _userPoin = widget.initialUserPoin ?? 0;
       _displayedPoin = widget.initialUserPoin ?? 0;
       _userImage = widget.initialUserImage;
-      _userRole = widget.initialUserRole ?? 'Staff';
+      final bool initIsVerif = widget.initialIsVerificator == true;
+      if (initIsVerif) {
+        _userRole = JabatanHelper.getDisplayRole(
+          isVerificatorFlag: true,
+          idJabatan: widget.initialUserJabatanId,
+          jabatanFromDb: widget.initialUserRole,
+          lang: _lang,
+        );
+      } else {
+        _userRole = widget.initialUserRole ?? 'Staff';
+      }
       _isUserDataLoading = false;
       if (widget.initialUserLocation != null) {
         _userLocationName = widget.initialUserLocation!;
@@ -288,10 +299,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (widget.initialUserJabatanId != null) {
         _userJabatanId = widget.initialUserJabatanId;
       }
-      if (widget.initialIsVerificator != null || widget.initialUserJabatanId != null) {
-        _isExecutiveVerificator =
-            (widget.initialUserJabatanId == 1) ||
-            (widget.initialIsVerificator == true);
+      if (widget.initialIsVerificator != null) {
+        _isExecutiveVerificator = widget.initialIsVerificator == true;
       }
     }
 
@@ -737,12 +746,11 @@ class _HomeScreenState extends State<HomeScreen> {
         .eq('id_user', userId)
         .single();
 
-      final int? jabatanId = data['id_jabatan'] as int?;
       final bool isVerif = data['is_verificator'] as bool? ?? false;
 
       if (mounted) {
         setState(() {
-          _isExecutiveVerificator = (jabatanId == 1) || isVerif;
+           _isExecutiveVerificator = isVerif; 
         });
       }
     } catch (e) {
@@ -856,7 +864,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final userRow = await Supabase.instance.client
           .from('User')
-          .select('nama, email, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, jabatan!User_id_jabatan_fkey(nama_jabatan)')
+          .select('nama, email, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
           .eq('id_user', userAuth.id)
           .maybeSingle();
 
@@ -902,9 +910,20 @@ class _HomeScreenState extends State<HomeScreen> {
         locationName = data?['nama_lokasi'] ?? locationName;
       }
 
-      String roleName = 'Staff';
-      if (userRow['jabatan'] != null && userRow['jabatan']['nama_jabatan'] != null) {
+      final bool isVerifFromDb = userRow['is_verificator'] as bool? ?? false;
+
+      String roleName;
+      if (isVerifFromDb) {
+        roleName = JabatanHelper.getDisplayRole(
+          isVerificatorFlag: true,
+          idJabatan: userRow['id_jabatan'] as int?,
+          jabatanFromDb: userRow['jabatan']?['nama_jabatan'],
+          lang: _lang,
+        );
+      } else if (userRow['jabatan'] != null && userRow['jabatan']['nama_jabatan'] != null) {
         roleName = userRow['jabatan']['nama_jabatan'];
+      } else {
+        roleName = 'Staff';
       }
 
       String? dbImage = userRow['gambar_user'];
@@ -931,6 +950,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _userPoin          = newPoin;
         _userImage         = dbImage ?? metaImage;
         _userRole          = roleName;
+        _isExecutiveVerificator = isVerifFromDb;
         _userJabatanId     = userRow['id_jabatan'] as int?;
         _userUnitId        = userRow['id_unit']?.toString();
         _userLokasiId      = userRow['id_lokasi']?.toString();
@@ -1130,6 +1150,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     initialIsVisitor: _isVisitorMode,
                                     initialUserJabatanId: _userJabatanId,
                                     initialUserLocation: _userLocationName,
+                                    initialIsVerificator: _isExecutiveVerificator,
                                   ),
                                   transitionsBuilder: (_, animation, __, child) {
                                     final slide = Tween<Offset>(
@@ -1405,6 +1426,8 @@ class _HomeScreenState extends State<HomeScreen> {
         latestLogPoin: _latestLogPoin,
         isLatestLogLoading: _isLatestLogLoading,
         lang: _lang,
+        isVerificator: _isExecutiveVerificator,
+        userJabatanId: _userJabatanId,
         onViewMoreTap: () => _showActivityLogDialog(context),
       ),
     );

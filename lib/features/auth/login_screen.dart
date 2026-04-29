@@ -404,103 +404,91 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (isLogin) {
       // ==========================
-      // 1. PROSES LOGIN MANUAL
+      // 1. PROSES LOGIN MANUAL (DIPERCEPAT)
       // ==========================
       try {
-        // Memanggil fungsi dari AuthService dengan password yang sudah di-hash
+        // Jalankan sign in
         final AuthResponse? res = await _auth.signInWithEmail(email, hashedPass);
-        
-        if (res != null && res.user != null) {
-          // MODIFIKASI: Setelah login berhasil, ambil data dari tabel "User".
-          final userProfile = await Supabase.instance.client
-              .from('User')
-              .select('id_user, is_verificator')
-              .eq('id_user', res.user!.id)
-              .single();
 
-          // Update log login
-          Map<String, dynamic>? latestLog;
-          try {
-            final logs = await Supabase.instance.client
+        if (res != null && res.user != null) {
+          final userId = res.user!.id;
+
+          // Ambil semua data secara PARALEL agar lebih cepat
+          final results = await Future.wait([
+            Supabase.instance.client
+                .from('User')
+                .select('nama, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, is_verificator, jabatan(nama_jabatan)')
+                .eq('id_user', userId)
+                .single(),
+            Supabase.instance.client
                 .from('log_poin')
                 .select('poin, deskripsi, tipe_aktivitas, created_at')
-                .eq('id_user', res.user!.id)
+                .eq('id_user', userId)
                 .order('created_at', ascending: false)
-                .limit(1);
-            if (logs.isNotEmpty) latestLog = logs.first;
-          } catch (_) {}
+                .limit(1),
+          ]);
+
+          final userData = results[0] as Map<String, dynamic>;
+          final logs = results[1] as List<dynamic>;
+          Map<String, dynamic>? latestLog = logs.isNotEmpty ? logs.first : null;
+
+          final bool isVerificator = userData['is_verificator'] as bool? ?? false;
+          final int? idJabatan = userData['id_jabatan'] as int?;
+
+          // Resolusi lokasi (paralel juga jika memungkinkan)
+          String locationName = '...';
+          final idArea    = userData['id_area'];
+          final idSubunit = userData['id_subunit'];
+          final idUnit    = userData['id_unit'];
+          final idLokasi  = userData['id_lokasi'];
+
+          if (idArea != null) {
+            final d = await Supabase.instance.client
+                .from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
+            locationName = d?['nama_area'] ?? locationName;
+          } else if (idSubunit != null) {
+            final d = await Supabase.instance.client
+                .from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
+            locationName = d?['nama_subunit'] ?? locationName;
+          } else if (idUnit != null) {
+            final d = await Supabase.instance.client
+                .from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
+            locationName = d?['nama_unit'] ?? locationName;
+          } else if (idLokasi != null) {
+            final d = await Supabase.instance.client
+                .from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
+            locationName = d?['nama_lokasi'] ?? locationName;
+          }
+
           if (mounted) {
-            if (false) {
-              // is_verificator tidak lagi redirect ke VerificatorHomeScreen
-            } else {
-              // Ambil data user untuk pass ke HomeScreen agar tidak loading
-              try {
-                final userData = await Supabase.instance.client
-                    .from('User')
-                    .select('nama, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, jabatan(nama_jabatan)')
-                    .eq('id_user', res.user!.id)
-                    .single();
-
-                // ── Resolusi lokasi ──
-                String locationName = '...';
-                final idArea    = userData['id_area'];
-                final idSubunit = userData['id_subunit'];
-                final idUnit    = userData['id_unit'];
-                final idLokasi  = userData['id_lokasi'];
-
-                if (idArea != null) {
-                  final d = await Supabase.instance.client
-                      .from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
-                  locationName = d?['nama_area'] ?? locationName;
-                } else if (idSubunit != null) {
-                  final d = await Supabase.instance.client
-                      .from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
-                  locationName = d?['nama_subunit'] ?? locationName;
-                } else if (idUnit != null) {
-                  final d = await Supabase.instance.client
-                      .from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
-                  locationName = d?['nama_unit'] ?? locationName;
-                } else if (idLokasi != null) {
-                  final d = await Supabase.instance.client
-                      .from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
-                  locationName = d?['nama_lokasi'] ?? locationName;
-                }
-
-                if (mounted) {
-                  Navigator.pushReplacement(context,
-                      MaterialPageRoute(builder: (context) => HomeScreen(
-                        initialUserName: userData['nama'],
-                        initialUserPoin: userData['poin'],
-                        initialUserImage: userData['gambar_user'],
-                        initialUserRole: userData['jabatan']?['nama_jabatan'],
-                        initialUserLocation: locationName,
-                        initialLatestLog: latestLog,
-                        initialUserJabatanId: userData['id_jabatan'] as int?,
-                        initialIsVerificator: false,
-                      )));
-                }
-              } catch (_) {
-                if (mounted) {
-                  Navigator.pushReplacement(context,
-                      MaterialPageRoute(builder: (context) => const HomeScreen()));
-                }
-              }
-            }
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeScreen(
+                  initialUserName: userData['nama'],
+                  initialUserPoin: userData['poin'],
+                  initialUserImage: userData['gambar_user'],
+                  initialUserRole: userData['jabatan']?['nama_jabatan'],
+                  initialUserLocation: locationName,
+                  initialLatestLog: latestLog,
+                  initialUserJabatanId: idJabatan,
+                  initialIsVerificator: isVerificator,
+                ),
+              ),
+            );
           }
         } else {
-           _showCustomDialog(getTxt('err_wrong'));
+          _showCustomDialog(getTxt('err_wrong'));
         }
       } on AuthException catch (e) {
-        print("Login Auth Error: ${e.message}");
         if (e.message.toLowerCase().contains("invalid login credentials")) {
           _showCustomDialog(getTxt('err_wrong'));
         } else if (e.message.toLowerCase().contains("email not confirmed")) {
-          _showCustomDialog("Email belum dikonfirmasi! Silakan cek inbox email Anda atau matikan 'Confirm Email'.");
+          _showCustomDialog("Email belum dikonfirmasi!");
         } else {
           _showCustomDialog("Gagal Login: ${e.message}");
         }
       } catch (e) {
-        print("Login System Error: $e");
         _showCustomDialog("Terjadi kesalahan sistem saat login.");
       } finally {
         if (mounted) setState(() => isLoading = false);
@@ -1037,24 +1025,15 @@ class _LoginScreenState extends State<LoginScreen>
                                           ),
                                         ),
                                       ),
-                                      onPressed: isLoading ? null : _submitForm,
-                                      child: isLoading
-                                          ? const SizedBox(
-                                              height: 20,
-                                              width: 20,
-                                              child: CircularProgressIndicator(
-                                                color: Colors.white,
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : Text(
-                                              isLogin ? 'Sign in' : 'Sign up',
-                                              style: const TextStyle(
-                                                fontSize: 17,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.white,
-                                              ),
-                                            ),
+                                      onPressed: _submitForm,
+                                      child: Text(
+                                        isLogin ? 'Sign in' : 'Sign up',
+                                        style: const TextStyle(
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                                     ),
                                   ),
 

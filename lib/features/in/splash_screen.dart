@@ -89,31 +89,17 @@ class _SplashScreenState extends State<SplashScreen> {
 
         if (!mounted) return;
 
-        if (isVerificator) {
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => HomeScreen(
-                initialUserName: userName ?? metaName,
-                initialUserPoin: userPoin,
-                initialUserImage: userImage ?? metaImage,
-                initialUserRole: userRole,
-                initialUserLocation: locationName,  
-                initialLatestLog: latestLog,
-                initialUserJabatanId: userData['id_jabatan'] as int?,
-                initialIsVerificator: false,
-              )));
-        } else {
-          Navigator.pushReplacement(context,
-              MaterialPageRoute(builder: (_) => HomeScreen(
-                initialUserName: userName ?? metaName,
-                initialUserPoin: userPoin,
-                initialUserImage: userImage ?? metaImage,
-                initialUserRole: userRole,
-                initialUserLocation: locationName,  
-                initialLatestLog: latestLog,
-                initialUserJabatanId: userData['id_jabatan'] as int?,
-                initialIsVerificator: false,
-              )));
-        }
+        Navigator.pushReplacement(context,
+          MaterialPageRoute(builder: (_) => HomeScreen(
+            initialUserName: userName ?? metaName,
+            initialUserPoin: userPoin,
+            initialUserImage: userImage ?? metaImage,
+            initialUserRole: userRole,
+            initialUserLocation: locationName,
+            initialLatestLog: latestLog,
+            initialUserJabatanId: userData['id_jabatan'] as int?,
+            initialIsVerificator: isVerificator, 
+          )));
       } catch (e) {
         debugPrint("Error cek verifikator di splash: $e");
         // Jika gagal ambil data, arahkan ke login untuk keamanan

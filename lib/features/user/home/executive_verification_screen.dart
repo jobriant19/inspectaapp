@@ -716,7 +716,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               lokasi:id_lokasi (nama_lokasi),
               area:id_area (nama_area),
               unit:id_unit (nama_unit),
-              kategoritemuan:id_kategoritemuan (nama_kategoritemuan),
+              kategoritemuan:id_kategoritemuan_uuid (nama_kategoritemuan),
               penyelesaian:id_penyelesaian (
                 gambar_penyelesaian,
                 catatan_penyelesaian,
