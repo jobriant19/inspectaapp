@@ -50,7 +50,9 @@ class _UserInfoCardState extends State<UserInfoCard> {
   @override
   void didUpdateWidget(UserInfoCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Re-fetch jika userPoin berubah (ada poin baru masuk)
+    // Hanya fetch ulang ketika nilai FINAL poin berubah.
+    // Karena sekarang UserInfoCard menerima _userPoin (bukan _displayedPoin),
+    // ini hanya dipanggil SEKALI saat poin benar-benar berubah di database.
     if (oldWidget.userPoin != widget.userPoin) {
       _fetchMonthlyPoin();
     }

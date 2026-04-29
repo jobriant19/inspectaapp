@@ -278,7 +278,7 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
             color: Color(0xFF0C4A6E), fontWeight: FontWeight.bold),
       ),
       backgroundColor: Colors.white,
-      elevation: 0,
+      elevation: 1,
       centerTitle: true,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.black.withValues(alpha: 0.08),

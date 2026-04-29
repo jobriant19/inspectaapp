@@ -174,11 +174,9 @@ class HomeContentState extends State<HomeContent> {
   @override
   void didUpdateWidget(HomeContent oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Refresh findings jika dipicu dari luar
     if (widget.shouldRefreshFindings == true &&
         oldWidget.shouldRefreshFindings == false) {
       setState(() {
-        _activeTabs = {'my'};
         _findingsFuture = _buildFindingsFuture();
       });
       widget.onRefreshDone?.call();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -571,9 +572,11 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           .eq('id_temuan', widget.initialData['id_temuan'].toString());
 
       // Tutup loading dialog
+      // Tutup loading dialog terlebih dahulu
       if (mounted && Navigator.canPop(context)) Navigator.pop(context);
 
-      _showSuccessSnackbar(_texts['finish_success']!);
+      // Tampilkan success dialog SETELAH loading hilang
+      await _showFinishSuccessDialog();
 
       if (createNewAfter) {
         if (!mounted) return;
@@ -668,6 +671,112 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         return dateStr.substring(0, 19).replaceAll('T', ' ');
       }
     }
+  }
+
+  Future<void> _showFinishSuccessDialog() async {
+    if (!mounted) return;
+    final completer = Completer<void>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withOpacity(0.55),
+      builder: (dialogContext) {
+        Future.delayed(const Duration(milliseconds: 3000), () {
+          if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+            Navigator.of(dialogContext).pop();
+            if (!completer.isCompleted) completer.complete();
+          }
+        });
+
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 36),
+              padding: const EdgeInsets.fromLTRB(24, 30, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withOpacity(0.3),
+                    blurRadius: 30,
+                    spreadRadius: 5,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF16A34A).withOpacity(0.1),
+                      border: Border.all(
+                        color: const Color(0xFF16A34A).withOpacity(0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.verified_rounded,
+                      color: Color(0xFF16A34A),
+                      size: 50,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _texts['finish_success']!,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF16A34A),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.lang == 'EN'
+                        ? 'The finding has been successfully resolved.'
+                        : widget.lang == 'ZH'
+                            ? '该发现已成功解决。'
+                            : 'Temuan berhasil diselesaikan dan poin diberikan.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 1.0, end: 0.0),
+                      duration: const Duration(milliseconds: 3000),
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 4,
+                        backgroundColor:
+                            const Color(0xFF16A34A).withOpacity(0.1),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF16A34A)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ).then((_) {
+      if (!completer.isCompleted) completer.complete();
+    });
+
+    await completer.future;
   }
 
   void _showErrorSnackbar(String message) {

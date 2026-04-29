@@ -21,6 +21,7 @@ class AddFindingFlowScreen extends StatefulWidget {
   final String? preSelectedUnitId;
   final String? preSelectedSubunitId;
   final String? preSelectedAreaId;
+  final VoidCallback? onFindingSaved; 
 
   const AddFindingFlowScreen({
     super.key,
@@ -33,6 +34,7 @@ class AddFindingFlowScreen extends StatefulWidget {
     this.preSelectedUnitId,
     this.preSelectedSubunitId,
     this.preSelectedAreaId,
+    this.onFindingSaved,
   });
 
   @override
@@ -275,37 +277,24 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
       // 3. Insert to temuan
       await supabase.from('temuan').insert(dataToInsert);
+      
+      if (mounted) setState(() => _isSaving = false);
 
       await _showSaveSuccessDialog();
 
+      if (!mounted) return;
+
       if (createNewAfter) {
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CameraFindingScreen(
-                lang: widget.lang,
-                isProMode: widget.isProMode,
-                isVisitorMode: widget.isVisitorMode,
-                selectedLocationName: _selectedLocation?['nama'] ??
-                    _texts['select_location']!,
-                selectedLocationId: _selectedLocation?['id_lokasi'],
-                selectedUnitId: _selectedLocation?['id_unit'],
-                selectedSubunitId: _selectedLocation?['id_subunit'],
-                selectedAreaId: _selectedLocation?['id_area'],
-              ),
-            ),
-          );
-        }
+        Navigator.pop(context, 'new');
       } else {
-        if (mounted) {
-          // Pop AddFindingFlowScreen dengan true
-          Navigator.pop(context, true);
-        }
+        // Panggil callback refresh HomeScreen SEBELUM pop
+        widget.onFindingSaved?.call();
+        // Pop kembali ke CameraFindingScreen
+        Navigator.pop(context, true);
       }
+
     } catch (e) {
       debugPrint("Error saving finding: $e");
-      // Provide user-friendly error message
       String errorMsg = _texts['save_fail']!;
       final errStr = e.toString();
       if (errStr.contains('log_poin') || errStr.contains('42501')) {
@@ -317,8 +306,8 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         errorMsg = '${_texts['save_fail']!}: $e';
       }
       if (mounted) {
-        _showSnackBar(errorMsg, isError: true);
         setState(() => _isSaving = false);
+        _showSnackBar(errorMsg, isError: true);
       }
     }
   }
@@ -332,7 +321,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       barrierDismissible: true,
       barrierColor: Colors.black.withOpacity(0.55),
       builder: (dialogContext) {
-        // Auto close setelah 3 detik
         Future.delayed(const Duration(milliseconds: 3000), () {
           if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
             Navigator.of(dialogContext).pop();

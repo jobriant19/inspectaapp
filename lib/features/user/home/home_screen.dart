@@ -83,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
   VoidCallback? _triggerFindingsRefresh;
   bool _shouldRefreshFindings = false;
   int _lastRefreshTrigger = 0;
+  _AppLifecycleObserver? _lifecycleObserver;
 
   // Dictionary Translate untuk Navigation Bar
   final Map<String, Map<String, String>> _navText = {
@@ -269,6 +270,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _lifecycleObserver = _AppLifecycleObserver(onResume: () {
+      if (mounted) {
+        final int poinSebelum = _userPoin;
+        _fetchUserData(silent: true).then((_) {
+          if (mounted && _userPoin != poinSebelum) {
+            _animatePoinUpdate(_userPoin);
+          }
+        });
+      }
+    });
+    WidgetsBinding.instance.addObserver(_lifecycleObserver!);
     if (widget.initialUserName != null) {
       _userName = widget.initialUserName!;
       _userPoin = widget.initialUserPoin ?? 0;
@@ -549,25 +561,11 @@ class _HomeScreenState extends State<HomeScreen> {
             if (points == 0) return;
 
             // ── UPDATE POIN & LOG LANGSUNG dari realtime payload ──
-            final int newPoin = _userPoin + points;
             if (mounted) {
               setState(() {
-                _userPoin = newPoin;
-                _latestLogPoin = {
-                  'poin': points,
-                  'deskripsi': description,
-                  'tipe_aktivitas': tipe,
-                  'created_at': newLog['created_at'],
-                };
+                
               });
-              _animatePoinUpdate(newPoin);
-
-              // Refresh findings dan rebuild info card
-              if (mounted) {
-                setState(() {
-                  _findingsRefreshTrigger++;
-                });
-              }
+              // Tidak perlu notifier tambahan — cukup setState saja
             }
 
             // Tipe login — skip dialog
@@ -727,6 +725,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_pointChannel != null) {
       Supabase.instance.client.removeChannel(_pointChannel!);
     }
+    WidgetsBinding.instance.removeObserver(_lifecycleObserver!);
     super.dispose();
   }
 
@@ -849,11 +848,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _fetchUserData({bool silent = false}) async {
-    if (!silent && _isUserDataLoading) {
-      // Sudah loading, skip
-    } else if (!silent) {
-      // Hanya set loading jika pertama kali (bukan silent refresh)
+ Future<void> _fetchUserData({bool silent = false}) async {
+    if (!silent && widget.initialUserName == null) {
+      if (mounted) {
+        setState(() {
+          _isUserDataLoading = true;
+          _isLatestLogLoading = true;
+          _latestLogPoin = null;
+        });
+      }
     }
     // Selalu lakukan silent refresh tanpa mengubah _isUserDataLoading
     // kecuali memang pertama kali load
@@ -1279,18 +1282,43 @@ class _HomeScreenState extends State<HomeScreen> {
                       userUnitId: _userUnitId?.toString(),
                       userLokasiId: _userLokasiId?.toString(),
                       userRole: _userRole,
+                      onFindingSaved: () async {
+                        // Callback ini dipanggil langsung dari CameraFindingScreen
+                        // setelah temuan berhasil disimpan
+                        if (!mounted) return;
+                        setState(() => _currentIndex = 0);
+                        setState(() {
+                          _isUserDataLoading = true;
+                          _isLatestLogLoading = true;
+                          _latestLogPoin = null;
+                        });
+                        await Future.wait([
+                          _fetchUserData(silent: false),
+                          _fetchNotificationCount(),
+                        ]);
+                        if (!mounted) return;
+                        _homeContentKey.currentState?.refreshFindings();
+                        _animatePoinUpdate(_userPoin);
+                        _tryShowPendingNotif();
+                      },
                     ),
                   ).then((isSuccess) async {
                     if (isSuccess == true) {
-                      await _fetchUserData(silent: true);
-                      if (mounted) {
-                        setState(() {
-                          _findingsRefreshTrigger++;
-                        });
-                      }
-                      Future.delayed(const Duration(milliseconds: 1500), () {
-                        if (mounted) _tryShowPendingNotif();
+                      if (!mounted) return;
+                      setState(() => _currentIndex = 0);
+                      setState(() {
+                        _isUserDataLoading = true;
+                        _isLatestLogLoading = true;
+                        _latestLogPoin = null;
                       });
+                      await Future.wait([
+                        _fetchUserData(silent: false),
+                        _fetchNotificationCount(),
+                      ]);
+                      if (!mounted) return;
+                      _homeContentKey.currentState?.refreshFindings();
+                      _animatePoinUpdate(_userPoin);
+                      _tryShowPendingNotif();
                     }
                   });
                 },
@@ -1378,6 +1406,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHomeContent() {
     return HomeContent(
+      key: _homeContentKey,
       lang: _lang,
       isProMode: _isProMode,
       isVisitorMode: _isVisitorMode,
@@ -1392,8 +1421,12 @@ class _HomeScreenState extends State<HomeScreen> {
       userLokasiId: _userLokasiId?.toString(),
       latestLogPoin: _latestLogPoin,
       isLatestLogLoading: _isLatestLogLoading,
-      onRefresh: () {
-        _fetchUserData(silent: true);
+      onRefresh: () async {
+        final int poinSebelum = _userPoin;
+        await _fetchUserData(silent: true);
+        if (mounted && _userPoin != poinSebelum) {
+          _animatePoinUpdate(_userPoin);
+        }
         _tryShowPendingNotif();
       },
       onRequestRefresh: () {
@@ -1412,8 +1445,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() => _userPoin = newPoin);
         _animatePoinUpdate(newPoin);
       },
-      shouldRefreshFindings: _findingsRefreshTrigger > 0 &&
-          _findingsRefreshTrigger != _lastRefreshTrigger,
+      shouldRefreshFindings: _findingsRefreshTrigger != _lastRefreshTrigger,
       onRefreshDone: () {
         setState(() => _lastRefreshTrigger = _findingsRefreshTrigger);
       },
@@ -1421,7 +1453,7 @@ class _HomeScreenState extends State<HomeScreen> {
         userName: _userName,
         userRole: _userRole,
         userImage: _userImage,
-        userPoin: _displayedPoin > 0 ? _displayedPoin : _userPoin,
+        userPoin: _userPoin,
         userLocationName: _userLocationName,
         latestLogPoin: _latestLogPoin,
         isLatestLogLoading: _isLatestLogLoading,
@@ -2684,6 +2716,7 @@ class LocationBottomSheet extends StatefulWidget {
   final String? userUnitId;
   final String? userLokasiId;
   final String userRole;
+  final VoidCallback? onFindingSaved;
 
   const LocationBottomSheet({
     super.key,
@@ -2693,6 +2726,7 @@ class LocationBottomSheet extends StatefulWidget {
     required this.userRole,
     this.userUnitId,
     this.userLokasiId,
+    this.onFindingSaved,
   });
 
   @override
@@ -3066,52 +3100,57 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                   // TOMBOL KAMERA
                                   GestureDetector(
                                     onTap: () {
-                                      // --- MODIFIKASI DIMULAI DI SINI ---
-                                      String? idL, idU, idS, idA;
-                                      String locationName = itemName;
+  String? idL, idU, idS, idA;
+  String locationName = itemName;
 
-                                      // Logika untuk mendapatkan ID hierarki
-                                      if (_currentLevel == 0) { idL = itemId; }
-                                      else if (_currentLevel == 1) { idL = _navigationHistory[0]['id']?.toString(); idU = itemId; }
-                                      else if (_currentLevel == 2) { idL = _navigationHistory[0]['id']?.toString(); idU = _navigationHistory[1]['id']?.toString(); idS = itemId; }
-                                      else if (_currentLevel == 3) { idL = _navigationHistory[0]['id']?.toString(); idU = _navigationHistory[1]['id']?.toString(); idS = _navigationHistory[2]['id']?.toString(); idA = itemId; }
+  if (_currentLevel == 0) { idL = itemId; }
+  else if (_currentLevel == 1) { 
+    idL = _navigationHistory[0]['id']?.toString(); 
+    idU = itemId; 
+  }
+  else if (_currentLevel == 2) { 
+    idL = _navigationHistory[0]['id']?.toString(); 
+    idU = _navigationHistory[1]['id']?.toString(); 
+    idS = itemId; 
+  }
+  else if (_currentLevel == 3) { 
+    idL = _navigationHistory[0]['id']?.toString(); 
+    idU = _navigationHistory[1]['id']?.toString(); 
+    idS = _navigationHistory[2]['id']?.toString(); 
+    idA = itemId; 
+  }
 
-                                      // Gabungkan nama untuk ditampilkan di kamera (opsional, tapi bagus)
-                                      if (_navigationHistory.isNotEmpty) {
-                                          final path = _navigationHistory.map((e) => e['name']).join(' / ');
-                                          locationName = '$path / $itemName';
-                                      }
+  if (_navigationHistory.isNotEmpty) {
+    final path = _navigationHistory.map((e) => e['name']).join(' / ');
+    locationName = '$path / $itemName';
+  }
 
-                                      // Pop Bottom Sheet terlebih dahulu
-                                      Navigator.pop(context); 
+  // Simpan callback sebelum pop (context masih valid)
+  final onSaved = widget.onFindingSaved;
+  
+  // Tutup BottomSheet
+  Navigator.pop(context);
 
-                                      // Navigasi ke CameraFindingScreen dengan membawa semua data yang diperlukan
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => CameraFindingScreen(
-                                            lang: widget.lang,
-                                            isProMode: widget.isProMode,
-                                            isVisitorMode: widget.isVisitorMode,
-                                            selectedLocationName: locationName,
-                                            selectedLocationId: idL,
-                                            selectedUnitId: idU,
-                                            selectedSubunitId: idS,
-                                            selectedAreaId: idA,
-                                          ),
-                                        ),
-                                      ).then((isSuccess) {
-                                          // Jika temuan berhasil disimpan dari flow selanjutnya,
-                                          // kita teruskan sinyal 'true' ke atas (ke HomeScreen).
-                                          if (isSuccess == true) {
-                                            // Coba pop lagi untuk menutup bottom sheet (jika belum tertutup)
-                                            // dan kirim sinyal sukses ke home
-                                            if (Navigator.canPop(context)) {
-                                                Navigator.pop(context, true);
-                                            }
-                                          }
-                                      });
-                                    },
+  // Push CameraFindingScreen menggunakan navigatorKey atau
+  // cukup panggil onFindingSaved sebagai callback langsung
+  // dari CameraFindingScreen lewat parameter
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => CameraFindingScreen(
+        lang: widget.lang,
+        isProMode: widget.isProMode,
+        isVisitorMode: widget.isVisitorMode,
+        selectedLocationName: locationName,
+        selectedLocationId: idL,
+        selectedUnitId: idU,
+        selectedSubunitId: idS,
+        selectedAreaId: idA,
+        onFindingSaved: onSaved, // TERUSKAN CALLBACK
+      ),
+    ),
+  );
+},
                                     child: Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
@@ -3133,5 +3172,18 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
         ],
       ),
     );
+  }
+}
+
+// ── Helper: lifecycle observer untuk refresh poin saat app kembali ke foreground ──
+class _AppLifecycleObserver extends WidgetsBindingObserver {
+  final VoidCallback onResume;
+  _AppLifecycleObserver({required this.onResume});
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      onResume();
+    }
   }
 }

@@ -14,6 +14,7 @@ class CameraFindingScreen extends StatefulWidget {
   final String? selectedUnitId;
   final String? selectedSubunitId;
   final String? selectedAreaId;
+  final VoidCallback? onFindingSaved;
 
   const CameraFindingScreen({
     super.key,
@@ -25,6 +26,7 @@ class CameraFindingScreen extends StatefulWidget {
     this.selectedUnitId,
     this.selectedSubunitId,
     this.selectedAreaId,
+    this.onFindingSaved,
   });
 
   @override
@@ -111,31 +113,35 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
     _setCamera(_selectedCameraIndex);
   }
 
-  // FUNGSI UTAMA UNTUK NAVIGASI (DIPAKAI OLEH KEDUA SUMBER GAMBAR)
+  // FUNGSI UTAMA UNTUK NAVIGASI
   Future<void> _navigateToForm(XFile imageXFile) async {
     if (!mounted) return;
 
-    final result = await Navigator.push(
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AddFindingFlowScreen(
+        builder: (_) => AddFindingFlowScreen(
           lang: widget.lang,
           isProMode: widget.isProMode,
           isVisitorMode: widget.isVisitorMode,
-          initialImageXFile: imageXFile,
+          initialImageXFile: imageXFile,  
           preSelectedLocationName: widget.selectedLocationName,
           preSelectedLocationId: widget.selectedLocationId,
           preSelectedUnitId: widget.selectedUnitId,
           preSelectedSubunitId: widget.selectedSubunitId,
           preSelectedAreaId: widget.selectedAreaId,
+          onFindingSaved: widget.onFindingSaved,
         ),
       ),
-    );
-
-    // ← Langsung pop CameraFindingScreen juga, teruskan result ke atas
-    if (mounted) {
-      Navigator.pop(context, result == true ? true : null);
-    }
+    ).then((result) {
+      if (!mounted) return;
+      if (result == true) {
+        // Teruskan sinyal sukses ke LocationBottomSheet → HomeScreen
+        Navigator.pop(context, true);
+      }
+      // Jika result == 'new', user mau buat temuan baru
+      // CameraFindingScreen sudah kembali aktif, tidak perlu action
+    });
   }
 
   // AKSI UNTUK MENGAMBIL FOTO DARI KAMERA
