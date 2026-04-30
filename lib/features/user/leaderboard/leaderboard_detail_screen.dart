@@ -256,7 +256,14 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedDate = DateTime(widget.year, widget.month, 1);
+    final now = DateTime.now();
+    // Jika bulan/tahun yang dipilih adalah bulan ini, default ke hari ini
+    // Jika bukan, default ke tanggal 1 bulan tersebut
+    if (now.year == widget.year && now.month == widget.month) {
+      _selectedDate = DateTime(now.year, now.month, now.day);
+    } else {
+      _selectedDate = DateTime(widget.year, widget.month, 1);
+    }
     _selectedLocation = LocationFilter(
       displayName: leaderboardTexts[widget.lang]?['all_locations'] ??
           leaderboardTexts['ID']!['all_locations']!,
@@ -1683,144 +1690,169 @@ Widget _buildPieInfoCard({
                 ),
                 // Area bars + sumbu X
                 Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: data.length * barGroupWidth + 8,
-                      child: Stack(
-                        children: [
-                          // Grid lines horizontal
-                          ...yLabels.map((v) {
-                            final top = valToY(v);
-                            return Positioned(
-                              top: top,
-                              left: 0,
-                              right: 0,
-                              child: Container(
-                                  height: 1,
-                                  color: const Color(0xFFE2E8F0)),
-                            );
-                          }),
-                          // Garis target temuan (MERAH)
-                          Positioned(
-                            top: valToY(target.targetTemuan),
-                            left: 0,
-                            right: 0,
-                            child: CustomPaint(
-                              painter: _DashedLinePainter(colorTargetTemuan),
-                              child: const SizedBox(height: 2),
-                            ),
-                          ),
-                          // Garis target penyelesaian (KUNING AMBER)
-                          Positioned(
-                            top: valToY(target.targetPenyelesaian),
-                            left: 0,
-                            right: 0,
-                            child: CustomPaint(
-                              painter:
-                                  _DashedLinePainter(colorTargetPenyelesaian),
-                              child: const SizedBox(height: 2),
-                            ),
-                          ),
-                          // Bars per tanggal
-                          ...data.asMap().entries.map((entry) {
-                            final i = entry.key;
-                            final d = entry.value;
-                            final x = i * barGroupWidth + 4;
-                            final temuanH =
-                                (d.temuan / maxVal * chartHeight)
-                                    .clamp(0.0, chartHeight);
-                            final penyelesaianH =
-                                (d.penyelesaian / maxVal * chartHeight)
-                                    .clamp(0.0, chartHeight);
+                  child: Builder(
+                    builder: (context) {
+                      final now = DateTime.now();
+                      final ScrollController scrollCtrl = ScrollController();
 
-                            return Positioned(
-                              left: x,
-                              top: 0,
-                              child: SizedBox(
-                                width: barGroupWidth,
-                                height: chartHeight + labelHeight + 8,
-                                child: Column(
-                                  children: [
-                                    // Bars
-                                    SizedBox(
-                                      height: chartHeight,
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          // Bar Temuan (Biru)
-                                          Container(
-                                            width: barWidth,
-                                            height: temuanH,
-                                            decoration: BoxDecoration(
-                                              color: colorTemuan,
-                                              borderRadius:
-                                                  const BorderRadius.vertical(
-                                                      top: Radius.circular(3)),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 2),
-                                          // Bar Penyelesaian (Hijau)
-                                          Container(
-                                            width: barWidth,
-                                            height: penyelesaianH,
-                                            decoration: BoxDecoration(
-                                              color: colorPenyelesaian,
-                                              borderRadius:
-                                                  const BorderRadius.vertical(
-                                                      top: Radius.circular(3)),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    // Label tanggal/bulan (format: "1 Apr")
-                                    SizedBox(
-                                      height: labelHeight,
-                                      width: barGroupWidth,
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            // Format: "1 Apr" sesuai bulan yang dipilih
-                                            DateFormat(
-                                              'd MMM',
-                                              widget.lang == 'ID'
-                                                  ? 'id_ID'
-                                                  : widget.lang == 'ZH'
-                                                      ? 'zh'
-                                                      : 'en_US',
-                                            ).format(
-                                              DateTime(
-                                                _selectedDate.year,
-                                                _selectedDate.month,
-                                                d.date,
-                                              ),
-                                            ),
-                                            style: const TextStyle(
-                                              fontSize: 7.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF334155),
-                                            ),
-                                            textAlign: TextAlign.center,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.visible,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                      // Hitung index bar hari ini
+                      int todayIndex = -1;
+                      if (now.year == _selectedDate.year && now.month == _selectedDate.month) {
+                        todayIndex = data.indexWhere((d) => d.date == now.day);
+                      }
+
+                      // Scroll ke posisi hari ini di tengah setelah frame selesai render
+                      if (todayIndex >= 0) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (scrollCtrl.hasClients) {
+                            final chartAreaWidth = context.size?.width ?? 300;
+                            final targetOffset = (todayIndex * barGroupWidth) - (chartAreaWidth / 2) + (barGroupWidth / 2);
+                            scrollCtrl.jumpTo(targetOffset.clamp(0.0, scrollCtrl.position.maxScrollExtent));
+                          }
+                        });
+                      }
+
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        controller: scrollCtrl,
+                        child: SizedBox(
+                          width: data.length * barGroupWidth + 8,
+                          child: Stack(
+                            children: [
+                              // Grid lines horizontal
+                              ...yLabels.map((v) {
+                                final top = valToY(v);
+                                return Positioned(
+                                  top: top,
+                                  left: 0,
+                                  right: 0,
+                                  child: Container(
+                                      height: 1,
+                                      color: const Color(0xFFE2E8F0)),
+                                );
+                              }),
+                              // Garis target temuan (MERAH)
+                              Positioned(
+                                top: valToY(target.targetTemuan),
+                                left: 0,
+                                right: 0,
+                                child: CustomPaint(
+                                  painter: _DashedLinePainter(colorTargetTemuan),
+                                  child: const SizedBox(height: 2),
                                 ),
                               ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
+                              // Garis target penyelesaian (KUNING AMBER)
+                              Positioned(
+                                top: valToY(target.targetPenyelesaian),
+                                left: 0,
+                                right: 0,
+                                child: CustomPaint(
+                                  painter:
+                                      _DashedLinePainter(colorTargetPenyelesaian),
+                                  child: const SizedBox(height: 2),
+                                ),
+                              ),
+                              // Bars per tanggal
+                              ...data.asMap().entries.map((entry) {
+                                final i = entry.key;
+                                final d = entry.value;
+                                final x = i * barGroupWidth + 4;
+                                final temuanH =
+                                    (d.temuan / maxVal * chartHeight)
+                                        .clamp(0.0, chartHeight);
+                                final penyelesaianH =
+                                    (d.penyelesaian / maxVal * chartHeight)
+                                        .clamp(0.0, chartHeight);
+
+                                return Positioned(
+                                  left: x,
+                                  top: 0,
+                                  child: SizedBox(
+                                    width: barGroupWidth,
+                                    height: chartHeight + labelHeight + 8,
+                                    child: Column(
+                                      children: [
+                                        // Bars
+                                        SizedBox(
+                                          height: chartHeight,
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              // Bar Temuan (Biru)
+                                              Container(
+                                                width: barWidth,
+                                                height: temuanH,
+                                                decoration: BoxDecoration(
+                                                  color: colorTemuan,
+                                                  borderRadius:
+                                                      const BorderRadius.vertical(
+                                                          top: Radius.circular(3)),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 2),
+                                              // Bar Penyelesaian (Hijau)
+                                              Container(
+                                                width: barWidth,
+                                                height: penyelesaianH,
+                                                decoration: BoxDecoration(
+                                                  color: colorPenyelesaian,
+                                                  borderRadius:
+                                                      const BorderRadius.vertical(
+                                                          top: Radius.circular(3)),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        // Label tanggal/bulan (format: "1 Apr")
+                                        SizedBox(
+                                          height: labelHeight,
+                                          width: barGroupWidth,
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                // Format: "1 Apr" sesuai bulan yang dipilih
+                                                DateFormat(
+                                                  'd MMM',
+                                                  widget.lang == 'ID'
+                                                      ? 'id_ID'
+                                                      : widget.lang == 'ZH'
+                                                          ? 'zh'
+                                                          : 'en_US',
+                                                ).format(
+                                                  DateTime(
+                                                    _selectedDate.year,
+                                                    _selectedDate.month,
+                                                    d.date,
+                                                  ),
+                                                ),
+                                                style: const TextStyle(
+                                                  fontSize: 7.5,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color(0xFF334155),
+                                                ),
+                                                textAlign: TextAlign.center,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.visible,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],

@@ -6,6 +6,11 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../core/services/notification_service.dart';
 
+// Tambahkan di luar class, di bawah semua import
+void unawaited(Future<void> future) {
+  future.catchError((e) => debugPrint('Unawaited error: $e'));
+}
+
 class ExecVerificationScreen extends StatefulWidget {
   final String lang;
   final int? userJabatanId;
@@ -35,8 +40,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   bool _showHistory = false;
   bool _historyLoading = false;
   List<Map<String, dynamic>> _historyList = [];
-  Map<int, Map<String, dynamic>> _voteStats = {};
-  Map<int, int> _historyPointMap = {};
+  Map<String, Map<String, dynamic>> _voteStats = {};
+  Map<String, int> _historyPointMap = {};
 
   int _countdown = 5;
   Timer? _countdownTimer;
@@ -410,50 +415,52 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       _isVoteValid = isValid;
     });
 
-    final temuanId = _temuanData!['id_temuan'] as int;
-    final temuanTitle = _temuanData!['judul_temuan']?.toString() ?? '-';
-    final temuanImg = _temuanData!['gambar_temuan']?.toString();
-    final completionImg =
-        _temuanData!['penyelesaian']?['gambar_penyelesaian']?.toString();
-    final findingNotes = _temuanData!['deskripsi_temuan']?.toString() ?? '-';
-    final completionNotes =
-        _temuanData!['penyelesaian']?['catatan_penyelesaian']?.toString() ??
-            '-';
+    final String temuanId = _temuanData!['id_temuan'].toString();
 
-    // 2. Proses berat di background
+    // 2. Jalankan semua proses background secara parallel + langsung ke success
+    unawaited(_processVerificationBackground(temuanId, isValid));
+
+    // 3. Langsung tutup popup dan tampilkan success setelah 800ms
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) {
+      setState(() {
+        _showVerifPopup = false;
+        _showSuccess = true;
+      });
+    }
+  }
+
+  Future<void> _processVerificationBackground(String temuanId, bool isValid) async {
     try {
       final userId = _client.auth.currentUser!.id;
 
-      final String temuanId = _temuanData!['id_temuan'].toString();
-
-      // Catat vote
-      await _client.rpc('handle_verification_vote', params: {
+      // Jalankan RPC vote dan ambil config poin SECARA PARALLEL
+      // Pisahkan tipe agar Future.wait tidak konflik
+      final rpcFuture = _client.rpc('handle_verification_vote', params: {
         'p_temuan_id': temuanId,
         'p_verificator_id': userId,
         'p_vote_is_correct': isValid,
         'p_point_change': 0,
       });
 
-      // Ambil konfigurasi poin partisipasi
+      final configFuture = _client
+          .from('konfigurasi_poin')
+          .select('kode, poin, deskripsi_template')
+          .eq('kode', 'verifikasi_partisipasi')
+          .eq('is_aktif', true)
+          .limit(1);
+
+      // Tunggu keduanya selesai secara parallel
+      final results = await Future.wait<dynamic>([rpcFuture, configFuture]);
+
+      // Parse hasil config poin
       int pointParticipation = 10;
       String descParticipation = '';
 
-      try {
-        final configs = await _client
-            .from('konfigurasi_poin')
-            .select('kode, poin, deskripsi_template')
-            .eq('kode', 'verifikasi_partisipasi')
-            .eq('is_aktif', true)
-            .limit(1);
-
-        if (configs.isNotEmpty) {
-          pointParticipation =
-              (configs.first['poin'] as num).toInt().abs();
-          descParticipation =
-              configs.first['deskripsi_template']?.toString() ?? '';
-        }
-      } catch (e) {
-        debugPrint('Gagal ambil konfigurasi_poin: $e');
+      final configs = (results[1] as List<dynamic>);
+      if (configs.isNotEmpty) {
+        pointParticipation = (configs.first['poin'] as num).toInt().abs();
+        descParticipation = configs.first['deskripsi_template']?.toString() ?? '';
       }
 
       if (descParticipation.isEmpty) {
@@ -472,12 +479,12 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         tipe: 'verifikasi_partisipasi',
       );
 
-      // Trigger animasi poin di HomeScreen
-      if (mounted) {
-        widget.onPointEarned?.call(pointParticipation);
-      }
+      if (!mounted) return;
 
-      // Notifikasi partisipasi
+      // Trigger animasi poin
+      widget.onPointEarned?.call(pointParticipation);
+
+      // Notifikasi
       NotificationService.instance.showNotification(
         title: _lang == 'EN'
             ? '✅ Verification Recorded'
@@ -487,8 +494,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         body: descParticipation,
       );
 
-      // Tampilkan popup poin partisipasi setelah 1.5 detik (saat popup verif masih di layar)
-      await Future.delayed(const Duration(milliseconds: 1500));
+      // Tampilkan dialog poin (muncul setelah success view sudah tampil)
       if (mounted) {
         _showVerifPointDialog(
           pointParticipation,
@@ -496,22 +502,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           'verifikasi_partisipasi',
         );
       }
-
-      // Set success state
-      if (mounted) {
-        setState(() {
-          _showVerifPopup = false;
-          _showSuccess = true;
-        });
-      }
     } catch (e) {
-      debugPrint('Submit verif error: $e');
-      if (mounted) {
-        setState(() {
-          _showVerifPopup = false;
-          _showSuccess = true;
-        });
-      }
+      debugPrint('Background verif process error: $e');
     }
   }
 
@@ -728,7 +720,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           .order('waktu_verifikasi', ascending: false);
 
       final List<Map<String, dynamic>> processed = [];
-      final List<int> temuanIds = [];
+      final List<String> temuanIds = [];
 
       for (final item in response) {
         final rawTemuan = item['temuan'];
@@ -738,11 +730,11 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         data['waktu_verifikasi'] = item['waktu_verifikasi'];
         data['id_log'] = item['id_log'];
         processed.add(data);
-        final tid = data['id_temuan'] as int?;
-        if (tid != null) temuanIds.add(tid);
+        final tid = data['id_temuan']?.toString();
+        if (tid != null && tid.isNotEmpty) temuanIds.add(tid);
       }
 
-      final Map<int, Map<String, dynamic>> voteStats = {};
+      final Map<String, Map<String, dynamic>> voteStats = {};
       if (temuanIds.isNotEmpty) {
         final allVotes = await _client
             .from('verifikasi_log')
@@ -784,7 +776,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
         for (final tid in temuanIds) {
           final votesForTemuan =
-              allVotes.where((v) => v['id_temuan'] == tid).toList();
+              allVotes.where((v) => v['id_temuan']?.toString() == tid).toList();
           final int validCount =
               votesForTemuan.where((v) => v['jawaban_benar'] == true).length;
           final int invalidCount =
@@ -799,7 +791,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       }
 
       // Poin map
-      final Map<int, int> pointMap = {};
+      final Map<String, int> pointMap = {};
       try {
         final pointLogs = await _client
             .from('log_poin')
@@ -813,8 +805,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             .order('created_at', ascending: false);
 
         for (int i = 0; i < processed.length; i++) {
-          final tid = processed[i]['id_temuan'] as int?;
-          if (tid == null) continue;
+          final tid = processed[i]['id_temuan']?.toString();
+          if (tid == null || tid.isEmpty) continue;
 
           // Cek log yang punya marker #T{id}
           int net = 0;
@@ -1822,7 +1814,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   }
 
   Widget _buildHistoryCard(Map<String, dynamic> data) {
-    final int? tid = data['id_temuan'] as int?;
+    final String? tid = data['id_temuan']?.toString();
     final String title = data['judul_temuan']?.toString() ?? '-';
     final String? imageUrl = data['gambar_temuan']?.toString();
     final String? completionImageUrl =
