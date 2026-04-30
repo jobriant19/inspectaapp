@@ -287,7 +287,11 @@ class _HomeScreenState extends State<HomeScreen> {
       _displayedPoin = widget.initialUserPoin ?? 0;
       _userImage = widget.initialUserImage;
       final bool initIsVerif = widget.initialIsVerificator == true;
-      if (initIsVerif) {
+      final bool isActualVerificator = initIsVerif &&
+          (widget.initialUserRole?.toLowerCase().contains('verif') == true ||
+          widget.initialUserRole == null);
+
+      if (isActualVerificator) {
         _userRole = JabatanHelper.getDisplayRole(
           isVerificatorFlag: true,
           idJabatan: widget.initialUserJabatanId,
@@ -735,7 +739,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkExecutiveVerificatorStatus() async {
-    try{
+    try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) return;
 
@@ -746,10 +750,17 @@ class _HomeScreenState extends State<HomeScreen> {
         .single();
 
       final bool isVerif = data['is_verificator'] as bool? ?? false;
+      final int? idJabatan = data['id_jabatan'] as int?;
+
+      // Tampilkan button verifikasi jika:
+      // 1. is_verificator = true, ATAU
+      // 2. id_jabatan = 1 (Eksekutif), ATAU
+      // 3. id_jabatan = 5 (HRD)
+      final bool canVerify = isVerif || idJabatan == 1 || idJabatan == 5;
 
       if (mounted) {
         setState(() {
-           _isExecutiveVerificator = isVerif; 
+          _isExecutiveVerificator = canVerify;
         });
       }
     } catch (e) {
@@ -953,7 +964,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _userPoin          = newPoin;
         _userImage         = dbImage ?? metaImage;
         _userRole          = roleName;
-        _isExecutiveVerificator = isVerifFromDb;
+        final int? jabatanIdFromRow = userRow['id_jabatan'] as int?;
+        _isExecutiveVerificator = isVerifFromDb || jabatanIdFromRow == 1 || jabatanIdFromRow == 5;
         _userJabatanId     = userRow['id_jabatan'] as int?;
         _userUnitId        = userRow['id_unit']?.toString();
         _userLokasiId      = userRow['id_lokasi']?.toString();
@@ -1458,7 +1470,7 @@ class _HomeScreenState extends State<HomeScreen> {
         latestLogPoin: _latestLogPoin,
         isLatestLogLoading: _isLatestLogLoading,
         lang: _lang,
-        isVerificator: _isExecutiveVerificator,
+        isVerificator: _userRole.toLowerCase().contains('verif'),
         userJabatanId: _userJabatanId,
         onViewMoreTap: () => _showActivityLogDialog(context),
       ),

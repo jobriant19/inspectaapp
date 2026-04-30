@@ -434,6 +434,7 @@ class _LoginScreenState extends State<LoginScreen>
 
           final bool isVerificator = userData['is_verificator'] as bool? ?? false;
           final int? idJabatan = userData['id_jabatan'] as int?;
+          final bool canShowVerifButton = isVerificator || idJabatan == 1 || idJabatan == 5;
 
           // Resolusi lokasi (paralel juga jika memungkinkan)
           String locationName = '...';
@@ -472,7 +473,7 @@ class _LoginScreenState extends State<LoginScreen>
                   initialUserLocation: locationName,
                   initialLatestLog: latestLog,
                   initialUserJabatanId: idJabatan,
-                  initialIsVerificator: isVerificator,
+                  initialIsVerificator: canShowVerifButton,
                 ),
               ),
             );

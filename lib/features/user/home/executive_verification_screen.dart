@@ -52,6 +52,23 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
   int _tabIndex = 0;
 
+  // ── Mode HRD untuk accident report ──
+  bool _isHrdMode = false; // true jika user adalah HRD (id_jabatan=5)
+
+  // ── State untuk accident report verification ──
+  bool _isAccidentLoading = true;
+  bool _noAccidentData = false;
+  bool _showAccidentSuccess = false;
+  Map<String, dynamic>? _accidentData;
+  List<Map<String, dynamic>> _accidentHistoryList = [];
+  bool _accidentHistoryLoading = false;
+  Map<String, Map<String, dynamic>> _accidentVoteStats = {};
+  int _accidentCountdown = 5;
+  Timer? _accidentCountdownTimer;
+  bool _showAccidentVerifPopup = false;
+  bool _isAccidentVoteValid = false;
+  bool _showResolutionForm = false; // form penyelesaian setelah vote
+
   // ── Popup state untuk notif verifikasi ──
   bool _showVerifPopup = false;
   bool _isVoteValid = false;
@@ -218,7 +235,13 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   void initState() {
     super.initState();
     _lang = widget.lang;
-    _loadNextTemuan();
+    // Deteksi apakah user adalah HRD (id_jabatan = 5)
+    _isHrdMode = widget.userJabatanId == 5;
+    if (_isHrdMode) {
+      _loadNextAccidentReport();
+    } else {
+      _loadNextTemuan();
+    }
   }
 
   @override
@@ -866,13 +889,13 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 _buildHeader(),
                 _buildTabBar(),
                 Expanded(
-                  child:
-                      _tabIndex == 0 ? _buildVerifyTab() : _buildHistoryTab(),
+                  child: _tabIndex == 0 ? _buildVerifyTab() : _buildHistoryTab(),
                 ),
               ],
             ),
-            // ── Popup overlay verifikasi ──
-            if (_showVerifPopup) _buildVerifPopupOverlay(),
+            // Popup overlay — sesuaikan dengan mode
+            if (_isHrdMode && _showAccidentVerifPopup) _buildAccidentVerifPopupOverlay(),
+            if (!_isHrdMode && _showVerifPopup) _buildVerifPopupOverlay(),
           ],
         ),
       ),
@@ -1105,6 +1128,1066 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     );
   }
 
+  // ================================================================
+  // ACCIDENT REPORT VERIFICATION — LOAD DATA
+  // ================================================================
+  Future<void> _loadNextAccidentReport() async {
+    setState(() {
+      _isAccidentLoading = true;
+      _noAccidentData = false;
+      _showAccidentSuccess = false;
+      _showResolutionForm = false;
+      _accidentData = null;
+      _showAccidentVerifPopup = false;
+    });
+
+    try {
+      final userId = _client.auth.currentUser!.id;
+
+      // Ambil laporan yang sudah divote oleh HRD ini
+      final votedLogs = await _client
+          .from('accident_verifikasi_log')
+          .select('id_laporan')
+          .eq('id_verificator', userId);
+      final List votedIds = votedLogs.map((l) => l['id_laporan']).toList();
+
+      // Query laporan yang belum final dan belum divote
+      var query = _client.from('accident_report').select('''
+        id_laporan, judul, deskripsi, foto_bukti,
+        tanggal_kejadian, waktu_kejadian, penyebab,
+        tingkat_keparahan, departemen_terdampak, tindakan_diambil,
+        status, created_at, is_verif,
+        lokasi:id_lokasi(nama_lokasi),
+        pelapor:id_pelapor(nama),
+        pihak_terdampak:id_pihak_terdampak(nama),
+        supervisor_user:id_supervisor(nama),
+        saksi_user:id_saksi(nama)
+      ''').eq('is_verif', false);
+
+      if (votedIds.isNotEmpty) {
+        query = query.not('id_laporan', 'in', votedIds);
+      }
+
+      final result = await query
+          .order('created_at', ascending: true)
+          .limit(1)
+          .maybeSingle();
+
+      if (!mounted) return;
+
+      if (result == null) {
+        setState(() { _noAccidentData = true; _isAccidentLoading = false; });
+        return;
+      }
+
+      setState(() {
+        _accidentData = result;
+        _isAccidentLoading = false;
+      });
+      _startAccidentCountdown();
+    } catch (e) {
+      debugPrint('loadNextAccidentReport error: $e');
+      if (mounted) setState(() => _isAccidentLoading = false);
+    }
+  }
+
+  void _startAccidentCountdown() {
+    _accidentCountdownTimer?.cancel();
+    setState(() => _accidentCountdown = 5);
+    _accidentCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) { timer.cancel(); return; }
+      if (_accidentCountdown > 0) {
+        setState(() => _accidentCountdown--);
+      } else {
+        timer.cancel();
+        setState(() {});
+      }
+    });
+  }
+
+  Future<void> _submitAccidentVerification(bool isValid) async {
+    if (_accidentData == null) return;
+    _accidentCountdownTimer?.cancel();
+
+    setState(() {
+      _showAccidentVerifPopup = true;
+      _isAccidentVoteValid = isValid;
+    });
+
+    final String lapdoranId = _accidentData!['id_laporan'].toString();
+    final userId = _client.auth.currentUser!.id;
+
+    try {
+      // Panggil fungsi SQL vote
+      await _client.rpc('handle_accident_verification_vote', params: {
+        'p_laporan_id': lapdoranId,
+        'p_verificator_id': userId,
+        'p_vote_is_correct': isValid,
+      });
+    } catch (e) {
+      debugPrint('submitAccidentVerification error: $e');
+    }
+
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) {
+      setState(() {
+        _showAccidentVerifPopup = false;
+        // Setelah vote, tampilkan form penyelesaian
+        _showResolutionForm = true;
+      });
+    }
+  }
+
+  Future<void> _loadAccidentHistory() async {
+    setState(() => _accidentHistoryLoading = true);
+    try {
+      final userId = _client.auth.currentUser!.id;
+      final logs = await _client
+          .from('accident_verifikasi_log')
+          .select('''
+            id_log, jawaban_benar, waktu_verifikasi,
+            laporan:id_laporan (
+              id_laporan, judul, deskripsi, foto_bukti,
+              tanggal_kejadian, tingkat_keparahan, status,
+              is_verif, hasil_verifikasi_mayoritas, created_at,
+              lokasi:id_lokasi(nama_lokasi),
+              pelapor:id_pelapor(nama)
+            )
+          ''')
+          .eq('id_verificator', userId)
+          .order('waktu_verifikasi', ascending: false);
+
+      final List<Map<String, dynamic>> processed = [];
+      final List<String> lapdoranIds = [];
+
+      for (final item in logs) {
+        final rawLaporan = item['laporan'];
+        if (rawLaporan == null) continue;
+        final data = Map<String, dynamic>.from(rawLaporan as Map);
+        data['user_vote'] = item['jawaban_benar'] as bool? ?? false;
+        data['waktu_verifikasi'] = item['waktu_verifikasi'];
+        processed.add(data);
+        final lid = data['id_laporan']?.toString();
+        if (lid != null) lapdoranIds.add(lid);
+      }
+
+      // Hitung vote stats per laporan
+      final Map<String, Map<String, dynamic>> voteStats = {};
+      if (lapdoranIds.isNotEmpty) {
+        final allVotes = await _client
+            .from('accident_verifikasi_log')
+            .select('id_laporan, jawaban_benar')
+            .inFilter('id_laporan', lapdoranIds);
+
+        final totalHrd = await _client
+            .from('User')
+            .select('id_user')
+            .eq('id_jabatan', 5);
+        final int totalHrdCount = totalHrd.length > 0 ? totalHrd.length : 1;
+
+        for (final lid in lapdoranIds) {
+          final votesForLaporan = allVotes
+              .where((v) => v['id_laporan']?.toString() == lid)
+              .toList();
+          final int validCount =
+              votesForLaporan.where((v) => v['jawaban_benar'] == true).length;
+          final int invalidCount =
+              votesForLaporan.where((v) => v['jawaban_benar'] == false).length;
+          voteStats[lid] = {
+            'valid_count': validCount,
+            'invalid_count': invalidCount,
+            'total': validCount + invalidCount,
+            'total_hrd': totalHrdCount,
+          };
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _accidentHistoryList = processed;
+          _accidentVoteStats = voteStats;
+          _accidentHistoryLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('loadAccidentHistory error: $e');
+      if (mounted) setState(() => _accidentHistoryLoading = false);
+    }
+  }
+
+  // ================================================================
+  // ACCIDENT REPORT — UI WIDGETS
+  // ================================================================
+  Widget _buildAccidentVerificationCard() {
+    final laporan = _accidentData!;
+    final bool canSwipe = _accidentCountdown == 0;
+    final String severity = laporan['tingkat_keparahan'] ?? '';
+    final Color sevColor = severity == 'Berat'
+        ? const Color(0xFFDC2626)
+        : severity == 'Menengah'
+            ? const Color(0xFFF97316)
+            : const Color(0xFF16A34A);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Header card laporan
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.health_and_safety_outlined,
+                    color: Colors.white70, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _lang == 'ID' ? 'Tinjauan Laporan Kecelakaan'
+                            : _lang == 'ZH' ? '事故报告审查'
+                            : 'Accident Report Review',
+                        style: GoogleFonts.poppins(
+                            color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                      ),
+                      Text(
+                        _lang == 'ID'
+                            ? 'Periksa laporan dengan teliti. Apakah laporan ini valid?'
+                            : _lang == 'ZH'
+                                ? '仔细检查报告。此报告是否有效？'
+                                : 'Review the report carefully. Is this report valid?',
+                        style: GoogleFonts.poppins(color: Colors.white70, fontSize: 11, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Foto bukti
+          if (laporan['foto_bukti'] != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                laporan['foto_bukti'],
+                width: double.infinity,
+                height: 200,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 200,
+                  color: Colors.grey.shade100,
+                  child: Icon(Icons.image_not_supported_outlined,
+                      color: Colors.grey.shade400, size: 48),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // Info laporan
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(laporan['judul'] ?? '-',
+                    style: GoogleFonts.poppins(
+                        fontSize: 16, fontWeight: FontWeight.w800,
+                        color: const Color(0xFF1E3A8A))),
+                const SizedBox(height: 8),
+                _buildAccidentInfoRow(Icons.warning_amber_rounded,
+                    _lang == 'ID' ? 'Keparahan' : 'Severity', severity, sevColor),
+                _buildAccidentInfoRow(Icons.person_outline,
+                    _lang == 'ID' ? 'Pelapor' : 'Reporter',
+                    laporan['pelapor']?['nama'] ?? '-', Colors.grey.shade700),
+                _buildAccidentInfoRow(Icons.personal_injury_outlined,
+                    _lang == 'ID' ? 'Pihak Terdampak' : 'Affected',
+                    laporan['pihak_terdampak']?['nama'] ?? '-', Colors.grey.shade700),
+                _buildAccidentInfoRow(Icons.location_on_outlined,
+                    _lang == 'ID' ? 'Lokasi' : 'Location',
+                    laporan['lokasi']?['nama_lokasi'] ?? '-', Colors.grey.shade700),
+                _buildAccidentInfoRow(Icons.calendar_today,
+                    _lang == 'ID' ? 'Tanggal' : 'Date',
+                    laporan['tanggal_kejadian']?.toString() ?? '-', Colors.grey.shade700),
+                _buildAccidentInfoRow(Icons.build_circle_outlined,
+                    _lang == 'ID' ? 'Penyebab' : 'Cause',
+                    laporan['penyebab'] ?? '-', Colors.grey.shade700),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Deskripsi
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_lang == 'ID' ? 'Deskripsi Kejadian'
+                    : _lang == 'ZH' ? '事故描述' : 'Incident Description',
+                    style: GoogleFonts.poppins(
+                        fontSize: 11, fontWeight: FontWeight.w700,
+                        color: Colors.orange.shade800)),
+                const SizedBox(height: 6),
+                Text(laporan['deskripsi'] ?? '-',
+                    style: GoogleFonts.poppins(
+                        fontSize: 13, color: const Color(0xFF1E3A8A), height: 1.5)),
+              ],
+            ),
+          ),
+          if (laporan['tindakan_diambil'] != null &&
+              laporan['tindakan_diambil'].toString().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_lang == 'ID' ? 'Tindakan yang Diambil'
+                      : _lang == 'ZH' ? '已采取的措施' : 'Action Taken',
+                      style: GoogleFonts.poppins(
+                          fontSize: 11, fontWeight: FontWeight.w700,
+                          color: Colors.green.shade800)),
+                  const SizedBox(height: 6),
+                  Text(laporan['tindakan_diambil'],
+                      style: GoogleFonts.poppins(
+                          fontSize: 13, color: const Color(0xFF1E3A8A), height: 1.5)),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+
+          // Countdown dan swipe button
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: canSwipe
+                  ? const Color(0xFFDC2626).withOpacity(0.1)
+                  : Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: canSwipe
+                    ? const Color(0xFFDC2626).withOpacity(0.3)
+                    : Colors.orange.shade200,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  canSwipe ? Icons.swipe_rounded : Icons.timer_outlined,
+                  size: 16,
+                  color: canSwipe ? const Color(0xFFDC2626) : Colors.orange.shade700,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  canSwipe
+                      ? t('swipe_now')
+                      : '${t("wait_prefix")} $_accidentCountdown ${t("wait_suffix")}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12, fontWeight: FontWeight.w600,
+                    color: canSwipe ? const Color(0xFFDC2626) : Colors.orange.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          SizedBox(
+            width: double.infinity,
+            child: _SwipeButton(
+              label: t('swipe_correct'),
+              color: const Color(0xFF16A34A),
+              icon: Icons.arrow_forward_rounded,
+              direction: _SwipeDirection.leftToRight,
+              enabled: canSwipe,
+              onSwiped: () => _submitAccidentVerification(true),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: _SwipeButton(
+              label: t('swipe_incorrect'),
+              color: const Color(0xFFDC2626),
+              icon: Icons.arrow_back_rounded,
+              direction: _SwipeDirection.rightToLeft,
+              enabled: canSwipe,
+              onSwiped: () => _submitAccidentVerification(false),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccidentInfoRow(IconData icon, String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text('$label: ', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500)),
+          Expanded(
+            child: Text(value,
+                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccidentSuccessView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 100, height: 100,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF16A34A), Color(0xFF15803D)]),
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(
+                    color: const Color(0xFF16A34A).withOpacity(0.4),
+                    blurRadius: 20, spreadRadius: 4)],
+              ),
+              child: const Icon(Icons.check_rounded, color: Colors.white, size: 54),
+            ),
+            const SizedBox(height: 24),
+            Text(t('success_title'),
+                style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800,
+                    color: const Color(0xFF1E3A8A))),
+            const SizedBox(height: 8),
+            Text(t('success_body'),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey.shade500)),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity, height: 50,
+              child: ElevatedButton.icon(
+                onPressed: _loadNextAccidentReport,
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: Text(t('continue_btn')),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF16A34A),
+                  foregroundColor: Colors.white, elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _CountdownAutoNext(
+              textPrefix: t('auto_next'),
+              textSuffix: t('auto_suf'),
+              onFinished: _loadNextAccidentReport,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Form penyelesaian accident report (setelah HRD vote)
+  Widget _buildResolutionForm() {
+    final _judulCtrl = TextEditingController();
+    final _descCtrl = TextEditingController();
+    final _korektifCtrl = TextEditingController();
+    final _preventifCtrl = TextEditingController();
+    bool _isSavingResolution = false;
+
+    return StatefulBuilder(
+      builder: (context, setInner) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF16A34A), Color(0xFF15803D)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.assignment_turned_in_rounded,
+                        color: Colors.white70, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _lang == 'ID' ? 'Isi Penyelesaian Laporan'
+                                : _lang == 'ZH' ? '填写解决方案'
+                                : 'Fill Report Resolution',
+                            style: GoogleFonts.poppins(
+                                color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                          ),
+                          Text(
+                            _lang == 'ID' ? 'Berikan tindakan korektif dan preventif'
+                                : _lang == 'ZH' ? '提供纠正和预防措施'
+                                : 'Provide corrective and preventive actions',
+                            style: GoogleFonts.poppins(
+                                color: Colors.white70, fontSize: 11, height: 1.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              _buildResFormField(
+                ctrl: _judulCtrl,
+                label: _lang == 'ID' ? 'Judul Penyelesaian *'
+                    : _lang == 'ZH' ? '解决方案标题 *' : 'Resolution Title *',
+                hint: _lang == 'ID' ? 'Contoh: Penanganan Insiden Gudang'
+                    : 'Example: Warehouse Incident Handling',
+                icon: Icons.title_rounded,
+              ),
+              const SizedBox(height: 14),
+              _buildResFormField(
+                ctrl: _descCtrl,
+                label: _lang == 'ID' ? 'Deskripsi Penyelesaian *'
+                    : _lang == 'ZH' ? '解决方案描述 *' : 'Resolution Description *',
+                hint: _lang == 'ID' ? 'Jelaskan penyelesaian secara rinci...'
+                    : 'Explain the resolution in detail...',
+                icon: Icons.description_rounded,
+                maxLines: 4,
+              ),
+              const SizedBox(height: 14),
+              _buildResFormField(
+                ctrl: _korektifCtrl,
+                label: _lang == 'ID' ? 'Tindakan Korektif'
+                    : _lang == 'ZH' ? '纠正措施' : 'Corrective Action',
+                hint: _lang == 'ID' ? 'Tindakan untuk mengatasi masalah...'
+                    : 'Actions to address the issue...',
+                icon: Icons.build_rounded,
+                maxLines: 3,
+                color: const Color(0xFFF97316),
+              ),
+              const SizedBox(height: 14),
+              _buildResFormField(
+                ctrl: _preventifCtrl,
+                label: _lang == 'ID' ? 'Tindakan Preventif'
+                    : _lang == 'ZH' ? '预防措施' : 'Preventive Action',
+                hint: _lang == 'ID' ? 'Tindakan untuk mencegah terulang...'
+                    : 'Actions to prevent recurrence...',
+                icon: Icons.shield_rounded,
+                maxLines: 3,
+                color: const Color(0xFF16A34A),
+              ),
+              const SizedBox(height: 24),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _showResolutionForm = false;
+                          _showAccidentSuccess = true;
+                        });
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.grey.shade600,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(_lang == 'ID' ? 'Lewati'
+                          : _lang == 'ZH' ? '跳过' : 'Skip'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _isSavingResolution ? null : () async {
+                        if (_judulCtrl.text.trim().isEmpty ||
+                            _descCtrl.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(_lang == 'ID'
+                                ? 'Judul dan deskripsi wajib diisi!'
+                                : 'Title and description are required!'),
+                            backgroundColor: Colors.red,
+                          ));
+                          return;
+                        }
+                        setInner(() => _isSavingResolution = true);
+                        try {
+                          final userId = _client.auth.currentUser!.id;
+                          await _client.from('resolution_accident').insert({
+                            'id_laporan': _accidentData!['id_laporan'],
+                            'id_hrd': userId,
+                            'judul_resolusi': _judulCtrl.text.trim(),
+                            'deskripsi_resolusi': _descCtrl.text.trim(),
+                            'tindakan_korektif': _korektifCtrl.text.trim().isEmpty
+                                ? null : _korektifCtrl.text.trim(),
+                            'tindakan_preventif': _preventifCtrl.text.trim().isEmpty
+                                ? null : _preventifCtrl.text.trim(),
+                            'tanggal_resolusi': DateTime.now()
+                                .toIso8601String().substring(0, 10),
+                          });
+                          // Update status accident_report menjadi Selesai
+                          await _client.from('accident_report')
+                              .update({'status': 'Selesai'})
+                              .eq('id_laporan', _accidentData!['id_laporan']);
+
+                          if (mounted) {
+                            setState(() {
+                              _showResolutionForm = false;
+                              _showAccidentSuccess = true;
+                            });
+                          }
+                        } catch (e) {
+                          debugPrint('Save resolution error: $e');
+                          setInner(() => _isSavingResolution = false);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        foregroundColor: Colors.white, elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: _isSavingResolution
+                          ? const SizedBox(width: 20, height: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : Text(_lang == 'ID' ? 'Simpan Penyelesaian'
+                              : _lang == 'ZH' ? '保存解决方案'
+                              : 'Save Resolution',
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildResFormField({
+    required TextEditingController ctrl,
+    required String label,
+    required String hint,
+    required IconData icon,
+    int maxLines = 1,
+    Color color = const Color(0xFF00C9E4),
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: GoogleFonts.poppins(
+            fontSize: 13, fontWeight: FontWeight.w700,
+            color: const Color(0xFF1E3A8A))),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: ctrl,
+          maxLines: maxLines,
+          style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.poppins(
+                color: Colors.grey.shade400, fontSize: 13),
+            prefixIcon: maxLines == 1
+                ? Icon(icon, color: color, size: 20) : null,
+            filled: true,
+            fillColor: const Color(0xFFF8FAFF),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: color.withOpacity(0.3), width: 1)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: color, width: 1.5)),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 14),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAccidentHistoryCard(Map<String, dynamic> data) {
+    final String? lid = data['id_laporan']?.toString();
+    final String title = data['judul']?.toString() ?? '-';
+    final String? imageUrl = data['foto_bukti']?.toString();
+    final bool userVote = data['user_vote'] as bool? ?? false;
+    final bool? finalOutcome = data['hasil_verifikasi_mayoritas'] as bool?;
+    final bool isFinalized = data['is_verif'] as bool? ?? false;
+    final String severity = data['tingkat_keparahan'] ?? '';
+
+    final stats = lid != null ? (_accidentVoteStats[lid] ?? {}) : <String, dynamic>{};
+    final int validCount = (stats['valid_count'] as int?) ?? 0;
+    final int invalidCount = (stats['invalid_count'] as int?) ?? 0;
+    final int totalVotes = (stats['total'] as int?) ?? 0;
+    final int totalHrd = (stats['total_hrd'] as int?) ?? 1;
+
+    Color accent;
+    String statusLabel;
+    IconData statusIcon;
+
+    if (!isFinalized || finalOutcome == null) {
+      accent = Colors.orange.shade400;
+      statusLabel = t('pending');
+      statusIcon = Icons.hourglass_empty_rounded;
+    } else {
+      final bool inMajority = userVote == finalOutcome;
+      accent = inMajority ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+      statusLabel = inMajority ? t('majority') : t('minority');
+      statusIcon = inMajority ? Icons.emoji_events_rounded : Icons.highlight_off_rounded;
+    }
+
+    final String voteLabel = userVote ? t('valid') : t('invalid');
+    final Color voteColor = userVote ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    final double validRatio = totalVotes > 0 ? validCount / totalVotes : 0.0;
+    final Color sevColor = severity == 'Berat'
+        ? const Color(0xFFDC2626)
+        : severity == 'Menengah'
+            ? const Color(0xFFF97316)
+            : const Color(0xFF16A34A);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+              color: accent.withOpacity(0.08),
+              blurRadius: 12, offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                width: 6, height: 100,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(19),
+                      bottomLeft: Radius.circular(4)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Foto
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: 72, height: 72,
+                  color: Colors.grey.shade100,
+                  child: imageUrl != null
+                      ? Image.network(imageUrl, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                              Icons.warning_amber_rounded,
+                              color: sevColor, size: 28))
+                      : Icon(Icons.warning_amber_rounded,
+                          color: sevColor, size: 28),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Badge kecelakaan
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          _lang == 'ID' ? 'LAPORAN KECELAKAAN'
+                              : _lang == 'ZH' ? '事故报告' : 'ACCIDENT REPORT',
+                          style: GoogleFonts.poppins(
+                              fontSize: 8, fontWeight: FontWeight.w800,
+                              color: const Color(0xFFDC2626)),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(title,
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                              fontSize: 12.5, fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1E3A8A), height: 1.25)),
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: sevColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(severity,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 9, fontWeight: FontWeight.w700,
+                                  color: sevColor)),
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 40, height: 40,
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: accent.withOpacity(0.3), width: 1.5),
+                      ),
+                      child: Icon(statusIcon, color: accent, size: 22),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(statusLabel,
+                        style: GoogleFonts.poppins(
+                            fontSize: 9, fontWeight: FontWeight.w700, color: accent)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Container(margin: const EdgeInsets.symmetric(horizontal: 12),
+              height: 1, color: accent.withOpacity(0.12)),
+          // Bottom stats
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _VotePill(
+                        label: voteLabel, color: voteColor,
+                        icon: userVote ? Icons.thumb_up_rounded : Icons.thumb_down_rounded),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isFinalized
+                            ? const Color(0xFF16A34A).withOpacity(0.1)
+                            : Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isFinalized
+                              ? const Color(0xFF16A34A).withOpacity(0.3)
+                              : Colors.orange.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(children: [
+                        Icon(isFinalized ? Icons.verified_rounded : Icons.pending_rounded,
+                            size: 10,
+                            color: isFinalized ? const Color(0xFF16A34A) : Colors.orange),
+                        const SizedBox(width: 3),
+                        Text(isFinalized ? t('finalized') : t('not_finalized'),
+                            style: GoogleFonts.poppins(
+                                fontSize: 9, fontWeight: FontWeight.w700,
+                                color: isFinalized ? const Color(0xFF16A34A) : Colors.orange)),
+                      ]),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _VoteCountChip(
+                        icon: Icons.thumb_up_rounded, label: t('votes_valid'),
+                        count: validCount, color: const Color(0xFF16A34A)),
+                    Text('$totalVotes / $totalHrd HRD',
+                        style: GoogleFonts.poppins(
+                            fontSize: 9.5, color: Colors.grey.shade500)),
+                    _VoteCountChip(
+                        icon: Icons.thumb_down_rounded, label: t('votes_invalid'),
+                        count: invalidCount, color: const Color(0xFFDC2626),
+                        iconOnRight: true),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Stack(children: [
+                    Container(height: 8, width: double.infinity,
+                        color: const Color(0xFFDC2626).withOpacity(0.18)),
+                    FractionallySizedBox(
+                      widthFactor: validRatio.clamp(0.0, 1.0),
+                      child: Container(
+                        height: 8,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                              colors: [Color(0xFF16A34A), Color(0xFF4ADE80)]),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+                if (isFinalized && finalOutcome != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: finalOutcome
+                          ? const Color(0xFF16A34A).withOpacity(0.07)
+                          : const Color(0xFFDC2626).withOpacity(0.07),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: finalOutcome
+                            ? const Color(0xFF16A34A).withOpacity(0.2)
+                            : const Color(0xFFDC2626).withOpacity(0.2),
+                      ),
+                    ),
+                    child: Row(children: [
+                      Icon(
+                        finalOutcome ? Icons.thumb_up_rounded : Icons.thumb_down_rounded,
+                        size: 13,
+                        color: finalOutcome ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${t("majority_result")}: ${finalOutcome ? t("valid") : t("invalid")}',
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, fontWeight: FontWeight.w700,
+                            color: finalOutcome ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
+                      ),
+                    ]),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Popup overlay untuk accident verification
+  Widget _buildAccidentVerifPopupOverlay() {
+    final Color primary =
+        _isAccidentVoteValid ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    final IconData icon =
+        _isAccidentVoteValid ? Icons.thumb_up_rounded : Icons.thumb_down_rounded;
+    final String title =
+        _isAccidentVoteValid ? t('verif_popup_valid') : t('verif_popup_invalid');
+
+    return Container(
+      color: Colors.black.withOpacity(0.65),
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.7, end: 1.0),
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutBack,
+          builder: (_, scale, child) =>
+              Transform.scale(scale: scale, child: child),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: primary.withOpacity(0.3), width: 2),
+              boxShadow: [
+                BoxShadow(color: primary.withOpacity(0.25),
+                    blurRadius: 40, spreadRadius: 4, offset: const Offset(0, 12)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72, height: 72,
+                  decoration: BoxDecoration(
+                    color: primary.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: primary.withOpacity(0.4), width: 2.5),
+                  ),
+                  child: Icon(icon, color: primary, size: 38),
+                ),
+                const SizedBox(height: 16),
+                Text(title, style: GoogleFonts.poppins(
+                    fontSize: 16, fontWeight: FontWeight.w800, color: primary),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+                Text(t('verif_popup_sub'),
+                    style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade600),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey)),
+                  const SizedBox(width: 8),
+                  Text(t('verif_popup_processing'),
+                      style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500)),
+                ]),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -1238,7 +2321,11 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 onTap: () {
                   if (_tabIndex != 1) {
                     setState(() => _tabIndex = 1);
-                    _loadHistory();
+                    if (_isHrdMode) {
+                      _loadAccidentHistory();
+                    } else {
+                      _loadHistory();
+                    }
                   }
                 },
                 child: AnimatedContainer(
@@ -1290,6 +2377,18 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   }
 
   Widget _buildVerifyTab() {
+    // HRD: tampilkan verifikasi accident report
+    if (_isHrdMode) {
+      if (_isAccidentLoading) return _buildVerifyShimmer();
+      if (_showAccidentSuccess) return _buildAccidentSuccessView();
+      if (_showResolutionForm && _accidentData != null) {
+        return _buildResolutionForm();
+      }
+      if (_noAccidentData) return _buildNoDataView();
+      if (_accidentData != null) return _buildAccidentVerificationCard();
+      return const SizedBox();
+    }
+    // Non-HRD: verifikasi temuan biasa
     if (_isLoading) return _buildVerifyShimmer();
     if (_showSuccess) return _buildSuccessView();
     if (_noData) return _buildNoDataView();
@@ -1772,18 +2871,38 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   }
 
   Widget _buildHistoryTab() {
+    if (_isHrdMode) {
+      if (_accidentHistoryLoading) return _buildHistoryShimmer();
+      if (_accidentHistoryList.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.history_toggle_off, size: 70, color: Colors.grey.shade300),
+              const SizedBox(height: 16),
+              Text(t('hist_empty'),
+                  style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade400)),
+            ],
+          ),
+        );
+      }
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _accidentHistoryList.length,
+        itemBuilder: (_, i) => _buildAccidentHistoryCard(_accidentHistoryList[i]),
+      );
+    }
+    // Non-HRD: history temuan biasa
     if (_historyLoading) return _buildHistoryShimmer();
     if (_historyList.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history_toggle_off,
-                size: 70, color: Colors.grey.shade300),
+            Icon(Icons.history_toggle_off, size: 70, color: Colors.grey.shade300),
             const SizedBox(height: 16),
             Text(t('hist_empty'),
-                style: GoogleFonts.poppins(
-                    fontSize: 16, color: Colors.grey.shade400)),
+                style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade400)),
           ],
         ),
       );

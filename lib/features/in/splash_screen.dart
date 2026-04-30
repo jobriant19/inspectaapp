@@ -53,7 +53,10 @@ class _SplashScreenState extends State<SplashScreen> {
           if (logs.isNotEmpty) latestLog = logs.first;
         } catch (_) {}
 
-        final isVerificator = userData['is_verificator'] as bool? ?? false;
+        final bool isVerificatorFlag = userData['is_verificator'] as bool? ?? false;
+        final int? idJabatanSplash = userData['id_jabatan'] as int?;
+        // Tampilkan button verifikasi jika is_verificator true, ATAU jabatan Eksekutif/HRD
+        final bool isVerificator = isVerificatorFlag || idJabatanSplash == 1 || idJabatanSplash == 5;
 
         // ── Resolusi lokasi ──
         String locationName = '...';
