@@ -16,6 +16,7 @@ class UserInfoCard extends StatefulWidget {
   final String lang;
   final bool? isVerificator;
   final int? userJabatanId;
+  final int? initialMonthlyPoin; 
   final VoidCallback onViewMoreTap;
 
   const UserInfoCard({
@@ -31,6 +32,7 @@ class UserInfoCard extends StatefulWidget {
     this.isLatestLogLoading = false,
     this.isVerificator,
     this.userJabatanId,
+    this.initialMonthlyPoin,
   });
 
   @override
@@ -44,7 +46,10 @@ class _UserInfoCardState extends State<UserInfoCard> {
   @override
   void initState() {
     super.initState();
-    _fetchMonthlyPoin();
+    // Prioritas: initialMonthlyPoin dari login/splash → fallback ke userPoin
+    _monthlyPoin = widget.initialMonthlyPoin ?? widget.userPoin;
+    _isLoadingMonthly = false; // Langsung tampil tanpa loading
+    _fetchMonthlyPoin(); // Fetch background untuk nilai terbaru dari log_poin
   }
 
   @override
@@ -65,17 +70,16 @@ class _UserInfoCardState extends State<UserInfoCard> {
       if (userId == null) return;
 
       final now = DateTime.now();
-      final startOfMonth =
-          DateTime(now.year, now.month, 1).toIso8601String();
-      final endOfMonth =
-          DateTime(now.year, now.month + 1, 1).toIso8601String();
+      // Query log_poin berdasarkan created_at bulan ini (timezone-aware)
+      final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+      final startOfNextMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
 
       final List<dynamic> logs = await supabase
           .from('log_poin')
           .select('poin')
           .eq('id_user', userId)
           .gte('created_at', startOfMonth)
-          .lt('created_at', endOfMonth);
+          .lt('created_at', startOfNextMonth);
 
       int total = 0;
       for (final log in logs) {
@@ -83,19 +87,11 @@ class _UserInfoCardState extends State<UserInfoCard> {
       }
 
       if (mounted) {
-        setState(() {
-          _monthlyPoin = total;
-          _isLoadingMonthly = false;
-        });
+        setState(() => _monthlyPoin = total);
       }
     } catch (e) {
       debugPrint('Error fetching monthly poin: $e');
-      if (mounted) {
-        setState(() {
-          _monthlyPoin = widget.userPoin;
-          _isLoadingMonthly = false;
-        });
-      }
+      // Nilai tetap dari initState, tidak perlu ubah apa-apa
     }
   }
 

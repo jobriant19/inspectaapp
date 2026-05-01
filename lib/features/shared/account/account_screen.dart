@@ -114,23 +114,27 @@ class _AccountScreenState extends State<AccountScreen> {
     super.initState();
     _currentLang = widget.lang;
 
-    if (widget.initialUserName != null && widget.initialUserName != '...') {
-      _userName = widget.initialUserName!;
-      _userImage = widget.initialUserImage;
+    // SELALU set data awal langsung — tidak peduli apakah null atau bukan
+    // Ini memastikan kartu TIDAK pernah menampilkan skeleton saat dari HomeScreen
+    _userName           = widget.initialUserName ?? '';
+    _userImage          = widget.initialUserImage;
+    _userLokasiSpesifik = widget.initialUserLocation ?? '...';
+    _isVisitor          = widget.initialIsVisitor ?? false;
+    _userJabatanId      = widget.initialUserJabatanId;
+    _isVerificatorUser  = widget.initialIsVerificator ?? false;
+
+    // Tentukan jabatan dari data awal
+    if (_isVisitor) {
+      _userJabatan = getTxt('visitor');
+    } else if (_isVerificatorUser) {
+      _userJabatan = getTxt('verifier_role');
+    } else {
       _userJabatan = widget.initialUserRole ?? '...';
-      _userLokasiSpesifik = widget.initialUserLocation ?? '...';
-      _isVisitor = widget.initialIsVisitor ?? false;
-      _userJabatanId = widget.initialUserJabatanId;
-      _isVerificatorUser  = widget.initialIsVerificator ?? false;
-
-      if (_isVerificatorUser) {
-        _userJabatan = getTxt('verifier_role'); 
-      } else {
-        _userJabatan = widget.initialUserRole ?? '...';
-      }
-
-      _isLoading = false;
     }
+
+    // LANGSUNG tampil tanpa skeleton — fetch background untuk sinkronisasi
+    _isLoading = false;
+
     _fetchUserDataSilent();
   }
 

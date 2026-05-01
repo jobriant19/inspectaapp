@@ -3,12 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 
-class ActivityLogDialog extends StatelessWidget {
+class ActivityLogDialog extends StatefulWidget {
   final String lang;
   final String userName;
   final String userRole;
   final String? userImage;
   final int userPoin;
+  // ✅ TAMBAHAN: data log terbaru yang sudah ada di HomeScreen
+  final Map<String, dynamic>? initialLatestLog;
 
   const ActivityLogDialog({
     super.key,
@@ -17,7 +19,56 @@ class ActivityLogDialog extends StatelessWidget {
     required this.userRole,
     required this.userPoin,
     this.userImage,
+    this.initialLatestLog, // ✅ opsional
   });
+
+  @override
+  State<ActivityLogDialog> createState() => _ActivityLogDialogState();
+}
+
+class _ActivityLogDialogState extends State<ActivityLogDialog> {
+  List<Map<String, dynamic>> _logs = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // ✅ Tampilkan data awal langsung jika tersedia, tanpa tunggu fetch
+    if (widget.initialLatestLog != null) {
+      _logs = [Map<String, dynamic>.from(widget.initialLatestLog!)];
+      _isLoading = false;
+    }
+
+    // Tetap fetch data lengkap di background
+    _fetchLogs();
+  }
+
+  Future<void> _fetchLogs() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final data = await Supabase.instance.client
+          .from('log_poin')
+          .select('poin, deskripsi, tipe_aktivitas, created_at')
+          .eq('id_user', userId)
+          .order('created_at', ascending: false)
+          .limit(25);
+
+      if (mounted) {
+        setState(() {
+          _logs = List<Map<String, dynamic>>.from(data);
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   String _getTxt(String key) {
     final Map<String, Map<String, String>> texts = {
@@ -43,7 +94,7 @@ class ActivityLogDialog extends StatelessWidget {
         'subtitle': '您的积分历史',
       },
     };
-    return texts[lang]?[key] ?? key;
+    return texts[widget.lang]?[key] ?? key;
   }
 
   Color _getFireColor(int points) {
@@ -97,10 +148,169 @@ class ActivityLogDialog extends StatelessWidget {
         '${dt.year}';
   }
 
+  Widget _buildLogList() {
+    // ✅ Shimmer hanya muncul jika benar-benar belum ada data sama sekali
+    if (_isLoading && _logs.isEmpty) {
+      return Shimmer.fromColors(
+        baseColor: Colors.grey.shade200,
+        highlightColor: Colors.grey.shade50,
+        child: ListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          itemCount: 6,
+          itemBuilder: (_, __) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        height: 12,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 10,
+                        width: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 48,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_logs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inbox_rounded, size: 48, color: Colors.grey.shade300),
+            const SizedBox(height: 10),
+            Text(
+              _getTxt('empty'),
+              style: GoogleFonts.poppins(color: Colors.grey, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      physics: const BouncingScrollPhysics(),
+      itemCount: _logs.length,
+      separatorBuilder: (_, __) =>
+          Divider(height: 1, color: Colors.grey.shade100, indent: 52),
+      itemBuilder: (context, index) {
+        final log = _logs[index];
+        final int poin = (log['poin'] as num).toInt();
+        final bool isPositive = poin >= 0;
+        final String tipe = (log['tipe_aktivitas'] ?? '').toString();
+        final String desc = (log['deskripsi'] ?? '').toString();
+        final String dateStr = _formatDate(log['created_at']);
+
+        final IconData icon = _getTipeIcon(tipe, isPositive);
+        final Color iconColor = _getTipeColor(tipe, isPositive);
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: iconColor.withOpacity(0.1),
+                ),
+                child: Icon(icon, color: iconColor, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      desc,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E293B),
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      dateStr,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10.5,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  isPositive ? '+$poin' : '$poin',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: iconColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    final fireColor = _getFireColor(userPoin);
+    final fireColor = _getFireColor(widget.userPoin);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -121,33 +331,26 @@ class ActivityLogDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── HEADER PREMIUM ──
+            // ── HEADER ──
             Container(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF1E3A8A),
-                    Color(0xFF0EA5E9),
-                  ],
+                  colors: [Color(0xFF1E3A8A), Color(0xFF0EA5E9)],
                 ),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Column(
                 children: [
-                  // Baris: Avatar + Info User + Poin
                   Row(
                     children: [
-                      // Avatar
+                      // Avatar — pakai CachedNetworkImage agar dari cache
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border:
-                              Border.all(color: Colors.white, width: 2.5),
+                          border: Border.all(color: Colors.white, width: 2.5),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withOpacity(0.2),
@@ -159,27 +362,24 @@ class ActivityLogDialog extends StatelessWidget {
                         child: CircleAvatar(
                           radius: 28,
                           backgroundColor: Colors.white.withOpacity(0.3),
-                          backgroundImage: userImage != null
-                              ? NetworkImage(userImage!)
+                          // ✅ Gunakan NetworkImage biasa — gambar sudah di cache
+                          // oleh precacheImage yang dipanggil sebelum navigasi
+                          backgroundImage: widget.userImage != null
+                              ? NetworkImage(widget.userImage!)
                               : null,
-                          child: userImage == null
-                              ? const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 30,
-                                )
+                          child: widget.userImage == null
+                              ? const Icon(Icons.person,
+                                  color: Colors.white, size: 30)
                               : null,
                         ),
                       ),
                       const SizedBox(width: 14),
-
-                      // Nama + Jabatan
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              userName,
+                              widget.userName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: GoogleFonts.poppins(
@@ -197,7 +397,7 @@ class ActivityLogDialog extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                userRole,
+                                widget.userRole,
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
@@ -209,8 +409,6 @@ class ActivityLogDialog extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-
-                      // Poin Badge
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 10),
@@ -224,14 +422,11 @@ class ActivityLogDialog extends StatelessWidget {
                         ),
                         child: Column(
                           children: [
-                            Icon(
-                              Icons.local_fire_department_rounded,
-                              color: fireColor,
-                              size: 22,
-                            ),
+                            Icon(Icons.local_fire_department_rounded,
+                                color: fireColor, size: 22),
                             const SizedBox(height: 2),
                             Text(
-                              '$userPoin',
+                              '${widget.userPoin}',
                               style: GoogleFonts.poppins(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w900,
@@ -252,15 +447,10 @@ class ActivityLogDialog extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-
-                  // Judul
                   Row(
                     children: [
-                      const Icon(
-                        Icons.history_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
+                      const Icon(Icons.history_rounded,
+                          color: Colors.white, size: 18),
                       const SizedBox(width: 6),
                       Text(
                         _getTxt('title'),
@@ -285,211 +475,7 @@ class ActivityLogDialog extends StatelessWidget {
             ),
 
             // ── DAFTAR LOG ──
-            SizedBox(
-              height: 340,
-              child: userId == null
-                  ? Center(child: Text(_getTxt('empty')))
-                  : FutureBuilder<List<dynamic>>(
-                      future: Supabase.instance.client
-                          .from('log_poin')
-                          .select(
-                              'poin, deskripsi, tipe_aktivitas, created_at')
-                          .eq('id_user', userId)
-                          .order('created_at', ascending: false)
-                          .limit(25),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Shimmer.fromColors(
-                            baseColor: Colors.grey.shade200,
-                            highlightColor: Colors.grey.shade50,
-                            child: ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                              itemCount: 6,
-                              itemBuilder: (_, __) => Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 9),
-                                child: Row(
-                                  children: [
-                                    // Ikon bulat placeholder
-                                    Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    // Teks placeholder
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Container(
-                                            height: 12,
-                                            width: double.infinity,
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Container(
-                                            height: 10,
-                                            width: 100,
-                                            decoration: BoxDecoration(
-                                              color: Colors.white,
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    // Badge poin placeholder
-                                    Container(
-                                      width: 48,
-                                      height: 28,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                        if (!snapshot.hasData ||
-                            snapshot.data!.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.inbox_rounded,
-                                    size: 48,
-                                    color: Colors.grey.shade300),
-                                const SizedBox(height: 10),
-                                Text(
-                                  _getTxt('empty'),
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.grey,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        final logs = snapshot.data!;
-                        return ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: logs.length,
-                          separatorBuilder: (_, __) => Divider(
-                            height: 1,
-                            color: Colors.grey.shade100,
-                            indent: 52,
-                          ),
-                          itemBuilder: (context, index) {
-                            final log = logs[index];
-                            final int poin =
-                                (log['poin'] as num).toInt();
-                            final bool isPositive = poin >= 0;
-                            final String tipe =
-                                (log['tipe_aktivitas'] ?? '').toString();
-                            final String desc =
-                                (log['deskripsi'] ?? '').toString();
-                            final String dateStr =
-                                _formatDate(log['created_at']);
-
-                            final IconData icon =
-                                _getTipeIcon(tipe, isPositive);
-                            final Color iconColor =
-                                _getTipeColor(tipe, isPositive);
-
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 9),
-                              child: Row(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.center,
-                                children: [
-                                  // Ikon bulat
-                                  Container(
-                                    width: 36,
-                                    height: 36,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color:
-                                          iconColor.withOpacity(0.1),
-                                    ),
-                                    child: Icon(icon,
-                                        color: iconColor, size: 18),
-                                  ),
-                                  const SizedBox(width: 12),
-
-                                  // Deskripsi + Tanggal
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          desc,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w600,
-                                            color:
-                                                const Color(0xFF1E293B),
-                                            height: 1.4,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          dateStr,
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 10.5,
-                                            color: Colors.grey.shade400,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-
-                                  // Badge Poin
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 5),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          iconColor.withOpacity(0.1),
-                                      borderRadius:
-                                          BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      isPositive
-                                          ? '+$poin'
-                                          : '$poin',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w800,
-                                        color: iconColor,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-            ),
+            SizedBox(height: 340, child: _buildLogList()),
 
             // ── FOOTER ──
             Container(
@@ -498,11 +484,9 @@ class ActivityLogDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(28),
-                ),
+                    bottom: Radius.circular(28)),
                 border: Border(
-                  top: BorderSide(color: Colors.grey.shade100, width: 1),
-                ),
+                    top: BorderSide(color: Colors.grey.shade100, width: 1)),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -520,9 +504,7 @@ class ActivityLogDialog extends StatelessWidget {
                   child: Text(
                     _getTxt('close'),
                     style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
+                        fontWeight: FontWeight.w700, fontSize: 14),
                   ),
                 ),
               ),

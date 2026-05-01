@@ -5,7 +5,7 @@ import 'dart:ui';
 import 'dart:async';
 import '../../core/services/auth_service.dart';
 import '../user/home/home_screen.dart';
-import '../verificator/home/verificator_home_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -210,6 +210,13 @@ class _LoginScreenState extends State<LoginScreen>
               }
 
               if (mounted) {
+                final String? googleImg = userData['gambar_user'];
+                if (mounted && googleImg != null && googleImg.isNotEmpty) {
+                  await precacheImage(
+                    CachedNetworkImageProvider(googleImg),
+                    context,
+                  );
+                }
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -462,6 +469,53 @@ class _LoginScreenState extends State<LoginScreen>
           }
 
           if (mounted) {
+            // Precache gambar user DAN logo header secara paralel
+            final List<Future> precacheTasks = [
+              precacheImage(const AssetImage('assets/images/logo1.png'), context)
+                  .catchError((_) {}),
+            ];
+            final String? imageToPreload = userData['gambar_user'];
+            if (imageToPreload != null && imageToPreload.isNotEmpty) {
+              precacheTasks.add(
+                precacheImage(CachedNetworkImageProvider(imageToPreload), context)
+                    .catchError((_) {}),
+              );
+            }
+            await Future.wait(precacheTasks);
+
+            // Fetch notif count & monthly poin PARALEL sebelum push
+            int initialNotifCount = 0;
+            int initialMonthlyPoin = 0;
+            try {
+              final now = DateTime.now();
+              final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+              final startOfNextMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
+
+              final preloadResults = await Future.wait([
+                // Notif count
+                Supabase.instance.client
+                    .from('temuan')
+                    .count(CountOption.exact)
+                    .eq('id_penanggung_jawab', userId)
+                    .neq('status_temuan', 'Selesai'),
+                // Monthly poin dari log_poin
+                Supabase.instance.client
+                    .from('log_poin')
+                    .select('poin')
+                    .eq('id_user', userId)
+                    .gte('created_at', startOfMonth)
+                    .lt('created_at', startOfNextMonth),
+              ]);
+
+              initialNotifCount = preloadResults[0] as int;
+              final logList = preloadResults[1] as List<dynamic>;
+              int total = 0;
+              for (final log in logList) {
+                total += ((log['poin'] as num?)?.toInt() ?? 0);
+              }
+              initialMonthlyPoin = total;
+            } catch (_) {}
+
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -474,6 +528,8 @@ class _LoginScreenState extends State<LoginScreen>
                   initialLatestLog: latestLog,
                   initialUserJabatanId: idJabatan,
                   initialIsVerificator: canShowVerifButton,
+                  initialNotifCount: initialNotifCount,     // ← TAMBAH INI
+                  initialMonthlyPoin: initialMonthlyPoin,   // ← TAMBAH INI
                 ),
               ),
             );

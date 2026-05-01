@@ -27,8 +27,10 @@ class HomeScreen extends StatefulWidget {
   final String? initialUserRole;
   final String? initialUserLocation;
   final Map<String, dynamic>? initialLatestLog;
-  final int? initialUserJabatanId;       // ← TAMBAH INI
+  final int? initialUserJabatanId;
   final bool? initialIsVerificator;
+  final int? initialNotifCount;
+  final int? initialMonthlyPoin; 
 
   const HomeScreen({
     super.key,
@@ -40,6 +42,8 @@ class HomeScreen extends StatefulWidget {
     this.initialLatestLog,
     this.initialUserJabatanId,
     this.initialIsVerificator,
+    this.initialNotifCount,
+    this.initialMonthlyPoin,
   });
 
   @override
@@ -67,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _userLokasiId;
 
   int _notificationCount = 0;
+  int? _initialMonthlyPoin;  
   DateTime? _lastDialogTime;
   
   Map<String, dynamic>? _latestLogPoin;
@@ -286,6 +291,16 @@ class _HomeScreenState extends State<HomeScreen> {
       _userPoin = widget.initialUserPoin ?? 0;
       _displayedPoin = widget.initialUserPoin ?? 0;
       _userImage = widget.initialUserImage;
+      if (widget.initialUserImage != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && widget.initialUserImage != null) {
+            precacheImage(
+              CachedNetworkImageProvider(widget.initialUserImage!),
+              context,
+            );
+          }
+        });
+      }
       final bool initIsVerif = widget.initialIsVerificator == true;
       final bool isActualVerificator = initIsVerif &&
           (widget.initialUserRole?.toLowerCase().contains('verif') == true ||
@@ -317,6 +332,14 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       if (widget.initialIsVerificator != null) {
         _isExecutiveVerificator = widget.initialIsVerificator == true;
+      }
+
+      // Set notif count & monthly poin langsung tanpa menunggu fetch
+      if (widget.initialNotifCount != null) {
+        _notificationCount = widget.initialNotifCount!;
+      }
+      if (widget.initialMonthlyPoin != null) {
+        _initialMonthlyPoin = widget.initialMonthlyPoin!;
       }
     }
 
@@ -1165,7 +1188,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                     initialIsVisitor: _isVisitorMode,
                                     initialUserJabatanId: _userJabatanId,
                                     initialUserLocation: _userLocationName,
-                                    initialIsVerificator: _isExecutiveVerificator,
+                                    // Kirim is_verificator MURNI, bukan gabungan dengan jabatan eksekutif
+                                    // _isExecutiveVerificator = true juga untuk jabatan 1 & 5 (bukan verificator)
+                                    // Gunakan pengecekan dari _userRole yang sudah tepat
+                                    initialIsVerificator: _userRole.toLowerCase().contains('verif') || 
+                                                          _userRole.toLowerCase().contains('verificat') ||
+                                                          _userRole == '验证者',
                                   ),
                                   transitionsBuilder: (_, animation, __, child) {
                                     final slide = Tween<Offset>(
@@ -1472,6 +1500,7 @@ class _HomeScreenState extends State<HomeScreen> {
         lang: _lang,
         isVerificator: _userRole.toLowerCase().contains('verif'),
         userJabatanId: _userJabatanId,
+        initialMonthlyPoin: _initialMonthlyPoin,
         onViewMoreTap: () => _showActivityLogDialog(context),
       ),
     );

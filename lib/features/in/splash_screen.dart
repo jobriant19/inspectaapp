@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:inspectaapp/features/verificator/home/verificator_home_screen.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../user/home/home_screen.dart';
@@ -89,6 +89,60 @@ class _SplashScreenState extends State<SplashScreen> {
         final userRole  = userData['jabatan']?['nama_jabatan'] as String?;
         final metaName  = session.user.userMetadata?['full_name'] ?? session.user.userMetadata?['name'];
         final metaImage = session.user.userMetadata?['avatar_url'] ?? session.user.userMetadata?['picture'];
+        final String? imageToUse = (userImage != null && userImage.isNotEmpty) 
+          ? userImage 
+          : metaImage;
+
+        // Precache gambar user DAN logo header secara paralel
+        if (mounted) {
+          final List<Future> precacheTasks = [];
+          if (imageToUse != null) {
+            precacheTasks.add(
+              precacheImage(CachedNetworkImageProvider(imageToUse), context)
+                  .catchError((_) {}),
+            );
+          }
+          precacheTasks.add(
+            precacheImage(const AssetImage('assets/images/logo1.png'), context)
+                .catchError((_) {}),
+          );
+          await Future.wait(precacheTasks);
+        }
+
+        if (!mounted) return;
+
+        // Fetch notif count & monthly poin PARALEL sebelum push
+        int initialNotifCount = 0;
+        int initialMonthlyPoin = 0;
+        try {
+          final now = DateTime.now();
+          final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+          final startOfNextMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
+
+          final preloadResults = await Future.wait([
+            // Notif count
+            Supabase.instance.client
+                .from('temuan')
+                .count(CountOption.exact)
+                .eq('id_penanggung_jawab', session.user.id)
+                .neq('status_temuan', 'Selesai'),
+            // Monthly poin dari log_poin bulan ini
+            Supabase.instance.client
+                .from('log_poin')
+                .select('poin')
+                .eq('id_user', session.user.id)
+                .gte('created_at', startOfMonth)
+                .lt('created_at', startOfNextMonth),
+          ]);
+
+          initialNotifCount = preloadResults[0] as int;
+          final logList = preloadResults[1] as List<dynamic>;
+          int total = 0;
+          for (final log in logList) {
+            total += ((log['poin'] as num?)?.toInt() ?? 0);
+          }
+          initialMonthlyPoin = total;
+        } catch (_) {}
 
         if (!mounted) return;
 
@@ -96,12 +150,14 @@ class _SplashScreenState extends State<SplashScreen> {
           MaterialPageRoute(builder: (_) => HomeScreen(
             initialUserName: userName ?? metaName,
             initialUserPoin: userPoin,
-            initialUserImage: userImage ?? metaImage,
+            initialUserImage: imageToUse,
             initialUserRole: userRole,
             initialUserLocation: locationName,
             initialLatestLog: latestLog,
             initialUserJabatanId: userData['id_jabatan'] as int?,
-            initialIsVerificator: isVerificator, 
+            initialIsVerificator: isVerificator,
+            initialNotifCount: initialNotifCount,     // ← TAMBAH INI
+            initialMonthlyPoin: initialMonthlyPoin,   // ← TAMBAH INI
           )));
       } catch (e) {
         debugPrint("Error cek verifikator di splash: $e");
