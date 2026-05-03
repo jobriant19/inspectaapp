@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../admin/admin_home_screen.dart';
 import '../user/home/home_screen.dart';
 import '../auth/login_screen.dart';
 import 'onboarding_screen.dart';
@@ -146,19 +147,37 @@ class _SplashScreenState extends State<SplashScreen> {
 
         if (!mounted) return;
 
-        Navigator.pushReplacement(context,
-          MaterialPageRoute(builder: (_) => HomeScreen(
-            initialUserName: userName ?? metaName,
-            initialUserPoin: userPoin,
-            initialUserImage: imageToUse,
-            initialUserRole: userRole,
-            initialUserLocation: locationName,
-            initialLatestLog: latestLog,
-            initialUserJabatanId: userData['id_jabatan'] as int?,
-            initialIsVerificator: isVerificator,
-            initialNotifCount: initialNotifCount,     // ← TAMBAH INI
-            initialMonthlyPoin: initialMonthlyPoin,   // ← TAMBAH INI
-          )));
+        final bool isAdminSplash = (userData['id_jabatan'] as int?) == 6;
+
+        if (isAdminSplash) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AdminHomeScreen(
+                initialUserName: (userData['nama'] as String?) ?? metaName?.toString(),
+                initialUserImage: imageToUse,
+              ),
+            ),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HomeScreen(
+                initialUserName: userName ?? metaName,
+                initialUserPoin: userPoin,
+                initialUserImage: imageToUse,
+                initialUserRole: userRole,
+                initialUserLocation: locationName,
+                initialLatestLog: latestLog,
+                initialUserJabatanId: userData['id_jabatan'] as int?,
+                initialIsVerificator: isVerificator,
+                initialNotifCount: initialNotifCount,
+                initialMonthlyPoin: initialMonthlyPoin,
+              ),
+            ),
+          );
+        }
       } catch (e) {
         debugPrint("Error cek verifikator di splash: $e");
         // Jika gagal ambil data, arahkan ke login untuk keamanan

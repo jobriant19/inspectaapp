@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui';
 import 'dart:async';
 import '../../core/services/auth_service.dart';
+import '../admin/admin_home_screen.dart';
 import '../user/home/home_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -217,10 +218,23 @@ class _LoginScreenState extends State<LoginScreen>
                     context,
                   );
                 }
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const HomeScreen()),
-                );
+                final int? jabatanGoogle = userData['id_jabatan'] as int?;
+                if (jabatanGoogle == 6) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AdminHomeScreen(
+                        initialUserName: userData['nama'],
+                        initialUserImage: userData['gambar_user'],
+                      ),
+                    ),
+                  );
+                } else {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  );
+                }
               }
             }
           } catch (e) {
@@ -516,23 +530,37 @@ class _LoginScreenState extends State<LoginScreen>
               initialMonthlyPoin = total;
             } catch (_) {}
 
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HomeScreen(
-                  initialUserName: userData['nama'],
-                  initialUserPoin: userData['poin'],
-                  initialUserImage: userData['gambar_user'],
-                  initialUserRole: userData['jabatan']?['nama_jabatan'],
-                  initialUserLocation: locationName,
-                  initialLatestLog: latestLog,
-                  initialUserJabatanId: idJabatan,
-                  initialIsVerificator: canShowVerifButton,
-                  initialNotifCount: initialNotifCount,     // ← TAMBAH INI
-                  initialMonthlyPoin: initialMonthlyPoin,   // ← TAMBAH INI
+            final bool isAdmin = idJabatan == 6;
+
+            if (isAdmin) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AdminHomeScreen(
+                    initialUserName: userData['nama'],
+                    initialUserImage: userData['gambar_user'],
+                  ),
                 ),
-              ),
-            );
+              );
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => HomeScreen(
+                    initialUserName: userData['nama'],
+                    initialUserPoin: userData['poin'],
+                    initialUserImage: userData['gambar_user'],
+                    initialUserRole: userData['jabatan']?['nama_jabatan'],
+                    initialUserLocation: locationName,
+                    initialLatestLog: latestLog,
+                    initialUserJabatanId: idJabatan,
+                    initialIsVerificator: canShowVerifButton,
+                    initialNotifCount: initialNotifCount,
+                    initialMonthlyPoin: initialMonthlyPoin,
+                  ),
+                ),
+              );
+            }
           }
         } else {
           _showCustomDialog(getTxt('err_wrong'));
