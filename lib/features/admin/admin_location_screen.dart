@@ -66,18 +66,27 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
           labelColor: _primary,
           unselectedLabelColor: Colors.black38,
           indicatorWeight: 3,
+          isScrollable: true,          // ← TAMBAH INI agar tidak overflow
+          tabAlignment: TabAlignment.start, // ← rata kiri saat scrollable
           tabs: List.generate(
             4,
             (i) => Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(_tabIcons[i], size: 16),
-                  const SizedBox(width: 6),
-                  Text(tabLabels[i],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_tabIcons[i], size: 15),
+                    const SizedBox(width: 5),
+                    Text(
+                      tabLabels[i],
                       style: GoogleFonts.poppins(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                ],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -958,43 +967,50 @@ Widget _buildParentDropdown({
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(label,
-            style: GoogleFonts.poppins(
-                color: Colors.white60,
-                fontSize: 12,
-                fontWeight: FontWeight.w600)),
+      Text(
+        label,
+        style: GoogleFonts.poppins(
+          color: Colors.black54,       // ← TERBACA (bukan putih)
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
       ),
+      const SizedBox(height: 6),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF0F172A),
+          color: const Color(0xFFF8FAFC),   // ← PUTIH/CERAH
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white12),
+          border: Border.all(color: Colors.grey.shade200),
         ),
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             value: selectedId,
             isExpanded: true,
-            dropdownColor: const Color(0xFF1E293B),
-            hint: Text('Select $label',
-                style: GoogleFonts.poppins(
-                    color: Colors.white38, fontSize: 13)),
+            dropdownColor: Colors.white,    // ← PUTIH
+            icon: Icon(Icons.keyboard_arrow_down_rounded,
+                color: Colors.black45),
+            hint: Text(
+              'Select $label',
+              style: GoogleFonts.poppins(
+                  color: Colors.black38, fontSize: 13),
+            ),
             items: items.map((item) {
               return DropdownMenuItem<String>(
                 value: item[idKey]?.toString(),
                 child: Text(
                   item[nameKey] ?? '-',
                   style: GoogleFonts.poppins(
-                      color: Colors.white, fontSize: 13),
+                    color: const Color(0xFF1E3A8A), // ← TERBACA
+                    fontSize: 13,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               );
             }).toList(),
             onChanged: onChanged,
-            iconEnabledColor: Colors.white38,
           ),
         ),
       ),
@@ -1040,97 +1056,128 @@ class _AdminFormDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+      backgroundColor: Colors.white, // ← PUTIH
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24)),
+      insetPadding:
+          const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // ── Header ──
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(10),
+                    color: color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: color, size: 20),
+                  child: Icon(icon, color: color, size: 22),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(title,
-                      style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16)),
+                  child: Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      color: const Color(0xFF1E3A8A), // ← GELAP TERBACA
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.close,
+                        size: 18, color: Colors.grey.shade500),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            Divider(color: Colors.grey.shade100, thickness: 1.5),
+            const SizedBox(height: 16),
 
-            // Fields
+            // ── Fields ──
             ...fields.map((f) => Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Text(f.label,
-                          style: GoogleFonts.poppins(
-                              color: Colors.white60,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600)),
-                    ),
-                    TextField(
-                      controller: f.controller,
-                      maxLines: f.maxLines,
-                      style: GoogleFonts.poppins(color: Colors.white, fontSize: 14),
-                      decoration: InputDecoration(
-                        prefixIcon: f.maxLines == 1
-                            ? Icon(f.icon, color: Colors.white38, size: 18)
-                            : null,
-                        filled: true,
-                        fillColor: const Color(0xFF0F172A),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.white12),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: color, width: 1.5),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14, horizontal: 16),
+                    Text(
+                      f.label,
+                      style: GoogleFonts.poppins(
+                        color: Colors.black54, // ← TERBACA
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 6),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                            Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: TextField(
+                        controller: f.controller,
+                        maxLines: f.maxLines,
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFF1E3A8A), // ← TERBACA
+                          fontSize: 14,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: f.label,
+                          hintStyle: GoogleFonts.poppins(
+                              color: Colors.black26, fontSize: 13),
+                          prefixIcon: f.maxLines == 1
+                              ? Icon(f.icon,
+                                  color: Colors.black38, size: 18)
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 16),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                   ],
                 )),
 
-            // Extra widget (dropdown)
+            // ── Extra widget (dropdown parent) ──
             if (extraWidget != null) ...[
               extraWidget!,
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
             ],
 
-            // Buttons
+            // ── Buttons ──
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white24),
-                      foregroundColor: Colors.white54,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      foregroundColor: Colors.grey.shade600,
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: Text(lang == 'EN' ? 'Cancel' : 'Batal',
-                        style: GoogleFonts.poppins()),
+                    child: Text(
+                      lang == 'EN' ? 'Cancel' : 'Batal',
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1143,14 +1190,20 @@ class _AdminFormDialog extends StatelessWidget {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: color,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
+                      elevation: 2,
+                      shadowColor: color.withOpacity(0.3),
                     ),
-                    child: Text(lang == 'EN' ? 'Save' : 'Simpan',
-                        style: GoogleFonts.poppins(
-                            color: Colors.white, fontWeight: FontWeight.w600)),
+                    child: Text(
+                      lang == 'EN' ? 'Save' : 'Simpan',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ],
