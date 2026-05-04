@@ -40,8 +40,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         Supabase.instance.client
             .from('User')
             .select(
-              'id_user, nama, email, poin, gambar_user, is_visitor, '
-              'is_verificator, id_jabatan, jabatan(nama_jabatan), '
+              'id_user, nama, email, poin, gambar_user, is_visitor, phone, '
+              'is_verificator, id_jabatan, timestamp, log_login, first_login, '
+              'jabatan(nama_jabatan), '
               'lokasi!fk_user_lokasi(nama_lokasi)',
             )
             .order('nama'),
@@ -73,6 +74,438 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             return (u['nama'] ?? '').toLowerCase().contains(q) ||
                 (u['email'] ?? '').toLowerCase().contains(q);
           }).toList();
+  }
+
+  void _showUserDetail(Map<String, dynamic> user) {
+    final langCode = widget.lang;
+    final name = user['nama'] ?? '-';
+    final email = user['email'] ?? '-';
+    final phone = user['phone'] ?? '-';
+    final poin = user['poin'] ?? 0;
+    final jabatan = user['jabatan']?['nama_jabatan'] ?? '-';
+    final isVisitor = user['is_visitor'] == true;
+    final isVerif = user['is_verificator'] == true;
+    final avatarUrl = user['gambar_user'] as String?;
+    final idUser = user['id_user'] ?? '-';
+    final timestamp = user['timestamp'];
+    final logLogin = user['log_login'];
+    final firstLogin = user['first_login'];
+    final lokasiName = user['lokasi']?['nama_lokasi'] ?? '-';
+
+    String _formatDate(dynamic raw) {
+      if (raw == null) return '-';
+      try {
+        final dt = DateTime.parse(raw.toString()).toLocal();
+        return '${dt.day.toString().padLeft(2, '0')}/'
+            '${dt.month.toString().padLeft(2, '0')}/'
+            '${dt.year}  ${dt.hour.toString().padLeft(2, '0')}:'
+            '${dt.minute.toString().padLeft(2, '0')}';
+      } catch (_) {
+        return raw.toString();
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  children: [
+                    // ── Header avatar + nama ──
+                    Row(
+                      children: [
+                        Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 36,
+                              backgroundColor: _primary.withOpacity(0.12),
+                              backgroundImage: avatarUrl != null
+                                  ? CachedNetworkImageProvider(avatarUrl)
+                                  : null,
+                              child: avatarUrl == null
+                                  ? Text(
+                                      name.isNotEmpty
+                                          ? name[0].toUpperCase()
+                                          : '?',
+                                      style: GoogleFonts.poppins(
+                                        color: _primary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 26,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            // Badge poin
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFBBF24),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color: Colors.white, width: 2),
+                                ),
+                                child: Text(
+                                  '$poin',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: GoogleFonts.poppins(
+                                  color: const Color(0xFF1E3A8A),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 18,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                email,
+                                style: GoogleFonts.poppins(
+                                  color: Colors.black45,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  _buildDetailChip(
+                                      jabatan, _primary, Icons.work_outline),
+                                  if (isVisitor)
+                                    _buildDetailChip(
+                                      langCode == 'EN'
+                                          ? 'Visitor'
+                                          : langCode == 'ZH'
+                                              ? '访客'
+                                              : 'Pengunjung',
+                                      const Color(0xFF0891B2),
+                                      Icons.visibility_outlined,
+                                    ),
+                                  if (isVerif)
+                                    _buildDetailChip(
+                                      langCode == 'EN'
+                                          ? 'Verificator'
+                                          : langCode == 'ZH'
+                                              ? '验证员'
+                                              : 'Verifikator',
+                                      const Color(0xFFF59E0B),
+                                      Icons.verified_user_outlined,
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+                    Divider(color: Colors.grey.shade100, thickness: 1.5),
+                    const SizedBox(height: 16),
+
+                    // ── Info rows ──
+                    _buildDetailSection(
+                      langCode == 'EN'
+                          ? 'Personal Information'
+                          : langCode == 'ZH'
+                              ? '个人信息'
+                              : 'Informasi Pribadi',
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDetailRow(
+                      Icons.badge_outlined,
+                      langCode == 'EN'
+                          ? 'User ID'
+                          : langCode == 'ZH'
+                              ? '用户ID'
+                              : 'ID Pengguna',
+                      idUser.toString(),
+                      const Color(0xFF6366F1),
+                      small: true,
+                    ),
+                    _buildDetailRow(
+                      Icons.phone_outlined,
+                      langCode == 'EN'
+                          ? 'Phone'
+                          : langCode == 'ZH'
+                              ? '电话'
+                              : 'Telepon',
+                      phone == '-' || phone.toString().isEmpty ? '-' : phone.toString(),
+                      const Color(0xFF10B981),
+                    ),
+                    _buildDetailRow(
+                      Icons.location_on_outlined,
+                      langCode == 'EN'
+                          ? 'Location'
+                          : langCode == 'ZH'
+                              ? '位置'
+                              : 'Lokasi',
+                      lokasiName,
+                      const Color(0xFF0891B2),
+                    ),
+                    _buildDetailRow(
+                      Icons.star_outline_rounded,
+                      langCode == 'EN'
+                          ? 'Total Points'
+                          : langCode == 'ZH'
+                              ? '总积分'
+                              : 'Total Poin',
+                      '$poin pts',
+                      const Color(0xFFF59E0B),
+                    ),
+
+                    const SizedBox(height: 16),
+                    _buildDetailSection(
+                      langCode == 'EN'
+                          ? 'Activity'
+                          : langCode == 'ZH'
+                              ? '活动记录'
+                              : 'Aktivitas',
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDetailRow(
+                      Icons.calendar_today_outlined,
+                      langCode == 'EN'
+                          ? 'Registered'
+                          : langCode == 'ZH'
+                              ? '注册时间'
+                              : 'Terdaftar',
+                      _formatDate(timestamp),
+                      const Color(0xFF6366F1),
+                    ),
+                    _buildDetailRow(
+                      Icons.login_rounded,
+                      langCode == 'EN'
+                          ? 'First Login'
+                          : langCode == 'ZH'
+                              ? '首次登录'
+                              : 'Login Pertama',
+                      _formatDate(firstLogin),
+                      const Color(0xFF8B5CF6),
+                    ),
+                    _buildDetailRow(
+                      Icons.access_time_rounded,
+                      langCode == 'EN'
+                          ? 'Last Login'
+                          : langCode == 'ZH'
+                              ? '最后登录'
+                              : 'Login Terakhir',
+                      _formatDate(logLogin),
+                      const Color(0xFF10B981),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // ── Tombol Edit & Delete ──
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _showUserDialog(user: user);
+                            },
+                            icon: const Icon(Icons.edit_outlined, size: 16),
+                            label: Text(
+                              langCode == 'EN'
+                                  ? 'Edit'
+                                  : langCode == 'ZH'
+                                      ? '编辑'
+                                      : 'Edit',
+                              style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _primary,
+                              side: BorderSide(color: _primary),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              _deleteUser(user['id_user'], name);
+                            },
+                            icon: const Icon(Icons.delete_outline_rounded,
+                                size: 16, color: Colors.white),
+                            label: Text(
+                              langCode == 'EN'
+                                  ? 'Delete'
+                                  : langCode == 'ZH'
+                                      ? '删除'
+                                      : 'Hapus',
+                              style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFEF4444),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailSection(String title) {
+    return Row(
+      children: [
+        Container(
+          width: 3,
+          height: 16,
+          decoration: BoxDecoration(
+            color: _primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: GoogleFonts.poppins(
+            color: const Color(0xFF1E3A8A),
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(
+      IconData icon, String label, String value, Color color,
+      {bool small = false}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.15)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    color: Colors.black45,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    color: const Color(0xFF1E3A8A),
+                    fontSize: small ? 11 : 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailChip(String label, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ─── DIALOG: Tambah / Edit User ───
@@ -127,10 +560,14 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                         isEdit
                             ? (_langCode == 'EN'
                                 ? 'Edit User'
-                                : 'Edit Pengguna')
+                                : _langCode == 'ZH'
+                                    ? '编辑用户'
+                                    : 'Edit Pengguna')
                             : (_langCode == 'EN'
                                 ? 'Add New User'
-                                : 'Tambah Pengguna Baru'),
+                                : _langCode == 'ZH'
+                                    ? '添加新用户'
+                                    : 'Tambah Pengguna Baru'),
                         style: GoogleFonts.poppins(
                           color: const Color(0xFF1E3A8A),
                           fontWeight: FontWeight.w700,
@@ -159,7 +596,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
 
                 // ── Nama ──
                 _buildDlgLabel(
-                    _langCode == 'EN' ? 'Full Name' : 'Nama Lengkap'),
+                    _langCode == 'EN' ? 'Full Name' : _langCode == 'ZH' ? '姓名' : 'Nama Lengkap'),
                 const SizedBox(height: 6),
                 _buildDlgTextField(
                   namaCtrl,
@@ -185,14 +622,16 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 // ── Password (hanya saat tambah) ──
                 if (!isEdit) ...[
                   _buildDlgLabel(
-                      _langCode == 'EN' ? 'Password' : 'Kata Sandi'),
+                      _langCode == 'EN' ? 'Password' : _langCode == 'ZH' ? '密码' : 'Kata Sandi'),
                   const SizedBox(height: 6),
                   _buildDlgTextField(
                     passCtrl,
                     Icons.lock_outline,
                     _langCode == 'EN'
                         ? 'Min 6 characters'
-                        : 'Minimal 6 karakter',
+                        : _langCode == 'ZH'
+                            ? '最少6个字符'
+                            : 'Minimal 6 karakter',
                     obscure: true,
                   ),
                   const SizedBox(height: 16),
@@ -200,7 +639,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
 
                 // ── Jabatan Dropdown ──
                 _buildDlgLabel(
-                    _langCode == 'EN' ? 'Job Title' : 'Jabatan'),
+                    _langCode == 'EN' ? 'Job Title' : _langCode == 'ZH' ? '职位' : 'Jabatan'),
                 const SizedBox(height: 6),
                 _buildJabatanDropdown(
                   selectedJabatan: selectedJabatan,
@@ -217,7 +656,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 _buildToggleRow(
                   _langCode == 'EN'
                       ? 'Visitor Mode'
-                      : 'Mode Pengunjung',
+                      : _langCode == 'ZH'
+                          ? '访客模式'
+                          : 'Mode Pengunjung',
                   Icons.visibility_outlined,
                   isVisitor,
                   (v) => setDlg(() => isVisitor = v),
@@ -227,7 +668,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
 
                 // ── Toggle Verificator ──
                 _buildToggleRow(
-                  _langCode == 'EN' ? 'Verificator' : 'Verifikator',
+                  _langCode == 'EN' ? 'Verificator' : _langCode == 'ZH' ? '验证员' : 'Verifikator',
                   Icons.verified_user_outlined,
                   isVerificator,
                   (v) => setDlg(() => isVerificator = v),
@@ -263,7 +704,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                           child: Text(
                               _langCode == 'EN'
                                   ? 'Cancel'
-                                  : 'Batal',
+                                  : _langCode == 'ZH'
+                                        ? '取消'
+                                        : 'Batal',
                               style: GoogleFonts.poppins(
                                   fontWeight: FontWeight.w600)),
                         ),
@@ -313,10 +756,14 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                 isEdit
                                     ? (_langCode == 'EN'
                                         ? 'Update'
-                                        : 'Perbarui')
+                                        : _langCode == 'ZH'
+                                            ? '更新'
+                                            : 'Perbarui')
                                     : (_langCode == 'EN'
                                         ? 'Save & Register'
-                                        : 'Simpan & Daftar'),
+                                        : _langCode == 'ZH'
+                                            ? '保存并注册'
+                                            : 'Simpan & Daftar'),
                                 style: GoogleFonts.poppins(
                                     color: Colors.white,
                                     fontWeight:
@@ -350,7 +797,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       _showSnack(
           _langCode == 'EN'
               ? 'Name and email are required!'
-              : 'Nama dan email wajib diisi!',
+              : _langCode == 'ZH'
+                  ? '姓名和邮箱为必填项！'
+                  : 'Nama dan email wajib diisi!',
           isError: true);
       return;
     }
@@ -367,14 +816,18 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
 
         _showSnack(_langCode == 'EN'
             ? 'User updated successfully!'
-            : 'Pengguna berhasil diperbarui!');
+            : _langCode == 'ZH'
+                ? '用户更新成功！'
+                : 'Pengguna berhasil diperbarui!');
       } else {
         // ── Registrasi user baru (sama persis seperti login_screen.dart) ──
         if (pass.isEmpty) {
           _showSnack(
               _langCode == 'EN'
                   ? 'Password is required!'
-                  : 'Password wajib diisi!',
+                  : _langCode == 'ZH'
+                      ? '密码为必填项！'
+                      : 'Password wajib diisi!',
               isError: true);
           return;
         }
@@ -382,7 +835,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           _showSnack(
               _langCode == 'EN'
                   ? 'Password must be at least 6 characters'
-                  : 'Password minimal 6 karakter',
+                  : _langCode == 'ZH'
+                      ? '密码至少需要6个字符'
+                      : 'Password minimal 6 karakter',
               isError: true);
           return;
         }
@@ -399,7 +854,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           _showSnack(
               _langCode == 'EN'
                   ? 'Registration failed. Please try again.'
-                  : 'Pendaftaran gagal. Silakan coba lagi.',
+                  : _langCode == 'ZH'
+                      ? '注册失败，请重试。'
+                      : 'Pendaftaran gagal. Silakan coba lagi.',
               isError: true);
           return;
         }
@@ -419,7 +876,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
 
         _showSnack(_langCode == 'EN'
             ? 'User registered successfully!'
-            : 'Pengguna berhasil didaftarkan!');
+            : _langCode == 'ZH'
+                ? '用户注册成功！'
+                : 'Pengguna berhasil didaftarkan!');
       }
 
       _loadData();
@@ -440,7 +899,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           .eq('id_user', userId);
       _showSnack(_langCode == 'EN'
           ? 'User deleted.'
-          : 'Pengguna dihapus.');
+          : _langCode == 'ZH'
+              ? '用户已删除。'
+              : 'Pengguna dihapus.');
       _loadData();
     } catch (e) {
       _showSnack('Error: $e', isError: true);
@@ -459,7 +920,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         title: Text(
           _langCode == 'EN'
               ? 'User Management'
-              : 'Kelola Pengguna',
+              : _langCode == 'ZH'
+                  ? '用户管理'
+                  : 'Kelola Pengguna',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 16,
@@ -489,7 +952,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         icon: const Icon(Icons.person_add_rounded,
             color: Colors.white),
         label: Text(
-          _langCode == 'EN' ? 'Add User' : 'Tambah',
+          _langCode == 'EN' ? 'Add User' : _langCode == 'ZH' ? '添加用户' : 'Tambah',
           style: GoogleFonts.poppins(
               color: Colors.white, fontWeight: FontWeight.w600),
         ),
@@ -555,7 +1018,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         decoration: InputDecoration(
           hintText: _langCode == 'EN'
               ? 'Search by name or email...'
-              : 'Cari nama atau email...',
+              : _langCode == 'ZH'
+                  ? '按姓名或邮箱搜索...'
+                  : 'Cari nama atau email...',
           hintStyle: GoogleFonts.poppins(
               color: Colors.black38, fontSize: 13),
           prefixIcon: const Icon(Icons.search,
@@ -585,9 +1050,11 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     if (idJabatan == 3) roleColor = const Color(0xFF0891B2); // Kasie
     if (idJabatan == 6) roleColor = const Color(0xFF059669); // Admin
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
+    return GestureDetector(
+      onTap: () => _showUserDetail(user),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.black.withOpacity(0.06)),
@@ -682,7 +1149,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                       _buildChip(
                         _langCode == 'EN'
                             ? 'Visitor'
-                            : 'Pengunjung',
+                            : _langCode == 'ZH'
+                                ? '访客'
+                                : 'Pengunjung',
                         const Color(0xFF0891B2),
                         Icons.visibility_outlined,
                       ),
@@ -690,7 +1159,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                       _buildChip(
                         _langCode == 'EN'
                             ? 'Verificator'
-                            : 'Verifikator',
+                            : _langCode == 'ZH'
+                                ? '验证员'
+                                : 'Verifikator',
                         const Color(0xFFF59E0B),
                         Icons.verified_user_outlined,
                       ),
@@ -718,7 +1189,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildChip(String label, Color color, IconData icon) {
@@ -782,7 +1253,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           Text(
             _langCode == 'EN'
                 ? 'No users found'
-                : 'Tidak ada pengguna',
+                : _langCode == 'ZH'
+                    ? '未找到用户'
+                    : 'Tidak ada pengguna',
             style: GoogleFonts.poppins(
               color: Colors.black38,
               fontSize: 14,
@@ -878,7 +1351,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           hint: Text(
             _langCode == 'EN'
                 ? 'Select job title'
-                : 'Pilih jabatan',
+                : _langCode == 'ZH'
+                    ? '请选择职位'
+                    : 'Pilih jabatan',
             style: GoogleFonts.poppins(
                 color: Colors.black38, fontSize: 13),
           ),
@@ -970,13 +1445,15 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             title: Text(
               _langCode == 'EN'
                   ? 'Delete User?'
-                  : 'Hapus Pengguna?',
+                  : _langCode == 'ZH'
+                      ? '删除用户？'
+                      : 'Hapus Pengguna?',
               style: GoogleFonts.poppins(
                   color: const Color(0xFF1E3A8A),
                   fontWeight: FontWeight.bold),
             ),
             content: Text(
-              '${_langCode == 'EN' ? 'Are you sure to delete' : 'Yakin menghapus'} "$name"?',
+              '${_langCode == 'EN' ? 'Are you sure to delete' : _langCode == 'ZH' ? '确定要删除' : 'Yakin menghapus'} "$name"?',
               style: GoogleFonts.poppins(
                   color: Colors.black54, fontSize: 13),
             ),
@@ -984,7 +1461,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: Text(
-                    _langCode == 'EN' ? 'Cancel' : 'Batal',
+                    _langCode == 'EN' ? 'Cancel' : _langCode == 'ZH' ? '取消' : 'Batal',
                     style: TextStyle(color: Colors.grey.shade500)),
               ),
               ElevatedButton(
@@ -995,7 +1472,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                       borderRadius: BorderRadius.circular(10)),
                 ),
                 child: Text(
-                    _langCode == 'EN' ? 'Delete' : 'Hapus',
+                    _langCode == 'EN' ? 'Delete' : _langCode == 'ZH' ? '删除' : 'Hapus',
                     style: const TextStyle(color: Colors.white)),
               ),
             ],

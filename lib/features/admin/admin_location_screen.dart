@@ -47,7 +47,9 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
   Widget build(BuildContext context) {
     final tabLabels = _lang == 'EN'
         ? ['Location', 'Unit', 'Sub-Unit', 'Area']
-        : ['Lokasi', 'Unit', 'Sub-Unit', 'Area'];
+        : _lang == 'ZH'
+            ? ['位置', '单位', '子单位', '区域']
+            : ['Lokasi', 'Unit', 'Sub-Unit', 'Area'];
 
     return Scaffold(
       backgroundColor: _bg,
@@ -57,7 +59,7 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
         elevation: 0,
         shadowColor: Colors.black.withOpacity(0.08),
         title: Text(
-          _lang == 'EN' ? 'Location Management' : 'Kelola Lokasi',
+          _lang == 'EN' ? 'Location Management' : _lang == 'ZH' ? '位置管理' : 'Kelola Lokasi',
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: const Color(0xFF1E3A8A)),
         ),
         bottom: TabBar(
@@ -136,9 +138,9 @@ class _LokasiTabState extends State<_LokasiTab> {
     setState(() => _isLoading = true);
     try {
       final res = await Supabase.instance.client
-          .from('lokasi')
-          .select('id_lokasi, nama_lokasi, deskripsi_lokasi, is_star')
-          .order('nama_lokasi');
+        .from('lokasi')
+        .select('id_lokasi, nama_lokasi, deskripsi_lokasi, is_star, gambar_lokasi, kategori, qrcode, id_pic, User!fk_lokasi_pic(nama)')
+        .order('nama_lokasi');
       if (mounted) {
         setState(() {
           _data = List<Map<String, dynamic>>.from(res);
@@ -169,18 +171,18 @@ class _LokasiTabState extends State<_LokasiTab> {
       context: context,
       builder: (ctx) => _AdminFormDialog(
         title: isEdit
-            ? (widget.lang == 'EN' ? 'Edit Location' : 'Edit Lokasi')
-            : (widget.lang == 'EN' ? 'Add Location' : 'Tambah Lokasi'),
+            ? (widget.lang == 'EN' ? 'Edit Location' : widget.lang == 'ZH' ? '编辑位置' : 'Edit Lokasi')
+            : (widget.lang == 'EN' ? 'Add Location' : widget.lang == 'ZH' ? '添加位置' : 'Tambah Lokasi'),
         icon: Icons.location_city_rounded,
         color: _primary,
         fields: [
           _FormField(
-            label: widget.lang == 'EN' ? 'Location Name' : 'Nama Lokasi',
+            label: widget.lang == 'EN' ? 'Location Name' : widget.lang == 'ZH' ? '位置名称' : 'Nama Lokasi',
             controller: namaCtrl,
             icon: Icons.location_city_rounded,
           ),
           _FormField(
-            label: widget.lang == 'EN' ? 'Description' : 'Deskripsi',
+            label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
             controller: descCtrl,
             icon: Icons.notes_rounded,
             maxLines: 3,
@@ -235,6 +237,18 @@ class _LokasiTabState extends State<_LokasiTab> {
       onEdit: (item) => _showDialog(item: item),
       onDelete: (item) => _delete(item['id_lokasi'], item['nama_lokasi'] ?? ''),
       onRefresh: _load,
+      onTapDetail: (item) => _showLocationDetailSheet(
+        context: context,
+        item: item,
+        lang: widget.lang,
+        primaryColor: _primary,
+        icon: Icons.location_city_rounded,
+        nameKey: 'lokasi',
+        nameFn: (item) => item['nama_lokasi'] ?? '',
+        subtitleFn: (item) => item['deskripsi_lokasi'] ?? '-',
+        onEdit: (item) => _showDialog(item: item),
+        onDelete: (item) => _delete(item['id_lokasi'], item['nama_lokasi'] ?? ''),
+      ),
     );
   }
 }
@@ -271,7 +285,7 @@ class _UnitTabState extends State<_UnitTab> {
       final results = await Future.wait([
         Supabase.instance.client
             .from('unit')
-            .select('id_unit, nama_unit, deskripsi_unit, id_lokasi, lokasi(nama_lokasi)')
+            .select('id_unit, nama_unit, deskripsi_unit, is_star, gambar_unit, kategori, qrcode, id_lokasi, id_pic, lokasi(nama_lokasi), User!fk_unit_pic(nama)')
             .order('nama_unit'),
         Supabase.instance.client
             .from('lokasi')
@@ -311,26 +325,26 @@ class _UnitTabState extends State<_UnitTab> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => _AdminFormDialog(
           title: isEdit
-              ? (widget.lang == 'EN' ? 'Edit Unit' : 'Edit Unit')
-              : (widget.lang == 'EN' ? 'Add Unit' : 'Tambah Unit'),
+              ? (widget.lang == 'EN' ? 'Edit Unit' : widget.lang == 'ZH' ? '编辑单位' : 'Edit Unit')
+              : (widget.lang == 'EN' ? 'Add Unit' : widget.lang == 'ZH' ? '添加单位' : 'Tambah Unit'),
           icon: Icons.business_rounded,
           color: _primary,
           lang: widget.lang,
           fields: [
             _FormField(
-              label: widget.lang == 'EN' ? 'Unit Name' : 'Nama Unit',
+              label: widget.lang == 'EN' ? 'Unit Name' : widget.lang == 'ZH' ? '单位名称' : 'Nama Unit',
               controller: namaCtrl,
               icon: Icons.business_rounded,
             ),
             _FormField(
-              label: widget.lang == 'EN' ? 'Description' : 'Deskripsi',
+              label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
               controller: descCtrl,
               icon: Icons.notes_rounded,
               maxLines: 3,
             ),
           ],
           extraWidget: _buildParentDropdown(
-            label: widget.lang == 'EN' ? 'Location' : 'Lokasi',
+            label: widget.lang == 'EN' ? 'Location' : widget.lang == 'ZH' ? '位置' : 'Lokasi',
             items: _lokasiList,
             idKey: 'id_lokasi',
             nameKey: 'nama_lokasi',
@@ -386,6 +400,18 @@ class _UnitTabState extends State<_UnitTab> {
       onEdit: (item) => _showDialog(item: item),
       onDelete: (item) => _delete(item['id_unit'], item['nama_unit'] ?? ''),
       onRefresh: _load,
+      onTapDetail: (item) => _showLocationDetailSheet(
+        context: context,
+        item: item,
+        lang: widget.lang,
+        primaryColor: _primary,
+        icon: Icons.business_rounded,
+        nameKey: 'unit',
+        nameFn: (item) => item['nama_unit'] ?? '',
+        subtitleFn: (item) => item['lokasi']?['nama_lokasi'] ?? '-',
+        onEdit: (item) => _showDialog(item: item),
+        onDelete: (item) => _delete(item['id_unit'], item['nama_unit'] ?? ''),
+      ),
     );
   }
 }
@@ -422,7 +448,7 @@ class _SubunitTabState extends State<_SubunitTab> {
       final results = await Future.wait([
         Supabase.instance.client
             .from('subunit')
-            .select('id_subunit, nama_subunit, deskripsi_subunit, id_unit, unit(nama_unit)')
+            .select('id_subunit, nama_subunit, deskripsi_subunit, is_star, gambar_subunit, kategori, qrcode, id_unit, id_lokasi, id_pic, unit(nama_unit), lokasi(nama_lokasi), User!fk_subunit_pic(nama)')
             .order('nama_subunit'),
         Supabase.instance.client
             .from('unit')
@@ -462,19 +488,19 @@ class _SubunitTabState extends State<_SubunitTab> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => _AdminFormDialog(
           title: isEdit
-              ? (widget.lang == 'EN' ? 'Edit Sub-Unit' : 'Edit Sub-Unit')
-              : (widget.lang == 'EN' ? 'Add Sub-Unit' : 'Tambah Sub-Unit'),
+              ? (widget.lang == 'EN' ? 'Edit Sub-Unit' : widget.lang == 'ZH' ? '编辑子单位' : 'Edit Sub-Unit')
+              : (widget.lang == 'EN' ? 'Add Sub-Unit' : widget.lang == 'ZH' ? '添加子单位' : 'Tambah Sub-Unit'),
           icon: Icons.layers_rounded,
           color: _primary,
           lang: widget.lang,
           fields: [
             _FormField(
-              label: widget.lang == 'EN' ? 'Sub-Unit Name' : 'Nama Sub-Unit',
+              label: widget.lang == 'EN' ? 'Sub-Unit Name' : widget.lang == 'ZH' ? '子单位名称' : 'Nama Sub-Unit',
               controller: namaCtrl,
               icon: Icons.layers_rounded,
             ),
             _FormField(
-              label: widget.lang == 'EN' ? 'Description' : 'Deskripsi',
+              label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
               controller: descCtrl,
               icon: Icons.notes_rounded,
               maxLines: 3,
@@ -542,6 +568,18 @@ class _SubunitTabState extends State<_SubunitTab> {
       onEdit: (item) => _showDialog(item: item),
       onDelete: (item) => _delete(item['id_subunit'], item['nama_subunit'] ?? ''),
       onRefresh: _load,
+      onTapDetail: (item) => _showLocationDetailSheet(
+        context: context,
+        item: item,
+        lang: widget.lang,
+        primaryColor: _primary,
+        icon: Icons.layers_rounded,
+        nameKey: 'subunit',
+        nameFn: (item) => item['nama_subunit'] ?? '',
+        subtitleFn: (item) => item['unit']?['nama_unit'] ?? '-',
+        onEdit: (item) => _showDialog(item: item),
+        onDelete: (item) => _delete(item['id_subunit'], item['nama_subunit'] ?? ''),
+      ),
     );
   }
 }
@@ -578,7 +616,7 @@ class _AreaTabState extends State<_AreaTab> {
       final results = await Future.wait([
         Supabase.instance.client
             .from('area')
-            .select('id_area, nama_area, deskripsi_area, id_subunit, subunit(nama_subunit)')
+            .select('id_area, nama_area, deskripsi_area, is_star, gambar_area, kategori, qrcode, id_subunit, id_unit, id_lokasi, id_pic, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), User!fk_area_pic(nama)')
             .order('nama_area'),
         Supabase.instance.client
             .from('subunit')
@@ -618,19 +656,19 @@ class _AreaTabState extends State<_AreaTab> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => _AdminFormDialog(
           title: isEdit
-              ? (widget.lang == 'EN' ? 'Edit Area' : 'Edit Area')
-              : (widget.lang == 'EN' ? 'Add Area' : 'Tambah Area'),
+              ? (widget.lang == 'EN' ? 'Edit Area' : widget.lang == 'ZH' ? '编辑区域' : 'Edit Area')
+              : (widget.lang == 'EN' ? 'Add Area' : widget.lang == 'ZH' ? '添加区域' : 'Tambah Area'),
           icon: Icons.place_rounded,
           color: _primary,
           lang: widget.lang,
           fields: [
             _FormField(
-              label: widget.lang == 'EN' ? 'Area Name' : 'Nama Area',
+              label: widget.lang == 'EN' ? 'Area Name' : widget.lang == 'ZH' ? '区域名称' : 'Nama Area',
               controller: namaCtrl,
               icon: Icons.place_rounded,
             ),
             _FormField(
-              label: widget.lang == 'EN' ? 'Description' : 'Deskripsi',
+              label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
               controller: descCtrl,
               icon: Icons.notes_rounded,
               maxLines: 3,
@@ -695,8 +733,420 @@ class _AreaTabState extends State<_AreaTab> {
       onEdit: (item) => _showDialog(item: item),
       onDelete: (item) => _delete(item['id_area'], item['nama_area'] ?? ''),
       onRefresh: _load,
+      onTapDetail: (item) => _showLocationDetailSheet(
+        context: context,
+        item: item,
+        lang: widget.lang,
+        primaryColor: _primary,
+        icon: Icons.place_rounded,
+        nameKey: 'area',
+        nameFn: (item) => item['nama_area'] ?? '',
+        subtitleFn: (item) => item['subunit']?['nama_subunit'] ?? '-',
+        onEdit: (item) => _showDialog(item: item),
+        onDelete: (item) => _delete(item['id_area'], item['nama_area'] ?? ''),
+      ),
     );
   }
+}
+
+void _showLocationDetailSheet({
+  required BuildContext context,
+  required Map<String, dynamic> item,
+  required String lang,
+  required Color primaryColor,
+  required IconData icon,
+  required String nameKey,
+  required String Function(Map<String, dynamic>) nameFn,
+  required String Function(Map<String, dynamic>) subtitleFn,
+  required void Function(Map<String, dynamic>) onEdit,
+  required void Function(Map<String, dynamic>) onDelete,
+}) {
+  final name = nameFn(item);
+  final subtitle = subtitleFn(item);
+  final deskripsi = (item['deskripsi_${nameKey}'] ?? item['deskripsi_lokasi'] ?? item['deskripsi_unit'] ?? item['deskripsi_subunit'] ?? item['deskripsi_area'] ?? '') as String;
+  final isStar = (item['is_star'] ?? 0) as int;
+  final kategori = item['kategori'] as String?;
+  final qrcode = item['qrcode'] as String?;
+  final picName = item['User']?['nama'] as String?;
+  final gambar = (item['gambar_lokasi'] ?? item['gambar_unit'] ?? item['gambar_subunit'] ?? item['gambar_area']) as String?;
+
+  // Info rows: kumpulkan semua relasi yang ada
+  final List<Map<String, dynamic>> infoRows = [];
+
+  if (item['lokasi']?['nama_lokasi'] != null) {
+    infoRows.add({
+      'icon': Icons.location_city_rounded,
+      'label': lang == 'EN' ? 'Location' : lang == 'ZH' ? '位置' : 'Lokasi',
+      'value': item['lokasi']['nama_lokasi'],
+      'color': const Color(0xFF10B981),
+    });
+  }
+  if (item['unit']?['nama_unit'] != null) {
+    infoRows.add({
+      'icon': Icons.business_rounded,
+      'label': lang == 'EN' ? 'Unit' : lang == 'ZH' ? '单位' : 'Unit',
+      'value': item['unit']['nama_unit'],
+      'color': const Color(0xFF6366F1),
+    });
+  }
+  if (item['subunit']?['nama_subunit'] != null) {
+    infoRows.add({
+      'icon': Icons.layers_rounded,
+      'label': lang == 'EN' ? 'Sub-Unit' : lang == 'ZH' ? '子单位' : 'Sub-Unit',
+      'value': item['subunit']['nama_subunit'],
+      'color': const Color(0xFFFBBF24),
+    });
+  }
+  if (kategori != null && kategori.isNotEmpty) {
+    infoRows.add({
+      'icon': Icons.category_rounded,
+      'label': lang == 'EN' ? 'Category' : lang == 'ZH' ? '类别' : 'Kategori',
+      'value': kategori,
+      'color': const Color(0xFF8B5CF6),
+    });
+  }
+  if (picName != null && picName.isNotEmpty) {
+    infoRows.add({
+      'icon': Icons.person_outline_rounded,
+      'label': lang == 'EN' ? 'PIC' : lang == 'ZH' ? '负责人' : 'PIC',
+      'value': picName,
+      'color': const Color(0xFF0891B2),
+    });
+  }
+  if (qrcode != null && qrcode.isNotEmpty) {
+    infoRows.add({
+      'icon': Icons.qr_code_rounded,
+      'label': 'QR Code',
+      'value': qrcode,
+      'color': const Color(0xFF334155),
+    });
+  }
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      builder: (_, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                children: [
+                  // ── Header ──
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: primaryColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(icon, color: primaryColor, size: 28),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: GoogleFonts.poppins(
+                                color: const Color(0xFF1E3A8A),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                              ),
+                            ),
+                            if (subtitle.isNotEmpty && subtitle != '-') ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                subtitle,
+                                style: GoogleFonts.poppins(
+                                  color: Colors.black45,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                // Badge is_star
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: isStar > 0
+                                        ? const Color(0xFFFEF3C7)
+                                        : Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isStar > 0
+                                          ? const Color(0xFFFBBF24)
+                                          : Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        isStar > 0
+                                            ? Icons.star_rounded
+                                            : Icons.star_border_rounded,
+                                        size: 12,
+                                        color: isStar > 0
+                                            ? const Color(0xFFFBBF24)
+                                            : Colors.grey,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        isStar > 0
+                                            ? (lang == 'EN'
+                                                ? 'Starred'
+                                                : lang == 'ZH'
+                                                    ? '已加星标'
+                                                    : 'Bintang')
+                                            : (lang == 'EN'
+                                                ? 'No Star'
+                                                : lang == 'ZH'
+                                                    ? '无星标'
+                                                    : 'Tanpa Bintang'),
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: isStar > 0
+                                              ? const Color(0xFFF59E0B)
+                                              : Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+                  Divider(color: Colors.grey.shade100, thickness: 1.5),
+                  const SizedBox(height: 16),
+
+                  // ── Deskripsi ──
+                  if (deskripsi.isNotEmpty) ...[
+                    _locDetailSection(
+                      lang == 'EN'
+                          ? 'Description'
+                          : lang == 'ZH'
+                              ? '描述'
+                              : 'Deskripsi',
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: primaryColor.withOpacity(0.15)),
+                      ),
+                      child: Text(
+                        deskripsi,
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFF1E3A8A),
+                          fontSize: 13,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // ── Info Rows ──
+                  if (infoRows.isNotEmpty) ...[
+                    _locDetailSection(
+                      lang == 'EN'
+                          ? 'Information'
+                          : lang == 'ZH'
+                              ? '信息'
+                              : 'Informasi',
+                    ),
+                    const SizedBox(height: 10),
+                    ...infoRows.map((row) => _locDetailRow(
+                          icon: row['icon'] as IconData,
+                          label: row['label'] as String,
+                          value: row['value'] as String,
+                          color: row['color'] as Color,
+                        )),
+                  ],
+
+                  const SizedBox(height: 20),
+
+                  // ── Tombol Edit & Delete ──
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            onEdit(item);
+                          },
+                          icon: const Icon(Icons.edit_outlined, size: 16),
+                          label: Text(
+                            lang == 'EN'
+                                ? 'Edit'
+                                : lang == 'ZH'
+                                    ? '编辑'
+                                    : 'Edit',
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryColor,
+                            side: BorderSide(color: primaryColor),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            onDelete(item);
+                          },
+                          icon: const Icon(Icons.delete_outline_rounded,
+                              size: 16, color: Colors.white),
+                          label: Text(
+                            lang == 'EN'
+                                ? 'Delete'
+                                : lang == 'ZH'
+                                    ? '删除'
+                                    : 'Hapus',
+                            style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _locDetailSection(String title) {
+  return Row(
+    children: [
+      Container(
+        width: 3,
+        height: 16,
+        decoration: BoxDecoration(
+          color: const Color(0xFF6366F1),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Text(
+        title,
+        style: GoogleFonts.poppins(
+          color: const Color(0xFF1E3A8A),
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _locDetailRow({
+  required IconData icon,
+  required String label,
+  required String value,
+  required Color color,
+}) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.05),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withOpacity(0.15)),
+    ),
+    child: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  color: Colors.black45,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  color: const Color(0xFF1E3A8A),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // ─────────────────────────────────────────
@@ -717,6 +1167,7 @@ Widget _buildTabContent({
   required void Function(Map<String, dynamic>) onEdit,
   required void Function(Map<String, dynamic>) onDelete,
   required Future<void> Function() onRefresh,
+  void Function(Map<String, dynamic>)? onTapDetail,  // ← BARU
 }) {
   const bg = Color(0xFFF8FAFC);   // ← cerah
   const card = Color(0xFFFFFFFF); // ← putih
@@ -745,7 +1196,7 @@ Widget _buildTabContent({
               style: GoogleFonts.poppins(
                   color: const Color(0xFF1E3A8A), fontSize: 14),
               decoration: InputDecoration(
-                hintText: lang == 'EN' ? 'Search...' : 'Cari...',
+                hintText: lang == 'EN' ? 'Search...' : lang == 'ZH' ? '搜索...' : 'Cari...',
                 hintStyle:
                     GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
                 prefixIcon: const Icon(Icons.search,
@@ -763,7 +1214,7 @@ Widget _buildTabContent({
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              '${data.length} ${lang == 'EN' ? 'items' : 'data'}',
+              '${data.length} ${lang == 'EN' ? 'items' : lang == 'ZH' ? '条数据' : 'data'}',
               style: GoogleFonts.poppins(color: Colors.black38, fontSize: 12),
             ),
           ),
@@ -792,7 +1243,7 @@ Widget _buildTabContent({
               : data.isEmpty
                   ? Center(
                       child: Text(
-                        lang == 'EN' ? 'No data found' : 'Tidak ada data',
+                        lang == 'EN' ? 'No data found' : lang == 'ZH' ? '未找到数据' : 'Tidak ada data',
                         style: GoogleFonts.poppins(color: Colors.black38),
                       ),
                     )
@@ -805,9 +1256,11 @@ Widget _buildTabContent({
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (_, i) {
                           final item = data[i];
-                          return Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
+                          return GestureDetector(
+                            onTap: onTapDetail != null ? () => onTapDetail(item) : null,
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
                               color: card,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
@@ -903,7 +1356,7 @@ Widget _buildTabContent({
                                 ),
                               ],
                             ),
-                          );
+                          ));
                         },
                       ),
                     ),
@@ -923,18 +1376,18 @@ Future<bool> _showConfirm(BuildContext context, String name, String lang) async 
           backgroundColor: Colors.white, // ← putih
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            lang == 'EN' ? 'Delete?' : 'Hapus?',
+            lang == 'EN' ? 'Delete?' : lang == 'ZH' ? '删除？' : 'Hapus?',
             style: GoogleFonts.poppins(
                 color: const Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
           ),
           content: Text(
-            '${lang == 'EN' ? 'Delete' : 'Hapus'} "$name"?',
+            '${lang == 'EN' ? 'Delete' : lang == 'ZH' ? '删除' : 'Hapus'} "$name"?',
             style: GoogleFonts.poppins(color: Colors.black54, fontSize: 13),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text(lang == 'EN' ? 'Cancel' : 'Batal',
+              child: Text(lang == 'EN' ? 'Cancel' : lang == 'ZH' ? '取消' : 'Batal',
                   style: const TextStyle(color: Colors.black38)),
             ),
             ElevatedButton(
@@ -944,7 +1397,7 @@ Future<bool> _showConfirm(BuildContext context, String name, String lang) async 
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
               ),
-              child: Text(lang == 'EN' ? 'Delete' : 'Hapus',
+              child: Text(lang == 'EN' ? 'Delete' : lang == 'ZH' ? '删除' : 'Hapus',
                   style: const TextStyle(color: Colors.white)),
             ),
           ],
@@ -1174,7 +1627,7 @@ class _AdminFormDialog extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12)),
                     ),
                     child: Text(
-                      lang == 'EN' ? 'Cancel' : 'Batal',
+                      lang == 'EN' ? 'Cancel' : lang == 'ZH' ? '取消' : 'Batal',
                       style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w600),
                     ),
@@ -1198,7 +1651,7 @@ class _AdminFormDialog extends StatelessWidget {
                       shadowColor: color.withOpacity(0.3),
                     ),
                     child: Text(
-                      lang == 'EN' ? 'Save' : 'Simpan',
+                      lang == 'EN' ? 'Save' : lang == 'ZH' ? '保存' : 'Simpan',
                       style: GoogleFonts.poppins(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
