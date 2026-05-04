@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // ─── Import screen admin lainnya ───
 import 'admin_profile_screen.dart';
+import 'settings/admin_settings_screen.dart';
 import 'admin_user_screen.dart';
 import 'admin_location_screen.dart';
 import 'admin_category_screen.dart';
@@ -660,9 +661,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       _MenuItem(
         label: _lang == 'EN' ? 'App\nSettings' : 'Pengaturan\nAplikasi',
         icon: Icons.settings_rounded,
-        gradient: const [Color(0xFFEC4899), Color(0xFFDB2777)],
-        shadow: const Color(0xFFEC4899),
-        onTap: () => _showComingSoon(),
+        gradient: const [Color(0xFFEF4444), Color(0xFFDC2626)], // ← merah cerah
+        shadow: const Color(0xFFEF4444),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AdminSettingsScreen(lang: _lang),
+          ),
+        ).then((_) => _fetchStats()),
       ),
     ];
 

@@ -17,20 +17,21 @@ class AdminCategoryScreen extends StatefulWidget {
 class _AdminCategoryScreenState extends State<AdminCategoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
+  int _selectedTab = 0;
 
   static const _bg    = Color(0xFFF8FAFC);
   static const _primary = Color(0xFF6366F1);
 
   // 0 = 5R Finding, 1 = KTS Production
-  int _selectedTab = 0;
 
   @override
   void initState() {
     super.initState();
+    // Tab utama sekarang adalah Kategori/Sub-Kategori
     _tabCtrl = TabController(length: 2, vsync: this)
       ..addListener(() {
         if (!_tabCtrl.indexIsChanging) {
-          setState(() => _selectedTab = _tabCtrl.index);
+          setState(() {}); // rebuild agar warna tab aktif terupdate
         }
       });
   }
@@ -58,153 +59,201 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
             color: const Color(0xFF1E3A8A),
           ),
         ),
-        bottom: TabBar(
-          controller: _tabCtrl,
-          indicatorColor: _primary,
-          labelColor: _primary,
-          unselectedLabelColor: Colors.black38,
-          indicatorWeight: 3,
-          indicatorSize: TabBarIndicatorSize.tab,
-          tabs: [
-            Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.cleaning_services_rounded, size: 15),
-                  const SizedBox(width: 6),
-                  Text(
-                    '5R Finding',
-                    style: GoogleFonts.poppins(
-                        fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-            Tab(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.precision_manufacturing_rounded, size: 15),
-                  const SizedBox(width: 6),
-                  Text(
-                    'KTS Production',
-                    style: GoogleFonts.poppins(
-                        fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
-      body: TabBarView(
-        controller: _tabCtrl,
+      body: Column(
         children: [
-          // Tab 0: 5R — semua kategori KECUALI KTS Produksi
-          _CategoryTabView(
-            lang: widget.lang,
-            isKts: false,
+          // ── Tab Utama: Kategori / Sub-Kategori (ATAS) ──
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              controller: _tabCtrl,
+              // Tab aktif: background warna, teks putih
+              indicator: BoxDecoration(), // dihandle manual di tab builder
+              labelColor: const Color(0xFF0EA5E9),
+              unselectedLabelColor: const Color(0xFF1E3A8A),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              indicatorColor: Colors.transparent,
+              tabs: [
+                _buildMainTab(
+                  index: 0,
+                  label: widget.lang == 'EN' ? 'Categories' : 'Kategori',
+                  icon: Icons.category_rounded,
+                  activeColor: const Color(0xFF0EA5E9), // biru cerah 5R
+                ),
+                _buildMainTab(
+                  index: 1,
+                  label: widget.lang == 'EN' ? 'Sub-Categories' : 'Sub-Kategori',
+                  icon: Icons.list_alt_rounded,
+                  activeColor: const Color(0xFFF59E0B), // kuning KTS
+                ),
+              ],
+            ),
           ),
-          // Tab 1: KTS Production — hanya KTS Produksi
-          _CategoryTabView(
-            lang: widget.lang,
-            isKts: true,
+          // ── Filter 5R / KTS (BAWAH tab utama) ──
+          _buildFilterPills(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _KategoriList(
+                  lang: widget.lang,
+                  isKts: _selectedTab == 1,
+                  color: _selectedTab == 0
+                      ? const Color(0xFF0EA5E9)
+                      : const Color(0xFFF59E0B),
+                ),
+                _SubkategoriList(
+                  lang: widget.lang,
+                  isKts: _selectedTab == 1,
+                  color: _selectedTab == 0
+                      ? const Color(0xFF0EA5E9)
+                      : const Color(0xFFF59E0B),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
-}
 
-// ============================================================
-// TAB VIEW: Kategori + Sub-Kategori dalam satu layar
-// ============================================================
-class _CategoryTabView extends StatefulWidget {
-  final String lang;
-  final bool isKts; // true = KTS Produksi saja, false = semua kecuali KTS
-
-  const _CategoryTabView({
-    required this.lang,
-    required this.isKts,
-  });
-
-  @override
-  State<_CategoryTabView> createState() => _CategoryTabViewState();
-}
-
-class _CategoryTabViewState extends State<_CategoryTabView>
-    with SingleTickerProviderStateMixin {
-  late TabController _innerTab;
-
-  static const _primaryKts   = Color(0xFF0891B2); // biru KTS
-  static const _primary5r    = Color(0xFF6366F1); // ungu 5R
-  static const _bg           = Color(0xFFF8FAFC);
-
-  Color get _color => widget.isKts ? _primaryKts : _primary5r;
-
-  @override
-  void initState() {
-    super.initState();
-    _innerTab = TabController(length: 2, vsync: this);
+  // ── Helper: Tab utama dengan background warna saat aktif ──
+  Widget _buildMainTab({
+    required int index,
+    required String label,
+    required IconData icon,
+    required Color activeColor,
+  }) {
+    final isActive = _selectedTab == _tabCtrl.index;
+    // Tidak bisa akses _tabCtrl.index langsung di sini,
+    // gunakan _selectedTab yang sudah ditrack
+    return Tab(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  @override
-  void dispose() {
-    _innerTab.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // ── Inner Tab: Kategori / Sub-Kategori ──
-        Container(
-          color: Colors.white,
-          child: TabBar(
-            controller: _innerTab,
-            indicatorColor: _color,
-            labelColor: _color,
-            unselectedLabelColor: Colors.black38,
-            indicatorWeight: 2.5,
-            tabs: [
-              Tab(
-                child: Text(
-                  widget.lang == 'EN' ? 'Categories' : 'Kategori',
-                  style: GoogleFonts.poppins(
-                      fontSize: 12, fontWeight: FontWeight.w600),
+  // ── Filter Pills: 5R / KTS ──
+  Widget _buildFilterPills() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() {
+                _selectedTab = 0;
+                _tabCtrl.animateTo(0);
+              }),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _selectedTab == 0
+                      ? const Color(0xFF0EA5E9)
+                      : const Color(0xFFF0F9FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _selectedTab == 0
+                        ? const Color(0xFF0EA5E9)
+                        : const Color(0xFFBAE6FD),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.cleaning_services_rounded,
+                      size: 15,
+                      color: _selectedTab == 0
+                          ? Colors.white
+                          : const Color(0xFF0EA5E9),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '5R Finding',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _selectedTab == 0
+                            ? Colors.white
+                            : const Color(0xFF0EA5E9),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Tab(
-                child: Text(
-                  widget.lang == 'EN' ? 'Sub-Categories' : 'Sub-Kategori',
-                  style: GoogleFonts.poppins(
-                      fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() {
+                _selectedTab = 1;
+                _tabCtrl.animateTo(0);
+              }),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: _selectedTab == 1
+                      ? const Color(0xFFF59E0B)
+                      : const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _selectedTab == 1
+                        ? const Color(0xFFF59E0B)
+                        : const Color(0xFFFDE68A),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.precision_manufacturing_rounded,
+                      size: 15,
+                      color: _selectedTab == 1
+                          ? Colors.white
+                          : const Color(0xFFD97706),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'KTS Production',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _selectedTab == 1
+                            ? Colors.white
+                            : const Color(0xFFD97706),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _innerTab,
-            children: [
-              _KategoriList(
-                lang: widget.lang,
-                isKts: widget.isKts,
-                color: _color,
-              ),
-              _SubkategoriList(
-                lang: widget.lang,
-                isKts: widget.isKts,
-                color: _color,
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
