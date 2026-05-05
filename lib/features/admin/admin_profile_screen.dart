@@ -80,6 +80,25 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       'logout_confirm': 'Apakah Anda yakin ingin keluar?',
       'cancel': 'Batal',
     },
+    'ZH': {
+      'title': '我的资料',
+      'edit_title': '编辑资料',
+      'name': '姓名',
+      'email': '电子邮件',
+      'role': '角色',
+      'save': '保存更改',
+      'edit': '编辑',
+      'success': '资料已更新！',
+      'success_body': '您的资料已成功更新。',
+      'error_update': '更新失败',
+      'error_body': '更新资料失败，请重试。',
+      'close': '关闭',
+      'saving': '正在保存资料...',
+      'uploading': '正在上传照片...',
+      'logout': '退出登录',
+      'logout_confirm': '您确定要退出吗？',
+      'cancel': '取消',
+    },
   };
 
   String getTxt(String key) => _txt[widget.lang]?[key] ?? _txt['EN']![key]!;

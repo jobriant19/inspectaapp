@@ -75,7 +75,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       // Ambil semua field termasuk admin_reply dan replied_at
       final response = await Supabase.instance.client
           .from('help_reports')
-          .select('id, title, description, priority, status, image_url, created_at, edited_at, admin_reply, replied_at')
+          .select('id, title, description, priority, status, image_url, created_at, edited_at, admin_reply, replied_at, admin_reply_image')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
 
@@ -188,13 +188,13 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   }
 
   Widget _buildReportCard(Map<String, dynamic> report) {
-    final signedImageUrl = report['signed_image_url'] as String?;
-    final adminReply     = report['admin_reply'] as String?;
-    final repliedAt      = report['replied_at'] as String?;
-    final status         = report['status'] as String? ?? 'Dikirim';
-    final priority       = report['priority'] as String? ?? 'Normal';
+    final signedImageUrl  = report['signed_image_url'] as String?;
+    final adminReply      = report['admin_reply'] as String?;
+    final adminReplyImage = report['admin_reply_image'] as String?;
+    final repliedAt       = report['replied_at'] as String?;
+    final status          = report['status'] as String? ?? 'Dikirim';
+    final priority        = report['priority'] as String? ?? 'Normal';
 
-    // Warna status
     Color statusColor;
     switch (status) {
       case 'Dilihat': statusColor = Colors.orange.shade400; break;
@@ -202,11 +202,9 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       default:        statusColor = Colors.blue.shade400;
     }
 
-    // Label status sesuai bahasa
     final statusLabel = getTxt(status == 'Dikirim' ? 'sent'
         : status == 'Dilihat' ? 'viewed' : 'completed');
 
-    // Format tanggal balasan
     String repliedStr = '';
     if (repliedAt != null) {
       try {
@@ -237,7 +235,6 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             children: [
               Row(
                 children: [
-                  // Gambar
                   if (signedImageUrl != null && signedImageUrl.isNotEmpty)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
@@ -276,7 +273,8 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                 ],
               ),
-              // ── Tampilkan balasan admin jika ada ──
+
+              // ── Balasan admin (teks + gambar) ──
               if (adminReply != null && adminReply.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Container(
@@ -290,6 +288,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Header balasan
                       Row(
                         children: [
                           Icon(Icons.support_agent_rounded, size: 14, color: Colors.green.shade600),
@@ -306,7 +305,21 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                         ],
                       ),
                       const SizedBox(height: 5),
+                      // Teks balasan
                       Text(adminReply, style: const TextStyle(fontSize: 13, color: Color(0xFF334155))),
+                      // ── Gambar balasan admin ──
+                      if (adminReplyImage != null && adminReplyImage.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            adminReplyImage,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, size: 40),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

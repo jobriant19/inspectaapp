@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
 
 class AdminHelpReportsScreen extends StatefulWidget {
   final String lang;
@@ -16,6 +18,8 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   String _filterStatus = 'Semua';
+  Uint8List? _replyImageBytes;
+  String? _replyImageExt;
 
   String _t(String key) {
     const txt = {
@@ -51,6 +55,8 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'reply_label': 'Dibalas',
         'no_reply': 'Belum ada balasan.',
         'replied_at': 'Dibalas pada',
+        'reply_image': 'Gambar Balasan',
+        'pick_image': 'Pilih Gambar',
       },
       'EN': {
         'title': 'Help Reports',
@@ -84,6 +90,8 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'reply_label': 'Replied',
         'no_reply': 'No reply yet.',
         'replied_at': 'Replied at',
+        'reply_image': 'Reply Image',
+        'pick_image': 'Pick Image',
       },
       'ZH': {
         'title': '帮助报告',
@@ -117,6 +125,8 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'reply_label': '已回复',
         'no_reply': '暂无回复。',
         'replied_at': '回复于',
+        'reply_image': '回复图片',
+        'pick_image': '选择图片',
       },
     };
     return txt[widget.lang]?[key] ?? txt['ID']![key] ?? key;
@@ -247,16 +257,39 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   }
 
   // ── Kirim balasan admin → update kolom admin_reply + replied_at + status Selesai ──
-  Future<void> _sendReply(String id, String replyText) async {
+  Future<void> _sendReply(String id, String replyText, {Uint8List? imageBytes, String? imageExt}) async {
     try {
       final now = DateTime.now().toUtc().toIso8601String();
+      String? replyImageUrl;
+
+      // Upload gambar balasan jika ada
+      if (imageBytes != null && imageExt != null) {
+        final fileName = 'reply_${id}_${DateTime.now().millisecondsSinceEpoch}.$imageExt';
+        final filePath = 'reply_images/$fileName';
+        final contentType = imageExt == 'png' ? 'image/png' : 'image/jpeg';
+
+        await Supabase.instance.client.storage
+            .from('report_images')
+            .uploadBinary(
+              filePath,
+              imageBytes,
+              fileOptions: FileOptions(contentType: contentType, upsert: true),
+            );
+
+        replyImageUrl = Supabase.instance.client.storage
+            .from('report_images')
+            .getPublicUrl(filePath);
+      }
+
       await Supabase.instance.client.from('help_reports').update({
         'admin_reply': replyText,
         'replied_at': now,
         'status': 'Selesai',
+        if (replyImageUrl != null) 'admin_reply_image': replyImageUrl,
       }).eq('id', id);
+
       _showSnack(_t('success_reply'));
-      // Update lokal langsung
+
       if (mounted) {
         setState(() {
           final idx = _items.indexWhere((e) => e['id'] == id);
@@ -264,10 +297,17 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
             _items[idx]['admin_reply'] = replyText;
             _items[idx]['replied_at'] = now;
             _items[idx]['status'] = 'Selesai';
+            if (replyImageUrl != null) {
+              _items[idx]['admin_reply_image'] = replyImageUrl;
+            }
           }
+          // Reset state gambar reply
+          _replyImageBytes = null;
+          _replyImageExt = null;
         });
       }
     } catch (e) {
+      debugPrint('Error send reply: $e');
       _showSnack(_t('error'), isError: true);
     }
   }
@@ -312,7 +352,12 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     final createdAt  = item['created_at'] as String?;
     final repliedAt  = item['replied_at'] as String?;
     final existReply = item['admin_reply'] as String? ?? '';
+    final existReplyImage = item['admin_reply_image'] as String?;
     final replyCtrl  = TextEditingController(text: existReply);
+
+    // State lokal untuk gambar reply di dalam bottom sheet
+    Uint8List? localImageBytes;
+    String? localImageExt;
 
     String dateStr = '-', repliedStr = '-';
     if (createdAt != null) {
@@ -324,7 +369,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
 
     // Auto set Dilihat jika masih Dikirim
     if (item['status'] == 'Dikirim') {
-      item['status'] = 'Dilihat'; // update referensi lokal agar bottom sheet ikut terbaru
+      item['status'] = 'Dilihat';
       _updateStatus(item['id'] as String, 'Dilihat');
     }
 
@@ -332,141 +377,209 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        maxChildSize: 0.95,
-        minChildSize: 0.5,
-        builder: (ctx, ctrl) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(_t('view_detail'), style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: Text(_t('close'), style: const TextStyle(color: Color(0xFF0EA5E9))),
-                      ),
-                    ],
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheet) => DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
+          builder: (ctx2, ctrl) => Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx2).viewInsets.bottom),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
                   ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: ListView(
-                    controller: ctrl,
-                    padding: const EdgeInsets.all(20),
-                    children: [
-                      // Gambar laporan
-                      if (signedUrl != null && signedUrl.isNotEmpty)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(signedUrl, height: 180, width: double.infinity, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, size: 60)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_t('view_detail'), style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx2),
+                          child: Text(_t('close'), style: const TextStyle(color: Color(0xFF0EA5E9))),
                         ),
-                      const SizedBox(height: 16),
-                      Text(item['title'] ?? '', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
-                      const SizedBox(height: 12),
-                      _detailRow(_t('reporter'), userName),
-                      _detailRow(_t('date'), dateStr),
-                      _detailRow(_t('priority'), _localPriority(item['priority'] ?? '')),
-                      _detailRow(_t('status'), _localStatus(item['status'] ?? '')),
-                      if (existReply.isNotEmpty) _detailRow(_t('replied_at'), repliedStr),
-                      const SizedBox(height: 12),
-                      // Deskripsi
-                      Text(_t('description'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black54)),
-                      const SizedBox(height: 4),
-                      Text(
-                        (item['description'] as String?)?.isNotEmpty == true ? item['description'] : _t('no_desc'),
-                        style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
-                      ),
-                      const SizedBox(height: 20),
-                      Container(height: 1, color: Colors.grey.shade100),
-                      const SizedBox(height: 20),
-                      // Ubah Status
-                      Text(_t('change_status'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black54)),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        children: ['Dikirim', 'Dilihat', 'Selesai'].map((s) {
-                          final isSelected = item['status'] == s;
-                          final color = _statusColor(s);
-                          return GestureDetector(
-                            onTap: () { Navigator.pop(ctx); _updateStatus(item['id'] as String, s); },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isSelected ? color : color.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: color),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView(
+                      controller: ctrl,
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        // Gambar laporan
+                        if (signedUrl != null && signedUrl.isNotEmpty)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(signedUrl, height: 180, width: double.infinity, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, size: 60)),
+                          ),
+                        const SizedBox(height: 16),
+                        Text(item['title'] ?? '', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
+                        const SizedBox(height: 12),
+                        _detailRow(_t('reporter'), userName),
+                        _detailRow(_t('date'), dateStr),
+                        _detailRow(_t('priority'), _localPriority(item['priority'] ?? '')),
+                        _detailRow(_t('status'), _localStatus(item['status'] ?? '')),
+                        if (existReply.isNotEmpty) _detailRow(_t('replied_at'), repliedStr),
+                        const SizedBox(height: 12),
+                        Text(_t('description'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black54)),
+                        const SizedBox(height: 4),
+                        Text(
+                          (item['description'] as String?)?.isNotEmpty == true ? item['description'] : _t('no_desc'),
+                          style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
+                        ),
+                        const SizedBox(height: 20),
+                        Container(height: 1, color: Colors.grey.shade100),
+                        const SizedBox(height: 20),
+                        // Ubah Status
+                        Text(_t('change_status'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black54)),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          children: ['Dikirim', 'Dilihat', 'Selesai'].map((s) {
+                            final isSelected = item['status'] == s;
+                            final color = _statusColor(s);
+                            return GestureDetector(
+                              onTap: () { Navigator.pop(ctx2); _updateStatus(item['id'] as String, s); },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? color : color.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: color),
+                                ),
+                                child: Text(_localStatus(s), style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: isSelected ? Colors.white : color)),
                               ),
-                              child: Text(_localStatus(s), style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: isSelected ? Colors.white : color)),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 24),
-                      Container(height: 1, color: Colors.grey.shade100),
-                      const SizedBox(height: 20),
-                      // ── Balasan Admin ──
-                      Row(
-                        children: [
-                          const Icon(Icons.reply_rounded, size: 16, color: Color(0xFF0EA5E9)),
-                          const SizedBox(width: 6),
-                          Text(_t('admin_reply'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: replyCtrl,
-                        maxLines: 4,
-                        style: GoogleFonts.poppins(fontSize: 13),
-                        decoration: InputDecoration(
-                          hintText: _t('reply_hint'),
-                          hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.black38),
-                          filled: true,
-                          fillColor: Colors.grey.shade50,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0EA5E9))),
-                          contentPadding: const EdgeInsets.all(14),
+                            );
+                          }).toList(),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            final reply = replyCtrl.text.trim();
-                            if (reply.isEmpty) return;
-                            Navigator.pop(ctx);
-                            await _sendReply(item['id'] as String, reply);
-                          },
-                          icon: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
-                          label: Text(_t('send_reply'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0EA5E9),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        const SizedBox(height: 24),
+                        Container(height: 1, color: Colors.grey.shade100),
+                        const SizedBox(height: 20),
+                        // ── Balasan Admin ──
+                        Row(
+                          children: [
+                            const Icon(Icons.reply_rounded, size: 16, color: Color(0xFF0EA5E9)),
+                            const SizedBox(width: 6),
+                            Text(_t('admin_reply'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: replyCtrl,
+                          maxLines: 4,
+                          style: GoogleFonts.poppins(fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: _t('reply_hint'),
+                            hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.black38),
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0EA5E9))),
+                            contentPadding: const EdgeInsets.all(14),
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+
+                        // ── Pilih Gambar Reply ──
+                        GestureDetector(
+                          onTap: () async {
+                            final picked = await ImagePicker().pickImage(
+                              source: ImageSource.gallery,
+                              imageQuality: 70,
+                              maxWidth: 800,
+                            );
+                            if (picked != null) {
+                              final bytes = await picked.readAsBytes();
+                              final ext = picked.name.split('.').last.toLowerCase();
+                              setSheet(() {
+                                localImageBytes = bytes;
+                                localImageExt = ext.isEmpty ? 'jpg' : ext;
+                              });
+                            }
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0EA5E9).withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFF0EA5E9).withOpacity(0.3), style: BorderStyle.solid),
+                            ),
+                            child: localImageBytes != null
+                                ? Column(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.memory(localImageBytes!, height: 120, width: double.infinity, fit: BoxFit.cover),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(_t('pick_image'), style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF0EA5E9))),
+                                    ],
+                                  )
+                                : existReplyImage != null && existReplyImage.isNotEmpty
+                                    ? Column(
+                                        children: [
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Image.network(existReplyImage, height: 120, width: double.infinity, fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported)),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(_t('pick_image'), style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF0EA5E9))),
+                                        ],
+                                      )
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.image_outlined, size: 18, color: Color(0xFF0EA5E9)),
+                                          const SizedBox(width: 8),
+                                          Text(_t('reply_image'), style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF0EA5E9))),
+                                        ],
+                                      ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // ── Tombol Kirim Balasan ──
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final reply = replyCtrl.text.trim();
+                              if (reply.isEmpty) return;
+                              Navigator.pop(ctx2);
+                              await _sendReply(
+                                item['id'] as String,
+                                reply,
+                                imageBytes: localImageBytes,
+                                imageExt: localImageExt,
+                              );
+                            },
+                            icon: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
+                            label: Text(_t('send_reply'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0EA5E9),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
