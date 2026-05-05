@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'report_detail_screen.dart';
+import 'package:intl/intl.dart';
 
 class HelpCenterScreen extends StatefulWidget {
   final String lang;
@@ -71,29 +72,25 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     setState(() => _isLoading = true);
     try {
       final userId = Supabase.instance.client.auth.currentUser!.id;
+      // Ambil semua field termasuk admin_reply dan replied_at
       final response = await Supabase.instance.client
           .from('help_reports')
-          .select()
+          .select('id, title, description, priority, status, image_url, created_at, edited_at, admin_reply, replied_at')
           .eq('user_id', userId)
           .order('created_at', ascending: false);
 
-      // List baru untuk menampung report dengan signed URL
       final reportsWithSignedUrls = <Map<String, dynamic>>[];
       for (var report in response) {
         final newReport = Map<String, dynamic>.from(report);
         final imageUrl = newReport['image_url'] as String?;
-        
         if (imageUrl != null && imageUrl.isNotEmpty) {
           try {
             final path = imageUrl.split('/report_images/').last;
-            
             final signedUrl = await Supabase.instance.client.storage
                 .from('report_images')
                 .createSignedUrl(path, 3600);
-            
             newReport['signed_image_url'] = signedUrl;
           } catch (e) {
-            print("Error creating signed URL in Help Center: $e");
             newReport['signed_image_url'] = null;
           }
         }
@@ -191,58 +188,131 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   }
 
   Widget _buildReportCard(Map<String, dynamic> report) {
-    // Ambil URL langsung dari 'image_url'
     final signedImageUrl = report['signed_image_url'] as String?;
+    final adminReply     = report['admin_reply'] as String?;
+    final repliedAt      = report['replied_at'] as String?;
+    final status         = report['status'] as String? ?? 'Dikirim';
+    final priority       = report['priority'] as String? ?? 'Normal';
+
+    // Warna status
+    Color statusColor;
+    switch (status) {
+      case 'Dilihat': statusColor = Colors.orange.shade400; break;
+      case 'Selesai': statusColor = Colors.green.shade500; break;
+      default:        statusColor = Colors.blue.shade400;
+    }
+
+    // Label status sesuai bahasa
+    final statusLabel = getTxt(status == 'Dikirim' ? 'sent'
+        : status == 'Dilihat' ? 'viewed' : 'completed');
+
+    // Format tanggal balasan
+    String repliedStr = '';
+    if (repliedAt != null) {
+      try {
+        repliedStr = DateFormat('d MMM yyyy, HH:mm')
+            .format(DateTime.parse(repliedAt).toLocal());
+      } catch (_) {}
+    }
 
     return GestureDetector(
       onTap: () async {
-        // Kirim 'report' yang sudah berisi 'image_url'
-        final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => ReportDetailScreen(lang: _currentLang, report: report)));
+        final result = await Navigator.push(context,
+            MaterialPageRoute(builder: (context) =>
+                ReportDetailScreen(lang: _currentLang, report: report)));
         if (result == true) _fetchReports();
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 15),
-        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border(left: BorderSide(color: statusColor, width: 3)),
         ),
-        child: Row(
-          children: [
-            // Gunakan imageUrl di sini
-            if (signedImageUrl != null && signedImageUrl.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.network(signedImageUrl, width: 70, height: 70, fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, size: 70),
-                ),
-              )
-            else
-              Container(
-                width: 70, height: 70,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: Colors.grey.shade100),
-                child: Icon(Icons.flag_outlined, color: Colors.grey.shade400, size: 30),
-              ),
-            const SizedBox(width: 15),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Text(report['title'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF334155)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildTag(getTxt(report['priority'].toLowerCase()), report['priority'].toLowerCase() == 'fatal' ? Colors.red.shade400 : Colors.blue.shade400),
-                      const SizedBox(width: 8),
-                      _buildTag(getTxt(report['status'].toLowerCase()), Colors.grey.shade600),
-                    ],
-                  )
+                  // Gambar
+                  if (signedImageUrl != null && signedImageUrl.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(signedImageUrl, width: 70, height: 70, fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.image_not_supported, size: 70)),
+                    )
+                  else
+                    Container(
+                      width: 70, height: 70,
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: Colors.grey.shade100),
+                      child: Icon(Icons.flag_outlined, color: Colors.grey.shade400, size: 30),
+                    ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(report['title'] ?? '',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _buildTag(
+                              getTxt(priority.toLowerCase() == 'fatal' ? 'fatal' : 'normal'),
+                              priority.toLowerCase() == 'fatal' ? Colors.red.shade400 : Colors.blue.shade400,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildTag(statusLabel, statusColor),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                 ],
               ),
-            ),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-          ],
+              // ── Tampilkan balasan admin jika ada ──
+              if (adminReply != null && adminReply.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.support_agent_rounded, size: 14, color: Colors.green.shade600),
+                          const SizedBox(width: 5),
+                          Text(
+                            _currentLang == 'EN' ? 'Admin Reply'
+                                : _currentLang == 'ZH' ? '管理员回复' : 'Balasan Admin',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.green.shade700),
+                          ),
+                          if (repliedStr.isNotEmpty) ...[
+                            const Spacer(),
+                            Text(repliedStr, style: TextStyle(fontSize: 10, color: Colors.green.shade500)),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Text(adminReply, style: const TextStyle(fontSize: 13, color: Color(0xFF334155))),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

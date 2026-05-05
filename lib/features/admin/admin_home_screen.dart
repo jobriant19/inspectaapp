@@ -10,6 +10,8 @@ import 'package:intl/intl.dart';
 
 // ─── Import screen admin lainnya ───
 import '../user/leaderboard/leaderboard_detail_screen.dart';
+import 'admin_help_reports_screen.dart';
+import 'admin_poin_screen.dart';
 import 'admin_profile_screen.dart';
 import 'settings/admin_settings_screen.dart';
 import 'admin_user_screen.dart';
@@ -1199,6 +1201,39 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             builder: (_) => AdminSettingsScreen(lang: _lang),
           ),
         ).then((_) => _fetchStats()),
+      ),
+      // ── 2 MENU BARU ──
+      _MenuItem(
+        label: _lang == 'EN'
+            ? 'Point\nConfiguration'
+            : _lang == 'ZH'
+                ? '积分\n配置'
+                : 'Konfigurasi\nPoin',
+        icon: Icons.stars_rounded,
+        gradient: const [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+        shadow: const Color(0xFF8B5CF6),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AdminPoinScreen(lang: _lang),
+          ),
+        ),
+      ),
+      _MenuItem(
+        label: _lang == 'EN'
+            ? 'Help\nReports'
+            : _lang == 'ZH'
+                ? '帮助\n报告'
+                : 'Laporan\nBantuan',
+        icon: Icons.support_agent_rounded,
+        gradient: const [Color(0xFF0EA5E9), Color(0xFF0284C7)],
+        shadow: const Color(0xFF0EA5E9),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AdminHelpReportsScreen(lang: _lang),
+          ),
+        ),
       ),
     ];
 

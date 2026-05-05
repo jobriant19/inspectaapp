@@ -14,9 +14,11 @@ class AdminSettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final menus = [
       _SettingMenu(
-        title: lang == 'EN' ? 'About Inspecta' : 'Tentang Inspecta',
-        subtitle: lang == 'EN'
-            ? 'App name, version, website'
+        title: lang == 'EN' ? 'About Inspecta'
+            : lang == 'ZH' ? '关于 Inspecta'
+            : 'Tentang Inspecta',
+        subtitle: lang == 'EN' ? 'App name, version, website'
+            : lang == 'ZH' ? '应用名称、版本、网站'
             : 'Nama aplikasi, versi, website',
         icon: Icons.info_outline_rounded,
         color: const Color(0xFF6366F1),
@@ -26,9 +28,11 @@ class AdminSettingsScreen extends StatelessWidget {
         ),
       ),
       _SettingMenu(
-        title: lang == 'EN' ? 'Terms & Conditions' : 'Syarat dan Ketentuan',
-        subtitle: lang == 'EN'
-            ? 'Manage terms per language'
+        title: lang == 'EN' ? 'Terms & Conditions'
+            : lang == 'ZH' ? '条款与条件'
+            : 'Syarat dan Ketentuan',
+        subtitle: lang == 'EN' ? 'Manage terms per language'
+            : lang == 'ZH' ? '按语言管理条款'
             : 'Kelola syarat per bahasa',
         icon: Icons.gavel_rounded,
         color: const Color(0xFF0891B2),
@@ -38,15 +42,19 @@ class AdminSettingsScreen extends StatelessWidget {
             builder: (_) => AdminLegalScreen(
               lang: lang,
               docType: 'terms_conditions',
-              title: lang == 'EN' ? 'Terms & Conditions' : 'Syarat dan Ketentuan',
+              title: lang == 'EN' ? 'Terms & Conditions'
+                  : lang == 'ZH' ? '条款与条件'
+                  : 'Syarat dan Ketentuan',
             ),
           ),
         ),
       ),
       _SettingMenu(
-        title: lang == 'EN' ? 'Privacy Policy' : 'Kebijakan Privasi',
-        subtitle: lang == 'EN'
-            ? 'Manage privacy policy per language'
+        title: lang == 'EN' ? 'Privacy Policy'
+            : lang == 'ZH' ? '隐私政策'
+            : 'Kebijakan Privasi',
+        subtitle: lang == 'EN' ? 'Manage privacy policy per language'
+            : lang == 'ZH' ? '按语言管理隐私政策'
             : 'Kelola kebijakan privasi per bahasa',
         icon: Icons.shield_outlined,
         color: const Color(0xFF059669),
@@ -56,15 +64,19 @@ class AdminSettingsScreen extends StatelessWidget {
             builder: (_) => AdminLegalScreen(
               lang: lang,
               docType: 'privacy_policy',
-              title: lang == 'EN' ? 'Privacy Policy' : 'Kebijakan Privasi',
+              title: lang == 'EN' ? 'Privacy Policy'
+                  : lang == 'ZH' ? '隐私政策'
+                  : 'Kebijakan Privasi',
             ),
           ),
         ),
       ),
       _SettingMenu(
-        title: lang == 'EN' ? 'Latest News' : 'Kabar Terbaru',
-        subtitle: lang == 'EN'
-            ? 'Updates & maintenance notices'
+        title: lang == 'EN' ? 'Latest News'
+            : lang == 'ZH' ? '最新消息'
+            : 'Kabar Terbaru',
+        subtitle: lang == 'EN' ? 'Updates & maintenance notices'
+            : lang == 'ZH' ? '更新与维护通知'
             : 'Pembaruan & pemberitahuan pemeliharaan',
         icon: Icons.campaign_outlined,
         color: const Color(0xFFF59E0B),
@@ -83,7 +95,7 @@ class AdminSettingsScreen extends StatelessWidget {
         elevation: 0,
         shadowColor: Colors.black.withOpacity(0.06),
         title: Text(
-          lang == 'EN' ? 'App Settings' : 'Pengaturan Aplikasi',
+          lang == 'EN' ? 'App Settings' : lang == 'ZH' ? '应用设置' : 'Pengaturan Aplikasi',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 16,
@@ -131,7 +143,7 @@ class AdminSettingsScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          lang == 'EN' ? 'App Settings' : 'Pengaturan Aplikasi',
+                          lang == 'EN' ? 'App Settings' : lang == 'ZH' ? '应用设置' : 'Pengaturan Aplikasi',
                           style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
@@ -140,9 +152,9 @@ class AdminSettingsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          lang == 'EN'
-                              ? 'Manage app content & information'
-                              : 'Kelola konten & informasi aplikasi',
+                          lang == 'EN' ? 'Manage app content & information'
+                                  : lang == 'ZH' ? '管理应用内容与信息'
+                                  : 'Kelola konten & informasi aplikasi',
                           style: GoogleFonts.poppins(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: 12,
@@ -157,7 +169,9 @@ class AdminSettingsScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             Text(
-              lang == 'EN' ? 'Content Management' : 'Manajemen Konten',
+              lang == 'EN' ? 'Content Management'
+                      : lang == 'ZH' ? '内容管理'
+                      : 'Manajemen Konten',
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,

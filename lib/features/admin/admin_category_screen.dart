@@ -52,7 +52,7 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
         elevation: 0,
         shadowColor: Colors.black.withOpacity(0.06),
         title: Text(
-          widget.lang == 'EN' ? 'Category Management' : 'Kelola Kategori',
+          widget.lang == 'EN' ? 'Category Management' : widget.lang == 'ZH' ? '分类管理': 'Kelola Kategori',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 16,
@@ -77,13 +77,13 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
               tabs: [
                 _buildMainTab(
                   index: 0,
-                  label: widget.lang == 'EN' ? 'Categories' : 'Kategori',
+                  label: widget.lang == 'EN' ? 'Categories' : widget.lang == 'ZH' ? '分类' : 'Kategori',
                   icon: Icons.category_rounded,
                   activeColor: const Color(0xFF0EA5E9), // biru cerah 5R
                 ),
                 _buildMainTab(
                   index: 1,
-                  label: widget.lang == 'EN' ? 'Sub-Categories' : 'Sub-Kategori',
+                  label: widget.lang == 'EN' ? 'Sub-Categories' : widget.lang == 'ZH' ? '子分类' : 'Sub-Kategori',
                   icon: Icons.list_alt_rounded,
                   activeColor: const Color(0xFFF59E0B), // kuning KTS
                 ),
@@ -357,28 +357,26 @@ class _KategoriListState extends State<_KategoriList> {
       barrierDismissible: false,
       builder: (ctx) => _LightFormDialog(
         title: isEdit
-            ? (widget.lang == 'EN' ? 'Edit Category' : 'Edit Kategori')
-            : (widget.lang == 'EN'
-                ? 'Add Category'
-                : 'Tambah Kategori'),
+            ? (widget.lang == 'EN' ? 'Edit Category' : widget.lang == 'ZH' ? '编辑分类' : 'Edit Kategori')
+            : (widget.lang == 'EN' ? 'Add Category' : widget.lang == 'ZH' ? '添加分类' : 'Tambah Kategori'),
         icon: Icons.category_rounded,
         color: widget.color,
         lang: widget.lang,
         badge: widget.isKts ? 'KTS Production' : '5R Finding',
         fields: [
           _FieldConfig(
-            label: widget.lang == 'EN' ? 'Category Name' : 'Nama Kategori',
+            label: widget.lang == 'EN' ? 'Category Name' : widget.lang == 'ZH' ? '分类名称' : 'Nama Kategori',
             ctrl: namaCtrl,
             icon: Icons.category_rounded,
           ),
           _FieldConfig(
-            label: widget.lang == 'EN' ? 'Description' : 'Deskripsi',
+            label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
             ctrl: descCtrl,
             icon: Icons.notes_rounded,
             maxLines: 3,
           ),
           _FieldConfig(
-            label: widget.lang == 'EN' ? 'Points' : 'Poin',
+            label: widget.lang == 'EN' ? 'Points' : widget.lang == 'ZH' ? '积分' : 'Poin',
             ctrl: poinCtrl,
             icon: Icons.star_rounded,
             keyboardType: TextInputType.number,
@@ -483,13 +481,13 @@ class _KategoriListState extends State<_KategoriList> {
                   Row(
                     children: [
                       _detailChip(
-                        '${widget.lang == 'EN' ? 'Points' : 'Poin'}: $poin',
+                        '${widget.lang == 'EN' ? 'Points' : widget.lang == 'ZH' ? '积分' : 'Poin'}: $poin',
                         const Color(0xFFFBBF24),
                         Icons.star_rounded,
                       ),
                       const SizedBox(width: 8),
                       _detailChip(
-                        '${subs.length} ${widget.lang == 'EN' ? 'sub-cat' : 'sub-kat'}',
+                        '${subs.length} ${widget.lang == 'EN' ? 'sub-cat' : widget.lang == 'ZH' ? '子类' : 'sub-kat'}',
                         widget.color,
                         Icons.list_alt_rounded,
                       ),
@@ -520,9 +518,7 @@ class _KategoriListState extends State<_KategoriList> {
                               color: Colors.grey.shade300),
                           const SizedBox(height: 8),
                           Text(
-                            widget.lang == 'EN'
-                                ? 'No sub-categories yet'
-                                : 'Belum ada sub-kategori',
+                            widget.lang == 'EN' ? 'No sub-categories yet' : widget.lang == 'ZH' ? '暂无子分类' : 'Belum ada sub-kategori',
                             style: GoogleFonts.poppins(
                                 color: Colors.black38, fontSize: 13),
                           ),
@@ -607,7 +603,7 @@ class _KategoriListState extends State<_KategoriList> {
                       icon: Icon(Icons.edit_outlined,
                           size: 16, color: widget.color),
                       label: Text(
-                        widget.lang == 'EN' ? 'Edit' : 'Ubah',
+                        widget.lang == 'EN' ? 'Edit' : widget.lang == 'ZH' ? '编辑' : 'Ubah',
                         style: GoogleFonts.poppins(
                             color: widget.color,
                             fontWeight: FontWeight.w600),
@@ -631,7 +627,7 @@ class _KategoriListState extends State<_KategoriList> {
                       icon: const Icon(Icons.delete_outline_rounded,
                           size: 16, color: Colors.white),
                       label: Text(
-                        widget.lang == 'EN' ? 'Delete' : 'Hapus',
+                        widget.lang == 'EN' ? 'Delete' : widget.lang == 'ZH' ? '删除' : 'Hapus',
                         style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontWeight: FontWeight.w600),
@@ -705,7 +701,7 @@ class _KategoriListState extends State<_KategoriList> {
         elevation: 3,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: Text(
-          widget.lang == 'EN' ? 'Add Category' : 'Tambah Kategori',
+          widget.lang == 'EN' ? 'Add Category' : widget.lang == 'ZH' ? '添加分类' : 'Tambah Kategori',
           style: GoogleFonts.poppins(
               color: Colors.white, fontWeight: FontWeight.w600),
         ),
@@ -728,9 +724,7 @@ class _KategoriListState extends State<_KategoriList> {
                 style: GoogleFonts.poppins(
                     color: const Color(0xFF1E3A8A), fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: widget.lang == 'EN'
-                      ? 'Search categories...'
-                      : 'Cari kategori...',
+                  hintText: widget.lang == 'EN' ? 'Search categories...' : widget.lang == 'ZH' ? '搜索分类...' : 'Cari kategori...',
                   hintStyle: GoogleFonts.poppins(
                       color: Colors.black38, fontSize: 13),
                   prefixIcon: const Icon(Icons.search,
@@ -748,7 +742,7 @@ class _KategoriListState extends State<_KategoriList> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '${_filtered.length} ${widget.lang == 'EN' ? 'categories' : 'kategori'}',
+                '${_filtered.length} ${widget.lang == 'EN' ? 'categories' : widget.lang == 'ZH' ? '个分类' : 'kategori'}',
                 style: GoogleFonts.poppins(
                     color: Colors.black38, fontSize: 12),
               ),
@@ -930,9 +924,7 @@ class _KategoriListState extends State<_KategoriList> {
           ),
           const SizedBox(height: 12),
           Text(
-            widget.lang == 'EN'
-                ? 'No categories yet'
-                : 'Belum ada kategori',
+            widget.lang == 'EN' ? 'No categories yet' : widget.lang == 'ZH' ? '暂无分类' : 'Belum ada kategori',
             style: GoogleFonts.poppins(
                 color: Colors.black38,
                 fontSize: 14,
@@ -940,9 +932,7 @@ class _KategoriListState extends State<_KategoriList> {
           ),
           const SizedBox(height: 6),
           Text(
-            widget.lang == 'EN'
-                ? 'Tap + to add'
-                : 'Tekan + untuk menambah',
+            widget.lang == 'EN' ? 'Tap + to add' : widget.lang == 'ZH' ? '点击+添加' : 'Tekan + untuk menambah',
             style: GoogleFonts.poppins(
                 color: Colors.black26, fontSize: 12),
           ),
@@ -1070,33 +1060,26 @@ class _SubkategoriListState extends State<_SubkategoriList> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => _LightFormDialog(
-          title: isEdit
-              ? (widget.lang == 'EN'
-                  ? 'Edit Sub-Category'
-                  : 'Edit Sub-Kategori')
-              : (widget.lang == 'EN'
-                  ? 'Add Sub-Category'
-                  : 'Tambah Sub-Kategori'),
+          title: isEdit ? (widget.lang == 'EN' ? 'Edit Sub-Category' : widget.lang == 'ZH' ? '编辑子分类' : 'Edit Sub-Kategori')
+                        : (widget.lang == 'EN' ? 'Add Sub-Category' : widget.lang == 'ZH' ? '添加子分类' : 'Tambah Sub-Kategori'),
           icon: Icons.list_alt_rounded,
           color: widget.color,
           lang: widget.lang,
           badge: widget.isKts ? 'KTS Production' : '5R Finding',
           fields: [
             _FieldConfig(
-              label: widget.lang == 'EN'
-                  ? 'Sub-Category Name'
-                  : 'Nama Sub-Kategori',
+              label: widget.lang == 'EN' ? 'Sub-Category Name' : widget.lang == 'ZH' ? '子分类名称' : 'Nama Sub-Kategori',
               ctrl: namaCtrl,
               icon: Icons.list_alt_rounded,
             ),
             _FieldConfig(
-              label: widget.lang == 'EN' ? 'Description' : 'Deskripsi',
+              label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
               ctrl: descCtrl,
               icon: Icons.notes_rounded,
               maxLines: 3,
             ),
             _FieldConfig(
-              label: widget.lang == 'EN' ? 'Points' : 'Poin',
+              label: widget.lang == 'EN' ? 'Points' : widget.lang == 'ZH' ? '积分' : 'Poin',
               ctrl: poinCtrl,
               icon: Icons.star_rounded,
               keyboardType: TextInputType.number,
@@ -1241,9 +1224,7 @@ class _SubkategoriListState extends State<_SubkategoriList> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Text(
-                  widget.lang == 'EN'
-                      ? 'Parent Category'
-                      : 'Kategori Induk',
+                  widget.lang == 'EN' ? 'Parent Category' : widget.lang == 'ZH' ? '父分类' : 'Kategori Induk',
                   style: GoogleFonts.poppins(
                     color: Colors.black45,
                     fontSize: 11,
@@ -1331,7 +1312,7 @@ class _SubkategoriListState extends State<_SubkategoriList> {
                         icon: Icon(Icons.edit_outlined,
                             size: 16, color: widget.color),
                         label: Text(
-                          widget.lang == 'EN' ? 'Edit' : 'Ubah',
+                          widget.lang == 'EN' ? 'Edit' : widget.lang == 'ZH' ? '编辑' : 'Ubah',
                           style: GoogleFonts.poppins(
                               color: widget.color,
                               fontWeight: FontWeight.w600),
@@ -1357,7 +1338,7 @@ class _SubkategoriListState extends State<_SubkategoriList> {
                             size: 16,
                             color: Colors.white),
                         label: Text(
-                          widget.lang == 'EN' ? 'Delete' : 'Hapus',
+                          widget.lang == 'EN' ? 'Delete' : widget.lang == 'ZH' ? '删除' : 'Hapus',
                           style: GoogleFonts.poppins(
                               color: Colors.white,
                               fontWeight: FontWeight.w600),
@@ -1432,7 +1413,7 @@ class _SubkategoriListState extends State<_SubkategoriList> {
         elevation: 3,
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: Text(
-          widget.lang == 'EN' ? 'Add Sub-Cat' : 'Tambah Sub',
+          widget.lang == 'EN' ? 'Add Sub-Cat' : widget.lang == 'ZH' ? '添加子类' : 'Tambah Sub',
           style: GoogleFonts.poppins(
               color: Colors.white, fontWeight: FontWeight.w600),
         ),
@@ -1455,9 +1436,7 @@ class _SubkategoriListState extends State<_SubkategoriList> {
                 style: GoogleFonts.poppins(
                     color: const Color(0xFF1E3A8A), fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: widget.lang == 'EN'
-                      ? 'Search sub-categories...'
-                      : 'Cari sub-kategori...',
+                  hintText: widget.lang == 'EN' ? 'Search sub-categories...' : widget.lang == 'ZH' ? '搜索子分类...' : 'Cari sub-kategori...',
                   hintStyle: GoogleFonts.poppins(
                       color: Colors.black38, fontSize: 13),
                   prefixIcon: const Icon(Icons.search,
@@ -1475,7 +1454,7 @@ class _SubkategoriListState extends State<_SubkategoriList> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '${_filtered.length} sub-${widget.lang == 'EN' ? 'categories' : 'kategori'}',
+                '${_filtered.length} sub-${widget.lang == 'EN' ? 'categories' : widget.lang == 'ZH' ? '分类' : 'kategori'}',
                 style: GoogleFonts.poppins(
                     color: Colors.black38, fontSize: 12),
               ),
@@ -1648,9 +1627,7 @@ class _SubkategoriListState extends State<_SubkategoriList> {
           ),
           const SizedBox(height: 12),
           Text(
-            widget.lang == 'EN'
-                ? 'No sub-categories yet'
-                : 'Belum ada sub-kategori',
+            widget.lang == 'EN' ? 'No sub-categories yet' : widget.lang == 'ZH' ? '暂无子分类' : 'Belum ada sub-kategori',
             style: GoogleFonts.poppins(
                 color: Colors.black38,
                 fontSize: 14,
@@ -1658,9 +1635,7 @@ class _SubkategoriListState extends State<_SubkategoriList> {
           ),
           const SizedBox(height: 6),
           Text(
-            widget.lang == 'EN'
-                ? 'Tap + to add'
-                : 'Tekan + untuk menambah',
+            widget.lang == 'EN' ? 'Tap + to add' : widget.lang == 'ZH' ? '点击+添加' : 'Tekan + untuk menambah',
             style: GoogleFonts.poppins(
                 color: Colors.black26, fontSize: 12),
           ),
@@ -1694,7 +1669,7 @@ class _KategoriDropdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          lang == 'EN' ? 'Parent Category' : 'Kategori Induk',
+          lang == 'EN' ? 'Parent Category' : lang == 'ZH' ? '父分类' : 'Kategori Induk',
           style: GoogleFonts.poppins(
             color: Colors.black54,
             fontSize: 12,
@@ -1718,7 +1693,7 @@ class _KategoriDropdown extends StatelessWidget {
               icon: Icon(Icons.keyboard_arrow_down_rounded,
                   color: Colors.black45),
               hint: Text(
-                lang == 'EN' ? 'Select category' : 'Pilih kategori',
+                lang == 'EN' ? 'Select category' : lang == 'ZH' ? '选择分类' : 'Pilih kategori',
                 style: GoogleFonts.poppins(
                     color: Colors.black38, fontSize: 13),
               ),
@@ -1932,7 +1907,7 @@ class _LightFormDialog extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12)),
                     ),
                     child: Text(
-                      lang == 'EN' ? 'Cancel' : 'Batal',
+                      lang == 'EN' ? 'Cancel' : lang == 'ZH' ? '取消' : 'Batal',
                       style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w600),
                     ),
@@ -1956,7 +1931,7 @@ class _LightFormDialog extends StatelessWidget {
                       shadowColor: color.withOpacity(0.3),
                     ),
                     child: Text(
-                      lang == 'EN' ? 'Save' : 'Simpan',
+                      lang == 'EN' ? 'Save' : lang == 'ZH' ? '保存' : 'Simpan',
                       style: GoogleFonts.poppins(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
@@ -1985,13 +1960,13 @@ Future<bool> _confirmDeleteDialog(
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20)),
           title: Text(
-            lang == 'EN' ? 'Delete?' : 'Hapus?',
+            lang == 'EN' ? 'Delete?' : lang == 'ZH' ? '删除？' : 'Hapus?',
             style: GoogleFonts.poppins(
                 color: const Color(0xFF1E3A8A),
                 fontWeight: FontWeight.bold),
           ),
           content: Text(
-            '${lang == 'EN' ? 'Delete' : 'Hapus'} "$name"?',
+            '${lang == 'EN' ? 'Delete' : lang == 'ZH' ? '删除' : 'Hapus'} "$name"?',
             style:
                 GoogleFonts.poppins(color: Colors.black54, fontSize: 13),
           ),
@@ -1999,7 +1974,7 @@ Future<bool> _confirmDeleteDialog(
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: Text(
-                lang == 'EN' ? 'Cancel' : 'Batal',
+                lang == 'EN' ? 'Cancel' : lang == 'ZH' ? '取消' : 'Batal',
                 style: TextStyle(color: Colors.grey.shade500),
               ),
             ),
@@ -2012,7 +1987,7 @@ Future<bool> _confirmDeleteDialog(
                 elevation: 0,
               ),
               child: Text(
-                lang == 'EN' ? 'Delete' : 'Hapus',
+                lang == 'EN' ? 'Delete' : lang == 'ZH' ? '删除' : 'Hapus',
                 style: const TextStyle(color: Colors.white),
               ),
             ),
