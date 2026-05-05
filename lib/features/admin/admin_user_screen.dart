@@ -3,7 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../../core/services/auth_service.dart'; // ← sesuaikan path
+import '../../../core/services/auth_service.dart';
+import 'shared/admin_image_picker_widget.dart'; // ← sesuaikan path
 
 class AdminUserScreen extends StatefulWidget {
   final String lang;
@@ -511,274 +512,403 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   // ─── DIALOG: Tambah / Edit User ───
   void _showUserDialog({Map<String, dynamic>? user}) {
     final isEdit = user != null;
-    final namaCtrl =
-        TextEditingController(text: user?['nama'] ?? '');
-    final emailCtrl =
-        TextEditingController(text: user?['email'] ?? '');
+    final namaCtrl = TextEditingController(text: user?['nama'] ?? '');
+    final emailCtrl = TextEditingController(text: user?['email'] ?? '');
     final passCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController(text: user?['phone'] ?? '');
     int? selectedJabatan = user?['id_jabatan'] as int?;
     bool isVisitor = user?['is_visitor'] == true;
     bool isVerificator = user?['is_verificator'] == true;
     bool isSavingDialog = false;
+    String? gambarUserUrl = user?['gambar_user'] as String?;
+
+    // Location selections — simpan sebagai String UUID
+    String? selectedLokasiId = user?['id_lokasi'] as String?;
+    String? selectedUnitId = user?['id_unit'] as String?;
+    String? selectedSubunitId = user?['id_subunit'] as String?;
+    String? selectedAreaId = user?['id_area'] as String?;
+
+    // Cache list untuk dropdown bertingkat
+    List<Map<String, dynamic>> lokasiList = [];
+    List<Map<String, dynamic>> unitList = [];
+    List<Map<String, dynamic>> subunitList = [];
+    List<Map<String, dynamic>> areaList = [];
+
+    Future<void> loadLokasi(StateSetter setDlg) async {
+      final res = await Supabase.instance.client
+          .from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi');
+      setDlg(() => lokasiList = List<Map<String, dynamic>>.from(res));
+    }
+
+    Future<void> loadUnit(String lokasiId, StateSetter setDlg) async {
+      final res = await Supabase.instance.client
+          .from('unit').select('id_unit, nama_unit')
+          .eq('id_lokasi', lokasiId).order('nama_unit');
+      setDlg(() {
+        unitList = List<Map<String, dynamic>>.from(res);
+        subunitList = [];
+        areaList = [];
+        selectedUnitId = null;
+        selectedSubunitId = null;
+        selectedAreaId = null;
+      });
+    }
+
+    Future<void> loadSubunit(String unitId, StateSetter setDlg) async {
+      final res = await Supabase.instance.client
+          .from('subunit').select('id_subunit, nama_subunit')
+          .eq('id_unit', unitId).order('nama_subunit');
+      setDlg(() {
+        subunitList = List<Map<String, dynamic>>.from(res);
+        areaList = [];
+        selectedSubunitId = null;
+        selectedAreaId = null;
+      });
+    }
+
+    Future<void> loadArea(String subunitId, StateSetter setDlg) async {
+      final res = await Supabase.instance.client
+          .from('area').select('id_area, nama_area')
+          .eq('id_subunit', subunitId).order('nama_area');
+      setDlg(() {
+        areaList = List<Map<String, dynamic>>.from(res);
+        selectedAreaId = null;
+      });
+    }
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24)),
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Header ──
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: _primary.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        isEdit
-                            ? Icons.edit_rounded
-                            : Icons.person_add_rounded,
-                        color: _primary,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        isEdit
-                            ? (_langCode == 'EN'
-                                ? 'Edit User'
-                                : _langCode == 'ZH'
-                                    ? '编辑用户'
-                                    : 'Edit Pengguna')
-                            : (_langCode == 'EN'
-                                ? 'Add New User'
-                                : _langCode == 'ZH'
-                                    ? '添加新用户'
-                                    : 'Tambah Pengguna Baru'),
-                        style: GoogleFonts.poppins(
-                          color: const Color(0xFF1E3A8A),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(ctx),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.close,
-                            size: 18, color: Colors.grey.shade500),
-                      ),
-                    ),
-                  ],
-                ),
+        builder: (ctx, setDlg) {
+          // Load lokasi saat pertama kali
+          if (lokasiList.isEmpty) {
+            loadLokasi(setDlg).then((_) {
+              // Jika edit, load cascading berdasarkan data existing
+              if (isEdit && selectedLokasiId != null) {
+                loadUnit(selectedLokasiId!, setDlg).then((_) {
+                  setDlg(() => selectedUnitId = user?['id_unit'] as String?);
+                  if (selectedUnitId != null) {
+                    loadSubunit(selectedUnitId!, setDlg).then((_) {
+                      setDlg(() => selectedSubunitId = user?['id_subunit'] as String?);
+                      if (selectedSubunitId != null) {
+                        loadArea(selectedSubunitId!, setDlg).then((_) {
+                          setDlg(() => selectedAreaId = user?['id_area'] as String?);
+                        });
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
 
-                const SizedBox(height: 20),
-                _buildDivider(),
-                const SizedBox(height: 20),
-
-                // ── Nama ──
-                _buildDlgLabel(
-                    _langCode == 'EN' ? 'Full Name' : _langCode == 'ZH' ? '姓名' : 'Nama Lengkap'),
-                const SizedBox(height: 6),
-                _buildDlgTextField(
-                  namaCtrl,
-                  Icons.person_outline,
-                  _langCode == 'EN'
-                      ? 'Enter full name...'
-                      : 'Masukkan nama lengkap...',
-                ),
-                const SizedBox(height: 16),
-
-                // ── Email ──
-                _buildDlgLabel('Email'),
-                const SizedBox(height: 6),
-                _buildDlgTextField(
-                  emailCtrl,
-                  Icons.email_outlined,
-                  'email@example.com',
-                  keyboardType: TextInputType.emailAddress,
-                  enabled: !isEdit,
-                ),
-                const SizedBox(height: 16),
-
-                // ── Password (hanya saat tambah) ──
-                if (!isEdit) ...[
-                  _buildDlgLabel(
-                      _langCode == 'EN' ? 'Password' : _langCode == 'ZH' ? '密码' : 'Kata Sandi'),
-                  const SizedBox(height: 6),
-                  _buildDlgTextField(
-                    passCtrl,
-                    Icons.lock_outline,
-                    _langCode == 'EN'
-                        ? 'Min 6 characters'
-                        : _langCode == 'ZH'
-                            ? '最少6个字符'
-                            : 'Minimal 6 karakter',
-                    obscure: true,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // ── Jabatan Dropdown ──
-                _buildDlgLabel(
-                    _langCode == 'EN' ? 'Job Title' : _langCode == 'ZH' ? '职位' : 'Jabatan'),
-                const SizedBox(height: 6),
-                _buildJabatanDropdown(
-                  selectedJabatan: selectedJabatan,
-                  onChanged: (v) =>
-                      setDlg(() => selectedJabatan = v),
-                ),
-                const SizedBox(height: 20),
-
-                // ── Divider ──
-                _buildDivider(),
-                const SizedBox(height: 16),
-
-                // ── Toggle Visitor ──
-                _buildToggleRow(
-                  _langCode == 'EN'
-                      ? 'Visitor Mode'
-                      : _langCode == 'ZH'
-                          ? '访客模式'
-                          : 'Mode Pengunjung',
-                  Icons.visibility_outlined,
-                  isVisitor,
-                  (v) => setDlg(() => isVisitor = v),
-                  const Color(0xFF0891B2),
-                ),
-                const SizedBox(height: 10),
-
-                // ── Toggle Verificator ──
-                _buildToggleRow(
-                  _langCode == 'EN' ? 'Verificator' : _langCode == 'ZH' ? '验证员' : 'Verifikator',
-                  Icons.verified_user_outlined,
-                  isVerificator,
-                  (v) => setDlg(() => isVerificator = v),
-                  const Color(0xFFF59E0B),
-                ),
-                const SizedBox(height: 24),
-
-                // ── Action Buttons ──
-                if (isSavingDialog)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: CircularProgressIndicator(
-                          color: _primary),
-                    ),
-                  )
-                else
+          return Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Header ──
                   Row(
                     children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(
-                                color: Colors.grey.shade300),
-                            foregroundColor: Colors.grey.shade600,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(12)),
-                          ),
-                          child: Text(
-                              _langCode == 'EN'
-                                  ? 'Cancel'
-                                  : _langCode == 'ZH'
-                                        ? '取消'
-                                        : 'Batal',
-                              style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600)),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _primary.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          isEdit ? Icons.edit_rounded : Icons.person_add_rounded,
+                          color: _primary, size: 22,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            setDlg(() => isSavingDialog = true);
-                            await _saveUser(
-                              isEdit: isEdit,
-                              userId: user?['id_user'],
-                              nama: namaCtrl.text.trim(),
-                              email: emailCtrl.text.trim(),
-                              pass: passCtrl.text.trim(),
-                              idJabatan: selectedJabatan,
-                              isVisitor: isVisitor,
-                              isVerificator: isVerificator,
-                            );
-                            if (ctx.mounted) Navigator.pop(ctx);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _primary,
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 14),
-                            shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(12)),
-                            elevation: 2,
-                            shadowColor:
-                                _primary.withOpacity(0.3),
+                        child: Text(
+                          isEdit
+                              ? (_langCode == 'EN' ? 'Edit User' : _langCode == 'ZH' ? '编辑用户' : 'Edit Pengguna')
+                              : (_langCode == 'EN' ? 'Add New User' : _langCode == 'ZH' ? '添加新用户' : 'Tambah Pengguna Baru'),
+                          style: GoogleFonts.poppins(
+                              color: const Color(0xFF1E3A8A),
+                              fontWeight: FontWeight.w700, fontSize: 16),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                isEdit
-                                    ? Icons.save_rounded
-                                    : Icons.person_add_rounded,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                isEdit
-                                    ? (_langCode == 'EN'
-                                        ? 'Update'
-                                        : _langCode == 'ZH'
-                                            ? '更新'
-                                            : 'Perbarui')
-                                    : (_langCode == 'EN'
-                                        ? 'Save & Register'
-                                        : _langCode == 'ZH'
-                                            ? '保存并注册'
-                                            : 'Simpan & Daftar'),
-                                style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontWeight:
-                                        FontWeight.w600),
-                              ),
-                            ],
-                          ),
+                          child: Icon(Icons.close, size: 18, color: Colors.grey.shade500),
                         ),
                       ),
                     ],
                   ),
-              ],
+
+                  const SizedBox(height: 20),
+                  _buildDivider(),
+                  const SizedBox(height: 16),
+
+                  // ── Avatar / Gambar User ──
+                  _buildDlgLabel(_langCode == 'EN'
+                      ? 'Profile Photo'
+                      : _langCode == 'ZH'
+                          ? '头像'
+                          : 'Foto Profil'),
+                  const SizedBox(height: 12),
+                  AdminImagePickerWidget(
+                    currentImageUrl : gambarUserUrl,
+                    storageBucket   : 'avatars',          // sesuaikan bucket Anda
+                    storageFolder   : 'user',
+                    filePrefix      : user?['id_user'] ?? 'new-user',
+                    height          : 56,                 // radius = 56 → diameter 112
+                    isCircle        : true,
+                    placeholder     : Text(
+                      namaCtrl.text.isNotEmpty
+                          ? namaCtrl.text[0].toUpperCase()
+                          : '?',
+                      style: GoogleFonts.poppins(
+                          color: const Color(0xFF6366F1),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20),
+                    ),
+                    onUploaded: (newUrl) => setDlg(() => gambarUserUrl = newUrl),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Nama ──
+                  _buildDlgLabel(_langCode == 'EN' ? 'Full Name' : _langCode == 'ZH' ? '姓名' : 'Nama Lengkap'),
+                  const SizedBox(height: 6),
+                  _buildDlgTextField(namaCtrl, Icons.person_outline,
+                      _langCode == 'EN' ? 'Enter full name...' : 'Masukkan nama lengkap...'),
+                  const SizedBox(height: 16),
+
+                  // ── Email ──
+                  _buildDlgLabel('Email'),
+                  const SizedBox(height: 6),
+                  _buildDlgTextField(emailCtrl, Icons.email_outlined, 'email@example.com',
+                      keyboardType: TextInputType.emailAddress, enabled: !isEdit),
+                  const SizedBox(height: 16),
+
+                  // ── Phone ──
+                  _buildDlgLabel(_langCode == 'EN' ? 'Phone' : _langCode == 'ZH' ? '电话' : 'Telepon'),
+                  const SizedBox(height: 6),
+                  _buildDlgTextField(phoneCtrl, Icons.phone_outlined,
+                      _langCode == 'EN' ? 'e.g. 08123456789' : 'cth. 08123456789',
+                      keyboardType: TextInputType.phone),
+                  const SizedBox(height: 16),
+
+                  // ── Password (hanya saat tambah) ──
+                  if (!isEdit) ...[
+                    _buildDlgLabel(_langCode == 'EN' ? 'Password' : _langCode == 'ZH' ? '密码' : 'Kata Sandi'),
+                    const SizedBox(height: 6),
+                    _buildDlgTextField(passCtrl, Icons.lock_outline,
+                        _langCode == 'EN' ? 'Min 6 characters' : 'Minimal 6 karakter',
+                        obscure: true),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // ── Jabatan ──
+                  _buildDlgLabel(_langCode == 'EN' ? 'Job Title' : _langCode == 'ZH' ? '职位' : 'Jabatan'),
+                  const SizedBox(height: 6),
+                  _buildJabatanDropdown(
+                      selectedJabatan: selectedJabatan,
+                      onChanged: (v) => setDlg(() => selectedJabatan = v)),
+                  const SizedBox(height: 20),
+
+                  _buildDivider(),
+                  const SizedBox(height: 16),
+
+                  // ── LOKASI SECTION ──
+                  Row(
+                    children: [
+                      Container(width: 3, height: 16,
+                          decoration: BoxDecoration(color: const Color(0xFF10B981),
+                              borderRadius: BorderRadius.circular(2))),
+                      const SizedBox(width: 8),
+                      Text(
+                        _langCode == 'EN' ? 'Location Assignment' : _langCode == 'ZH' ? '位置分配' : 'Penempatan Lokasi',
+                        style: GoogleFonts.poppins(
+                            color: const Color(0xFF1E3A8A), fontSize: 13, fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Lokasi Dropdown
+                  _buildDlgLabel(_langCode == 'EN' ? 'Location' : _langCode == 'ZH' ? '位置' : 'Lokasi'),
+                  const SizedBox(height: 6),
+                  _buildLocationDropdown<String>(
+                    items: lokasiList,
+                    idKey: 'id_lokasi',
+                    nameKey: 'nama_lokasi',
+                    selectedId: selectedLokasiId,
+                    hint: _langCode == 'EN' ? 'Select location' : 'Pilih lokasi',
+                    onChanged: (v) {
+                      setDlg(() => selectedLokasiId = v);
+                      if (v != null) loadUnit(v, setDlg);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Unit Dropdown
+                  _buildDlgLabel('Unit'),
+                  const SizedBox(height: 6),
+                  _buildLocationDropdown<String>(
+                    items: unitList,
+                    idKey: 'id_unit',
+                    nameKey: 'nama_unit',
+                    selectedId: selectedUnitId,
+                    hint: _langCode == 'EN' ? 'Select unit' : 'Pilih unit',
+                    enabled: selectedLokasiId != null && unitList.isNotEmpty,
+                    onChanged: (v) {
+                      setDlg(() => selectedUnitId = v);
+                      if (v != null) loadSubunit(v, setDlg);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Subunit Dropdown
+                  _buildDlgLabel('Sub-Unit'),
+                  const SizedBox(height: 6),
+                  _buildLocationDropdown<String>(
+                    items: subunitList,
+                    idKey: 'id_subunit',
+                    nameKey: 'nama_subunit',
+                    selectedId: selectedSubunitId,
+                    hint: _langCode == 'EN' ? 'Select sub-unit' : 'Pilih sub-unit',
+                    enabled: selectedUnitId != null && subunitList.isNotEmpty,
+                    onChanged: (v) {
+                      setDlg(() => selectedSubunitId = v);
+                      if (v != null) loadArea(v, setDlg);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Area Dropdown
+                  _buildDlgLabel('Area'),
+                  const SizedBox(height: 6),
+                  _buildLocationDropdown<String>(
+                    items: areaList,
+                    idKey: 'id_area',
+                    nameKey: 'nama_area',
+                    selectedId: selectedAreaId,
+                    hint: _langCode == 'EN' ? 'Select area' : 'Pilih area',
+                    enabled: selectedSubunitId != null && areaList.isNotEmpty,
+                    onChanged: (v) => setDlg(() => selectedAreaId = v),
+                  ),
+                  const SizedBox(height: 20),
+
+                  _buildDivider(),
+                  const SizedBox(height: 16),
+
+                  // ── Toggle Visitor ──
+                  _buildToggleRow(
+                    _langCode == 'EN' ? 'Visitor Mode' : _langCode == 'ZH' ? '访客模式' : 'Mode Pengunjung',
+                    Icons.visibility_outlined, isVisitor,
+                    (v) => setDlg(() => isVisitor = v),
+                    const Color(0xFF0891B2),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // ── Toggle Verificator ──
+                  _buildToggleRow(
+                    _langCode == 'EN' ? 'Verificator' : _langCode == 'ZH' ? '验证员' : 'Verifikator',
+                    Icons.verified_user_outlined, isVerificator,
+                    (v) => setDlg(() => isVerificator = v),
+                    const Color(0xFFF59E0B),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // ── Action Buttons ──
+                  if (isSavingDialog)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: CircularProgressIndicator(color: _primary),
+                      ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.grey.shade300),
+                              foregroundColor: Colors.grey.shade600,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: Text(
+                              _langCode == 'EN' ? 'Cancel' : _langCode == 'ZH' ? '取消' : 'Batal',
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              setDlg(() => isSavingDialog = true);
+                              await _saveUser(
+                                isEdit: isEdit,
+                                userId: user?['id_user'],
+                                nama: namaCtrl.text.trim(),
+                                email: emailCtrl.text.trim(),
+                                pass: passCtrl.text.trim(),
+                                phone: phoneCtrl.text.trim(),
+                                idJabatan: selectedJabatan,
+                                isVisitor: isVisitor,
+                                isVerificator: isVerificator,
+                                gambarUser: gambarUserUrl,
+                                idLokasi: selectedLokasiId,
+                                idUnit: selectedUnitId,
+                                idSubunit: selectedSubunitId,
+                                idArea: selectedAreaId,
+                              );
+                              if (ctx.mounted) Navigator.pop(ctx);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _primary,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 2,
+                              shadowColor: _primary.withOpacity(0.3),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  isEdit ? Icons.save_rounded : Icons.person_add_rounded,
+                                  color: Colors.white, size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  isEdit
+                                      ? (_langCode == 'EN' ? 'Update' : _langCode == 'ZH' ? '更新' : 'Perbarui')
+                                      : (_langCode == 'EN' ? 'Save & Register' : _langCode == 'ZH' ? '保存并注册' : 'Simpan & Daftar'),
+                                  style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -789,96 +919,83 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     required String nama,
     required String email,
     required String pass,
+    required String phone,
     int? idJabatan,
     required bool isVisitor,
     required bool isVerificator,
+    String? gambarUser,
+    String? idLokasi,
+    String? idUnit,
+    String? idSubunit,
+    String? idArea,
   }) async {
     if (nama.isEmpty || email.isEmpty) {
       _showSnack(
-          _langCode == 'EN'
-              ? 'Name and email are required!'
-              : _langCode == 'ZH'
-                  ? '姓名和邮箱为必填项！'
-                  : 'Nama dan email wajib diisi!',
+          _langCode == 'EN' ? 'Name and email are required!'
+              : _langCode == 'ZH' ? '姓名和邮箱为必填项！' : 'Nama dan email wajib diisi!',
           isError: true);
       return;
     }
 
     try {
       if (isEdit && userId != null) {
-        // ── Update user yang sudah ada ──
         await Supabase.instance.client.from('User').update({
           'nama': nama,
+          'phone': phone.isEmpty ? null : phone,
           'id_jabatan': idJabatan,
           'is_visitor': isVisitor,
           'is_verificator': isVerificator,
+          'gambar_user': gambarUser,
+          'id_lokasi': idLokasi,
+          'id_unit': idUnit,
+          'id_subunit': idSubunit,
+          'id_area': idArea,
         }).eq('id_user', userId);
 
-        _showSnack(_langCode == 'EN'
-            ? 'User updated successfully!'
-            : _langCode == 'ZH'
-                ? '用户更新成功！'
-                : 'Pengguna berhasil diperbarui!');
+        _showSnack(_langCode == 'EN' ? 'User updated successfully!'
+            : _langCode == 'ZH' ? '用户更新成功！' : 'Pengguna berhasil diperbarui!');
       } else {
-        // ── Registrasi user baru (sama persis seperti login_screen.dart) ──
         if (pass.isEmpty) {
-          _showSnack(
-              _langCode == 'EN'
-                  ? 'Password is required!'
-                  : _langCode == 'ZH'
-                      ? '密码为必填项！'
-                      : 'Password wajib diisi!',
-              isError: true);
+          _showSnack(_langCode == 'EN' ? 'Password is required!'
+              : _langCode == 'ZH' ? '密码为必填项！' : 'Password wajib diisi!', isError: true);
           return;
         }
         if (pass.length < 6) {
-          _showSnack(
-              _langCode == 'EN'
-                  ? 'Password must be at least 6 characters'
-                  : _langCode == 'ZH'
-                      ? '密码至少需要6个字符'
-                      : 'Password minimal 6 karakter',
-              isError: true);
+          _showSnack(_langCode == 'EN' ? 'Password must be at least 6 characters'
+              : _langCode == 'ZH' ? '密码至少需要6个字符' : 'Password minimal 6 karakter', isError: true);
           return;
         }
 
-        // 1. Hash password dengan Argon2 (sama seperti login_screen.dart)
-        final hashedPass =
-            await _auth.hashPassword(email, pass);
-
-        // 2. Daftar ke Supabase Auth
-        final res =
-            await _auth.signUpWithEmail(email, hashedPass);
+        final hashedPass = await _auth.hashPassword(email, pass);
+        final res = await _auth.signUpWithEmail(email, hashedPass);
 
         if (res == null || res.user == null) {
-          _showSnack(
-              _langCode == 'EN'
-                  ? 'Registration failed. Please try again.'
-                  : _langCode == 'ZH'
-                      ? '注册失败，请重试。'
-                      : 'Pendaftaran gagal. Silakan coba lagi.',
+          _showSnack(_langCode == 'EN' ? 'Registration failed. Please try again.'
+              : _langCode == 'ZH' ? '注册失败，请重试。' : 'Pendaftaran gagal. Silakan coba lagi.',
               isError: true);
           return;
         }
 
-        // 3. Insert ke tabel User (sama seperti login_screen.dart)
         await Supabase.instance.client.from('User').insert({
           'id_user': res.user!.id,
           'nama': nama,
           'email': email,
           'pass': hashedPass,
-          'id_jabatan': idJabatan ?? 4, // default Staff
+          'phone': phone.isEmpty ? null : phone,
+          'id_jabatan': idJabatan ?? 4,
           'poin': 0,
           'is_visitor': isVisitor,
           'is_verificator': isVerificator,
+          'gambar_user': gambarUser,
+          'id_lokasi': idLokasi,
+          'id_unit': idUnit,
+          'id_subunit': idSubunit,
+          'id_area': idArea,
           'timestamp': DateTime.now().toIso8601String(),
         });
 
-        _showSnack(_langCode == 'EN'
-            ? 'User registered successfully!'
-            : _langCode == 'ZH'
-                ? '用户注册成功！'
-                : 'Pengguna berhasil didaftarkan!');
+        _showSnack(_langCode == 'EN' ? 'User registered successfully!'
+            : _langCode == 'ZH' ? '用户注册成功！' : 'Pengguna berhasil didaftarkan!');
       }
 
       _loadData();
@@ -1293,38 +1410,32 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     bool obscure = false,
     TextInputType? keyboardType,
     bool enabled = true,
+    ValueChanged<String>? onChanged, // TAMBAH INI
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: enabled
-            ? const Color(0xFFF8FAFC)
-            : Colors.grey.shade50,
+        color: enabled ? const Color(0xFFF8FAFC) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: enabled
-                ? Colors.grey.shade200
-                : Colors.grey.shade100),
+            color: enabled ? Colors.grey.shade200 : Colors.grey.shade100),
       ),
       child: TextField(
         controller: ctrl,
         obscureText: obscure,
         keyboardType: keyboardType,
         enabled: enabled,
+        onChanged: onChanged, // TAMBAH INI
         style: GoogleFonts.poppins(
-          color: enabled
-              ? const Color(0xFF1E3A8A)
-              : Colors.black38,
+          color: enabled ? const Color(0xFF1E3A8A) : Colors.black38,
           fontSize: 14,
         ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.poppins(
-              color: Colors.black26, fontSize: 13),
-          prefixIcon:
-              Icon(icon, color: Colors.black38, size: 20),
+          hintStyle: GoogleFonts.poppins(color: Colors.black26, fontSize: 13),
+          prefixIcon: Icon(icon, color: Colors.black38, size: 20),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-              vertical: 14, horizontal: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         ),
       ),
     );
@@ -1372,6 +1483,53 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           onChanged: onChanged,
           style: GoogleFonts.poppins(
               color: const Color(0xFF1E3A8A)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocationDropdown<T>({
+    required List<Map<String, dynamic>> items,
+    required String idKey,
+    required String nameKey,
+    required T? selectedId,
+    required String hint,
+    required ValueChanged<T?> onChanged,
+    bool enabled = true,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: enabled ? const Color(0xFFF8FAFC) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: enabled ? Colors.grey.shade200 : Colors.grey.shade100),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: items.any((e) => e[idKey]?.toString() == selectedId?.toString())
+              ? selectedId
+              : null,
+          isExpanded: true,
+          dropdownColor: Colors.white,
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+              color: enabled ? Colors.black45 : Colors.grey.shade300),
+          hint: Text(hint,
+              style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13)),
+          items: enabled
+              ? items.map((item) {
+                  return DropdownMenuItem<T>(
+                    value: item[idKey] as T,
+                    child: Text(
+                      item[nameKey] ?? '-',
+                      style: GoogleFonts.poppins(
+                          color: const Color(0xFF1E3A8A), fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList()
+              : [],
+          onChanged: enabled ? onChanged : null,
         ),
       ),
     );

@@ -892,29 +892,21 @@ class _KtsProduksiFormScreenState
     if (_isLoadingKategori || _ktsKategoriId != null) return;
     setState(() => _isLoadingKategori = true);
     try {
-      final allData = await Supabase.instance.client
+      // Cari kategori dengan jenis_kategori = 'KTS' (lebih akurat)
+      final res = await Supabase.instance.client
           .from('kategoritemuan')
-          .select('id_kategoritemuan, nama_kategoritemuan');
-
-      Map<String, dynamic>? ktsData;
-      for (final item in allData) {
-        final nama =
-            item['nama_kategoritemuan'].toString().toLowerCase().trim();
-        if (nama.contains('kts')) {
-          ktsData = item;
-          break;
-        }
-      }
+          .select('id_kategoritemuan, nama_kategoritemuan, jenis_kategori')
+          .eq('jenis_kategori', 'KTS')
+          .limit(1)
+          .maybeSingle();
 
       if (mounted) {
         setState(() {
-          _ktsKategoriId =
-              ktsData?['id_kategoritemuan']?.toString();
-          if (_ktsKategoriId == null &&
-              _isEdit &&
+          _ktsKategoriId = res?['id_kategoritemuan']?.toString();
+          if (_ktsKategoriId == null && _isEdit &&
               widget.existingData!['kategoritemuan'] != null) {
-            _ktsKategoriId = widget.existingData!['kategoritemuan']
-                ['id_kategoritemuan'];
+            _ktsKategoriId =
+                widget.existingData!['kategoritemuan']['id_kategoritemuan'];
           }
           _isLoadingKategori = false;
         });
@@ -927,29 +919,28 @@ class _KtsProduksiFormScreenState
 
   void _showSubKategoriPicker() async {
     if (_isLoadingKategori) return;
-
     if (_ktsKategoriId == null) {
       await _loadKtsKategoriId();
       if (_ktsKategoriId == null) return;
     }
 
     try {
+      // Ambil subkategori berdasarkan parent kategori KTS
       final data = await Supabase.instance.client
           .from('subkategoritemuan')
-          .select(
-              'id_subkategoritemuan, nama_subkategoritemuan, deskripsi_subkategoritemuan')
+          .select('id_subkategoritemuan, nama_subkategoritemuan, deskripsi_subkategoritemuan')
           .eq('id_kategoritemuan', _ktsKategoriId!)
           .order('nama_subkategoritemuan');
 
       if (!mounted) return;
 
+      // [SISA KODE SAMA PERSIS SEPERTI SEBELUMNYA - showModalBottomSheet, dsb]
       showModalBottomSheet(
         context: context,
         backgroundColor: Colors.white,
         isScrollControlled: true,
         shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         builder: (_) => DraggableScrollableSheet(
           expand: false,
@@ -958,22 +949,18 @@ class _KtsProduksiFormScreenState
           builder: (_, ctrl) => Column(
             children: [
               Container(
-                margin:
-                    const EdgeInsets.only(top: 12, bottom: 8),
-                width: 40,
-                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40, height: 4,
                 decoration: BoxDecoration(
                     color: CupertinoColors.systemGrey4,
                     borderRadius: BorderRadius.circular(2)),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Center(
                   child: Text(t['pick_kategori']!,
                       style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 16, fontWeight: FontWeight.w700,
                           color: const Color(0xFF2563EB))),
                 ),
               ),
@@ -983,39 +970,29 @@ class _KtsProduksiFormScreenState
                   controller: ctrl,
                   itemCount: data.length,
                   itemBuilder: (_, i) {
-                    final sk =
-                        Map<String, dynamic>.from(data[i]);
+                    final sk = Map<String, dynamic>.from(data[i]);
                     final isSelected =
                         _selectedSubKategori?['id_subkategoritemuan'] ==
                             sk['id_subkategoritemuan'];
                     return ListTile(
-                      contentPadding:
-                          const EdgeInsets.symmetric(
-                              horizontal: 24, vertical: 4),
-                      title: Text(
-                          sk['nama_subkategoritemuan'],
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 4),
+                      title: Text(sk['nama_subkategoritemuan'],
                           style: GoogleFonts.inter(
                               fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                              fontSize: 15)),
-                      subtitle: sk[
-                                  'deskripsi_subkategoritemuan'] !=
-                              null
-                          ? Text(
-                              sk['deskripsi_subkategoritemuan'],
+                              color: Colors.black87, fontSize: 15)),
+                      subtitle: sk['deskripsi_subkategoritemuan'] != null
+                          ? Text(sk['deskripsi_subkategoritemuan'],
                               style: GoogleFonts.inter(
-                                  color: CupertinoColors
-                                      .systemGrey,
+                                  color: CupertinoColors.systemGrey,
                                   fontSize: 13))
                           : null,
                       trailing: isSelected
-                          ? const Icon(
-                              CupertinoIcons.check_mark,
-                              color: const Color(0xFF2563EB))
+                          ? const Icon(CupertinoIcons.check_mark,
+                              color: Color(0xFF2563EB))
                           : null,
                       onTap: () {
-                        setState(
-                            () => _selectedSubKategori = sk);
+                        setState(() => _selectedSubKategori = sk);
                         Navigator.pop(context);
                       },
                     );

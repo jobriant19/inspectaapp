@@ -166,6 +166,8 @@ class _LokasiTabState extends State<_LokasiTab> {
     final isEdit = item != null;
     final namaCtrl = TextEditingController(text: item?['nama_lokasi'] ?? '');
     final descCtrl = TextEditingController(text: item?['deskripsi_lokasi'] ?? '');
+    final kategoriCtrl = TextEditingController(text: item?['kategori'] ?? '');
+    final gambarCtrl = TextEditingController(text: item?['gambar_lokasi'] ?? '');
 
     showDialog(
       context: context,
@@ -187,21 +189,29 @@ class _LokasiTabState extends State<_LokasiTab> {
             icon: Icons.notes_rounded,
             maxLines: 3,
           ),
+          _FormField(
+            label: widget.lang == 'EN' ? 'Category' : widget.lang == 'ZH' ? '类别' : 'Kategori',
+            controller: kategoriCtrl,
+            icon: Icons.category_rounded,
+          ),
+          _FormField(
+            label: widget.lang == 'EN' ? 'Image URL' : widget.lang == 'ZH' ? '图片URL' : 'URL Gambar',
+            controller: gambarCtrl,
+            icon: Icons.image_outlined,
+          ),
         ],
         lang: widget.lang,
         onSave: () async {
           if (namaCtrl.text.trim().isEmpty) return;
           final data = {
             'nama_lokasi': namaCtrl.text.trim(),
-            'deskripsi_lokasi': descCtrl.text.trim().isEmpty
-                ? null
-                : descCtrl.text.trim(),
+            'deskripsi_lokasi': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+            'kategori': kategoriCtrl.text.trim().isEmpty ? null : kategoriCtrl.text.trim(),
+            'gambar_lokasi': gambarCtrl.text.trim().isEmpty ? null : gambarCtrl.text.trim(),
           };
           if (isEdit) {
             await Supabase.instance.client
-                .from('lokasi')
-                .update(data)
-                .eq('id_lokasi', item!['id_lokasi']);
+                .from('lokasi').update(data).eq('id_lokasi', item!['id_lokasi']);
           } else {
             await Supabase.instance.client.from('lokasi').insert(data);
           }
@@ -318,6 +328,8 @@ class _UnitTabState extends State<_UnitTab> {
     final isEdit = item != null;
     final namaCtrl = TextEditingController(text: item?['nama_unit'] ?? '');
     final descCtrl = TextEditingController(text: item?['deskripsi_unit'] ?? '');
+    final kategoriCtrl = TextEditingController(text: item?['kategori'] ?? '');
+    final gambarCtrl = TextEditingController(text: item?['gambar_unit'] ?? '');
     String? selectedLokasiId = item?['id_lokasi']?.toString();
 
     showDialog(
@@ -342,6 +354,16 @@ class _UnitTabState extends State<_UnitTab> {
               icon: Icons.notes_rounded,
               maxLines: 3,
             ),
+            _FormField(
+              label: widget.lang == 'EN' ? 'Category' : widget.lang == 'ZH' ? '类别' : 'Kategori',
+              controller: kategoriCtrl,
+              icon: Icons.category_rounded,
+            ),
+            _FormField(
+              label: widget.lang == 'EN' ? 'Image URL' : widget.lang == 'ZH' ? '图片URL' : 'URL Gambar',
+              controller: gambarCtrl,
+              icon: Icons.image_outlined,
+            ),
           ],
           extraWidget: _buildParentDropdown(
             label: widget.lang == 'EN' ? 'Location' : widget.lang == 'ZH' ? '位置' : 'Lokasi',
@@ -356,13 +378,13 @@ class _UnitTabState extends State<_UnitTab> {
             final data = {
               'nama_unit': namaCtrl.text.trim(),
               'deskripsi_unit': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+              'kategori': kategoriCtrl.text.trim().isEmpty ? null : kategoriCtrl.text.trim(),
+              'gambar_unit': gambarCtrl.text.trim().isEmpty ? null : gambarCtrl.text.trim(),
               'id_lokasi': selectedLokasiId,
             };
             if (isEdit) {
               await Supabase.instance.client
-                  .from('unit')
-                  .update(data)
-                  .eq('id_unit', item!['id_unit']);
+                  .from('unit').update(data).eq('id_unit', item!['id_unit']);
             } else {
               await Supabase.instance.client.from('unit').insert(data);
             }
@@ -481,6 +503,8 @@ class _SubunitTabState extends State<_SubunitTab> {
     final isEdit = item != null;
     final namaCtrl = TextEditingController(text: item?['nama_subunit'] ?? '');
     final descCtrl = TextEditingController(text: item?['deskripsi_subunit'] ?? '');
+    final kategoriCtrl = TextEditingController(text: item?['kategori'] ?? '');
+    final gambarCtrl = TextEditingController(text: item?['gambar_subunit'] ?? '');
     String? selectedUnitId = item?['id_unit']?.toString();
 
     showDialog(
@@ -505,6 +529,16 @@ class _SubunitTabState extends State<_SubunitTab> {
               icon: Icons.notes_rounded,
               maxLines: 3,
             ),
+            _FormField(
+              label: widget.lang == 'EN' ? 'Category' : widget.lang == 'ZH' ? '类别' : 'Kategori',
+              controller: kategoriCtrl,
+              icon: Icons.category_rounded,
+            ),
+            _FormField(
+              label: widget.lang == 'EN' ? 'Image URL' : widget.lang == 'ZH' ? '图片URL' : 'URL Gambar',
+              controller: gambarCtrl,
+              icon: Icons.image_outlined,
+            ),
           ],
           extraWidget: _buildParentDropdown(
             label: 'Unit',
@@ -518,16 +552,14 @@ class _SubunitTabState extends State<_SubunitTab> {
             if (namaCtrl.text.trim().isEmpty || selectedUnitId == null) return;
             final data = {
               'nama_subunit': namaCtrl.text.trim(),
-              'deskripsi_subunit': descCtrl.text.trim().isEmpty
-                  ? null
-                  : descCtrl.text.trim(),
+              'deskripsi_subunit': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+              'kategori': kategoriCtrl.text.trim().isEmpty ? null : kategoriCtrl.text.trim(),
+              'gambar_subunit': gambarCtrl.text.trim().isEmpty ? null : gambarCtrl.text.trim(),
               'id_unit': selectedUnitId,
             };
             if (isEdit) {
               await Supabase.instance.client
-                  .from('subunit')
-                  .update(data)
-                  .eq('id_subunit', item!['id_subunit']);
+                  .from('subunit').update(data).eq('id_subunit', item!['id_subunit']);
             } else {
               await Supabase.instance.client.from('subunit').insert(data);
             }
@@ -649,6 +681,8 @@ class _AreaTabState extends State<_AreaTab> {
     final isEdit = item != null;
     final namaCtrl = TextEditingController(text: item?['nama_area'] ?? '');
     final descCtrl = TextEditingController(text: item?['deskripsi_area'] ?? '');
+    final kategoriCtrl = TextEditingController(text: item?['kategori'] ?? '');
+    final gambarCtrl = TextEditingController(text: item?['gambar_area'] ?? '');
     String? selectedSubunitId = item?['id_subunit']?.toString();
 
     showDialog(
@@ -673,6 +707,16 @@ class _AreaTabState extends State<_AreaTab> {
               icon: Icons.notes_rounded,
               maxLines: 3,
             ),
+            _FormField(
+              label: widget.lang == 'EN' ? 'Category' : widget.lang == 'ZH' ? '类别' : 'Kategori',
+              controller: kategoriCtrl,
+              icon: Icons.category_rounded,
+            ),
+            _FormField(
+              label: widget.lang == 'EN' ? 'Image URL' : widget.lang == 'ZH' ? '图片URL' : 'URL Gambar',
+              controller: gambarCtrl,
+              icon: Icons.image_outlined,
+            ),
           ],
           extraWidget: _buildParentDropdown(
             label: 'Sub-Unit',
@@ -686,16 +730,14 @@ class _AreaTabState extends State<_AreaTab> {
             if (namaCtrl.text.trim().isEmpty || selectedSubunitId == null) return;
             final data = {
               'nama_area': namaCtrl.text.trim(),
-              'deskripsi_area': descCtrl.text.trim().isEmpty
-                  ? null
-                  : descCtrl.text.trim(),
+              'deskripsi_area': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+              'kategori': kategoriCtrl.text.trim().isEmpty ? null : kategoriCtrl.text.trim(),
+              'gambar_area': gambarCtrl.text.trim().isEmpty ? null : gambarCtrl.text.trim(),
               'id_subunit': selectedSubunitId,
             };
             if (isEdit) {
               await Supabase.instance.client
-                  .from('area')
-                  .update(data)
-                  .eq('id_area', item!['id_area']);
+                  .from('area').update(data).eq('id_area', item!['id_area']);
             } else {
               await Supabase.instance.client.from('area').insert(data);
             }
@@ -811,14 +853,6 @@ void _showLocationDetailSheet({
       'label': lang == 'EN' ? 'PIC' : lang == 'ZH' ? '负责人' : 'PIC',
       'value': picName,
       'color': const Color(0xFF0891B2),
-    });
-  }
-  if (qrcode != null && qrcode.isNotEmpty) {
-    infoRows.add({
-      'icon': Icons.qr_code_rounded,
-      'label': 'QR Code',
-      'value': qrcode,
-      'color': const Color(0xFF334155),
     });
   }
 
@@ -1000,6 +1034,58 @@ void _showLocationDetailSheet({
                   ],
 
                   const SizedBox(height: 20),
+
+                  if (qrcode != null && qrcode.isNotEmpty) ...[
+                    _locDetailSection('QR Code'),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF334155).withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF334155).withOpacity(0.15)),
+                      ),
+                      child: Column(
+                        children: [
+                          // Tampilkan QR sebagai image dari URL jika berupa URL,
+                          // atau gunakan QrImageView jika paket tersedia
+                          Builder(builder: (_) {
+                            // Cek apakah qrcode adalah URL gambar
+                            if (qrcode!.startsWith('http')) {
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  qrcode!,
+                                  width: 160,
+                                  height: 160,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.qr_code_rounded, size: 80, color: Color(0xFF334155)),
+                                ),
+                              );
+                            }
+                            // Jika bukan URL, tampilkan teks QR data
+                            return Column(
+                              children: [
+                                const Icon(Icons.qr_code_rounded, size: 64, color: Color(0xFF334155)),
+                                const SizedBox(height: 8),
+                                Text(
+                                  qrcode!,
+                                  style: GoogleFonts.poppins(
+                                      color: const Color(0xFF334155), fontSize: 11),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // ── Tombol Edit & Delete ──
                   Row(

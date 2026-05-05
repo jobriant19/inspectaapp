@@ -302,7 +302,7 @@ class _KategoriListState extends State<_KategoriList> {
           .from('kategoritemuan')
           .select(
             'id_kategoritemuan, nama_kategoritemuan, '
-            'deskripsi_kategoritemuan, poin_kategoritemuan, '
+            'deskripsi_kategoritemuan, poin_kategoritemuan, jenis_kategori, '
             'subkategoritemuan(id_subkategoritemuan, '
             'nama_subkategoritemuan, poin_subkategoritemuan)',
           )
@@ -310,14 +310,11 @@ class _KategoriListState extends State<_KategoriList> {
 
       final all = List<Map<String, dynamic>>.from(res);
 
-      // Filter:
-      // isKts=true  → hanya "KTS Produksi"
-      // isKts=false → semua KECUALI "KTS Produksi"
+      // Filter by jenis_kategori (lebih akurat dari filter nama)
       final filtered = all.where((item) {
-        final nama =
-            (item['nama_kategoritemuan'] ?? '').toString().toLowerCase();
-        final isKtsItem = nama.contains('kts');
-        return widget.isKts ? isKtsItem : !isKtsItem;
+        final jenis = (item['jenis_kategori'] ?? '').toString().toUpperCase();
+        if (widget.isKts) return jenis == 'KTS';
+        return jenis == '5R';
       }).toList();
 
       if (mounted) {
@@ -345,12 +342,12 @@ class _KategoriListState extends State<_KategoriList> {
 
   void _showAddEditDialog({Map<String, dynamic>? item}) {
     final isEdit = item != null;
-    final namaCtrl = TextEditingController(
-        text: item?['nama_kategoritemuan'] ?? '');
-    final descCtrl = TextEditingController(
-        text: item?['deskripsi_kategoritemuan'] ?? '');
+    final namaCtrl = TextEditingController(text: item?['nama_kategoritemuan'] ?? '');
+    final descCtrl = TextEditingController(text: item?['deskripsi_kategoritemuan'] ?? '');
     final poinCtrl = TextEditingController(
         text: (item?['poin_kategoritemuan'] ?? 0).toString());
+    // jenis_kategori otomatis berdasarkan filter aktif
+    final String jenisKategori = widget.isKts ? 'KTS' : '5R';
 
     showDialog(
       context: context,
@@ -388,8 +385,8 @@ class _KategoriListState extends State<_KategoriList> {
             'nama_kategoritemuan': namaCtrl.text.trim(),
             'deskripsi_kategoritemuan':
                 descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
-            'poin_kategoritemuan':
-                int.tryParse(poinCtrl.text.trim()) ?? 0,
+            'poin_kategoritemuan': int.tryParse(poinCtrl.text.trim()) ?? 0,
+            'jenis_kategori': jenisKategori, // SIMPAN JENIS KATEGORI
           };
           if (isEdit) {
             await Supabase.instance.client
@@ -397,9 +394,7 @@ class _KategoriListState extends State<_KategoriList> {
                 .update(data)
                 .eq('id_kategoritemuan', item!['id_kategoritemuan']);
           } else {
-            await Supabase.instance.client
-                .from('kategoritemuan')
-                .insert(data);
+            await Supabase.instance.client.from('kategoritemuan').insert(data);
           }
           _load();
         },
@@ -991,34 +986,31 @@ class _SubkategoriListState extends State<_SubkategoriList> {
               'nama_subkategoritemuan, deskripsi_subkategoritemuan, '
               'poin_subkategoritemuan, '
               'kategoritemuan(id_kategoritemuan, nama_kategoritemuan, '
-              'deskripsi_kategoritemuan, poin_kategoritemuan)',
+              'deskripsi_kategoritemuan, poin_kategoritemuan, jenis_kategori)',
             )
             .order('nama_subkategoritemuan'),
         Supabase.instance.client
             .from('kategoritemuan')
-            .select('id_kategoritemuan, nama_kategoritemuan')
+            .select('id_kategoritemuan, nama_kategoritemuan, jenis_kategori')
             .order('nama_kategoritemuan'),
       ]);
 
       final allSub = List<Map<String, dynamic>>.from(results[0] as List);
       final allKat = List<Map<String, dynamic>>.from(results[1] as List);
 
-      // Filter sub berdasarkan nama parent kategorinya
+      // Filter sub berdasarkan jenis_kategori parent
       final filteredSub = allSub.where((sub) {
-        final parentNama = (sub['kategoritemuan']?['nama_kategoritemuan']
-                    ?? '')
-                .toString()
-                .toLowerCase();
-        final isKtsItem = parentNama.contains('kts');
-        return widget.isKts ? isKtsItem : !isKtsItem;
+        final jenis = (sub['kategoritemuan']?['jenis_kategori'] ?? '')
+            .toString().toUpperCase();
+        if (widget.isKts) return jenis == 'KTS';
+        return jenis == '5R';
       }).toList();
 
       // Filter kategori untuk dropdown
       final filteredKat = allKat.where((k) {
-        final nama =
-            (k['nama_kategoritemuan'] ?? '').toString().toLowerCase();
-        final isKtsItem = nama.contains('kts');
-        return widget.isKts ? isKtsItem : !isKtsItem;
+        final jenis = (k['jenis_kategori'] ?? '').toString().toUpperCase();
+        if (widget.isKts) return jenis == 'KTS';
+        return jenis == '5R';
       }).toList();
 
       if (mounted) {
@@ -1047,10 +1039,8 @@ class _SubkategoriListState extends State<_SubkategoriList> {
 
   void _showAddEditDialog({Map<String, dynamic>? item}) {
     final isEdit = item != null;
-    final namaCtrl = TextEditingController(
-        text: item?['nama_subkategoritemuan'] ?? '');
-    final descCtrl = TextEditingController(
-        text: item?['deskripsi_subkategoritemuan'] ?? '');
+    final namaCtrl = TextEditingController(text: item?['nama_subkategoritemuan'] ?? '');
+    final descCtrl = TextEditingController(text: item?['deskripsi_subkategoritemuan'] ?? '');
     final poinCtrl = TextEditingController(
         text: (item?['poin_subkategoritemuan'] ?? 0).toString());
     String? selectedKatId = item?['id_kategoritemuan']?.toString();
@@ -1060,8 +1050,9 @@ class _SubkategoriListState extends State<_SubkategoriList> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => _LightFormDialog(
-          title: isEdit ? (widget.lang == 'EN' ? 'Edit Sub-Category' : widget.lang == 'ZH' ? '编辑子分类' : 'Edit Sub-Kategori')
-                        : (widget.lang == 'EN' ? 'Add Sub-Category' : widget.lang == 'ZH' ? '添加子分类' : 'Tambah Sub-Kategori'),
+          title: isEdit
+              ? (widget.lang == 'EN' ? 'Edit Sub-Category' : widget.lang == 'ZH' ? '编辑子分类' : 'Edit Sub-Kategori')
+              : (widget.lang == 'EN' ? 'Add Sub-Category' : widget.lang == 'ZH' ? '添加子分类' : 'Tambah Sub-Kategori'),
           icon: Icons.list_alt_rounded,
           color: widget.color,
           lang: widget.lang,
@@ -1085,7 +1076,6 @@ class _SubkategoriListState extends State<_SubkategoriList> {
               keyboardType: TextInputType.number,
             ),
           ],
-          // Dropdown parent kategori
           extraWidget: _KategoriDropdown(
             lang: widget.lang,
             color: widget.color,
@@ -1094,29 +1084,21 @@ class _SubkategoriListState extends State<_SubkategoriList> {
             onChanged: (v) => setDlg(() => selectedKatId = v),
           ),
           onSave: () async {
-            if (namaCtrl.text.trim().isEmpty || selectedKatId == null) {
-              return;
-            }
+            if (namaCtrl.text.trim().isEmpty || selectedKatId == null) return;
             final data = {
               'id_kategoritemuan': selectedKatId,
               'nama_subkategoritemuan': namaCtrl.text.trim(),
               'deskripsi_subkategoritemuan':
-                  descCtrl.text.trim().isEmpty
-                      ? null
-                      : descCtrl.text.trim(),
-              'poin_subkategoritemuan':
-                  int.tryParse(poinCtrl.text.trim()) ?? 0,
+                  descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+              'poin_subkategoritemuan': int.tryParse(poinCtrl.text.trim()) ?? 0,
             };
             if (isEdit) {
               await Supabase.instance.client
                   .from('subkategoritemuan')
                   .update(data)
-                  .eq('id_subkategoritemuan',
-                      item!['id_subkategoritemuan']);
+                  .eq('id_subkategoritemuan', item!['id_subkategoritemuan']);
             } else {
-              await Supabase.instance.client
-                  .from('subkategoritemuan')
-                  .insert(data);
+              await Supabase.instance.client.from('subkategoritemuan').insert(data);
             }
             _load();
           },

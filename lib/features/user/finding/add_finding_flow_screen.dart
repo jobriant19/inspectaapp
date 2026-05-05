@@ -1452,9 +1452,11 @@ class _CategoryPickerBottomSheetState
 
   Future<void> _fetchCategories() async {
     try {
+      // Filter hanya jenis_kategori = '5R'
       final response = await Supabase.instance.client
           .from('kategoritemuan')
-          .select('*, subkategoritemuan(*)');
+          .select('*, subkategoritemuan(*)')
+          .eq('jenis_kategori', '5R'); // FILTER JENIS 5R
       final data = List<Map<String, dynamic>>.from(response);
       if (mounted) {
         setState(() {
