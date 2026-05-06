@@ -86,12 +86,39 @@ class _AccidentReportListScreenState
     },
   };
 
+  // Tambah field di atas initState
+  String? _currentUserJabatanId;
+
+  // Ganti initState
   @override
   void initState() {
     super.initState();
     _currentUserId = Supabase.instance.client.auth.currentUser?.id;
     _fetchReports();
+    _loadCurrentUserJabatan();
   }
+
+  // Tambah method baru
+  Future<void> _loadCurrentUserJabatan() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+      final data = await Supabase.instance.client
+          .from('User')
+          .select('id_jabatan')
+          .eq('id_user', userId)
+          .single();
+      if (mounted) {
+        setState(() {
+          _currentUserJabatanId = data['id_jabatan']?.toString();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading jabatan: $e');
+    }
+  }
+
+  bool get _isHrd => _currentUserJabatanId == '5';
 
   Future<void> _fetchReports() async {
     setState(() => _isLoading = true);
@@ -335,7 +362,7 @@ class _AccidentReportListScreenState
               backgroundColor: Colors.white,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -367,76 +394,166 @@ class _AccidentReportListScreenState
   }
 
   Widget _buildCreateButton() {
-    return GestureDetector(
-      onTap: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                AccidentReportFormScreen(lang: widget.lang),
-          ),
-        );
-        if (result == true) _fetchReports();
-      },
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color.fromARGB(246, 246, 59, 59), Color.fromARGB(255, 216, 29, 29)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: const Color.fromARGB(255, 246, 59, 59).withOpacity(0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.25),
-                borderRadius: BorderRadius.circular(14),
+    return Column(
+      children: [
+        // Tombol utama Create Report (semua user)
+        GestureDetector(
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AccidentReportFormScreen(lang: widget.lang),
               ),
-              child: const Icon(Icons.health_and_safety_outlined,
-                  color: Colors.white, size: 30),
+            );
+            if (result == true) _fetchReports();
+          },
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color.fromARGB(246, 246, 59, 59),
+                  Color.fromARGB(255, 216, 29, 29)
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color:
+                      const Color.fromARGB(255, 246, 59, 59).withOpacity(0.4),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    t['add']!,
-                    style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.25),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.lang == 'ZH'
-                        ? '记录工作场所事故'
-                        : widget.lang == 'EN'
-                            ? 'Record workplace accidents'
-                            : 'Catat kecelakaan di tempat kerja',
-                    style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: Colors.white.withOpacity(0.85)),
+                  child: const Icon(Icons.health_and_safety_outlined,
+                      color: Colors.white, size: 30),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        t['add']!,
+                        style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.lang == 'ZH'
+                            ? '记录工作场所事故'
+                            : widget.lang == 'EN'
+                                ? 'Record workplace accidents'
+                                : 'Catat kecelakaan di tempat kerja',
+                        style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.85)),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(CupertinoIcons.chevron_right,
+                    color: Colors.white, size: 18),
+              ],
+            ),
+          ),
+        ),
+
+        // Tombol HRD Resolution — hanya muncul jika id_jabatan = 5
+        if (_isHrd) ...[
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _HrdResolutionListScreen(
+                    lang: widget.lang,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF16A34A), Color(0xFF15803D)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withOpacity(0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                        CupertinoIcons.checkmark_shield_fill,
+                        color: Colors.white,
+                        size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.lang == 'EN'
+                              ? 'Resolution Management'
+                              : widget.lang == 'ZH'
+                                  ? '解决方案管理'
+                                  : 'Manajemen Penyelesaian',
+                          style: GoogleFonts.inter(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.lang == 'EN'
+                              ? 'Manage corrective & preventive actions'
+                              : widget.lang == 'ZH'
+                                  ? '管理纠正和预防措施'
+                                  : 'Kelola tindakan korektif & preventif',
+                          style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: Colors.white.withOpacity(0.85)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(CupertinoIcons.chevron_right,
+                      color: Colors.white, size: 18),
+                ],
+              ),
             ),
-            const Icon(CupertinoIcons.chevron_right,
-                color: Colors.white, size: 18),
-          ],
-        ),
-      ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -741,7 +858,7 @@ class _AccidentReportListScreenState
       baseColor: const Color(0xFFFFCDD2),
       highlightColor: const Color(0xFFFFEBEE),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -812,6 +929,11 @@ class _AccidentReportFormScreenState
   Map<String, dynamic>? _selectedVictim;
   Map<String, dynamic>? _selectedSupervisor;
   Map<String, dynamic>? _selectedWitness;
+  String? _currentUserLokasiId;
+  String? _currentUserAreaId;
+  String? _currentUserSubunitId;
+  String? _currentUserUnitId;
+  bool _isLoadingCurrentUser = true;
   XFile? _imageFile;
   String? _existingImageUrl;
 
@@ -862,7 +984,7 @@ class _AccidentReportFormScreenState
       'err_severity': 'Tingkat keparahan wajib dipilih!',
       'err_desc': 'Deskripsi wajib diisi!',
       'err_photo': 'Foto bukti wajib diunggah!',
-      'success': 'Laporan berhasil dikirim! +30 poin',
+      'success': 'Laporan berhasil dikirim!',
       'success_edit': 'Laporan berhasil diperbarui!',
       'fail': 'Gagal mengirim laporan',
       'saving': 'Mengirim laporan...',
@@ -913,7 +1035,7 @@ class _AccidentReportFormScreenState
       'err_severity': 'Severity is required!',
       'err_desc': 'Description is required!',
       'err_photo': 'Evidence photo is required!',
-      'success': 'Report submitted! +30 points',
+      'success': 'Report submitted successfully!',
       'success_edit': 'Report updated successfully!',
       'fail': 'Failed to submit report',
       'saving': 'Submitting report...',
@@ -964,7 +1086,7 @@ class _AccidentReportFormScreenState
       'err_severity': '严重程度为必选项！',
       'err_desc': '描述为必填项！',
       'err_photo': '证据照片为必填项！',
-      'success': '报告已提交！+30积分',
+      'success': '报告提交成功！',
       'success_edit': '报告更新成功！',
       'fail': '提交报告失败',
       'saving': '正在提交报告...',
@@ -1006,7 +1128,32 @@ class _AccidentReportFormScreenState
   @override
   void initState() {
     super.initState();
+    _loadCurrentUserLokasi();
     if (_isEdit) _populateData();
+  }
+
+  Future<void> _loadCurrentUserLokasi() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+      final profile = await Supabase.instance.client
+          .from('User')
+          .select('id_lokasi, id_unit, id_subunit, id_area')
+          .eq('id_user', user.id)
+          .single();
+      if (mounted) {
+        setState(() {
+          _currentUserLokasiId = profile['id_lokasi']?.toString();
+          _currentUserUnitId = profile['id_unit']?.toString();
+          _currentUserSubunitId = profile['id_subunit']?.toString();
+          _currentUserAreaId = profile['id_area']?.toString();
+          _isLoadingCurrentUser = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading current user lokasi: $e');
+      if (mounted) setState(() => _isLoadingCurrentUser = false);
+    }
   }
 
   void _populateData() {
@@ -1030,10 +1177,10 @@ class _AccidentReportFormScreenState
         );
       }
     }
-    if (r['lokasi'] != null) {
+    if (r['lokasi'] != null || r['id_lokasi'] != null) {
       _selectedLocation = {
-        'id_lokasi': r['id_lokasi'],
-        'nama': r['lokasi']['nama_lokasi'] ?? '',
+        'id_lokasi': r['id_lokasi']?.toString(),
+        'nama': r['lokasi']?['nama_lokasi'] ?? '',
       };
     }
   }
@@ -1258,9 +1405,10 @@ class _AccidentReportFormScreenState
     );
   }
 
-  Future<void> _showUserPicker(
-      {required String role,
-      required Function(Map<String, dynamic>) onSelected}) async {
+  Future<void> _showUserPicker({
+    required String role,
+    required Function(Map<String, dynamic>) onSelected,
+  }) async {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -1270,20 +1418,69 @@ class _AccidentReportFormScreenState
       builder: (_) => _AccidentUserPickerSheet(
         lang: widget.lang,
         role: role,
-        onSelected: onSelected,
+        filterLokasiId: (role == 'victim' || role == 'witness')
+            ? _currentUserLokasiId
+            : null,
+        filterUnitId: (role == 'victim' || role == 'witness')
+            ? _currentUserUnitId
+            : null,
+        filterSubunitId: (role == 'victim' || role == 'witness')
+            ? _currentUserSubunitId
+            : null,
+        filterAreaId: (role == 'victim' || role == 'witness')
+            ? _currentUserAreaId
+            : null,
+        onSelected: (u) async {
+          onSelected(u);
+          if (role == 'victim') {
+            await _autoLoadSupervisor(u);
+          }
+        },
       ),
     );
   }
 
+  // Method auto-load supervisor berdasarkan victim
+  Future<void> _autoLoadSupervisor(Map<String, dynamic> victim) async {
+    try {
+      final victimId = victim['id_user']?.toString();
+      if (victimId == null) return;
+
+      // Ambil id_supervisor langsung dari data user victim
+      final victimData = await Supabase.instance.client
+          .from('User')
+          .select('id_supervisor, supervisor:id_supervisor(id_user, nama, gambar_user, jabatan!User_id_jabatan_fkey(nama_jabatan))')
+          .eq('id_user', victimId)
+          .single();
+
+      if (mounted && victimData['supervisor'] != null) {
+        setState(() {
+          _selectedSupervisor =
+              Map<String, dynamic>.from(victimData['supervisor'] as Map);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error auto-load supervisor: $e');
+    }
+  }
+
   Future<void> _showLocationPicker() async {
-    final result =
-        await showModalBottomSheet<Map<String, dynamic>>(
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AccidentLocationPicker(lang: widget.lang),
     );
-    if (result != null) setState(() => _selectedLocation = result);
+    if (result != null) {
+      setState(() {
+        _selectedLocation = result;
+        // Auto-fill departemen dari nama unit yang dipilih
+        if (result['nama_unit'] != null &&
+            result['nama_unit'].toString().isNotEmpty) {
+          _deptCtrl.text = result['nama_unit'].toString();
+        }
+      });
+    }
   }
 
   Future<void> _pickImage() async {
@@ -1582,7 +1779,6 @@ class _AccidentReportFormScreenState
           'id_pihak_terdampak': _selectedVictim!['id_user'],
           'id_supervisor': _selectedSupervisor?['id_user'],
           'id_saksi': _selectedWitness?['id_user'],
-          'poin_laporan': 30,
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -2249,38 +2445,6 @@ class _AccidentReportFormScreenState
                     color: const Color(0xFF94A3B8)),
                 textAlign: TextAlign.center,
               ),
-              if (!_isEdit) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: const Color(0xFFBFDBFE)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(CupertinoIcons.star_fill,
-                          color: Color(0xFF2563EB), size: 16),
-                      const SizedBox(width: 6),
-                      Text(
-                        widget.lang == 'EN'
-                            ? 'You will earn +30 points!'
-                            : widget.lang == 'ZH'
-                                ? '您将获得+30积分！'
-                                : 'Anda akan mendapat +30 poin!',
-                        style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF2563EB)),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -3255,11 +3419,19 @@ class _AccidentUserPickerSheet extends StatefulWidget {
   final String lang;
   final String role;
   final Function(Map<String, dynamic>) onSelected;
+  final String? filterLokasiId;
+  final String? filterUnitId;     // BARU
+  final String? filterSubunitId;  // BARU
+  final String? filterAreaId;     // BARU
 
   const _AccidentUserPickerSheet({
     required this.lang,
     required this.role,
     required this.onSelected,
+    this.filterLokasiId,
+    this.filterUnitId,
+    this.filterSubunitId,
+    this.filterAreaId,
   });
 
   @override
@@ -3282,8 +3454,7 @@ class _AccidentUserPickerSheetState
       final q = _searchCtrl.text.toLowerCase();
       setState(() {
         _filtered = _users
-            .where((u) =>
-                u['nama'].toString().toLowerCase().contains(q))
+            .where((u) => u['nama'].toString().toLowerCase().contains(q))
             .toList();
       });
     });
@@ -3297,20 +3468,86 @@ class _AccidentUserPickerSheetState
 
   Future<void> _fetchUsers() async {
     try {
-      final data = await Supabase.instance.client
-          .from('User')
-          .select('id_user, nama, jabatan(nama_jabatan)')
-          .order('nama');
+      List<Map<String, dynamic>> result = [];
+      final hasFilter = widget.filterLokasiId != null ||
+          widget.filterUnitId != null ||
+          widget.filterSubunitId != null ||
+          widget.filterAreaId != null;
+
+      if (hasFilter) {
+        // Coba paling spesifik: area
+        if (widget.filterAreaId != null) {
+          final data = await Supabase.instance.client
+              .from('User')
+              .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user, id_lokasi, id_unit, id_subunit, id_area')
+              .eq('id_area', widget.filterAreaId!)
+              .order('nama');
+          result = List<Map<String, dynamic>>.from(data);
+        }
+
+        // Fallback: subunit
+        if (result.isEmpty && widget.filterSubunitId != null) {
+          final data = await Supabase.instance.client
+              .from('User')
+              .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user, id_lokasi, id_unit, id_subunit, id_area')
+              .eq('id_subunit', widget.filterSubunitId!)
+              .order('nama');
+          result = List<Map<String, dynamic>>.from(data);
+        }
+
+        // Fallback: unit
+        if (result.isEmpty && widget.filterUnitId != null) {
+          final data = await Supabase.instance.client
+              .from('User')
+              .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user, id_lokasi, id_unit, id_subunit, id_area')
+              .eq('id_unit', widget.filterUnitId!)
+              .order('nama');
+          result = List<Map<String, dynamic>>.from(data);
+        }
+
+        // Fallback: lokasi
+        if (result.isEmpty && widget.filterLokasiId != null) {
+          final data = await Supabase.instance.client
+              .from('User')
+              .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user, id_lokasi, id_unit, id_subunit, id_area')
+              .eq('id_lokasi', widget.filterLokasiId!)
+              .order('nama');
+          result = List<Map<String, dynamic>>.from(data);
+        }
+      } else {
+        final data = await Supabase.instance.client
+            .from('User')
+            .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user, id_lokasi, id_unit, id_subunit, id_area')
+            .order('nama');
+        result = List<Map<String, dynamic>>.from(data);
+      }
+
       if (mounted) {
         setState(() {
-          _users = List<Map<String, dynamic>>.from(data);
-          _filtered = _users;
+          _users = result;
+          _filtered = result;
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error: $e');
+      debugPrint('Error fetching users: $e');
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _getRoleTitle() {
+    switch (widget.role) {
+      case 'victim':
+        return widget.lang == 'EN' ? 'Select Affected Party'
+            : widget.lang == 'ZH' ? '选择受影响方' : 'Pilih Pihak Terdampak';
+      case 'supervisor':
+        return widget.lang == 'EN' ? 'Select Supervisor'
+            : widget.lang == 'ZH' ? '选择主管' : 'Pilih Supervisor';
+      case 'witness':
+        return widget.lang == 'EN' ? 'Select Witness'
+            : widget.lang == 'ZH' ? '选择目击者' : 'Pilih Saksi';
+      default:
+        return widget.lang == 'EN' ? 'Select User' : 'Pilih Pengguna';
     }
   }
 
@@ -3320,33 +3557,78 @@ class _AccidentUserPickerSheetState
       height: MediaQuery.of(context).size.height * 0.75,
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
           Container(
             margin: const EdgeInsets.only(top: 10),
-            width: 40,
-            height: 4,
+            width: 40, height: 4,
             decoration: BoxDecoration(
                 color: CupertinoColors.systemGrey4,
                 borderRadius: BorderRadius.circular(2)),
           ),
+          // Header
           Padding(
-            padding:
-                const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _getRoleTitle(),
+                    style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1E293B)),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(CupertinoIcons.xmark,
+                      color: Color(0xFF94A3B8), size: 20),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          // Filter info jika ada lokasi filter
+          if (widget.filterLokasiId != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(CupertinoIcons.location_fill,
+                        size: 13, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 6),
+                    Text(
+                      widget.lang == 'EN'
+                          ? 'Showing users from your location'
+                          : 'Menampilkan pengguna di lokasi Anda',
+                      style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: const Color(0xFF2563EB),
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // Search
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: TextFormField(
               controller: _searchCtrl,
               style: GoogleFonts.inter(fontSize: 15),
               decoration: InputDecoration(
-                hintText: widget.lang == 'EN'
-                    ? 'Search...'
-                    : widget.lang == 'ZH'
-                        ? '搜索...'
-                        : 'Cari...',
-                hintStyle: GoogleFonts.inter(
-                    color: const Color(0xFFCBD5E1)),
+                hintText: widget.lang == 'EN' ? 'Search...'
+                    : widget.lang == 'ZH' ? '搜索...' : 'Cari...',
+                hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1)),
                 prefixIcon: const Icon(CupertinoIcons.search,
                     color: Color(0xFF2563EB), size: 20),
                 filled: true,
@@ -3356,8 +3638,7 @@ class _AccidentUserPickerSheetState
                     borderSide: BorderSide.none),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: const BorderSide(
-                        color: Color(0xFFE0E7FF))),
+                    borderSide: const BorderSide(color: Color(0xFFE0E7FF))),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: const BorderSide(
@@ -3365,43 +3646,103 @@ class _AccidentUserPickerSheetState
               ),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              '${_filtered.length} ${widget.lang == 'EN' ? 'users found' : 'pengguna ditemukan'}',
+              style: GoogleFonts.inter(
+                  fontSize: 12, color: const Color(0xFF94A3B8)),
+            ),
+          ),
+          const SizedBox(height: 6),
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CupertinoActivityIndicator(
-                        radius: 14,
-                        color: Color(0xFF2563EB)))
-                : ListView.builder(
-                    itemCount: _filtered.length,
-                    itemBuilder: (_, i) {
-                      final u = _filtered[i];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              const Color(0xFFEFF6FF),
-                          child: Text(
-                            u['nama'][0].toUpperCase(),
-                            style: GoogleFonts.inter(
-                                color: const Color(0xFF2563EB),
-                                fontWeight: FontWeight.bold),
-                          ),
+                ? const Center(child: CupertinoActivityIndicator(
+                    radius: 14, color: Color(0xFF2563EB)))
+                : _filtered.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(CupertinoIcons.person_crop_circle_badge_xmark,
+                                size: 48, color: Color(0xFFE2E8F0)),
+                            const SizedBox(height: 12),
+                            Text(
+                              widget.lang == 'EN' ? 'No users found' : 'Tidak ada pengguna',
+                              style: GoogleFonts.inter(
+                                  color: const Color(0xFF94A3B8), fontSize: 14),
+                            ),
+                          ],
                         ),
-                        title: Text(u['nama'],
-                            style: GoogleFonts.inter(
-                                fontWeight: FontWeight.w600)),
-                        subtitle: Text(
-                            u['jabatan']?['nama_jabatan'] ?? '',
-                            style: GoogleFonts.inter(
-                                fontSize: 12,
-                                color:
-                                    const Color(0xFF94A3B8))),
-                        onTap: () {
-                          widget.onSelected(u);
-                          Navigator.pop(context);
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                        itemCount: _filtered.length,
+                        itemBuilder: (_, i) {
+                          final u = _filtered[i];
+                          final name = u['nama'] ?? '';
+                          final role = u['jabatan']?['nama_jabatan'] ?? '';
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () {
+                                widget.onSelected(u);
+                                Navigator.pop(context);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                margin: const EdgeInsets.only(bottom: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: const Color(0xFFF1F5F9)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 20,
+                                      backgroundColor: const Color(0xFFEFF6FF),
+                                      backgroundImage: u['gambar_user'] != null
+                                          ? NetworkImage(u['gambar_user']) : null,
+                                      child: u['gambar_user'] == null
+                                          ? Text(
+                                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                              style: GoogleFonts.inter(
+                                                  color: const Color(0xFF2563EB),
+                                                  fontWeight: FontWeight.bold),
+                                            )
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(name,
+                                              style: GoogleFonts.inter(
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 14,
+                                                  color: const Color(0xFF1E293B))),
+                                          if (role.isNotEmpty)
+                                            Text(role,
+                                                style: GoogleFonts.inter(
+                                                    fontSize: 12,
+                                                    color: const Color(0xFF94A3B8))),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(CupertinoIcons.chevron_right,
+                                        size: 14, color: Color(0xFFCBD5E1)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
                         },
-                      );
-                    },
-                  ),
+                      ),
           ),
         ],
       ),
@@ -3431,18 +3772,9 @@ class _AccidentLocationPickerState
   final _searchCtrl = TextEditingController();
 
   static const _tables = ['lokasi', 'unit', 'subunit', 'area'];
-  static const _idCols = [
-    'id_lokasi',
-    'id_unit',
-    'id_subunit',
-    'id_area'
-  ];
-  static const _namCols = [
-    'nama_lokasi',
-    'nama_unit',
-    'nama_subunit',
-    'nama_area'
-  ];
+  // UUID columns
+  static const _idCols = ['id_lokasi', 'id_unit', 'id_subunit', 'id_area'];
+  static const _namCols = ['nama_lokasi', 'nama_unit', 'nama_subunit', 'nama_area'];
 
   String get _idCol => _idCols[_level];
   String get _nameCol => _namCols[_level];
@@ -3465,21 +3797,18 @@ class _AccidentLocationPickerState
     setState(() {
       _filtered = q.isEmpty
           ? List.from(_data)
-          : _data
-              .where((item) => item[_nameCol]
-                  .toString()
-                  .toLowerCase()
-                  .contains(q))
-              .toList();
+          : _data.where((item) =>
+              item[_nameCol].toString().toLowerCase().contains(q)).toList();
     });
   }
 
-  Future<void> _fetch({int? parentId}) async {
+  Future<void> _fetch({String? parentId}) async {
     setState(() => _isLoading = true);
     _searchCtrl.clear();
     try {
       final supabase = Supabase.instance.client;
       List<dynamic> data = [];
+
       if (_level == 0) {
         data = await supabase
             .from('lokasi')
@@ -3504,6 +3833,7 @@ class _AccidentLocationPickerState
             .eq('id_subunit', parentId!)
             .order('nama_area');
       }
+
       if (mounted) {
         setState(() {
           _data = data;
@@ -3521,24 +3851,39 @@ class _AccidentLocationPickerState
     if (_level >= 3) return;
     _history.add({
       'level': _level,
-      'id': item[_idCol],
+      'id': item[_idCol]?.toString(),
       'name': item[_nameCol],
     });
     setState(() => _level++);
-    _fetch(parentId: item[_idCols[_level - 1]]);
+    _fetch(parentId: item[_idCols[_level - 1]]?.toString());
   }
 
   void _select(Map<String, dynamic> item) {
     final result = <String, dynamic>{};
+    // Kumpulkan semua ID dari history
     for (final h in _history) {
       result[_idCols[h['level'] as int]] = h['id'];
     }
-    result[_idCol] = item[_idCol];
+    result[_idCol] = item[_idCol]?.toString();
+
     final parts = [
       ..._history.map((h) => h['name'] as String),
       item[_nameCol].toString(),
     ];
     result['nama'] = parts.join(' / ');
+
+    // Sertakan nama unit untuk auto-fill departemen
+    // Level 1 = unit, simpan nama_unit di result
+    if (_level >= 1) {
+      // Cari unit dari history
+      final unitHistory = _history.where((h) => h['level'] == 1).toList();
+      if (unitHistory.isNotEmpty) {
+        result['nama_unit'] = unitHistory.first['name'];
+      } else if (_level == 1) {
+        result['nama_unit'] = item[_nameCol].toString();
+      }
+    }
+
     Navigator.pop(context, result);
   }
 
@@ -3549,9 +3894,7 @@ class _AccidentLocationPickerState
     }
     _history.removeLast();
     setState(() => _level--);
-    _fetch(
-        parentId:
-            _history.isEmpty ? null : _history.last['id']);
+    _fetch(parentId: _history.isEmpty ? null : _history.last['id']?.toString());
   }
 
   @override
@@ -3561,39 +3904,32 @@ class _AccidentLocationPickerState
       'ID': ['Lokasi', 'Unit', 'Sub-Unit', 'Area'],
       'ZH': ['地点', '单位', '子单位', '区域'],
     };
-    final labels =
-        lvlLabels[widget.lang] ?? lvlLabels['ID']!;
+    final labels = lvlLabels[widget.lang] ?? lvlLabels['ID']!;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.88,
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
           Container(
             margin: const EdgeInsets.only(top: 10),
-            width: 40,
-            height: 4,
+            width: 40, height: 4,
             decoration: BoxDecoration(
               color: CupertinoColors.systemGrey4,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 8, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
             child: Row(
               children: [
                 IconButton(
                   icon: Icon(
-                    _history.isEmpty
-                        ? CupertinoIcons.xmark
-                        : CupertinoIcons.back,
-                    color: const Color(0xFF2563EB),
-                    size: 20,
+                    _history.isEmpty ? CupertinoIcons.xmark : CupertinoIcons.back,
+                    color: const Color(0xFF2563EB), size: 20,
                   ),
                   onPressed: _goBack,
                 ),
@@ -3611,8 +3947,7 @@ class _AccidentLocationPickerState
                 ),
                 Container(
                   margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEFF6FF),
                     borderRadius: BorderRadius.circular(20),
@@ -3637,25 +3972,17 @@ class _AccidentLocationPickerState
                 return Row(
                   children: [
                     GestureDetector(
-                      onTap: isPast
-                          ? () {
-                              final steps = _level - i;
-                              for (int s = 0;
-                                  s < steps;
-                                  s++) {
-                                if (_history.isNotEmpty)
-                                  _history.removeLast();
-                              }
-                              setState(() => _level = i);
-                              _fetch(
-                                  parentId: _history.isEmpty
-                                      ? null
-                                      : _history.last['id']);
-                            }
-                          : null,
+                      onTap: isPast ? () {
+                        final steps = _level - i;
+                        for (int s = 0; s < steps; s++) {
+                          if (_history.isNotEmpty) _history.removeLast();
+                        }
+                        setState(() => _level = i);
+                        _fetch(parentId: _history.isEmpty
+                            ? null : _history.last['id']?.toString());
+                      } : null,
                       child: AnimatedContainer(
-                        duration:
-                            const Duration(milliseconds: 200),
+                        duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
@@ -3664,28 +3991,22 @@ class _AccidentLocationPickerState
                               : isPast
                                   ? const Color(0xFFEFF6FF)
                                   : const Color(0xFFF8FAFF),
-                          borderRadius:
-                              BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           labels[i],
                           style: GoogleFonts.inter(
-                            color: isActive
-                                ? Colors.white
-                                : isPast
-                                    ? const Color(0xFF2563EB)
-                                    : const Color(0xFFCBD5E1),
+                            color: isActive ? Colors.white
+                                : isPast ? const Color(0xFF2563EB)
+                                : const Color(0xFFCBD5E1),
                             fontSize: 11,
-                            fontWeight: isActive
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                           ),
                         ),
                       ),
                     ),
                     if (i < 3)
-                      Icon(CupertinoIcons.chevron_right,
-                          size: 12,
+                      Icon(CupertinoIcons.chevron_right, size: 12,
                           color: i < _level
                               ? const Color(0xFF2563EB)
                               : const Color(0xFFCBD5E1)),
@@ -3696,20 +4017,15 @@ class _AccidentLocationPickerState
           ),
           const SizedBox(height: 8),
           Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextFormField(
               controller: _searchCtrl,
               style: GoogleFonts.inter(fontSize: 15),
               decoration: InputDecoration(
-                hintText: widget.lang == 'EN'
-                    ? 'Search...'
-                    : widget.lang == 'ZH'
-                        ? '搜索...'
-                        : 'Cari...',
+                hintText: widget.lang == 'EN' ? 'Search...'
+                    : widget.lang == 'ZH' ? '搜索...' : 'Cari...',
                 hintStyle: GoogleFonts.inter(
-                    color: const Color(0xFFCBD5E1),
-                    fontSize: 13),
+                    color: const Color(0xFFCBD5E1), fontSize: 13),
                 prefixIcon: const Icon(CupertinoIcons.search,
                     color: Color(0xFF2563EB), size: 20),
                 filled: true,
@@ -3719,8 +4035,7 @@ class _AccidentLocationPickerState
                     borderSide: BorderSide.none),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: const BorderSide(
-                        color: Color(0xFFE0E7FF))),
+                    borderSide: const BorderSide(color: Color(0xFFE0E7FF))),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: const BorderSide(
@@ -3740,13 +4055,11 @@ class _AccidentLocationPickerState
                       padding: const EdgeInsets.all(16),
                       itemCount: 6,
                       itemBuilder: (_, __) => Container(
-                        margin: const EdgeInsets.only(
-                            bottom: 10),
+                        margin: const EdgeInsets.only(bottom: 10),
                         height: 58,
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius:
-                              BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
@@ -3756,175 +4069,109 @@ class _AccidentLocationPickerState
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
-                                CupertinoIcons.location_slash,
-                                size: 48,
-                                color: Color(0xFFCBD5E1)),
+                            const Icon(CupertinoIcons.location_slash,
+                                size: 48, color: Color(0xFFCBD5E1)),
                             const SizedBox(height: 8),
                             Text(
-                                widget.lang == 'EN'
-                                    ? 'No data found'
-                                    : widget.lang == 'ZH'
-                                        ? '未找到数据'
-                                        : 'Data tidak ditemukan',
-                                style: GoogleFonts.inter(
-                                    color: const Color(
-                                        0xFF94A3B8),
-                                    fontSize: 14)),
+                              widget.lang == 'EN' ? 'No data found'
+                                  : widget.lang == 'ZH' ? '未找到数据'
+                                  : 'Data tidak ditemukan',
+                              style: GoogleFonts.inter(
+                                  color: const Color(0xFF94A3B8), fontSize: 14)),
                           ],
                         ),
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(
-                            16, 4, 16, 24),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                         itemCount: _filtered.length,
                         itemBuilder: (_, i) {
                           final item = _filtered[i];
-                          final name =
-                              item[_nameCol]?.toString() ??
-                                  '-';
+                          final name = item[_nameCol]?.toString() ?? '-';
                           final isLastLevel = _level == 3;
                           return Container(
-                            margin: const EdgeInsets.only(
-                                bottom: 10),
+                            margin: const EdgeInsets.only(bottom: 10),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius:
-                                  BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: const Color(
-                                      0xFFE0E7FF)),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black
-                                      .withOpacity(0.04),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFFE0E7FF)),
+                              boxShadow: [BoxShadow(
+                                color: Colors.black.withOpacity(0.04),
+                                blurRadius: 6, offset: const Offset(0, 2),
+                              )],
                             ),
                             child: Material(
                               color: Colors.transparent,
-                              borderRadius:
-                                  BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(14),
                               child: InkWell(
                                 onTap: isLastLevel
                                     ? () => _select(item)
                                     : () => _goDeeper(item),
-                                borderRadius:
-                                    BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(14),
                                 child: Padding(
-                                  padding: const EdgeInsets
-                                      .symmetric(
-                                      horizontal: 14,
-                                      vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 12),
                                   child: Row(
                                     children: [
                                       Container(
-                                        padding:
-                                            const EdgeInsets
-                                                .all(8),
-                                        decoration:
-                                            BoxDecoration(
-                                          color: const Color(
-                                                  0xFFEFF6FF),
-                                          borderRadius:
-                                              BorderRadius
-                                                  .circular(
-                                                      10),
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Icon(
                                           [
-                                            CupertinoIcons
-                                                .building_2_fill,
-                                            CupertinoIcons
-                                                .squares_below_rectangle,
-                                            CupertinoIcons
-                                                .layers_alt_fill,
-                                            CupertinoIcons
-                                                .location_fill,
+                                            CupertinoIcons.building_2_fill,
+                                            CupertinoIcons.squares_below_rectangle,
+                                            CupertinoIcons.layers_alt_fill,
+                                            CupertinoIcons.location_fill,
                                           ][_level],
-                                          color: const Color(
-                                              0xFF2563EB),
-                                          size: 18,
+                                          color: const Color(0xFF2563EB), size: 18,
                                         ),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
-                                        child: Text(
-                                          name,
-                                          style:
-                                              GoogleFonts.inter(
-                                            fontWeight:
-                                                FontWeight.w600,
+                                        child: Text(name,
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
                                             fontSize: 14,
-                                            color: const Color(
-                                                0xFF1E293B),
+                                            color: const Color(0xFF1E293B),
                                           ),
                                         ),
                                       ),
                                       GestureDetector(
-                                        onTap: () =>
-                                            _select(item),
+                                        onTap: () => _select(item),
                                         child: Container(
-                                          padding: const EdgeInsets
-                                              .symmetric(
-                                              horizontal: 12,
-                                              vertical: 6),
-                                          decoration:
-                                              BoxDecoration(
-                                            color: const Color(
-                                                0xFFEFF6FF),
-                                            borderRadius:
-                                                BorderRadius
-                                                    .circular(
-                                                        20),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFEFF6FF),
+                                            borderRadius: BorderRadius.circular(20),
                                             border: Border.all(
-                                                color: const Color(
-                                                    0xFFBFDBFE)),
+                                                color: const Color(0xFFBFDBFE)),
                                           ),
                                           child: Text(
-                                            widget.lang == 'EN'
-                                                ? 'Select'
-                                                : widget.lang ==
-                                                        'ZH'
-                                                    ? '选择'
-                                                    : 'Pilih',
-                                            style:
-                                                GoogleFonts.inter(
-                                                    fontSize: 12,
-                                                    fontWeight:
-                                                        FontWeight
-                                                            .w600,
-                                                    color: const Color(
-                                                        0xFF2563EB)),
+                                            widget.lang == 'EN' ? 'Select'
+                                                : widget.lang == 'ZH' ? '选择' : 'Pilih',
+                                            style: GoogleFonts.inter(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: const Color(0xFF2563EB)),
                                           ),
                                         ),
                                       ),
                                       if (!isLastLevel) ...[
                                         const SizedBox(width: 4),
                                         GestureDetector(
-                                          onTap: () =>
-                                              _goDeeper(item),
+                                          onTap: () => _goDeeper(item),
                                           child: Container(
-                                            padding:
-                                                const EdgeInsets
-                                                    .all(6),
-                                            decoration:
-                                                BoxDecoration(
-                                              color: const Color(
-                                                  0xFFF8FAFF),
-                                              borderRadius:
-                                                  BorderRadius
-                                                      .circular(
-                                                          8),
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF8FAFF),
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: const Icon(
-                                                CupertinoIcons
-                                                    .chevron_right,
-                                                color: Color(
-                                                    0xFF94A3B8),
-                                                size: 16),
+                                                CupertinoIcons.chevron_right,
+                                                color: Color(0xFF94A3B8), size: 16),
                                           ),
                                         ),
                                       ],
@@ -4584,6 +4831,733 @@ class _AccidentResolutionScreenState
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(16))),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// LAYAR MANAJEMEN RESOLUSI — KHUSUS HRD (id_jabatan = 5)
+// ============================================================
+class _HrdResolutionListScreen extends StatefulWidget {
+  final String lang;
+  const _HrdResolutionListScreen({required this.lang});
+
+  @override
+  State<_HrdResolutionListScreen> createState() =>
+      _HrdResolutionListScreenState();
+}
+
+class _HrdResolutionListScreenState
+    extends State<_HrdResolutionListScreen> {
+  List<Map<String, dynamic>> _reports = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchReports();
+  }
+
+  Future<void> _fetchReports() async {
+    setState(() => _isLoading = true);
+    try {
+      // Ambil semua laporan yang statusnya Ditinjau atau sudah selesai
+      // agar HRD bisa mengelola resolusi
+      final data = await Supabase.instance.client
+          .from('accident_report')
+          .select('''
+            id_laporan, judul, tingkat_keparahan, status,
+            tanggal_kejadian, foto_bukti, created_at,
+            lokasi:id_lokasi(nama_lokasi)
+          ''')
+          .inFilter('status', ['Ditinjau', 'Selesai'])
+          .order('created_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          _reports = List<Map<String, dynamic>>.from(data);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching HRD reports: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Color _severityColor(String sev) {
+    switch (sev) {
+      case 'Berat':
+        return const Color(0xFFDC2626);
+      case 'Menengah':
+        return const Color(0xFFF97316);
+      default:
+        return const Color(0xFF16A34A);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F4FF),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back, color: Color(0xFF16A34A)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.lang == 'EN'
+              ? 'Resolution Management'
+              : widget.lang == 'ZH'
+                  ? '解决方案管理'
+                  : 'Manajemen Penyelesaian',
+          style: GoogleFonts.inter(
+              color: const Color(0xFF16A34A),
+              fontWeight: FontWeight.w700,
+              fontSize: 17),
+        ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: _fetchReports,
+            icon: const Icon(CupertinoIcons.refresh,
+                color: Color(0xFF16A34A)),
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+              color: CupertinoColors.systemGrey5, height: 1),
+        ),
+      ),
+      body: _isLoading
+          ? _buildShimmer()
+          : RefreshIndicator(
+              onRefresh: _fetchReports,
+              color: const Color(0xFF16A34A),
+              child: _reports.isEmpty
+                  ? _buildEmpty()
+                  : ListView.builder(
+                      padding:
+                          const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      itemCount: _reports.length,
+                      itemBuilder: (_, i) =>
+                          _buildReportCard(_reports[i]),
+                    ),
+            ),
+    );
+  }
+
+  Widget _buildReportCard(Map<String, dynamic> r) {
+    final severity = r['tingkat_keparahan'] ?? '';
+    final sevColor = _severityColor(severity);
+    final status = r['status'] ?? '';
+    final locName = r['lokasi']?['nama_lokasi'] ?? '-';
+
+    final Color statusColor = status == 'Selesai'
+        ? const Color(0xFF16A34A)
+        : const Color(0xFFF97316);
+    final Color statusBg = status == 'Selesai'
+        ? const Color(0xFFF0FDF4)
+        : const Color(0xFFFFF7ED);
+
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => _HrdResolutionDetailScreen(
+              reportId: r['id_laporan'] as String,
+              reportTitle: r['judul'] ?? '-',
+              lang: widget.lang,
+            ),
+          ),
+        );
+        _fetchReports();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+              color: const Color(0xFFDCFCE7), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF16A34A).withOpacity(0.07),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Foto
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: sevColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: r['foto_bukti'] != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(r['foto_bukti'],
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                              Icons.warning_amber_rounded,
+                              color: sevColor,
+                              size: 28)))
+                  : Icon(Icons.warning_amber_rounded,
+                      color: sevColor, size: 28),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(r['judul'] ?? '-',
+                            style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: const Color(0xFF1E293B)),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: statusBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(status,
+                            style: GoogleFonts.inter(
+                                color: statusColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(locName,
+                      style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: const Color(0xFF64748B))),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: sevColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(severity,
+                            style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: sevColor,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                      const Spacer(),
+                      const Icon(CupertinoIcons.chevron_right,
+                          size: 14,
+                          color: Color(0xFF16A34A)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(CupertinoIcons.checkmark_shield,
+              size: 64, color: Color(0xFF16A34A)),
+          const SizedBox(height: 16),
+          Text(
+            widget.lang == 'EN'
+                ? 'No reports to resolve'
+                : widget.lang == 'ZH'
+                    ? '无需解决的报告'
+                    : 'Belum ada laporan untuk diselesaikan',
+            style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1E293B)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmer() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFDCFCE7),
+      highlightColor: const Color(0xFFF0FDF4),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: 4,
+        itemBuilder: (_, __) => Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          height: 100,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// LAYAR DETAIL RESOLUSI UNTUK HRD — CRUD RESOLUSI
+// ============================================================
+class _HrdResolutionDetailScreen extends StatefulWidget {
+  final String reportId;
+  final String reportTitle;
+  final String lang;
+
+  const _HrdResolutionDetailScreen({
+    required this.reportId,
+    required this.reportTitle,
+    required this.lang,
+  });
+
+  @override
+  State<_HrdResolutionDetailScreen> createState() =>
+      _HrdResolutionDetailScreenState();
+}
+
+class _HrdResolutionDetailScreenState
+    extends State<_HrdResolutionDetailScreen> {
+  Map<String, dynamic>? _resolution;
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  final _judulCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _korektifCtrl = TextEditingController();
+  final _preventifCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadResolution();
+  }
+
+  @override
+  void dispose() {
+    _judulCtrl.dispose();
+    _descCtrl.dispose();
+    _korektifCtrl.dispose();
+    _preventifCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadResolution() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await Supabase.instance.client
+          .from('resolution_accident')
+          .select('''
+            id_resolution, judul_resolusi, deskripsi_resolusi,
+            tindakan_korektif, tindakan_preventif,
+            tanggal_resolusi, created_at,
+            hrd:resolution_accident_id_hrd_fkey(nama, gambar_user)
+          ''')
+          .eq('id_laporan', widget.reportId)
+          .maybeSingle();
+
+      if (mounted) {
+        setState(() {
+          _resolution = data;
+          _isLoading = false;
+          if (data != null) {
+            _judulCtrl.text = data['judul_resolusi'] ?? '';
+            _descCtrl.text = data['deskripsi_resolusi'] ?? '';
+            _korektifCtrl.text = data['tindakan_korektif'] ?? '';
+            _preventifCtrl.text = data['tindakan_preventif'] ?? '';
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading resolution: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveResolution() async {
+    if (_judulCtrl.text.trim().isEmpty || _descCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(widget.lang == 'ID'
+            ? 'Judul dan deskripsi wajib diisi!'
+            : 'Title and description required!'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final userId = Supabase.instance.client.auth.currentUser!.id;
+
+      if (_resolution == null) {
+        // INSERT baru
+        await Supabase.instance.client.from('resolution_accident').insert({
+          'id_laporan': widget.reportId,
+          'id_hrd': userId,
+          'judul_resolusi': _judulCtrl.text.trim(),
+          'deskripsi_resolusi': _descCtrl.text.trim(),
+          'tindakan_korektif': _korektifCtrl.text.trim().isEmpty
+              ? null
+              : _korektifCtrl.text.trim(),
+          'tindakan_preventif': _preventifCtrl.text.trim().isEmpty
+              ? null
+              : _preventifCtrl.text.trim(),
+          'tanggal_resolusi':
+              DateTime.now().toIso8601String().substring(0, 10),
+        });
+        // Update status laporan
+        await Supabase.instance.client
+            .from('accident_report')
+            .update({'status': 'Selesai'})
+            .eq('id_laporan', widget.reportId);
+      } else {
+        // UPDATE existing
+        await Supabase.instance.client
+            .from('resolution_accident')
+            .update({
+          'judul_resolusi': _judulCtrl.text.trim(),
+          'deskripsi_resolusi': _descCtrl.text.trim(),
+          'tindakan_korektif': _korektifCtrl.text.trim().isEmpty
+              ? null
+              : _korektifCtrl.text.trim(),
+          'tindakan_preventif': _preventifCtrl.text.trim().isEmpty
+              ? null
+              : _preventifCtrl.text.trim(),
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id_resolution', _resolution!['id_resolution']);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(widget.lang == 'ID'
+              ? 'Penyelesaian berhasil disimpan!'
+              : 'Resolution saved successfully!'),
+          backgroundColor: const Color(0xFF16A34A),
+        ));
+        await _loadResolution();
+      }
+    } catch (e) {
+      debugPrint('Save resolution error: $e');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Widget _buildFormField({
+    required TextEditingController ctrl,
+    required String label,
+    required String hint,
+    int maxLines = 1,
+    Color borderColor = const Color(0xFF16A34A),
+    bool isRequired = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(label,
+                style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF475569))),
+            if (isRequired)
+              const Text(' *',
+                  style: TextStyle(
+                      color: Color(0xFFEF4444),
+                      fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: ctrl,
+          maxLines: maxLines,
+          style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.inter(
+                color: const Color(0xFFCBD5E1), fontSize: 13),
+            filled: true,
+            fillColor: const Color(0xFFF8FAFF),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: borderColor.withOpacity(0.3), width: 1)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    BorderSide(color: borderColor, width: 1.5)),
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 14),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isEdit = _resolution != null;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F4FF),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(CupertinoIcons.back,
+              color: Color(0xFF16A34A)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          widget.lang == 'EN'
+              ? (isEdit ? 'Edit Resolution' : 'Add Resolution')
+              : widget.lang == 'ZH'
+                  ? (isEdit ? '编辑解决方案' : '添加解决方案')
+                  : (isEdit
+                      ? 'Edit Penyelesaian'
+                      : 'Tambah Penyelesaian'),
+          style: GoogleFonts.inter(
+              color: const Color(0xFF16A34A),
+              fontWeight: FontWeight.w700,
+              fontSize: 17),
+        ),
+        centerTitle: true,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+              color: CupertinoColors.systemGrey5, height: 1),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(
+              child: CupertinoActivityIndicator(
+                  radius: 14, color: Color(0xFF16A34A)))
+          : Stack(
+              children: [
+                SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.fromLTRB(16, 20, 16, 120),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Info laporan
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: const Color(0xFFBFDBFE)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.assignment_outlined,
+                                color: Color(0xFF2563EB), size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(widget.reportTitle,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF1E293B))),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Form fields
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: const Color(0xFFDCFCE7),
+                              width: 1.5),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildFormField(
+                              ctrl: _judulCtrl,
+                              label: widget.lang == 'ID'
+                                  ? 'Judul Penyelesaian'
+                                  : widget.lang == 'ZH'
+                                      ? '解决方案标题'
+                                      : 'Resolution Title',
+                              hint: widget.lang == 'ID'
+                                  ? 'Contoh: Penanganan Insiden Gudang'
+                                  : 'e.g. Warehouse Incident Handling',
+                              borderColor: const Color(0xFF16A34A),
+                              isRequired: true,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildFormField(
+                              ctrl: _descCtrl,
+                              label: widget.lang == 'ID'
+                                  ? 'Deskripsi Penyelesaian'
+                                  : widget.lang == 'ZH'
+                                      ? '解决方案描述'
+                                      : 'Resolution Description',
+                              hint: widget.lang == 'ID'
+                                  ? 'Jelaskan penyelesaian secara rinci...'
+                                  : 'Explain in detail...',
+                              maxLines: 4,
+                              borderColor: const Color(0xFF16A34A),
+                              isRequired: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: const Color(0xFFFFF7ED),
+                              width: 1.5),
+                        ),
+                        child: _buildFormField(
+                          ctrl: _korektifCtrl,
+                          label: widget.lang == 'ID'
+                              ? 'Tindakan Korektif'
+                              : widget.lang == 'ZH'
+                                  ? '纠正措施'
+                                  : 'Corrective Action',
+                          hint: widget.lang == 'ID'
+                              ? 'Tindakan untuk mengatasi masalah...'
+                              : 'Actions to address the issue...',
+                          maxLines: 3,
+                          borderColor: const Color(0xFFF97316),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: const Color(0xFFDCFCE7),
+                              width: 1.5),
+                        ),
+                        child: _buildFormField(
+                          ctrl: _preventifCtrl,
+                          label: widget.lang == 'ID'
+                              ? 'Tindakan Preventif'
+                              : widget.lang == 'ZH'
+                                  ? '预防措施'
+                                  : 'Preventive Action',
+                          hint: widget.lang == 'ID'
+                              ? 'Tindakan untuk mencegah terulang...'
+                              : 'Actions to prevent recurrence...',
+                          maxLines: 3,
+                          borderColor: const Color(0xFF16A34A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_isSaving)
+                  Container(
+                    color: Colors.black.withOpacity(0.3),
+                    child: const Center(
+                      child: CupertinoActivityIndicator(
+                          radius: 14, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(
+              top: BorderSide(
+                  color: CupertinoColors.systemGrey5, width: 1)),
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF16A34A), Color(0xFF15803D)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF16A34A).withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ElevatedButton(
+            onPressed: _isSaving ? null : _saveResolution,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+            ),
+            child: Text(
+              isEdit
+                  ? (widget.lang == 'ID'
+                      ? 'Perbarui Penyelesaian'
+                      : widget.lang == 'ZH'
+                          ? '更新解决方案'
+                          : 'Update Resolution')
+                  : (widget.lang == 'ID'
+                      ? 'Simpan Penyelesaian'
+                      : widget.lang == 'ZH'
+                          ? '保存解决方案'
+                          : 'Save Resolution'),
+              style: GoogleFonts.inter(
+                  fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+          ),
         ),
       ),
     );

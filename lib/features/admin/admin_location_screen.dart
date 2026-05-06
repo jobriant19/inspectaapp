@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+
+import '../shared/code/qr_generator_screen.dart';
 
 // ============================================================
 // ADMIN LOCATION SCREEN — CRUD Lokasi → Unit → Subunit → Area
@@ -1035,57 +1038,199 @@ void _showLocationDetailSheet({
 
                   const SizedBox(height: 20),
 
+                  // ── QR Code Section ──────────────────────────────────────
+                  _locDetailSection('QR Code'),
+                  const SizedBox(height: 10),
+                
                   if (qrcode != null && qrcode.isNotEmpty) ...[
-                    _locDetailSection('QR Code'),
-                    const SizedBox(height: 10),
+                    // QR sudah ada — tampilkan seperti location_screen.dart
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF334155).withOpacity(0.04),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF334155).withOpacity(0.15)),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: primaryColor.withOpacity(0.2)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.08),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: Column(
                         children: [
-                          // Tampilkan QR sebagai image dari URL jika berupa URL,
-                          // atau gunakan QrImageView jika paket tersedia
-                          Builder(builder: (_) {
-                            // Cek apakah qrcode adalah URL gambar
-                            if (qrcode!.startsWith('http')) {
-                              return ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  qrcode!,
-                                  width: 160,
-                                  height: 160,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                      Icons.qr_code_rounded, size: 80, color: Color(0xFF334155)),
+                          // ── Preview QR ──
+                          QrImageView(
+                            data   : qrcode!,
+                            version: QrVersions.auto,
+                            size   : 220,
+                          ),
+                          const SizedBox(height: 16),
+                
+                          // ── Tombol Generate Ulang ──
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              Navigator.pop(ctx);
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => QRGeneratorScreen(
+                                    lang     : lang,
+                                    levelName: nameKey,
+                                    levelId  : item['id_$nameKey'].toString(),
+                                    itemName : nameFn(item),
+                                  ),
                                 ),
                               );
-                            }
-                            // Jika bukan URL, tampilkan teks QR data
-                            return Column(
-                              children: [
-                                const Icon(Icons.qr_code_rounded, size: 64, color: Color(0xFF334155)),
-                                const SizedBox(height: 8),
-                                Text(
-                                  qrcode!,
-                                  style: GoogleFonts.poppins(
-                                      color: const Color(0xFF334155), fontSize: 11),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            );
-                          }),
+                              if (result == true) {
+                                try {
+                                  final refreshed = await Supabase.instance.client
+                                      .from(nameKey)
+                                      .select('*, User!fk_${nameKey}_pic(nama)')
+                                      .eq('id_$nameKey', item['id_$nameKey'].toString())
+                                      .maybeSingle();
+                                  if (refreshed != null && context.mounted) {
+                                    item.addAll(refreshed);
+                                    _showLocationDetailSheet(
+                                      context    : context,
+                                      item       : item,
+                                      lang       : lang,
+                                      primaryColor: primaryColor,
+                                      icon       : icon,
+                                      nameKey    : nameKey,
+                                      nameFn     : nameFn,
+                                      subtitleFn : subtitleFn,
+                                      onEdit     : onEdit,
+                                      onDelete   : onDelete,
+                                    );
+                                  }
+                                } catch (e) {
+                                  debugPrint('Refresh QR error: $e');
+                                }
+                              }
+                            },
+                            icon : const Icon(Icons.refresh_rounded, size: 16),
+                            label: Text(
+                              lang == 'EN'
+                                  ? 'Regenerate QR'
+                                  : lang == 'ZH'
+                                      ? '重新生成二维码'
+                                      : 'Buat Ulang QR',
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryColor,
+                              side: BorderSide(color: primaryColor),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                  ] else ...[
+                    // QR belum ada — tampilkan tombol generate seperti location_screen.dart
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(Icons.qr_code_scanner_rounded,
+                              size: 64, color: Colors.grey.shade300),
+                          const SizedBox(height: 12),
+                          Text(
+                            lang == 'EN'
+                                ? 'QR Code has not been generated yet.'
+                                : lang == 'ZH'
+                                    ? '二维码尚未生成。'
+                                    : 'Kode QR belum dibuat.',
+                            style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                color: Colors.black45,
+                                fontWeight: FontWeight.w500),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                
+                          // ── Tombol Generate QR ──
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              Navigator.pop(ctx);
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => QRGeneratorScreen(
+                                    lang     : lang,
+                                    levelName: nameKey,
+                                    levelId  : item['id_$nameKey'].toString(),
+                                    itemName : nameFn(item),
+                                  ),
+                                ),
+                              );
+                              if (result == true) {
+                                // Ambil data terbaru dari DB agar qrcode langsung tampil
+                                try {
+                                  final refreshed = await Supabase.instance.client
+                                      .from(nameKey)
+                                      .select('*, User!fk_${nameKey}_pic(nama)')
+                                      .eq('id_$nameKey', item['id_$nameKey'].toString())
+                                      .maybeSingle();
+                                  if (refreshed != null && context.mounted) {
+                                    item.addAll(refreshed);
+                                    _showLocationDetailSheet(
+                                      context    : context,
+                                      item       : item,
+                                      lang       : lang,
+                                      primaryColor: primaryColor,
+                                      icon       : icon,
+                                      nameKey    : nameKey,
+                                      nameFn     : nameFn,
+                                      subtitleFn : subtitleFn,
+                                      onEdit     : onEdit,
+                                      onDelete   : onDelete,
+                                    );
+                                  }
+                                } catch (e) {
+                                  debugPrint('Refresh QR error: $e');
+                                }
+                              }
+                            },
+                            icon : const Icon(Icons.add_circle_outline, size: 18),
+                            label: Text(
+                              lang == 'EN'
+                                  ? 'Generate QR Code'
+                                  : lang == 'ZH'
+                                      ? '生成二维码'
+                                      : 'Buat Kode QR',
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              elevation: 2,
+                              shadowColor: primaryColor.withOpacity(0.3),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
+                
+                  const SizedBox(height: 16),
+                  // ── END QR Code Section ──────────────────────────────────
 
                   // ── Tombol Edit & Delete ──
                   Row(

@@ -84,10 +84,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     try {
       final Map<String, dynamic> data = jsonDecode(rawValue);
       final String? type = data['type'];
-      final int? id = data['id'];
+      final String? id = data['id']?.toString(); // ← UUID sebagai String
       final int? version = data['v'];
 
-      if (type == null || id == null || version != 1 ||
+      if (type == null || id == null || id.isEmpty || version != 1 ||
           !['lokasi', 'unit', 'subunit', 'area'].contains(type)) {
         _showError(getTxt('invalid_qr'));
         return;
@@ -99,7 +99,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     }
   }
 
-  Future<void> _fetchLocationAndNavigate(String type, int id) async {
+  Future<void> _fetchLocationAndNavigate(String type, String id) async {
     if (!mounted) return;
 
     final supabase = Supabase.instance.client;
@@ -114,32 +114,48 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       String? locationId, unitId, subunitId, areaId;
 
       if (type == 'lokasi') {
-        final data = await supabase.from('lokasi').select('id_lokasi, nama_lokasi').eq('id_lokasi', id).single();
-        locationId = data['id_lokasi'];
+        final data = await supabase
+            .from('lokasi')
+            .select('id_lokasi, nama_lokasi')
+            .eq('id_lokasi', id)
+            .single();
+        locationId = data['id_lokasi']?.toString();
         locationName = data['nama_lokasi'] ?? 'Lokasi';
       } else if (type == 'unit') {
-        final data = await supabase.from('unit').select('id_unit, nama_unit, lokasi(id_lokasi, nama_lokasi)').eq('id_unit', id).single();
-        unitId = data['id_unit'];
+        final data = await supabase
+            .from('unit')
+            .select('id_unit, nama_unit, lokasi(id_lokasi, nama_lokasi)')
+            .eq('id_unit', id)
+            .single();
+        unitId = data['id_unit']?.toString();
         final lokasi = data['lokasi'];
-        locationId = lokasi?['id_lokasi'];
+        locationId = lokasi?['id_lokasi']?.toString();
         locationName = '${lokasi?['nama_lokasi'] ?? ''} / ${data['nama_unit'] ?? ''}';
       } else if (type == 'subunit') {
-        final data = await supabase.from('subunit').select('id_subunit, nama_subunit, unit(id_unit, nama_unit, lokasi(id_lokasi, nama_lokasi))').eq('id_subunit', id).single();
-        subunitId = data['id_subunit'];
+        final data = await supabase
+            .from('subunit')
+            .select('id_subunit, nama_subunit, unit(id_unit, nama_unit, lokasi(id_lokasi, nama_lokasi))')
+            .eq('id_subunit', id)
+            .single();
+        subunitId = data['id_subunit']?.toString();
         final unit = data['unit'];
         final lokasi = unit?['lokasi'];
-        unitId = unit?['id_unit'];
-        locationId = lokasi?['id_lokasi'];
+        unitId = unit?['id_unit']?.toString();
+        locationId = lokasi?['id_lokasi']?.toString();
         locationName = '${lokasi?['nama_lokasi'] ?? ''} / ${unit?['nama_unit'] ?? ''} / ${data['nama_subunit'] ?? ''}';
       } else if (type == 'area') {
-        final data = await supabase.from('area').select('id_area, nama_area, subunit(id_subunit, nama_subunit, unit(id_unit, nama_unit, lokasi(id_lokasi, nama_lokasi)))').eq('id_area', id).single();
-        areaId = data['id_area'];
+        final data = await supabase
+            .from('area')
+            .select('id_area, nama_area, subunit(id_subunit, nama_subunit, unit(id_unit, nama_unit, lokasi(id_lokasi, nama_lokasi)))')
+            .eq('id_area', id)
+            .single();
+        areaId = data['id_area']?.toString();
         final subunit = data['subunit'];
         final unit = subunit?['unit'];
         final lokasi = unit?['lokasi'];
-        subunitId = subunit?['id_subunit'];
-        unitId = unit?['id_unit'];
-        locationId = lokasi?['id_lokasi'];
+        subunitId = subunit?['id_subunit']?.toString();
+        unitId = unit?['id_unit']?.toString();
+        locationId = lokasi?['id_lokasi']?.toString();
         locationName = '${lokasi?['nama_lokasi'] ?? ''} / ${unit?['nama_unit'] ?? ''} / ${subunit?['nama_subunit'] ?? ''} / ${data['nama_area'] ?? ''}';
       }
 

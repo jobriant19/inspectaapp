@@ -440,9 +440,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
     final String temuanId = _temuanData!['id_temuan'].toString();
 
-    // 2. Jalankan semua proses background secara parallel + langsung ke success
-    unawaited(_processVerificationBackground(temuanId, isValid));
-
     // 3. Langsung tutup popup dan tampilkan success setelah 800ms
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) {
@@ -1218,7 +1215,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     final userId = _client.auth.currentUser!.id;
 
     try {
-      // Panggil fungsi SQL vote
       await _client.rpc('handle_accident_verification_vote', params: {
         'p_laporan_id': lapdoranId,
         'p_verificator_id': userId,
@@ -1232,12 +1228,11 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     if (mounted) {
       setState(() {
         _showAccidentVerifPopup = false;
-        // Setelah vote, tampilkan form penyelesaian
-        _showResolutionForm = true;
+        _showAccidentSuccess = true;
       });
     }
   }
-
+  
   Future<void> _loadAccidentHistory() async {
     setState(() => _accidentHistoryLoading = true);
     try {
@@ -1332,7 +1327,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Header card laporan
+          // Header card
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1353,21 +1348,39 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _lang == 'ID' ? 'Tinjauan Laporan Kecelakaan'
-                            : _lang == 'ZH' ? '事故报告审查'
-                            : 'Accident Report Review',
+                        _lang == 'ID'
+                            ? 'Tinjauan Laporan Kecelakaan'
+                            : _lang == 'ZH'
+                                ? '事故报告审查'
+                                : 'Accident Report Review',
                         style: GoogleFonts.poppins(
-                            color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15),
                       ),
                       Text(
                         _lang == 'ID'
-                            ? 'Periksa laporan dengan teliti. Apakah laporan ini valid?'
+                            ? 'Periksa dan edit laporan jika perlu'
                             : _lang == 'ZH'
-                                ? '仔细检查报告。此报告是否有效？'
-                                : 'Review the report carefully. Is this report valid?',
-                        style: GoogleFonts.poppins(color: Colors.white70, fontSize: 11, height: 1.4),
+                                ? '检查并编辑报告（如需要）'
+                                : 'Review and edit the report if needed',
+                        style: GoogleFonts.poppins(
+                            color: Colors.white70, fontSize: 11, height: 1.4),
                       ),
                     ],
+                  ),
+                ),
+                // Tombol Edit
+                GestureDetector(
+                  onTap: () => _showEditAccidentDialog(laporan),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.25),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.edit_rounded,
+                        color: Colors.white, size: 20),
                   ),
                 ),
               ],
@@ -1407,28 +1420,55 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(laporan['judul'] ?? '-',
-                    style: GoogleFonts.poppins(
-                        fontSize: 16, fontWeight: FontWeight.w800,
-                        color: const Color(0xFF1E3A8A))),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(laporan['judul'] ?? '-',
+                          style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF1E3A8A))),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 _buildAccidentInfoRow(Icons.warning_amber_rounded,
-                    _lang == 'ID' ? 'Keparahan' : 'Severity', severity, sevColor),
+                    _lang == 'ID' ? 'Keparahan' : 'Severity',
+                    severity, sevColor),
                 _buildAccidentInfoRow(Icons.person_outline,
                     _lang == 'ID' ? 'Pelapor' : 'Reporter',
                     laporan['pelapor']?['nama'] ?? '-', Colors.grey.shade700),
                 _buildAccidentInfoRow(Icons.personal_injury_outlined,
                     _lang == 'ID' ? 'Pihak Terdampak' : 'Affected',
-                    laporan['pihak_terdampak']?['nama'] ?? '-', Colors.grey.shade700),
+                    laporan['pihak_terdampak']?['nama'] ?? '-',
+                    Colors.grey.shade700),
+                if (laporan['supervisor_user']?['nama'] != null)
+                  _buildAccidentInfoRow(Icons.supervisor_account_outlined,
+                      _lang == 'ID' ? 'Supervisor' : 'Supervisor',
+                      laporan['supervisor_user']['nama'], Colors.grey.shade700),
+                if (laporan['saksi_user']?['nama'] != null)
+                  _buildAccidentInfoRow(Icons.visibility_outlined,
+                      _lang == 'ID' ? 'Saksi' : 'Witness',
+                      laporan['saksi_user']['nama'], Colors.grey.shade700),
                 _buildAccidentInfoRow(Icons.location_on_outlined,
                     _lang == 'ID' ? 'Lokasi' : 'Location',
-                    laporan['lokasi']?['nama_lokasi'] ?? '-', Colors.grey.shade700),
+                    laporan['lokasi']?['nama_lokasi'] ?? '-',
+                    Colors.grey.shade700),
                 _buildAccidentInfoRow(Icons.calendar_today,
                     _lang == 'ID' ? 'Tanggal' : 'Date',
-                    laporan['tanggal_kejadian']?.toString() ?? '-', Colors.grey.shade700),
+                    laporan['tanggal_kejadian']?.toString() ?? '-',
+                    Colors.grey.shade700),
+                _buildAccidentInfoRow(Icons.access_time,
+                    _lang == 'ID' ? 'Waktu' : 'Time',
+                    laporan['waktu_kejadian']?.toString().substring(0, 5) ?? '-',
+                    Colors.grey.shade700),
                 _buildAccidentInfoRow(Icons.build_circle_outlined,
                     _lang == 'ID' ? 'Penyebab' : 'Cause',
                     laporan['penyebab'] ?? '-', Colors.grey.shade700),
+                if (laporan['departemen_terdampak'] != null)
+                  _buildAccidentInfoRow(Icons.business_outlined,
+                      _lang == 'ID' ? 'Departemen' : 'Department',
+                      laporan['departemen_terdampak'], Colors.grey.shade700),
               ],
             ),
           ),
@@ -1446,15 +1486,22 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_lang == 'ID' ? 'Deskripsi Kejadian'
-                    : _lang == 'ZH' ? '事故描述' : 'Incident Description',
+                Text(
+                    _lang == 'ID'
+                        ? 'Deskripsi Kejadian'
+                        : _lang == 'ZH'
+                            ? '事故描述'
+                            : 'Incident Description',
                     style: GoogleFonts.poppins(
-                        fontSize: 11, fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
                         color: Colors.orange.shade800)),
                 const SizedBox(height: 6),
                 Text(laporan['deskripsi'] ?? '-',
                     style: GoogleFonts.poppins(
-                        fontSize: 13, color: const Color(0xFF1E3A8A), height: 1.5)),
+                        fontSize: 13,
+                        color: const Color(0xFF1E3A8A),
+                        height: 1.5)),
               ],
             ),
           ),
@@ -1472,22 +1519,29 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_lang == 'ID' ? 'Tindakan yang Diambil'
-                      : _lang == 'ZH' ? '已采取的措施' : 'Action Taken',
+                  Text(
+                      _lang == 'ID'
+                          ? 'Tindakan yang Diambil'
+                          : _lang == 'ZH'
+                              ? '已采取的措施'
+                              : 'Action Taken',
                       style: GoogleFonts.poppins(
-                          fontSize: 11, fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                           color: Colors.green.shade800)),
                   const SizedBox(height: 6),
                   Text(laporan['tindakan_diambil'],
                       style: GoogleFonts.poppins(
-                          fontSize: 13, color: const Color(0xFF1E3A8A), height: 1.5)),
+                          fontSize: 13,
+                          color: const Color(0xFF1E3A8A),
+                          height: 1.5)),
                 ],
               ),
             ),
           ],
           const SizedBox(height: 20),
 
-          // Countdown dan swipe button
+          // Countdown & swipe
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1508,7 +1562,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 Icon(
                   canSwipe ? Icons.swipe_rounded : Icons.timer_outlined,
                   size: 16,
-                  color: canSwipe ? const Color(0xFFDC2626) : Colors.orange.shade700,
+                  color: canSwipe
+                      ? const Color(0xFFDC2626)
+                      : Colors.orange.shade700,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -1516,8 +1572,11 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                       ? t('swipe_now')
                       : '${t("wait_prefix")} $_accidentCountdown ${t("wait_suffix")}',
                   style: GoogleFonts.poppins(
-                    fontSize: 12, fontWeight: FontWeight.w600,
-                    color: canSwipe ? const Color(0xFFDC2626) : Colors.orange.shade700,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: canSwipe
+                        ? const Color(0xFFDC2626)
+                        : Colors.orange.shade700,
                   ),
                 ),
               ],
@@ -1551,6 +1610,344 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           const SizedBox(height: 20),
         ],
       ),
+    );
+  }
+
+  void _showEditAccidentDialog(Map<String, dynamic> laporan) {
+    final judulCtrl = TextEditingController(text: laporan['judul'] ?? '');
+    final descCtrl = TextEditingController(text: laporan['deskripsi'] ?? '');
+    final tindakanCtrl =
+        TextEditingController(text: laporan['tindakan_diambil'] ?? '');
+    final deptCtrl =
+        TextEditingController(text: laporan['departemen_terdampak'] ?? '');
+    String selectedSeverity = laporan['tingkat_keparahan'] ?? 'Ringan';
+    String selectedCause = laporan['penyebab'] ?? 'Lainnya';
+    bool isSaving = false;
+
+    final List<String> severities = ['Ringan', 'Menengah', 'Berat'];
+    final List<String> causes = [
+      'Mesin', 'Benda Berat', 'Kendaraan / Alat Angkut',
+      'Jatuh', 'Listrik', 'Panas / Api', 'Perkakas',
+      'Benda Tajam', 'Bahan Kimia', 'Lainnya',
+    ];
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.edit_rounded,
+                          color: Color(0xFFDC2626), size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _lang == 'ID'
+                            ? 'Edit Laporan Kecelakaan'
+                            : _lang == 'ZH'
+                                ? '编辑事故报告'
+                                : 'Edit Accident Report',
+                        style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF1E3A8A)),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Icon(Icons.close, color: Colors.grey.shade400),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Judul
+                _buildEditField(
+                    ctrl: judulCtrl,
+                    label: _lang == 'ID' ? 'Judul *' : 'Title *',
+                    hint: _lang == 'ID'
+                        ? 'Contoh: Tergelincir di gudang'
+                        : 'Example: Slipped in warehouse'),
+                const SizedBox(height: 14),
+
+                // Deskripsi
+                _buildEditField(
+                    ctrl: descCtrl,
+                    label: _lang == 'ID'
+                        ? 'Deskripsi Kejadian *'
+                        : 'Incident Description *',
+                    hint: _lang == 'ID'
+                        ? 'Ceritakan kejadian secara rinci...'
+                        : 'Describe the incident...',
+                    maxLines: 4),
+                const SizedBox(height: 14),
+
+                // Severity dropdown
+                Text(
+                    _lang == 'ID' ? 'Tingkat Keparahan *' : 'Severity Level *',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54)),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: selectedSeverity,
+                      isExpanded: true,
+                      items: severities
+                          .map((s) => DropdownMenuItem(
+                              value: s,
+                              child: Text(s,
+                                  style: GoogleFonts.poppins(fontSize: 14))))
+                          .toList(),
+                      onChanged: (v) =>
+                          setDlg(() => selectedSeverity = v ?? selectedSeverity),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Cause dropdown
+                Text(
+                    _lang == 'ID' ? 'Penyebab *' : 'Cause *',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black54)),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: selectedCause,
+                      isExpanded: true,
+                      items: causes
+                          .map((c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(c,
+                                  style: GoogleFonts.poppins(fontSize: 13),
+                                  overflow: TextOverflow.ellipsis)))
+                          .toList(),
+                      onChanged: (v) =>
+                          setDlg(() => selectedCause = v ?? selectedCause),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Departemen
+                _buildEditField(
+                    ctrl: deptCtrl,
+                    label: _lang == 'ID'
+                        ? 'Departemen Terdampak'
+                        : 'Affected Department',
+                    hint: _lang == 'ID' ? 'Contoh: Marketing' : 'e.g. Marketing'),
+                const SizedBox(height: 14),
+
+                // Tindakan
+                _buildEditField(
+                    ctrl: tindakanCtrl,
+                    label: _lang == 'ID' ? 'Tindakan yang Diambil' : 'Action Taken',
+                    hint: _lang == 'ID'
+                        ? 'Contoh: Dibawa ke rumah sakit'
+                        : 'e.g. Taken to hospital',
+                    maxLines: 3),
+                const SizedBox(height: 24),
+
+                // Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                            _lang == 'ID' ? 'Batal' : 'Cancel',
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade600)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                if (judulCtrl.text.trim().isEmpty ||
+                                    descCtrl.text.trim().isEmpty) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
+                                    content: Text(_lang == 'ID'
+                                        ? 'Judul dan deskripsi wajib diisi!'
+                                        : 'Title and description required!'),
+                                    backgroundColor: Colors.red,
+                                  ));
+                                  return;
+                                }
+                                setDlg(() => isSaving = true);
+                                try {
+                                  await _client
+                                      .from('accident_report')
+                                      .update({
+                                    'judul': judulCtrl.text.trim(),
+                                    'deskripsi': descCtrl.text.trim(),
+                                    'tingkat_keparahan': selectedSeverity,
+                                    'penyebab': selectedCause,
+                                    'departemen_terdampak':
+                                        deptCtrl.text.trim().isEmpty
+                                            ? null
+                                            : deptCtrl.text.trim(),
+                                    'tindakan_diambil':
+                                        tindakanCtrl.text.trim().isEmpty
+                                            ? null
+                                            : tindakanCtrl.text.trim(),
+                                    'updated_at':
+                                        DateTime.now().toIso8601String(),
+                                  }).eq('id_laporan',
+                                          laporan['id_laporan'].toString());
+
+                                  // Update local state
+                                  if (mounted) {
+                                    setState(() {
+                                      _accidentData!['judul'] =
+                                          judulCtrl.text.trim();
+                                      _accidentData!['deskripsi'] =
+                                          descCtrl.text.trim();
+                                      _accidentData!['tingkat_keparahan'] =
+                                          selectedSeverity;
+                                      _accidentData!['penyebab'] = selectedCause;
+                                      _accidentData!['departemen_terdampak'] =
+                                          deptCtrl.text.trim().isEmpty
+                                              ? null
+                                              : deptCtrl.text.trim();
+                                      _accidentData!['tindakan_diambil'] =
+                                          tindakanCtrl.text.trim().isEmpty
+                                              ? null
+                                              : tindakanCtrl.text.trim();
+                                    });
+                                  }
+                                  Navigator.pop(ctx);
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
+                                    content: Text(_lang == 'ID'
+                                        ? 'Laporan berhasil diperbarui!'
+                                        : 'Report updated successfully!'),
+                                    backgroundColor: Colors.green,
+                                  ));
+                                } catch (e) {
+                                  debugPrint('Update error: $e');
+                                  setDlg(() => isSaving = false);
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : Text(
+                                _lang == 'ID' ? 'Simpan' : 'Save',
+                                style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper field untuk dialog edit
+  Widget _buildEditField({
+    required TextEditingController ctrl,
+    required String label,
+    required String hint,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.black54)),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: ctrl,
+          maxLines: maxLines,
+          style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle:
+                GoogleFonts.poppins(color: Colors.grey.shade400, fontSize: 13),
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade200)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                    color: Color(0xFFDC2626), width: 1.5)),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2019,10 +2416,14 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _VotePill(
-                        label: voteLabel, color: voteColor,
-                        icon: userVote ? Icons.thumb_up_rounded : Icons.thumb_down_rounded),
+                        label: voteLabel,
+                        color: voteColor,
+                        icon: userVote
+                            ? Icons.thumb_up_rounded
+                            : Icons.thumb_down_rounded),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: isFinalized
                             ? const Color(0xFF16A34A).withOpacity(0.1)
@@ -2035,14 +2436,22 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                         ),
                       ),
                       child: Row(children: [
-                        Icon(isFinalized ? Icons.verified_rounded : Icons.pending_rounded,
+                        Icon(
+                            isFinalized
+                                ? Icons.verified_rounded
+                                : Icons.pending_rounded,
                             size: 10,
-                            color: isFinalized ? const Color(0xFF16A34A) : Colors.orange),
+                            color: isFinalized
+                                ? const Color(0xFF16A34A)
+                                : Colors.orange),
                         const SizedBox(width: 3),
                         Text(isFinalized ? t('finalized') : t('not_finalized'),
                             style: GoogleFonts.poppins(
-                                fontSize: 9, fontWeight: FontWeight.w700,
-                                color: isFinalized ? const Color(0xFF16A34A) : Colors.orange)),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: isFinalized
+                                    ? const Color(0xFF16A34A)
+                                    : Colors.orange)),
                       ]),
                     ),
                   ],
@@ -2052,14 +2461,18 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _VoteCountChip(
-                        icon: Icons.thumb_up_rounded, label: t('votes_valid'),
-                        count: validCount, color: const Color(0xFF16A34A)),
+                        icon: Icons.thumb_up_rounded,
+                        label: t('votes_valid'),
+                        count: validCount,
+                        color: const Color(0xFF16A34A)),
                     Text('$totalVotes / $totalHrd HRD',
                         style: GoogleFonts.poppins(
                             fontSize: 9.5, color: Colors.grey.shade500)),
                     _VoteCountChip(
-                        icon: Icons.thumb_down_rounded, label: t('votes_invalid'),
-                        count: invalidCount, color: const Color(0xFFDC2626),
+                        icon: Icons.thumb_down_rounded,
+                        label: t('votes_invalid'),
+                        count: invalidCount,
+                        color: const Color(0xFFDC2626),
                         iconOnRight: true),
                   ],
                 ),
@@ -2067,7 +2480,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: Stack(children: [
-                    Container(height: 8, width: double.infinity,
+                    Container(
+                        height: 8,
+                        width: double.infinity,
                         color: const Color(0xFFDC2626).withOpacity(0.18)),
                     FractionallySizedBox(
                       widthFactor: validRatio.clamp(0.0, 1.0),
@@ -2100,16 +2515,23 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     ),
                     child: Row(children: [
                       Icon(
-                        finalOutcome ? Icons.thumb_up_rounded : Icons.thumb_down_rounded,
+                        finalOutcome
+                            ? Icons.thumb_up_rounded
+                            : Icons.thumb_down_rounded,
                         size: 13,
-                        color: finalOutcome ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                        color: finalOutcome
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFDC2626),
                       ),
                       const SizedBox(width: 6),
                       Text(
                         '${t("majority_result")}: ${finalOutcome ? t("valid") : t("invalid")}',
                         style: GoogleFonts.poppins(
-                            fontSize: 11, fontWeight: FontWeight.w700,
-                            color: finalOutcome ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: finalOutcome
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFFDC2626)),
                       ),
                     ]),
                   ),
@@ -2189,6 +2611,17 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   }
 
   Widget _buildHeader() {
+    final String roleLabel = _isHrdMode
+        ? (_lang == 'EN' ? 'HRD' : _lang == 'ZH' ? '人力资源' : 'HRD')
+        : 'Executive';
+    final String screenTitle = _isHrdMode
+        ? (_lang == 'EN'
+            ? 'Accident Verification'
+            : _lang == 'ZH'
+                ? '事故验证'
+                : 'Verifikasi Kecelakaan')
+        : t('screen_title');
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
@@ -2218,7 +2651,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              t('screen_title'),
+              screenTitle,
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -2227,21 +2660,21 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF00C9E4), Color(0xFF0891B2)],
+              gradient: LinearGradient(
+                colors: _isHrdMode
+                    ? [const Color(0xFF16A34A), const Color(0xFF15803D)]
+                    : [const Color(0xFF00C9E4), const Color(0xFF0891B2)],
               ),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               children: [
-                const Icon(Icons.verified_rounded,
-                    color: Colors.white, size: 14),
+                const Icon(Icons.verified_rounded, color: Colors.white, size: 14),
                 const SizedBox(width: 4),
                 Text(
-                  'Executive',
+                  roleLabel,
                   style: GoogleFonts.poppins(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,

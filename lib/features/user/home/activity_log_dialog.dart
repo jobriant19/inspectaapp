@@ -29,6 +29,7 @@ class ActivityLogDialog extends StatefulWidget {
 class _ActivityLogDialogState extends State<ActivityLogDialog> {
   List<Map<String, dynamic>> _logs = [];
   bool _isLoading = true;
+  int _monthlyPoin = 0;
 
   @override
   void initState() {
@@ -42,6 +43,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
 
     // Tetap fetch data lengkap di background
     _fetchLogs();
+    _fetchMonthlyPoin();
   }
 
   Future<void> _fetchLogs() async {
@@ -68,6 +70,32 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _fetchMonthlyPoin() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+      final startOfNextMonth =
+          DateTime(now.year, now.month + 1, 1).toIso8601String();
+
+      final List<dynamic> logs = await Supabase.instance.client
+          .from('log_poin')
+          .select('poin')
+          .eq('id_user', userId)
+          .gte('created_at', startOfMonth)
+          .lt('created_at', startOfNextMonth);
+
+      int total = 0;
+      for (final log in logs) {
+        total += ((log['poin'] as num?)?.toInt() ?? 0);
+      }
+
+      if (mounted) setState(() => _monthlyPoin = total);
+    } catch (_) {}
   }
 
   String _getTxt(String key) {
@@ -426,7 +454,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                                 color: fireColor, size: 22),
                             const SizedBox(height: 2),
                             Text(
-                              '${widget.userPoin}',
+                              '$_monthlyPoin',
                               style: GoogleFonts.poppins(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w900,

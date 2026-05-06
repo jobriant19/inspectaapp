@@ -100,11 +100,13 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
             id_temuan, no_order, judul_temuan, status_temuan,
             poin_temuan, created_at, jumlah_item, id_user,
             nama_item_manual, gambar_temuan, jenis_temuan,
+            id_penanggung_jawab, deskripsi_temuan,
             subkategoritemuan:id_subkategoritemuan_uuid(
               id_subkategoritemuan, nama_subkategoritemuan
             ),
             item_produksi:id_item(id_item, nama_item, gambar_item),
-            lokasi:id_lokasi(nama_lokasi)
+            lokasi:id_lokasi(nama_lokasi),
+            penanggung_jawab:id_penanggung_jawab(id_user, nama, gambar_user)
           ''')
           .eq('id_user', userId)
           .eq('jenis_temuan', 'KTS Production')
@@ -779,16 +781,17 @@ class _KtsProduksiFormScreenState
   final _judulCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _itemSearchCtrl = TextEditingController();
+  Map<String, dynamic>? _selectedAssignee;         // BARU
+  bool _isLoadingAssignee = false;
+  List<Map<String, dynamic>> _faktors = [];
+  Map<String, dynamic>? _selectedFaktor;
+  final _penyebabCtrl = TextEditingController();
 
   int _qty = 1;
 
   Map<String, dynamic>? _selectedSubKategori;
-  Map<String, dynamic>? _selectedItem;
   XFile? _imageFile;
   String? _existingImageUrl;
-  List<Map<String, dynamic>> _itemSuggestions = [];
-  bool _isSearchingItems = false;
-  bool _showSuggestions = false;
   String? _ktsKategoriId;
   bool _isLoadingKategori = false;
 
@@ -883,58 +886,57 @@ class _KtsProduksiFormScreenState
   @override
   void initState() {
     super.initState();
-    _itemSearchCtrl.addListener(_onItemSearchChanged);
+    _loadCurrentUser();
     _loadKtsKategoriId();
+    _loadFaktors();
     if (_isEdit) _populateData();
   }
 
-  Future<void> _loadKtsKategoriId() async {
-    if (_isLoadingKategori || _ktsKategoriId != null) return;
-    setState(() => _isLoadingKategori = true);
+  Future<void> _loadFaktors() async {
     try {
-      // Cari kategori dengan jenis_kategori = 'KTS' (lebih akurat)
-      final res = await Supabase.instance.client
-          .from('kategoritemuan')
-          .select('id_kategoritemuan, nama_kategoritemuan, jenis_kategori')
-          .eq('jenis_kategori', 'KTS')
-          .limit(1)
-          .maybeSingle();
-
-      if (mounted) {
-        setState(() {
-          _ktsKategoriId = res?['id_kategoritemuan']?.toString();
-          if (_ktsKategoriId == null && _isEdit &&
-              widget.existingData!['kategoritemuan'] != null) {
-            _ktsKategoriId =
-                widget.existingData!['kategoritemuan']['id_kategoritemuan'];
-          }
-          _isLoadingKategori = false;
-        });
-      }
+      final data = await Supabase.instance.client
+          .from('faktor_penyebab_kts')
+          .select('id_faktor, nama_faktor')
+          .eq('is_active', true)
+          .order('nama_faktor');
+      if (mounted) setState(() => _faktors = List<Map<String, dynamic>>.from(data));
     } catch (e) {
-      debugPrint('Error loading KTS kategori id: $e');
-      if (mounted) setState(() => _isLoadingKategori = false);
+      debugPrint('Error load faktors: $e');
     }
   }
 
-  void _showSubKategoriPicker() async {
-    if (_isLoadingKategori) return;
-    if (_ktsKategoriId == null) {
-      await _loadKtsKategoriId();
-      if (_ktsKategoriId == null) return;
-    }
+  Future<void> _loadKtsKategoriId() async {
+    // Tidak dibutuhkan lagi sebagai single ID
+    // Biarkan kosong atau hapus pemanggilan di initState
+    setState(() => _isLoadingKategori = false);
+  }
 
+  void _showSubKategoriPicker() async {
+    setState(() => _isLoadingKategori = true);
     try {
-      // Ambil subkategori berdasarkan parent kategori KTS
+      // Ambil semua subkategori yang parent-nya jenis_kategori = 'KTS'
       final data = await Supabase.instance.client
           .from('subkategoritemuan')
-          .select('id_subkategoritemuan, nama_subkategoritemuan, deskripsi_subkategoritemuan')
-          .eq('id_kategoritemuan', _ktsKategoriId!)
+          .select(
+            'id_subkategoritemuan, nama_subkategoritemuan, '
+            'deskripsi_subkategoritemuan, id_kategoritemuan, '
+            'kategoritemuan:id_kategoritemuan(jenis_kategori)',
+          )
           .order('nama_subkategoritemuan');
 
+      // Filter hanya yang parent-nya KTS
+      final ktsSubkategori = List<Map<String, dynamic>>.from(data)
+          .where((sub) {
+            final jenis = (sub['kategoritemuan']?['jenis_kategori'] ?? '')
+                .toString()
+                .toUpperCase();
+            return jenis == 'KTS';
+          })
+          .toList();
+
+      if (mounted) setState(() => _isLoadingKategori = false);
       if (!mounted) return;
 
-      // [SISA KODE SAMA PERSIS SEPERTI SEBELUMNYA - showModalBottomSheet, dsb]
       showModalBottomSheet(
         context: context,
         backgroundColor: Colors.white,
@@ -950,7 +952,8 @@ class _KtsProduksiFormScreenState
             children: [
               Container(
                 margin: const EdgeInsets.only(top: 12, bottom: 8),
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                     color: CupertinoColors.systemGrey4,
                     borderRadius: BorderRadius.circular(2)),
@@ -958,54 +961,131 @@ class _KtsProduksiFormScreenState
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Center(
-                  child: Text(t['pick_kategori']!,
-                      style: GoogleFonts.inter(
-                          fontSize: 16, fontWeight: FontWeight.w700,
-                          color: const Color(0xFF2563EB))),
+                  child: Text(
+                    t['pick_kategori']!,
+                    style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF2563EB)),
+                  ),
                 ),
               ),
               const Divider(color: CupertinoColors.systemGrey5),
-              Expanded(
-                child: ListView.builder(
-                  controller: ctrl,
-                  itemCount: data.length,
-                  itemBuilder: (_, i) {
-                    final sk = Map<String, dynamic>.from(data[i]);
-                    final isSelected =
-                        _selectedSubKategori?['id_subkategoritemuan'] ==
-                            sk['id_subkategoritemuan'];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 4),
-                      title: Text(sk['nama_subkategoritemuan'],
+              if (ktsSubkategori.isEmpty)
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(CupertinoIcons.tray,
+                            size: 48, color: CupertinoColors.systemGrey3),
+                        const SizedBox(height: 12),
+                        Text(
+                          widget.lang == 'EN'
+                              ? 'No sub-categories found'
+                              : widget.lang == 'ZH'
+                                  ? '暂无子分类'
+                                  : 'Belum ada sub-kategori KTS',
+                          style: GoogleFonts.inter(
+                              color: CupertinoColors.systemGrey,
+                              fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    controller: ctrl,
+                    itemCount: ktsSubkategori.length,
+                    itemBuilder: (_, i) {
+                      final sk = Map<String, dynamic>.from(ktsSubkategori[i]);
+                      final isSelected =
+                          _selectedSubKategori?['id_subkategoritemuan'] ==
+                              sk['id_subkategoritemuan'];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 4),
+                        title: Text(
+                          sk['nama_subkategoritemuan'] ?? '-',
                           style: GoogleFonts.inter(
                               fontWeight: FontWeight.w600,
-                              color: Colors.black87, fontSize: 15)),
-                      subtitle: sk['deskripsi_subkategoritemuan'] != null
-                          ? Text(sk['deskripsi_subkategoritemuan'],
-                              style: GoogleFonts.inter(
-                                  color: CupertinoColors.systemGrey,
-                                  fontSize: 13))
-                          : null,
-                      trailing: isSelected
-                          ? const Icon(CupertinoIcons.check_mark,
-                              color: Color(0xFF2563EB))
-                          : null,
-                      onTap: () {
-                        setState(() => _selectedSubKategori = sk);
-                        Navigator.pop(context);
-                      },
-                    );
-                  },
+                              color: Colors.black87,
+                              fontSize: 15),
+                        ),
+                        subtitle: sk['deskripsi_subkategoritemuan'] != null
+                            ? Text(
+                                sk['deskripsi_subkategoritemuan'],
+                                style: GoogleFonts.inter(
+                                    color: CupertinoColors.systemGrey,
+                                    fontSize: 13),
+                              )
+                            : null,
+                        trailing: isSelected
+                            ? const Icon(CupertinoIcons.check_mark,
+                                color: Color(0xFF2563EB))
+                            : null,
+                        onTap: () {
+                          // Simpan juga id_kategoritemuan untuk keperluan submit
+                          setState(() {
+                            _selectedSubKategori = sk;
+                            _ktsKategoriId =
+                                sk['id_kategoritemuan']?.toString();
+                          });
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  ),
                 ),
-              ),
             ],
           ),
         ),
       );
     } catch (e) {
       debugPrint('Error loading subkategori KTS: $e');
+      if (mounted) setState(() => _isLoadingKategori = false);
     }
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+      final profile = await Supabase.instance.client
+          .from('User')
+          .select('id_user, nama, id_jabatan, id_lokasi, id_unit, id_subunit, id_area, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user')
+          .eq('id_user', user.id)
+          .single();
+      if (mounted && _selectedAssignee == null) {
+        setState(() {
+          _selectedAssignee = {
+            'id_user': profile['id_user'],
+            'nama': profile['nama'],
+            'jabatan': profile['jabatan'],
+            'gambar_user': profile['gambar_user'],
+          };
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading current user: $e');
+    }
+  }
+
+  void _showAssigneePicker() async {
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => _KtsAssigneePickerSheet(
+        lang: widget.lang,
+        currentUserId: _selectedAssignee?['id_user']?.toString(),
+      ),
+    );
+    if (result != null) setState(() => _selectedAssignee = result);
   }
 
   void _populateData() {
@@ -1025,13 +1105,27 @@ class _KtsProduksiFormScreenState
       _selectedSubKategori =
           Map<String, dynamic>.from(d['subkategoritemuan']);
     }
-    if (d['item_produksi'] != null &&
-        d['item_produksi'] is Map) {
-      _selectedItem =
-          Map<String, dynamic>.from(d['item_produksi']);
-      _itemSearchCtrl.text = _selectedItem?['nama_item'] ?? '';
-    } else if (d['nama_item_manual'] != null) {
-      _itemSearchCtrl.text = d['nama_item_manual'];
+    _itemSearchCtrl.text = d['nama_item_manual'] ?? d['item_produksi']?['nama_item'] ?? '';
+
+    // Populate assignee jika ada
+    if (d['penanggung_jawab'] != null) {
+      _selectedAssignee = Map<String, dynamic>.from(d['penanggung_jawab']);
+    } else if (d['id_penanggung_jawab'] != null) {
+      // Load PJ dari id
+      _loadAssigneeById(d['id_penanggung_jawab'].toString());
+    }
+  }
+
+  Future<void> _loadAssigneeById(String userId) async {
+    try {
+      final data = await Supabase.instance.client
+          .from('User')
+          .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user')
+          .eq('id_user', userId)
+          .single();
+      if (mounted) setState(() => _selectedAssignee = data);
+    } catch (e) {
+      debugPrint('Error loading assignee: $e');
     }
   }
 
@@ -1041,51 +1135,8 @@ class _KtsProduksiFormScreenState
     _judulCtrl.dispose();
     _descCtrl.dispose();
     _itemSearchCtrl.dispose();
+    _penyebabCtrl.dispose();
     super.dispose();
-  }
-
-  void _onItemSearchChanged() {
-    final q = _itemSearchCtrl.text.trim();
-
-    if (_selectedItem != null &&
-        _selectedItem!['nama_item'] != q) {
-      _selectedItem = null;
-    }
-
-    if (q.isEmpty) {
-      setState(() {
-        _itemSuggestions = [];
-        _showSuggestions = false;
-        _selectedItem = null;
-      });
-      return;
-    }
-
-    if (_selectedItem != null &&
-        _selectedItem!['nama_item'] == q) return;
-    _searchItems(q);
-  }
-
-  Future<void> _searchItems(String query) async {
-    setState(() => _isSearchingItems = true);
-    try {
-      final data = await Supabase.instance.client
-          .from('item_produksi')
-          .select('id_item, nama_item, gambar_item, kode_item')
-          .eq('is_active', true)
-          .ilike('nama_item', '%$query%')
-          .limit(8);
-      if (mounted) {
-        setState(() {
-          _itemSuggestions =
-              List<Map<String, dynamic>>.from(data);
-          _showSuggestions = true;
-          _isSearchingItems = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isSearchingItems = false);
-    }
   }
 
   Future<void> _pickImage() async {
@@ -1326,10 +1377,9 @@ class _KtsProduksiFormScreenState
         'id_subkategoritemuan_uuid':
             _selectedSubKategori!['id_subkategoritemuan'],
         'id_kategoritemuan_uuid': _ktsKategoriId,
-        'id_item': _selectedItem?['id_item'],
-        'nama_item_manual': _selectedItem == null
-            ? _itemSearchCtrl.text.trim()
-            : null,
+        'id_item': null,
+        'nama_item_manual': _itemSearchCtrl.text.trim(),
+        'id_penanggung_jawab': _selectedAssignee?['id_user'],
         'jumlah_item': _qty,
         'gambar_temuan': imageUrl,
         'deskripsi_temuan': _descCtrl.text.trim().isEmpty
@@ -1367,7 +1417,9 @@ class _KtsProduksiFormScreenState
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text(t['success']!),
               backgroundColor: CupertinoColors.activeGreen));
-          Navigator.pop(context, true);
+          // Tunggu sebentar agar log_poin realtime listener sempat berjalan
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) Navigator.pop(context, true);
         }
       }
     } catch (e) {
@@ -1444,9 +1496,8 @@ class _KtsProduksiFormScreenState
                           crossAxisAlignment:
                               CrossAxisAlignment.start,
                           children: [
-                            _buildLabel(t['item']!,
-                                isRequired: true),
-                            _buildItemSearchField(),
+                            _buildLabel(t['item']!, isRequired: true),
+                            _buildTextField(_itemSearchCtrl, t['item_hint']!, CupertinoIcons.cube_box),
                           ],
                         ),
                       ),
@@ -1464,6 +1515,20 @@ class _KtsProduksiFormScreenState
                         ),
                       ),
                     ],
+                  ),
+                ]),
+                const SizedBox(height: 16),
+                _buildSectionCard(children: [
+                  _buildLabel(
+                    widget.lang == 'ZH' ? '负责人' : widget.lang == 'EN' ? 'Person in Charge' : 'Penanggung Jawab',
+                    isRequired: false,
+                  ),
+                  _buildTapField(
+                    icon: CupertinoIcons.person_fill,
+                    text: _selectedAssignee?['nama'] ??
+                        (widget.lang == 'ZH' ? '选择负责人' : widget.lang == 'EN' ? 'Select PIC' : 'Pilih Penanggung Jawab'),
+                    hasValue: _selectedAssignee != null,
+                    onTap: _showAssigneePicker,
                   ),
                 ]),
                 const SizedBox(height: 16),
@@ -1722,127 +1787,6 @@ class _KtsProduksiFormScreenState
     );
   }
 
-  Widget _buildItemSearchField() {
-    return Column(
-      children: [
-        TextFormField(
-          controller: _itemSearchCtrl,
-          style:
-              GoogleFonts.inter(fontSize: 15, color: Colors.black87),
-          decoration: InputDecoration(
-            hintText: t['item_hint']!,
-            hintStyle: GoogleFonts.inter(
-                color: const Color(0xFFCBD5E1), fontSize: 15),
-            prefixIcon: const Icon(CupertinoIcons.search, color: Color(0xFF2563EB), size: 20),
-            suffixIcon: _isSearchingItems
-                ? const Padding(
-                    padding: EdgeInsets.all(14),
-                    child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: const Color(0xFF2563EB))))
-                : _selectedItem != null
-                    ? IconButton(
-                        icon: const Icon(
-                            CupertinoIcons.clear_thick,
-                            size: 16,
-                            color: CupertinoColors.systemGrey),
-                        onPressed: () {
-                          setState(() {
-                            _selectedItem = null;
-                            _itemSearchCtrl.clear();
-                            _showSuggestions = false;
-                          });
-                        },
-                      )
-                    : null,
-            filled: true,
-            fillColor: const Color(0xFFF8FAFF),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none),
-           enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE0E7FF), width: 1)),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5)),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 16),
-          ),
-        ),
-        if (_showSuggestions && _itemSuggestions.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE0E7FF)),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4))
-              ],
-            ),
-            child: Column(
-              children: _itemSuggestions.map((item) {
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 4),
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: item['gambar_item'] != null
-                        ? Image.network(item['gambar_item'],
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                _buildItemPlaceholder())
-                        : _buildItemPlaceholder(),
-                  ),
-                  title: Text(item['nama_item'],
-                      style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Colors.black87)),
-                  subtitle: item['kode_item'] != null
-                      ? Text(item['kode_item'],
-                          style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: CupertinoColors.systemGrey))
-                      : null,
-                  onTap: () {
-                    setState(() {
-                      _selectedItem = item;
-                      _itemSearchCtrl.text =
-                          item['nama_item'];
-                      _showSuggestions = false;
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildItemPlaceholder() {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Icon(CupertinoIcons.cube_box,
-          color: Color(0xFF2563EB), size: 20),
-    );
-  }
-
   Widget _buildPhotoWidget() {
     final hasPhoto =
         _imageFile != null || _existingImageUrl != null;
@@ -2070,6 +2014,9 @@ class _KtsProduksiDetailScreenState
   final _tindakanCtrl = TextEditingController();
   final _biayaCtrl = TextEditingController();
   XFile? _resImageFile;
+  final _penyebabCtrl = TextEditingController();
+  List<Map<String, dynamic>> _faktors = [];
+  Map<String, dynamic>? _selectedFaktor;
 
   Map<String, String> get t => _txt[widget.lang] ?? _txt['ID']!;
   static const Map<String, Map<String, String>> _txt = {
@@ -2183,8 +2130,8 @@ class _KtsProduksiDetailScreenState
   @override
   void initState() {
     super.initState();
-    _currentUserId =
-        Supabase.instance.client.auth.currentUser?.id;
+    _currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    _loadFaktors();
     _loadData();
   }
 
@@ -2192,7 +2139,21 @@ class _KtsProduksiDetailScreenState
   void dispose() {
     _tindakanCtrl.dispose();
     _biayaCtrl.dispose();
+    _penyebabCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadFaktors() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('faktor_penyebab_kts')
+          .select('id_faktor, nama_faktor')
+          .eq('is_active', true)
+          .order('nama_faktor');
+      if (mounted) setState(() => _faktors = List<Map<String, dynamic>>.from(data));
+    } catch (e) {
+      debugPrint('Error load faktors: $e');
+    }
   }
 
   Future<void> _loadData() async {
@@ -2363,6 +2324,10 @@ class _KtsProduksiDetailScreenState
             'tanggal_selesai': DateTime.now().toIso8601String(),
             'id_user': user.id,
             'poin_penyelesaian': 10,
+            'penyebab': _penyebabCtrl.text.trim().isEmpty  // TAMBAH INI
+                ? null
+                : _penyebabCtrl.text.trim(),
+            'id_faktor_penyebab': _selectedFaktor?['id_faktor'],
           })
           .select('id_penyelesaian')
           .single();
@@ -3222,8 +3187,7 @@ class _KtsProduksiDetailScreenState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-            color: const Color(0xFFFDE68A), width: 1.5),
+        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFFD97706).withOpacity(0.06),
@@ -3235,6 +3199,7 @@ class _KtsProduksiDetailScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // === FOTO ===
           Row(
             children: [
               Text(t['upload_photo']!,
@@ -3243,8 +3208,7 @@ class _KtsProduksiDetailScreenState
                       fontSize: 14,
                       color: const Color(0xFF475569))),
               const Text(' *',
-                  style: TextStyle(
-                      color: CupertinoColors.destructiveRed)),
+                  style: TextStyle(color: CupertinoColors.destructiveRed)),
             ],
           ),
           const SizedBox(height: 8),
@@ -3257,30 +3221,22 @@ class _KtsProduksiDetailScreenState
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFF),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                          color: const Color(0xFFFDE68A),
-                          width: 1.5),
+                      border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
                     ),
                     child: Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: const BoxDecoration(
-                            color: Color(0xFFFEF3C7),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                              CupertinoIcons.camera,
-                              color: const Color(0xFFD97706),
-                              size: 26),
+                              color: Color(0xFFFEF3C7), shape: BoxShape.circle),
+                          child: const Icon(CupertinoIcons.camera,
+                              color: Color(0xFFD97706), size: 26),
                         ),
                         const SizedBox(height: 10),
                         Text('Ambil Foto',
                             style: GoogleFonts.inter(
-                                color:
-                                    const Color(0xFFD97706),
+                                color: const Color(0xFFD97706),
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14)),
                       ],
@@ -3290,19 +3246,12 @@ class _KtsProduksiDetailScreenState
               : Stack(
                   children: [
                     ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(14),
                       child: kIsWeb
-                          ? Image.network(
-                              _resImageFile!.path,
-                              height: 200,
-                              width: double.infinity,
-                              fit: BoxFit.cover)
-                          : Image.file(
-                              File(_resImageFile!.path),
-                              height: 200,
-                              width: double.infinity,
-                              fit: BoxFit.cover),
+                          ? Image.network(_resImageFile!.path,
+                              height: 200, width: double.infinity, fit: BoxFit.cover)
+                          : Image.file(File(_resImageFile!.path),
+                              height: 200, width: double.infinity, fit: BoxFit.cover),
                     ),
                     Positioned(
                       right: 12,
@@ -3310,27 +3259,21 @@ class _KtsProduksiDetailScreenState
                       child: GestureDetector(
                         onTap: _pickResImage,
                         child: Container(
-                          padding:
-                              const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                              color: Colors.black
-                                  .withOpacity(0.6),
-                              borderRadius:
-                                  BorderRadius.circular(20)),
+                              color: Colors.black.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(20)),
                           child: Row(
                             children: [
-                              const Icon(
-                                  CupertinoIcons.camera_rotate,
-                                  color: Colors.white,
-                                  size: 14),
+                              const Icon(CupertinoIcons.camera_rotate,
+                                  color: Colors.white, size: 14),
                               const SizedBox(width: 6),
                               Text('Ganti',
                                   style: GoogleFonts.inter(
                                       color: Colors.white,
                                       fontSize: 13,
-                                      fontWeight:
-                                          FontWeight.w500)),
+                                      fontWeight: FontWeight.w500)),
                             ],
                           ),
                         ),
@@ -3339,6 +3282,117 @@ class _KtsProduksiDetailScreenState
                   ],
                 ),
           const SizedBox(height: 16),
+
+          // === PENYEBAB (BARU) ===
+          Text(
+            widget.lang == 'ZH' ? '原因' : widget.lang == 'EN' ? 'Cause' : 'Penyebab',
+            style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: const Color(0xFF475569)),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _penyebabCtrl, // ganti ke _penyebabCtrl — lihat catatan di bawah
+            maxLines: 2,
+            style: GoogleFonts.inter(fontSize: 15),
+            decoration: InputDecoration(
+              hintText: widget.lang == 'ZH'
+                  ? '说明原因...'
+                  : widget.lang == 'EN'
+                      ? 'Describe the cause...'
+                      : 'Jelaskan penyebab...',
+              hintStyle:
+                  GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
+              filled: true,
+              fillColor: const Color(0xFFF8FAFF),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFFDE68A), width: 1)),
+              focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFD97706), width: 1.5)),
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // === FAKTOR PENYEBAB (BARU) ===
+          Text(
+            widget.lang == 'ZH'
+                ? '原因因素'
+                : widget.lang == 'EN'
+                    ? 'Cause Factor'
+                    : 'Faktor Penyebab',
+            style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: const Color(0xFF475569)),
+          ),
+          const SizedBox(height: 8),
+          _faktors.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: const Border.fromBorderSide(
+                        BorderSide(color: Color(0xFFFDE68A), width: 1)),
+                  ),
+                  child: Text(
+                    widget.lang == 'EN' ? 'Loading factors...' : 'Memuat faktor...',
+                    style: GoogleFonts.inter(
+                        fontSize: 13, color: const Color(0xFFCBD5E1)),
+                  ),
+                )
+              : Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _selectedFaktor != null
+                          ? const Color(0xFFD97706)
+                          : const Color(0xFFFDE68A),
+                      width: _selectedFaktor != null ? 1.5 : 1,
+                    ),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<Map<String, dynamic>>(
+                      isExpanded: true,
+                      value: _selectedFaktor,
+                      hint: Text(
+                        widget.lang == 'ZH'
+                            ? '选择原因因素（可选）'
+                            : widget.lang == 'EN'
+                                ? 'Select cause factor (optional)'
+                                : 'Pilih faktor penyebab (opsional)',
+                        style: GoogleFonts.inter(
+                            fontSize: 14, color: const Color(0xFFCBD5E1)),
+                      ),
+                      style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
+                      icon: const Icon(CupertinoIcons.chevron_down,
+                          size: 14, color: Color(0xFFD97706)),
+                      items: _faktors
+                          .map((f) => DropdownMenuItem<Map<String, dynamic>>(
+                                value: f,
+                                child: Text(f['nama_faktor'] ?? '',
+                                    overflow: TextOverflow.ellipsis),
+                              ))
+                          .toList(),
+                      onChanged: (val) => setState(() => _selectedFaktor = val),
+                    ),
+                  ),
+                ),
+          const SizedBox(height: 16),
+
+          // === TINDAKAN ===
           Row(
             children: [
               Text(t['tindakan']!,
@@ -3347,8 +3401,7 @@ class _KtsProduksiDetailScreenState
                       fontSize: 14,
                       color: const Color(0xFF475569))),
               const Text(' *',
-                  style: TextStyle(
-                      color: CupertinoColors.destructiveRed)),
+                  style: TextStyle(color: CupertinoColors.destructiveRed)),
             ],
           ),
           const SizedBox(height: 8),
@@ -3358,8 +3411,8 @@ class _KtsProduksiDetailScreenState
             style: GoogleFonts.inter(fontSize: 15),
             decoration: InputDecoration(
               hintText: t['tindakan_hint']!,
-              hintStyle: GoogleFonts.inter(
-                  color: const Color(0xFFCBD5E1), fontSize: 15),
+              hintStyle:
+                  GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
               filled: true,
               fillColor: const Color(0xFFF8FAFF),
               border: OutlineInputBorder(
@@ -3367,17 +3420,18 @@ class _KtsProduksiDetailScreenState
                   borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                      color: Color(0xFFFDE68A), width: 1)),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFFDE68A), width: 1)),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                      color: Color(0xFFD97706),
-                      width: 1.5)),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFD97706), width: 1.5)),
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
           const SizedBox(height: 16),
+
+          // === BIAYA ===
           Text(t['biaya']!,
               style: GoogleFonts.inter(
                   fontWeight: FontWeight.w600,
@@ -3386,14 +3440,14 @@ class _KtsProduksiDetailScreenState
           const SizedBox(height: 8),
           TextFormField(
             controller: _biayaCtrl,
-            keyboardType: const TextInputType.numberWithOptions(
-                decimal: true),
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
             style: GoogleFonts.inter(fontSize: 15),
             decoration: InputDecoration(
               hintText: t['biaya_hint']!,
               prefixText: 'Rp ',
-              hintStyle: GoogleFonts.inter(
-                  color: const Color(0xFFCBD5E1), fontSize: 15),
+              hintStyle:
+                  GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
               filled: true,
               fillColor: const Color(0xFFF8FAFF),
               border: OutlineInputBorder(
@@ -3401,17 +3455,18 @@ class _KtsProduksiDetailScreenState
                   borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                      color: Color(0xFFFDE68A), width: 1)),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFFDE68A), width: 1)),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
-                      color: Color(0xFFD97706),
-                      width: 1.5)),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFD97706), width: 1.5)),
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
           const SizedBox(height: 24),
+
+          // === TOMBOL SIMPAN ===
           SizedBox(
             width: double.infinity,
             child: Container(
@@ -3419,47 +3474,35 @@ class _KtsProduksiDetailScreenState
                 gradient: _isSavingResolution
                     ? null
                     : const LinearGradient(
-                        colors: [
-                            Color(0xFFFBBF24),
-                            Color(0xFFD97706)
-                          ]),
-                color: _isSavingResolution
-                    ? const Color(0xFFE2E8F0)
-                    : null,
+                        colors: [Color(0xFFFBBF24), Color(0xFFD97706)]),
+                color: _isSavingResolution ? const Color(0xFFE2E8F0) : null,
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: _isSavingResolution
                     ? null
                     : [
                         BoxShadow(
-                          color: const Color(0xFFFBBF24)
-                              .withOpacity(0.35),
+                          color: const Color(0xFFFBBF24).withOpacity(0.35),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
                       ],
               ),
               child: ElevatedButton(
-                onPressed: _isSavingResolution
-                    ? null
-                    : _saveResolution,
+                onPressed: _isSavingResolution ? null : _saveResolution,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(14)),
+                      borderRadius: BorderRadius.circular(14)),
                 ),
                 child: _isSavingResolution
-                    ? const CupertinoActivityIndicator(
-                        color: Colors.white)
+                    ? const CupertinoActivityIndicator(color: Colors.white)
                     : Text(t['save_resolution']!,
                         style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700)),
+                            fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ),
           ),
@@ -3655,6 +3698,621 @@ class _KtsCameraScreenState extends State<_KtsCameraScreen>
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// ASSIGNEE PICKER SHEET UNTUK KTS PRODUKSI
+// ============================================================
+class _KtsAssigneePickerSheet extends StatefulWidget {
+  final String lang;
+  final String? currentUserId;
+
+  const _KtsAssigneePickerSheet({
+    required this.lang,
+    this.currentUserId,
+  });
+
+  @override
+  State<_KtsAssigneePickerSheet> createState() =>
+      _KtsAssigneePickerSheetState();
+}
+
+class _KtsAssigneePickerSheetState extends State<_KtsAssigneePickerSheet> {
+  // ── Filter hierarki ──
+  List<Map<String, dynamic>> _lokasiList = [];
+  List<Map<String, dynamic>> _unitList = [];
+  List<Map<String, dynamic>> _subunitList = [];
+  List<Map<String, dynamic>> _areaList = [];
+
+  String? _selLokasiId;
+  String? _selUnitId;
+  String? _selSubunitId;
+  String? _selAreaId;
+
+  // ── User list ──
+  List<Map<String, dynamic>> _allUsers = [];
+  List<Map<String, dynamic>> _filteredUsers = [];
+  bool _isLoadingLocations = true;
+  bool _isLoadingUsers = false;
+
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(_onSearch);
+    _loadLocations();
+    _loadUsers();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadLocations() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('lokasi')
+          .select('id_lokasi, nama_lokasi')
+          .order('nama_lokasi');
+      if (mounted) {
+        setState(() {
+          _lokasiList = List<Map<String, dynamic>>.from(data);
+          _isLoadingLocations = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error load locations: $e');
+      if (mounted) setState(() => _isLoadingLocations = false);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchUnit(String lokasiId) async {
+    final res = await Supabase.instance.client
+        .from('unit').select('id_unit, nama_unit')
+        .eq('id_lokasi', lokasiId).order('nama_unit');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchSubunit(String unitId) async {
+    final res = await Supabase.instance.client
+        .from('subunit').select('id_subunit, nama_subunit')
+        .eq('id_unit', unitId).order('nama_subunit');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchArea(String subunitId) async {
+    final res = await Supabase.instance.client
+        .from('area').select('id_area, nama_area')
+        .eq('id_subunit', subunitId).order('nama_area');
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  Future<void> _loadUsers({String? lokasiId, String? unitId,
+      String? subunitId, String? areaId}) async {
+    setState(() => _isLoadingUsers = true);
+    try {
+      dynamic query = Supabase.instance.client
+          .from('User')
+          .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user');
+
+      if (areaId != null) query = query.eq('id_area', areaId);
+      else if (subunitId != null) query = query.eq('id_subunit', subunitId);
+      else if (unitId != null) query = query.eq('id_unit', unitId);
+      else if (lokasiId != null) query = query.eq('id_lokasi', lokasiId);
+
+      final data = await query.order('nama');
+      List<Map<String, dynamic>> users = List<Map<String, dynamic>>.from(data);
+
+      if (widget.currentUserId != null) {
+        users.sort((a, b) {
+          if (a['id_user'] == widget.currentUserId) return -1;
+          if (b['id_user'] == widget.currentUserId) return 1;
+          return (a['nama'] as String).compareTo(b['nama'] as String);
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _allUsers = users;
+          _filteredUsers = users;
+          _isLoadingUsers = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error load users: $e');
+      if (mounted) setState(() => _isLoadingUsers = false);
+    }
+  }
+
+  void _onSearch() {
+    final q = _searchCtrl.text.toLowerCase();
+    setState(() {
+      _filteredUsers = _allUsers
+          .where((u) => u['nama'].toString().toLowerCase().contains(q))
+          .toList();
+    });
+  }
+
+  void _applyFilter() {
+    _loadUsers(
+      lokasiId: _selLokasiId,
+      unitId: _selUnitId,
+      subunitId: _selSubunitId,
+      areaId: _selAreaId,
+    );
+  }
+
+  Widget _buildFilterChips({
+    required String label,
+    required IconData icon,
+    required List<Map<String, dynamic>> items,
+    required String idKey,
+    required String nameKey,
+    required String? selectedId,
+    required Function(String id) onSelect,
+  }) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 13, color: const Color(0xFF2563EB)),
+            const SizedBox(width: 6),
+            Text(label,
+                style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1E293B))),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: items.map((item) {
+            final id = item[idKey].toString();
+            final name = item[nameKey] as String;
+            final isSelected = selectedId == id;
+            return GestureDetector(
+              onTap: () => onSelect(id),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFF2563EB) : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFF2563EB)
+                        : const Color(0xFFBFDBFE),
+                  ),
+                  boxShadow: isSelected ? [
+                    BoxShadow(
+                      color: const Color(0xFF2563EB).withOpacity(0.2),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    )
+                  ] : null,
+                ),
+                child: Text(
+                  name,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool hasFilter = _selLokasiId != null;
+
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.88,
+      child: Column(
+        children: [
+          // Handle
+          Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(2)),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(CupertinoIcons.person_2_fill,
+                      color: Color(0xFF2563EB), size: 18),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.lang == 'ZH' ? '选择负责人'
+                        : widget.lang == 'EN' ? 'Select Person in Charge'
+                        : 'Pilih Penanggung Jawab',
+                    style: GoogleFonts.inter(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1E293B)),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(CupertinoIcons.xmark,
+                      color: Color(0xFF94A3B8), size: 20),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+
+          // Filter Section (scrollable)
+          Container(
+            color: const Color(0xFFF8FAFF),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header filter + reset
+                Row(
+                  children: [
+                    const Icon(CupertinoIcons.location, size: 14,
+                        color: Color(0xFF2563EB)),
+                    const SizedBox(width: 6),
+                    Text(
+                      widget.lang == 'EN' ? 'Filter Location'
+                          : widget.lang == 'ZH' ? '筛选位置' : 'Filter Lokasi',
+                      style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1E293B)),
+                    ),
+                    const Spacer(),
+                    if (hasFilter)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selLokasiId = null;
+                            _selUnitId = null;
+                            _selSubunitId = null;
+                            _selAreaId = null;
+                            _unitList = [];
+                            _subunitList = [];
+                            _areaList = [];
+                          });
+                          _loadUsers();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: const Color(0xFF2563EB).withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            widget.lang == 'EN' ? 'Reset'
+                                : widget.lang == 'ZH' ? '重置' : 'Reset',
+                            style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF2563EB)),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Lokasi chips
+                _isLoadingLocations
+                    ? const CupertinoActivityIndicator()
+                    : _buildFilterChips(
+                        label: widget.lang == 'EN' ? 'Location'
+                            : widget.lang == 'ZH' ? '位置' : 'Lokasi',
+                        icon: CupertinoIcons.building_2_fill,
+                        items: _lokasiList,
+                        idKey: 'id_lokasi',
+                        nameKey: 'nama_lokasi',
+                        selectedId: _selLokasiId,
+                        onSelect: (id) async {
+                          final units = await _fetchUnit(id);
+                          setState(() {
+                            _selLokasiId = id;
+                            _selUnitId = null;
+                            _selSubunitId = null;
+                            _selAreaId = null;
+                            _unitList = units;
+                            _subunitList = [];
+                            _areaList = [];
+                          });
+                          _applyFilter();
+                        },
+                      ),
+
+                // Unit chips
+                if (_selLokasiId != null && _unitList.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildFilterChips(
+                    label: 'Unit',
+                    icon: CupertinoIcons.squares_below_rectangle,
+                    items: _unitList,
+                    idKey: 'id_unit',
+                    nameKey: 'nama_unit',
+                    selectedId: _selUnitId,
+                    onSelect: (id) async {
+                      final subs = await _fetchSubunit(id);
+                      setState(() {
+                        _selUnitId = id;
+                        _selSubunitId = null;
+                        _selAreaId = null;
+                        _subunitList = subs;
+                        _areaList = [];
+                      });
+                      _applyFilter();
+                    },
+                  ),
+                ],
+
+                // Subunit chips
+                if (_selUnitId != null && _subunitList.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildFilterChips(
+                    label: 'Sub-Unit',
+                    icon: CupertinoIcons.layers_alt_fill,
+                    items: _subunitList,
+                    idKey: 'id_subunit',
+                    nameKey: 'nama_subunit',
+                    selectedId: _selSubunitId,
+                    onSelect: (id) async {
+                      final areas = await _fetchArea(id);
+                      setState(() {
+                        _selSubunitId = id;
+                        _selAreaId = null;
+                        _areaList = areas;
+                      });
+                      _applyFilter();
+                    },
+                  ),
+                ],
+
+                // Area chips
+                if (_selSubunitId != null && _areaList.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildFilterChips(
+                    label: 'Area',
+                    icon: CupertinoIcons.location_fill,
+                    items: _areaList,
+                    idKey: 'id_area',
+                    nameKey: 'nama_area',
+                    selectedId: _selAreaId,
+                    onSelect: (id) {
+                      setState(() => _selAreaId = id);
+                      _applyFilter();
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          const Divider(color: Color(0xFFE0E7FF), height: 1),
+
+          // Search
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+            child: TextFormField(
+              controller: _searchCtrl,
+              style: GoogleFonts.inter(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: widget.lang == 'ZH' ? '搜索成员...'
+                    : widget.lang == 'EN' ? 'Search member...' : 'Cari anggota...',
+                hintStyle: GoogleFonts.inter(
+                    color: const Color(0xFFCBD5E1), fontSize: 14),
+                prefixIcon: const Icon(CupertinoIcons.search,
+                    color: Color(0xFF2563EB), size: 18),
+                suffixIcon: _searchCtrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(CupertinoIcons.clear_circled_solid,
+                            color: Color(0xFFCBD5E1), size: 18),
+                        onPressed: () { _searchCtrl.clear(); _onSearch(); },
+                      )
+                    : null,
+                filled: true,
+                fillColor: const Color(0xFFF8FAFF),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                        color: Color(0xFFE0E7FF), width: 1)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                        color: Color(0xFF2563EB), width: 1.5)),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 12),
+              ),
+            ),
+          ),
+
+          // Count
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            child: Row(
+              children: [
+                const Icon(CupertinoIcons.person_2,
+                    size: 13, color: Color(0xFF94A3B8)),
+                const SizedBox(width: 6),
+                Text(
+                  '${_filteredUsers.length} ${widget.lang == 'EN' ? 'members' : 'anggota'}',
+                  style: GoogleFonts.inter(
+                      fontSize: 12, color: const Color(0xFF94A3B8)),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(color: Color(0xFFF1F5F9), height: 12),
+
+          // User List
+          Expanded(
+            child: _isLoadingUsers
+                ? const Center(child: CupertinoActivityIndicator())
+                : _filteredUsers.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(CupertinoIcons.person_crop_circle_badge_xmark,
+                                size: 48, color: Color(0xFFE2E8F0)),
+                            const SizedBox(height: 12),
+                            Text(
+                              widget.lang == 'EN' ? 'No users found' : 'Tidak ada pengguna',
+                              style: GoogleFonts.inter(
+                                  color: const Color(0xFF94A3B8), fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                        itemCount: _filteredUsers.length,
+                        itemBuilder: (_, i) {
+                          final user = _filteredUsers[i];
+                          final isMe = user['id_user'] == widget.currentUserId;
+                          final String name = user['nama'] ?? '';
+                          final String role = user['jabatan']?['nama_jabatan'] ?? '';
+                          final String? avatarUrl = user['gambar_user'];
+                          final String initial = name.isNotEmpty
+                              ? name[0].toUpperCase() : '?';
+
+                          return Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () => Navigator.pop(context, user),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
+                                margin: const EdgeInsets.only(bottom: 6),
+                                decoration: BoxDecoration(
+                                  color: isMe
+                                      ? const Color(0xFFEFF6FF)
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: isMe
+                                        ? const Color(0xFF2563EB).withOpacity(0.25)
+                                        : const Color(0xFFF1F5F9),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 22,
+                                          backgroundColor: const Color(0xFFEFF6FF),
+                                          backgroundImage: avatarUrl != null
+                                              ? NetworkImage(avatarUrl) : null,
+                                          child: avatarUrl == null
+                                              ? Text(initial,
+                                                  style: const TextStyle(
+                                                      color: Color(0xFF2563EB),
+                                                      fontWeight: FontWeight.bold))
+                                              : null,
+                                        ),
+                                        if (isMe)
+                                          Positioned(
+                                            bottom: 0, right: 0,
+                                            child: Container(
+                                              width: 14, height: 14,
+                                              decoration: const BoxDecoration(
+                                                  color: Color(0xFF2563EB),
+                                                  shape: BoxShape.circle),
+                                              child: const Icon(Icons.check,
+                                                  color: Colors.white, size: 10),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(name,
+                                                    style: GoogleFonts.inter(
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 14,
+                                                        color: const Color(0xFF1E293B))),
+                                              ),
+                                              if (isMe)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                      horizontal: 8, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFFEFF6FF),
+                                                    borderRadius: BorderRadius.circular(10),
+                                                  ),
+                                                  child: Text(
+                                                    widget.lang == 'EN' ? 'Me' : 'Saya',
+                                                    style: GoogleFonts.inter(
+                                                        fontSize: 11,
+                                                        color: const Color(0xFF2563EB),
+                                                        fontWeight: FontWeight.w700),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          if (role.isNotEmpty)
+                                            Text(role,
+                                                style: GoogleFonts.inter(
+                                                    fontSize: 12,
+                                                    color: const Color(0xFF94A3B8))),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(CupertinoIcons.chevron_right,
+                                        size: 14, color: Color(0xFFCBD5E1)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),

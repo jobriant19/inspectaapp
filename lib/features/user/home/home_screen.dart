@@ -589,10 +589,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // ── UPDATE POIN & LOG LANGSUNG dari realtime payload ──
             if (mounted) {
-              setState(() {
-                
-              });
-              // Tidak perlu notifier tambahan — cukup setState saja
+              // Langsung fetch user data untuk update poin & log
+              _fetchUserData(silent: true);
             }
 
             // Tipe login — skip dialog
@@ -618,7 +616,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
             if (verifTipes.contains(tipe)) {
               await Future.delayed(const Duration(milliseconds: 800));
-              if (mounted) _fetchUserData(silent: true);
+              if (!mounted) return;
+              // Reset initialMonthlyPoin agar UserInfoCard fetch ulang monthly poin dari DB
+              setState(() {
+                _initialMonthlyPoin = null;
+                _latestLogPoin = {
+                  'poin': points,
+                  'deskripsi': description,
+                  'tipe_aktivitas': tipe,
+                };
+              });
+              await _fetchUserData(silent: true);
               return;
             }
 
@@ -1463,6 +1471,8 @@ class _HomeScreenState extends State<HomeScreen> {
       isLatestLogLoading: _isLatestLogLoading,
       onRefresh: () async {
         final int poinSebelum = _userPoin;
+        // Reset monthly poin agar UserInfoCard fetch ulang dari DB
+        setState(() => _initialMonthlyPoin = null);
         await _fetchUserData(silent: true);
         if (mounted && _userPoin != poinSebelum) {
           _animatePoinUpdate(_userPoin);

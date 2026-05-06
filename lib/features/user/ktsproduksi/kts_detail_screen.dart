@@ -37,7 +37,10 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
 
   final _tindakanCtrl = TextEditingController();
   final _biayaCtrl = TextEditingController();
+  final _penyebabCtrl = TextEditingController();
   XFile? _resImageFile;
+  List<Map<String, dynamic>> _faktors = [];
+  Map<String, dynamic>? _selectedFaktor;
 
   static const Map<String, Map<String, String>> _txt = {
     'ID': {
@@ -144,6 +147,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   void initState() {
     super.initState();
     _currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    _loadFaktors();
     if (widget.initialData != null) {
       _data = widget.initialData;
       _isLoading = false;
@@ -154,8 +158,22 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     }
   }
 
+  Future<void> _loadFaktors() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('faktor_penyebab_kts')
+          .select('id_faktor, nama_faktor')
+          .eq('is_active', true)
+          .order('nama_faktor');
+      if (mounted) {
+        setState(() => _faktors = List<Map<String, dynamic>>.from(data));
+      }
+    } catch (e) {
+      debugPrint('Error load faktors: $e');
+    }
+  }
+
   Future<void> _loadDataSilently() async {
-    // Load tanpa mengubah _isLoading, sehingga tidak ada shimmer
     try {
       final data = await Supabase.instance.client
           .from('temuan')
@@ -172,11 +190,8 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               id_kategoritemuan,
               nama_kategoritemuan
             ),
-            item_produksi:id_item(
-              id_item, nama_item, gambar_item, kode_item
-            ),
             lokasi:id_lokasi(nama_lokasi)
-          ''')
+          ''') // HAPUS 'penyebab' dan 'id_faktor_penyebab' dari select ini
           .eq('id_temuan', widget.ktsId)
           .single();
 
@@ -195,11 +210,13 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       final idPenyelesaian = data['id_penyelesaian'];
       if (idPenyelesaian != null) {
         try {
+          // TAMBAHKAN select penyebab dan id_faktor_penyebab ke query penyelesaian
           penyelesaianData = await Supabase.instance.client
               .from('penyelesaian')
-              .select('id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, tanggal_selesai, poin_penyelesaian, additional_cost, id_user')
+              .select('id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, tanggal_selesai, poin_penyelesaian, additional_cost, id_user, penyebab, id_faktor_penyebab')
               .eq('id_penyelesaian', idPenyelesaian)
               .maybeSingle();
+              
           if (penyelesaianData != null && penyelesaianData['id_user'] != null) {
             final solverRes = await Supabase.instance.client
                 .from('User')
@@ -218,7 +235,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             'pelapor': pelaporData,
             'penyelesaian': penyelesaianData,
           };
-          // _isLoading tetap false, tidak ada shimmer
         });
       }
     } catch (e) {
@@ -230,6 +246,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   void dispose() {
     _tindakanCtrl.dispose();
     _biayaCtrl.dispose();
+    _penyebabCtrl.dispose();
     super.dispose();
   }
 
@@ -251,11 +268,8 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               id_kategoritemuan,
               nama_kategoritemuan
             ),
-            item_produksi:id_item(
-              id_item, nama_item, gambar_item, kode_item
-            ),
             lokasi:id_lokasi(nama_lokasi)
-          ''')
+          ''') // HAPUS 'penyebab' dan 'id_faktor_penyebab' dari select ini
           .eq('id_temuan', widget.ktsId)
           .single();
 
@@ -274,12 +288,13 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       final idPenyelesaian = data['id_penyelesaian'];
       if (idPenyelesaian != null) {
         try {
+          // TAMBAHKAN select penyebab dan id_faktor_penyebab ke query penyelesaian
           penyelesaianData = await Supabase.instance.client
               .from('penyelesaian')
-              .select(
-                  'id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, tanggal_selesai, poin_penyelesaian, additional_cost, id_user')
+              .select('id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, tanggal_selesai, poin_penyelesaian, additional_cost, id_user, penyebab, id_faktor_penyebab, faktor_penyebab_kts:id_faktor_penyebab(id_faktor, nama_faktor)')
               .eq('id_penyelesaian', idPenyelesaian)
               .maybeSingle();
+              
           if (penyelesaianData != null && penyelesaianData['id_user'] != null) {
             final solverRes = await Supabase.instance.client
                 .from('User')
@@ -299,6 +314,16 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             'penyelesaian': penyelesaianData,
           };
           _isLoading = false;
+          
+          // UBAH DARI data['penyebab'] MENJADI penyelesaianData?['penyebab']
+          if (penyelesaianData != null) {
+            if (penyelesaianData['penyebab'] != null) {
+              _penyebabCtrl.text = penyelesaianData['penyebab'];
+            }
+            if (penyelesaianData['faktor_penyebab_kts'] != null) {
+              _selectedFaktor = Map<String, dynamic>.from(penyelesaianData['faktor_penyebab_kts']);
+            }
+          }
         });
       }
     } catch (e) {
@@ -347,6 +372,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
           ? null
           : double.tryParse(_biayaCtrl.text.trim());
 
+      // MASUKKAN PENYEBAB & ID FAKTOR KE TABEL PENYELESAIAN DI SINI
       final insertRes = await supabase
           .from('penyelesaian')
           .insert({
@@ -356,12 +382,15 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             'tanggal_selesai': DateTime.now().toIso8601String(),
             'id_user': user.id,
             'poin_penyelesaian': 10,
+            'penyebab': _penyebabCtrl.text.trim().isEmpty ? null : _penyebabCtrl.text.trim(),
+            'id_faktor_penyebab': _selectedFaktor?['id_faktor'],
           })
           .select('id_penyelesaian')
           .single();
 
       final String newPenyelesaianId = insertRes['id_penyelesaian'].toString();
 
+      // HAPUS UPDATE PENYEBAB DARI TABEL TEMUAN
       await supabase.from('temuan').update({
         'status_temuan': 'Selesai',
         'id_penyelesaian': newPenyelesaianId,
@@ -583,16 +612,18 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                         const Spacer(),
                         Row(
                           children: [
-                            Text(pelapor['nama'] ?? '-',
-                                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF0F172A))),
-                            const SizedBox(width: 8),
                             pelapor['gambar_user'] != null
-                                ? CircleAvatar(radius: 14, backgroundImage: NetworkImage(pelapor['gambar_user']))
+                                ? CircleAvatar(
+                                    radius: 14,
+                                    backgroundImage: NetworkImage(pelapor['gambar_user']))
                                 : Container(
                                     width: 28, height: 28,
                                     decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
                                     child: const Icon(Icons.person_rounded, size: 14, color: Color(0xFF2563EB)),
                                   ),
+                            const SizedBox(width: 8),
+                            Text(pelapor['nama'] ?? '-',
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF0F172A))),
                           ],
                         ),
                       ],
@@ -836,6 +867,75 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                       ),
                     ),
                   ],
+                ),
+          // --- Penyebab ---
+          Text(
+            widget.lang == 'ZH' ? '原因' : widget.lang == 'EN' ? 'Cause' : 'Penyebab',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569)),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _penyebabCtrl,
+            maxLines: 2,
+            style: GoogleFonts.inter(fontSize: 15),
+            decoration: InputDecoration(
+              hintText: widget.lang == 'ZH' ? '说明原因...' : widget.lang == 'EN' ? 'Describe the cause...' : 'Jelaskan penyebab...',
+              hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
+              filled: true, fillColor: const Color(0xFFF8FAFF),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFDE68A), width: 1)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD97706), width: 1.5)),
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // --- Faktor Penyebab (dropdown) ---
+          Text(
+            widget.lang == 'ZH' ? '原因因素' : widget.lang == 'EN' ? 'Cause Factor' : 'Faktor Penyebab',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569)),
+          ),
+          const SizedBox(height: 8),
+          _faktors.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: const Border.fromBorderSide(BorderSide(color: Color(0xFFFDE68A), width: 1)),
+                  ),
+                  child: Text(
+                    widget.lang == 'EN' ? 'Loading factors...' : 'Memuat faktor...',
+                    style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFCBD5E1)),
+                  ),
+                )
+              : Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _selectedFaktor != null ? const Color(0xFFD97706) : const Color(0xFFFDE68A),
+                      width: _selectedFaktor != null ? 1.5 : 1,
+                    ),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<Map<String, dynamic>>(
+                      isExpanded: true,
+                      value: _selectedFaktor,
+                      hint: Text(
+                        widget.lang == 'ZH' ? '选择原因因素（可选）' : widget.lang == 'EN' ? 'Select cause factor (optional)' : 'Pilih faktor penyebab (opsional)',
+                        style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFCBD5E1)),
+                      ),
+                      style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
+                      icon: const Icon(CupertinoIcons.chevron_down, size: 14, color: Color(0xFFD97706)),
+                      items: _faktors.map((f) => DropdownMenuItem<Map<String, dynamic>>(
+                        value: f,
+                        child: Text(f['nama_faktor'] ?? '', overflow: TextOverflow.ellipsis),
+                      )).toList(),
+                      onChanged: (val) => setState(() => _selectedFaktor = val),
+                    ),
+                  ),
                 ),
           const SizedBox(height: 16),
           Row(

@@ -965,11 +965,19 @@ class HomeContentState extends State<HomeContent> {
             iconColor: Colors.orange,
             iconBg: Colors.orange.withOpacity(0.1),
             label: _t('kts_produksi'),
-            onTap: () => _navigateCached(
-              context,
-              'kts_produksi',
-              KtsProduksiListScreen(lang: widget.lang),
-            ),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => KtsProduksiListScreen(lang: widget.lang),
+                ),
+              );
+              // Refresh findings dan user data setelah kembali dari KTS screen
+              setState(() {
+                _findingsFuture = _buildFindingsFuture();
+              });
+              widget.onRefresh();
+            },
           ),
           const SizedBox(height: 12),
           _buildNavTile(

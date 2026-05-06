@@ -527,6 +527,8 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     String? selectedUnitId = user?['id_unit'] as String?;
     String? selectedSubunitId = user?['id_subunit'] as String?;
     String? selectedAreaId = user?['id_area'] as String?;
+    String? selectedSupervisorId = user?['id_supervisor'] as String?;
+    List<Map<String, dynamic>> supervisorList = [];
 
     // Cache list untuk dropdown bertingkat
     List<Map<String, dynamic>> lokasiList = [];
@@ -576,6 +578,14 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       });
     }
 
+    Future<void> loadSupervisors(StateSetter setDlg) async {
+      final res = await Supabase.instance.client
+          .from('User')
+          .select('id_user, nama')
+          .order('nama');
+      setDlg(() => supervisorList = List<Map<String, dynamic>>.from(res));
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -601,6 +611,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 });
               }
             });
+            loadSupervisors(setDlg);
           }
 
           return Dialog(
@@ -806,6 +817,56 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                   ),
                   const SizedBox(height: 20),
 
+                  // Supervisor Dropdown
+                  _buildDlgLabel(_langCode == 'EN' ? 'Supervisor' : _langCode == 'ZH' ? '主管' : 'Supervisor'),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: supervisorList.any((e) => e['id_user'] == selectedSupervisorId)
+                            ? selectedSupervisorId
+                            : null,
+                        isExpanded: true,
+                        dropdownColor: Colors.white,
+                        icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black45),
+                        hint: Text(
+                          _langCode == 'EN' ? 'Select supervisor (optional)'
+                              : _langCode == 'ZH' ? '选择主管（可选）'
+                              : 'Pilih supervisor (opsional)',
+                          style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+                        ),
+                        items: [
+                          DropdownMenuItem<String>(
+                            value: null,
+                            child: Text(
+                              _langCode == 'EN' ? '— No supervisor —'
+                                  : _langCode == 'ZH' ? '— 无主管 —'
+                                  : '— Tanpa supervisor —',
+                              style: GoogleFonts.poppins(
+                                  color: Colors.black38, fontSize: 13),
+                            ),
+                          ),
+                          ...supervisorList.map((s) => DropdownMenuItem<String>(
+                            value: s['id_user'] as String,
+                            child: Text(
+                              s['nama'] ?? '-',
+                              style: GoogleFonts.poppins(
+                                  color: const Color(0xFF1E3A8A), fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )),
+                        ],
+                        onChanged: (v) => setDlg(() => selectedSupervisorId = v),
+                      ),
+                    ),
+                  ),
+
                   _buildDivider(),
                   const SizedBox(height: 16),
 
@@ -874,6 +935,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                 idUnit: selectedUnitId,
                                 idSubunit: selectedSubunitId,
                                 idArea: selectedAreaId,
+                                idSupervisor: selectedSupervisorId,
                               );
                               if (ctx.mounted) Navigator.pop(ctx);
                             },
@@ -928,6 +990,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     String? idUnit,
     String? idSubunit,
     String? idArea,
+    String? idSupervisor,
   }) async {
     if (nama.isEmpty || email.isEmpty) {
       _showSnack(
@@ -950,6 +1013,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           'id_unit': idUnit,
           'id_subunit': idSubunit,
           'id_area': idArea,
+          'id_supervisor': idSupervisor,
         }).eq('id_user', userId);
 
         _showSnack(_langCode == 'EN' ? 'User updated successfully!'
@@ -992,6 +1056,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           'id_subunit': idSubunit,
           'id_area': idArea,
           'timestamp': DateTime.now().toIso8601String(),
+          'id_supervisor': idSupervisor,
         });
 
         _showSnack(_langCode == 'EN' ? 'User registered successfully!'
