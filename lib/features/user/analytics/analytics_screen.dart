@@ -3133,7 +3133,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
     return FutureBuilder<List<_ChartBarData>>(
       key: ValueKey(_recurringChartRefreshKey),
-      future: _recurringChartFuture,
+      future: _recurringChartFuture, 
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
