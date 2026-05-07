@@ -54,7 +54,7 @@ class _RankMember {
   }
 }
 
-// Main Screen 
+// Main Screen
 class RankingScreen extends StatefulWidget {
   final String lang;
   const RankingScreen({super.key, required this.lang});
@@ -69,9 +69,14 @@ class _RankingScreenState extends State<RankingScreen> {
   DateTime? _lastUpdated;
   _RankMember? _selfData;
 
+  // ── Filter Waktu ───────────────────────────────────────────────────────────
+  String _timeFilterMode = 'monthly'; // 'monthly' atau 'daily'
+  DateTime? _selectedDay;
+
   // ── Filter Lokasi ──────────────────────────────────────────────────────────
-  LocationFilter _selectedLocation =
-      const LocationFilter(displayName: 'Semua Lokasi');
+  LocationFilter _selectedLocation = const LocationFilter(
+    displayName: 'Semua Lokasi',
+  );
   List<Map<String, dynamic>> _lokasiList = [];
   String? _tempLokasiId;
   String? _tempUnitId;
@@ -108,6 +113,11 @@ class _RankingScreenState extends State<RankingScreen> {
       'label_area': 'Area',
       'reset': 'Reset',
       'apply_filter': 'Terapkan Filter',
+      'filter_waktu': 'Filter Waktu',
+      'bulanan': 'Bulanan',
+      'harian': 'Harian',
+      'pilih_hari': 'Pilih Hari',
+      'terapkan': 'Terapkan',
     },
     'EN': {
       'loading': 'Loading...',
@@ -135,6 +145,11 @@ class _RankingScreenState extends State<RankingScreen> {
       'label_area': 'Area',
       'reset': 'Reset',
       'apply_filter': 'Apply Filter',
+      'filter_waktu': 'Time Filter',
+      'bulanan': 'Monthly',
+      'harian': 'Daily',
+      'pilih_hari': 'Select Day',
+      'terapkan': 'Apply',
     },
     'ZH': {
       'loading': '正在加载...',
@@ -162,6 +177,11 @@ class _RankingScreenState extends State<RankingScreen> {
       'label_area': '区域',
       'reset': '重置',
       'apply_filter': '应用筛选',
+      'filter_waktu': '时间筛选',
+      'bulanan': '按月',
+      'harian': '按日',
+      'pilih_hari': '选择日期',
+      'terapkan': '应用',
     },
   };
 
@@ -220,7 +240,8 @@ class _RankingScreenState extends State<RankingScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _fetchAreaBySubunit(
-      String idSubunit) async {
+    String idSubunit,
+  ) async {
     try {
       final response = await _supabase
           .from('area')
@@ -245,18 +266,30 @@ class _RankingScreenState extends State<RankingScreen> {
 
   Future<List<_RankMember>> _fetchLeaderboardFromLogPoin(DateTime now) async {
     try {
-      final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
-      final endOfMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
       final currentUserId = _supabase.auth.currentUser?.id;
 
-      // 1. Ambil semua log_poin bulan ini dalam SATU query
+      String startStr;
+      String endStr;
+
+      if (_timeFilterMode == 'daily' && _selectedDay != null) {
+        // Mode harian: filter hanya untuk tanggal yang dipilih
+        final d = _selectedDay!;
+        startStr = DateTime(d.year, d.month, d.day).toIso8601String();
+        endStr = DateTime(d.year, d.month, d.day, 23, 59, 59).toIso8601String();
+      } else {
+        // Mode bulanan: seluruh bulan berjalan
+        startStr = DateTime(now.year, now.month, 1).toIso8601String();
+        endStr = DateTime(now.year, now.month + 1, 1).toIso8601String();
+      }
+
+      // 1. Ambil semua log_poin sesuai rentang waktu
       final List<dynamic> logData = await _supabase
           .from('log_poin')
           .select('id_user, poin, created_at')
-          .gte('created_at', startOfMonth)
-          .lt('created_at', endOfMonth);
+          .gte('created_at', startStr)
+          .lte('created_at', endStr);
 
-      // 2. Hitung total poin per user dari log_poin
+      // 2. Hitung total poin per user
       final Map<String, int> monthlyMap = {};
       for (final log in logData) {
         final uid = log['id_user']?.toString() ?? '';
@@ -267,17 +300,16 @@ class _RankingScreenState extends State<RankingScreen> {
 
       if (monthlyMap.isEmpty) return [];
 
-      // 3. Ambil data profil user sekaligus dengan filter lokasi
-      // gunakan user id yang ada di monthlyMap
+      // 3. Ambil data profil user
       final List<String> userIds = monthlyMap.keys.toList();
-
       var userQuery = _supabase
           .from('User')
-          .select('id_user, nama, gambar_user, id_lokasi, id_unit, id_subunit, id_area, is_visitor')
+          .select(
+            'id_user, nama, gambar_user, id_lokasi, id_unit, id_subunit, id_area, is_visitor',
+          )
           .inFilter('id_user', userIds)
           .or('is_visitor.is.null,is_visitor.eq.false');
 
-      // Filter lokasi jika ada
       if (_selectedLocation.idArea != null) {
         userQuery = userQuery.eq('id_area', _selectedLocation.idArea!);
       } else if (_selectedLocation.idSubunit != null) {
@@ -296,47 +328,44 @@ class _RankingScreenState extends State<RankingScreen> {
         final uid = user['id_user']?.toString() ?? '';
         final mp = monthlyMap[uid] ?? 0;
         combined.add({
-          'id_user'     : uid,
-          'nama'        : user['nama'] as String,
-          'gambar_user' : user['gambar_user'] as String?,
+          'id_user': uid,
+          'nama': user['nama'] as String,
+          'gambar_user': user['gambar_user'] as String?,
           'monthlyPoints': mp,
         });
       }
 
-      // 5. Urutkan berdasarkan monthly points DESC
-      combined.sort((a, b) =>
-          (b['monthlyPoints'] as int).compareTo(a['monthlyPoints'] as int));
+      combined.sort(
+        (a, b) =>
+            (b['monthlyPoints'] as int).compareTo(a['monthlyPoints'] as int),
+      );
 
-      // 6. Buat member list dengan rank
       final List<_RankMember> members = [];
       for (int i = 0; i < combined.length; i++) {
         final item = combined[i];
         final uid = item['id_user'] as String;
-        members.add(_RankMember(
-          id           : uid,
-          rank         : i + 1,
-          name         : item['nama'] as String,
-          score        : item['monthlyPoints'] as int,
-          monthlyPoints: item['monthlyPoints'] as int,
-          avatarUrl    : item['gambar_user'] as String?,
-          isSelf       : uid == currentUserId,
-          avatarColor  : _AppColors.primary,
-        ));
+        members.add(
+          _RankMember(
+            id: uid,
+            rank: i + 1,
+            name: item['nama'] as String,
+            score: item['monthlyPoints'] as int,
+            monthlyPoints: item['monthlyPoints'] as int,
+            avatarUrl: item['gambar_user'] as String?,
+            isSelf: uid == currentUserId,
+            avatarColor: _AppColors.primary,
+          ),
+        );
       }
 
-      // 7. Set selfData dan trigger rebuild
       _RankMember? foundSelf;
       try {
         foundSelf = members.firstWhere((m) => m.isSelf);
-      } catch (_) {
-        foundSelf = null;
-      }
-      // setState agar _buildSelfPinnedRow ikut rebuild
-      if (mounted) {
+      } catch (_) {}
+      if (mounted)
         setState(() {
           _selfData = foundSelf;
         });
-      }
 
       return members;
     } catch (e) {
@@ -349,15 +378,15 @@ class _RankingScreenState extends State<RankingScreen> {
 
   void _showLocationPicker() async {
     // ✅ Restore state temp dari filter yang sudah aktif
-    _tempLokasiId  = _selectedLocation.idLokasi;
-    _tempUnitId    = _selectedLocation.idUnit;
+    _tempLokasiId = _selectedLocation.idLokasi;
+    _tempUnitId = _selectedLocation.idUnit;
     _tempSubunitId = _selectedLocation.idSubunit;
-    _tempAreaId    = _selectedLocation.idArea;
+    _tempAreaId = _selectedLocation.idArea;
 
     // ✅ Load kembali data child yang sesuai dengan filter aktif
-    _tempUnitList    = [];
+    _tempUnitList = [];
     _tempSubunitList = [];
-    _tempAreaList    = [];
+    _tempAreaList = [];
 
     if (_tempLokasiId != null) {
       _tempUnitList = await _fetchUnitByLokasi(_tempLokasiId!);
@@ -375,6 +404,226 @@ class _RankingScreenState extends State<RankingScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _buildLocationBottomSheet(),
+    );
+  }
+
+  void _showTimeFilterPicker() async {
+    String tempMode = _timeFilterMode;
+    DateTime tempDay = _selectedDay ?? DateTime.now();
+    final now = DateTime.now();
+
+    final locale = widget.lang == 'ID' ? 'id_ID'
+        : widget.lang == 'ZH' ? 'zh_CN' : 'en_US';
+    final daysInMonth = DateUtils.getDaysInMonth(now.year, now.month);
+    final firstWeekday = DateTime(now.year, now.month, 1).weekday % 7;
+    final monthLabel = DateFormat('MMMM yyyy', locale).format(now);
+
+    final dayLabels = widget.lang == 'ZH'
+        ? ['日','一','二','三','四','五','六']
+        : widget.lang == 'ID'
+            ? ['Min','Sen','Sel','Rab','Kam','Jum','Sab']
+            : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.65,
+              maxWidth: 340,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _AppColors.primaryLight, width: 1.5),
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+                decoration: const BoxDecoration(
+                  color: _AppColors.primaryLight,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.calendar_month_rounded, color: _AppColors.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(getTxt('filter_waktu'),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _AppColors.textPrimary))),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18, color: _AppColors.textSecondary),
+                    onPressed: () => Navigator.pop(ctx),
+                    padding: EdgeInsets.zero,
+                  ),
+                ]),
+              ),
+              // Toggle Monthly / Daily
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _AppColors.primaryLight),
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: Row(
+                    children: ['monthly', 'daily'].map((mode) {
+                      final isSelected = tempMode == mode;
+                      final label = mode == 'monthly' ? getTxt('bulanan') : getTxt('harian');
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: () => setSt(() => tempMode = mode),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: isSelected ? _AppColors.primary : Colors.transparent,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Center(child: Text(label,
+                              style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w700,
+                                color: isSelected ? Colors.white : _AppColors.textSecondary,
+                              ))),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+              // Konten
+              if (tempMode == 'monthly')
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _AppColors.primaryLight),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.calendar_today_rounded, color: _AppColors.primary, size: 18),
+                      const SizedBox(width: 10),
+                      Text(
+                        DateFormat('MMMM yyyy', locale).format(now),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _AppColors.textPrimary),
+                      ),
+                    ]),
+                  ),
+                )
+              else
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    child: Column(children: [
+                      Text(monthLabel,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.textPrimary)),
+                      const SizedBox(height: 8),
+                      // Header hari
+                      Row(children: dayLabels.map((d) => Expanded(
+                        child: Center(child: Text(d,
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _AppColors.textSecondary))),
+                      )).toList()),
+                      const SizedBox(height: 6),
+                      // Grid tanggal
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 7, crossAxisSpacing: 4, mainAxisSpacing: 4, childAspectRatio: 1,
+                        ),
+                        itemCount: firstWeekday + daysInMonth,
+                        itemBuilder: (_, i) {
+                          if (i < firstWeekday) return const SizedBox();
+                          final day = i - firstWeekday + 1;
+                          final date = DateTime(now.year, now.month, day);
+                          final isSelected = tempDay.year == date.year &&
+                              tempDay.month == date.month && tempDay.day == date.day;
+                          final isToday = now.day == day;
+                          final isFuture = date.isAfter(now);
+                          return GestureDetector(
+                            onTap: isFuture ? null : () => setSt(() => tempDay = date),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              decoration: BoxDecoration(
+                                color: isSelected ? _AppColors.primary
+                                    : isToday ? _AppColors.primaryLight : Colors.transparent,
+                                shape: BoxShape.circle,
+                                border: isToday && !isSelected
+                                    ? Border.all(color: _AppColors.primary, width: 1.2) : null,
+                              ),
+                              child: Center(child: Text('$day',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? Colors.white
+                                      : isFuture ? _AppColors.textSecondary : _AppColors.textPrimary,
+                                ))),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      // Tombol Terapkan
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            setState(() {
+                              _timeFilterMode = tempMode;
+                              _selectedDay = tempMode == 'daily' ? tempDay : null;
+                            });
+                            _fetchData();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          child: Text(getTxt('terapkan'),
+                            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              // Tombol apply untuk mode monthly
+              if (tempMode == 'monthly')
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        setState(() {
+                          _timeFilterMode = 'monthly';
+                          _selectedDay = null;
+                        });
+                        _fetchData();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      child: Text(getTxt('terapkan'),
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 
@@ -404,8 +653,10 @@ class _RankingScreenState extends State<RankingScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    const Icon(Icons.location_on_rounded,
-                        color: _AppColors.primary),
+                    const Icon(
+                      Icons.location_on_rounded,
+                      color: _AppColors.primary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -429,9 +680,10 @@ class _RankingScreenState extends State<RankingScreen> {
                           _tempAreaList = [];
                         });
                       },
-                      child: Text(getTxt('reset'),
-                          style: const TextStyle(
-                              color: _AppColors.primary)),
+                      child: Text(
+                        getTxt('reset'),
+                        style: const TextStyle(color: _AppColors.primary),
+                      ),
                     ),
                   ],
                 ),
@@ -538,7 +790,11 @@ class _RankingScreenState extends State<RankingScreen> {
               // Tombol Terapkan
               Padding(
                 padding: EdgeInsets.fromLTRB(
-                    16, 8, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+                  16,
+                  8,
+                  16,
+                  16 + MediaQuery.of(context).viewInsets.bottom,
+                ),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -554,22 +810,21 @@ class _RankingScreenState extends State<RankingScreen> {
                           _tempSubunitList.isNotEmpty) {
                         displayName = _tempSubunitList.firstWhere(
                           (e) => e['id_subunit'] == _tempSubunitId,
-                          orElse: () =>
-                              {'nama_subunit': getTxt('label_subunit')},
+                          orElse: () => {
+                            'nama_subunit': getTxt('label_subunit'),
+                          },
                         )['nama_subunit'];
                       } else if (_tempUnitId != null &&
                           _tempUnitList.isNotEmpty) {
                         displayName = _tempUnitList.firstWhere(
                           (e) => e['id_unit'] == _tempUnitId,
-                          orElse: () =>
-                              {'nama_unit': getTxt('label_unit')},
+                          orElse: () => {'nama_unit': getTxt('label_unit')},
                         )['nama_unit'];
                       } else if (_tempLokasiId != null &&
                           _lokasiList.isNotEmpty) {
                         displayName = _lokasiList.firstWhere(
                           (e) => e['id_lokasi'] == _tempLokasiId,
-                          orElse: () =>
-                              {'nama_lokasi': getTxt('label_lokasi')},
+                          orElse: () => {'nama_lokasi': getTxt('label_lokasi')},
                         )['nama_lokasi'];
                       }
 
@@ -589,12 +844,15 @@ class _RankingScreenState extends State<RankingScreen> {
                       backgroundColor: _AppColors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     child: Text(
                       getTxt('apply_filter'),
                       style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold),
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -623,11 +881,14 @@ class _RankingScreenState extends State<RankingScreen> {
           children: [
             Icon(icon, size: 14, color: _AppColors.primary),
             const SizedBox(width: 6),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: _AppColors.textPrimary)),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _AppColors.textPrimary,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -643,7 +904,9 @@ class _RankingScreenState extends State<RankingScreen> {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? _AppColors.primary : Colors.white,
                   borderRadius: BorderRadius.circular(8),
@@ -657,12 +920,8 @@ class _RankingScreenState extends State<RankingScreen> {
                   name,
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: isSelected
-                        ? FontWeight.w700
-                        : FontWeight.w500,
-                    color: isSelected
-                        ? Colors.white
-                        : _AppColors.textPrimary,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? Colors.white : _AppColors.textPrimary,
                   ),
                 ),
               ),
@@ -677,8 +936,10 @@ class _RankingScreenState extends State<RankingScreen> {
 
   String get _lastUpdatedText {
     if (_lastUpdated == null) return getTxt('loading');
-    final formattedDate =
-        DateFormat('d MMM yyyy HH:mm', 'id_ID').format(_lastUpdated!);
+    final formattedDate = DateFormat(
+      'd MMM yyyy HH:mm',
+      'id_ID',
+    ).format(_lastUpdated!);
     return '${getTxt('last_updated_prefix')} $formattedDate (GMT+7)';
   }
 
@@ -695,20 +956,21 @@ class _RankingScreenState extends State<RankingScreen> {
               onRefresh: () async => _fetchData(),
               child: CustomScrollView(
                 physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics()),
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
                 slivers: [
                   SliverToBoxAdapter(child: _buildSkySection()),
                   SliverToBoxAdapter(child: _buildLastUpdated()),
                   SliverToBoxAdapter(child: _buildSeasonBanner()),
                   // ── Filter Lokasi Bar ──
+                  SliverToBoxAdapter(child: _buildTimeFilterBar()),
                   SliverToBoxAdapter(child: _buildLocationFilterBar()),
                   SliverToBoxAdapter(child: _buildTableHeader()),
                   SliverToBoxAdapter(child: _buildTargetRow()),
                   FutureBuilder<List<_RankMember>>(
                     future: _leaderboardFuture,
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                              ConnectionState.waiting &&
+                      if (snapshot.connectionState == ConnectionState.waiting &&
                           snapshot.data == null) {
                         return SliverList(
                           delegate: SliverChildBuilderDelegate(
@@ -723,8 +985,10 @@ class _RankingScreenState extends State<RankingScreen> {
                           child: Padding(
                             padding: const EdgeInsets.all(32.0),
                             child: Center(
-                                child: Text(
-                                    'Terjadi Kesalahan: ${snapshot.error}')),
+                              child: Text(
+                                'Terjadi Kesalahan: ${snapshot.error}',
+                              ),
+                            ),
                           ),
                         );
                       }
@@ -732,8 +996,7 @@ class _RankingScreenState extends State<RankingScreen> {
                         return SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.all(32.0),
-                            child: Center(
-                                child: Text(getTxt('no_rank_data'))),
+                            child: Center(child: Text(getTxt('no_rank_data'))),
                           ),
                         );
                       }
@@ -768,15 +1031,12 @@ class _RankingScreenState extends State<RankingScreen> {
         onTap: _showLocationPicker,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: isFiltered ? _AppColors.primaryLight : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isFiltered
-                  ? _AppColors.primary
-                  : const Color(0xFFBAE6FD),
+              color: isFiltered ? _AppColors.primary : const Color(0xFFBAE6FD),
               width: isFiltered ? 1.5 : 1,
             ),
             boxShadow: [
@@ -818,7 +1078,8 @@ class _RankingScreenState extends State<RankingScreen> {
                   onTap: () {
                     setState(() {
                       _selectedLocation = LocationFilter(
-                          displayName: getTxt('all_locations'));
+                        displayName: getTxt('all_locations'),
+                      );
                     });
                     _fetchData();
                   },
@@ -829,8 +1090,11 @@ class _RankingScreenState extends State<RankingScreen> {
                       color: _AppColors.primary.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.close_rounded,
-                        size: 13, color: _AppColors.primary),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 13,
+                      color: _AppColors.primary,
+                    ),
                   ),
                 ),
               Icon(
@@ -847,27 +1111,94 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
+  Widget _buildTimeFilterBar() {
+    final locale = widget.lang == 'ID' ? 'id_ID'
+        : widget.lang == 'ZH' ? 'zh_CN' : 'en_US';
+    final isDaily = _timeFilterMode == 'daily' && _selectedDay != null;
+
+    String label;
+    if (isDaily) {
+      label = DateFormat('d MMMM yyyy', locale).format(_selectedDay!);
+    } else {
+      label = DateFormat('MMMM yyyy', locale).format(DateTime.now());
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: GestureDetector(
+        onTap: _showTimeFilterPicker,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDaily ? _AppColors.primaryLight : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDaily ? _AppColors.primary : const Color(0xFFBAE6FD),
+              width: isDaily ? 1.5 : 1,
+            ),
+            boxShadow: [BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6, offset: const Offset(0, 2))],
+          ),
+          child: Row(children: [
+            Icon(Icons.access_time_rounded, size: 16,
+              color: isDaily ? _AppColors.primary : _AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Expanded(child: Text(label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isDaily ? FontWeight.w700 : FontWeight.normal,
+                color: isDaily ? _AppColors.primary : _AppColors.textPrimary,
+              ),
+              overflow: TextOverflow.ellipsis)),
+            if (isDaily)
+              GestureDetector(
+                onTap: () {
+                  setState(() { _timeFilterMode = 'monthly'; _selectedDay = null; });
+                  _fetchData();
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: _AppColors.primary.withValues(alpha: 0.15),
+                    shape: BoxShape.circle),
+                  child: const Icon(Icons.close_rounded, size: 13, color: _AppColors.primary),
+                ),
+              ),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 18,
+              color: isDaily ? _AppColors.primary : _AppColors.textSecondary),
+          ]),
+        ),
+      ),
+    );
+  }
+
   // Season Banner
   Widget _buildSeasonBanner() {
     final String seasonText = widget.lang == 'ID'
         ? 'Musim'
         : widget.lang == 'ZH'
-            ? '赛季'
-            : 'Season';
+        ? '赛季'
+        : 'Season';
     final String historyButtonText = widget.lang == 'ID'
         ? 'Riwayat'
         : widget.lang == 'ZH'
-            ? '历史'
-            : 'History';
+        ? '历史'
+        : 'History';
     final String timeLeftLabel = widget.lang == 'ID'
         ? 'Sisa waktu:'
         : widget.lang == 'ZH'
-            ? '剩余时间:'
-            : 'Time left:';
+        ? '剩余时间:'
+        : 'Time left:';
 
     final now = DateTime.now();
-    final endOfMonth = DateTime(now.year, now.month + 1, 1)
-        .subtract(const Duration(seconds: 1));
+    final endOfMonth = DateTime(
+      now.year,
+      now.month + 1,
+      1,
+    ).subtract(const Duration(seconds: 1));
     final diff = endOfMonth.difference(now);
     final daysLeft = diff.inDays;
     final hoursLeft = diff.inHours % 24;
@@ -877,20 +1208,20 @@ class _RankingScreenState extends State<RankingScreen> {
       timeLeftStr = widget.lang == 'ID'
           ? 'Sudah berakhir'
           : widget.lang == 'ZH'
-              ? '已结束'
-              : 'Ended';
+          ? '已结束'
+          : 'Ended';
     } else if (daysLeft > 0) {
       timeLeftStr = widget.lang == 'ID'
           ? '$daysLeft hari $hoursLeft jam'
           : widget.lang == 'ZH'
-              ? '$daysLeft 天 $hoursLeft 小时'
-              : '$daysLeft days $hoursLeft hrs';
+          ? '$daysLeft 天 $hoursLeft 小时'
+          : '$daysLeft days $hoursLeft hrs';
     } else {
       timeLeftStr = widget.lang == 'ID'
           ? '$hoursLeft jam'
           : widget.lang == 'ZH'
-              ? '$hoursLeft 小时'
-              : '$hoursLeft hrs';
+          ? '$hoursLeft 小时'
+          : '$hoursLeft hrs';
     }
 
     return Padding(
@@ -904,19 +1235,24 @@ class _RankingScreenState extends State<RankingScreen> {
             children: [
               Row(
                 children: [
-                  Text(seasonText,
-                      style: const TextStyle(
-                          fontSize: 14,
-                          color: _AppColors.textSecondary,
-                          fontWeight: FontWeight.w500)),
+                  Text(
+                    seasonText,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: _AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: () {
                       Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) =>
-                                  RiwayatMusimScreen(lang: widget.lang)));
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              RiwayatMusimScreen(lang: widget.lang),
+                        ),
+                      );
                     },
                     icon: const Icon(Icons.history_rounded, size: 16),
                     label: Text(historyButtonText),
@@ -924,38 +1260,56 @@ class _RankingScreenState extends State<RankingScreen> {
                       foregroundColor: _AppColors.textPrimary,
                       side: const BorderSide(color: Color(0xFFCBD5E1)),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       textStyle: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
-              Text(
-                DateFormat('MMMM yyyy', 'id_ID').format(DateTime.now()),
-                style: const TextStyle(
+              Builder(builder: (context) {
+                final locale = widget.lang == 'ID' ? 'id_ID'
+                    : widget.lang == 'ZH' ? 'zh_CN' : 'en_US';
+                final isDaily = _timeFilterMode == 'daily' && _selectedDay != null;
+                final displayDate = isDaily ? _selectedDay! : DateTime.now();
+                final fmt = isDaily
+                    ? DateFormat('d MMMM yyyy', locale).format(displayDate)
+                    : DateFormat('MMMM yyyy', locale).format(displayDate);
+                return Text(fmt,
+                  style: const TextStyle(
                     color: _AppColors.textPrimary,
                     fontSize: 22,
                     fontWeight: FontWeight.w800),
-              ),
+                );
+              }),
             ],
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(timeLeftLabel,
-                  style: const TextStyle(
-                      color: _AppColors.textSecondary, fontSize: 12)),
+              Text(
+                timeLeftLabel,
+                style: const TextStyle(
+                  color: _AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
               const SizedBox(height: 2),
               Text(
                 timeLeftStr,
                 style: const TextStyle(
-                    color: _AppColors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold),
+                  color: _AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -1020,33 +1374,27 @@ class _RankingScreenState extends State<RankingScreen> {
               ),
             ),
             Positioned(
-                left: -20,
-                bottom: 40,
-                child: _buildFantasyCloud(160, 0.92)),
+              left: -20,
+              bottom: 40,
+              child: _buildFantasyCloud(160, 0.92),
+            ),
             Positioned(
-                right: -30,
-                bottom: 30,
-                child: _buildFantasyCloud(140, 0.85)),
-            Positioned(
-                left: 10,
-                top: 30,
-                child: _buildFantasyCloud(80, 0.65)),
-            Positioned(
-                right: 20,
-                top: 15,
-                child: _buildFantasyCloud(65, 0.55)),
-            Positioned(
-                left: 80,
-                top: 55,
-                child: _buildFantasyCloud(90, 0.45)),
+              right: -30,
+              bottom: 30,
+              child: _buildFantasyCloud(140, 0.85),
+            ),
+            Positioned(left: 10, top: 30, child: _buildFantasyCloud(80, 0.65)),
+            Positioned(right: 20, top: 15, child: _buildFantasyCloud(65, 0.55)),
+            Positioned(left: 80, top: 55, child: _buildFantasyCloud(90, 0.45)),
             Positioned(
               right: 28,
               top: 52,
               child: Transform.rotate(
                 angle: -0.15,
-                child: const Text('✈',
-                    style: TextStyle(
-                        fontSize: 16, color: Colors.white70)),
+                child: const Text(
+                  '✈',
+                  style: TextStyle(fontSize: 16, color: Colors.white70),
+                ),
               ),
             ),
             Positioned(
@@ -1054,9 +1402,10 @@ class _RankingScreenState extends State<RankingScreen> {
               top: 90,
               child: Transform.rotate(
                 angle: 0.1,
-                child: const Text('✈',
-                    style: TextStyle(
-                        fontSize: 11, color: Colors.white54)),
+                child: const Text(
+                  '✈',
+                  style: TextStyle(fontSize: 11, color: Colors.white54),
+                ),
               ),
             ),
             Positioned(
@@ -1082,8 +1431,7 @@ class _RankingScreenState extends State<RankingScreen> {
               future: _leaderboardFuture,
               builder: (context, snapshot) {
                 if (!snapshot.hasData &&
-                    snapshot.connectionState ==
-                        ConnectionState.waiting) {
+                    snapshot.connectionState == ConnectionState.waiting) {
                   return const _PodiumShimmerPlaceholder();
                 }
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -1092,7 +1440,9 @@ class _RankingScreenState extends State<RankingScreen> {
                       getTxt('no_podium_data'),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                          color: Colors.white70, height: 1.5),
+                        color: Colors.white70,
+                        height: 1.5,
+                      ),
                     ),
                   );
                 }
@@ -1114,8 +1464,7 @@ class _RankingScreenState extends State<RankingScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
                     child: Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceEvenly,
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         if (top2 != null)
@@ -1170,7 +1519,9 @@ class _RankingScreenState extends State<RankingScreen> {
                 width: width * 0.38,
                 height: width * 0.38,
                 decoration: const BoxDecoration(
-                    color: Colors.white, shape: BoxShape.circle),
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
             Positioned(
@@ -1180,7 +1531,9 @@ class _RankingScreenState extends State<RankingScreen> {
                 width: width * 0.44,
                 height: width * 0.44,
                 decoration: const BoxDecoration(
-                    color: Colors.white, shape: BoxShape.circle),
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
             Positioned(
@@ -1190,7 +1543,9 @@ class _RankingScreenState extends State<RankingScreen> {
                 width: width * 0.32,
                 height: width * 0.32,
                 decoration: const BoxDecoration(
-                    color: Colors.white, shape: BoxShape.circle),
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
           ],
@@ -1205,20 +1560,30 @@ class _RankingScreenState extends State<RankingScreen> {
       child: Text(
         _lastUpdatedText,
         style: const TextStyle(
-            fontSize: 11,
-            color: _AppColors.textSecondary,
-            height: 1.4),
+          fontSize: 11,
+          color: _AppColors.textSecondary,
+          height: 1.4,
+        ),
       ),
     );
   }
 
   Widget _buildTableHeader() {
-    final String rankCol = widget.lang == 'ID' ? 'Rank'
-        : widget.lang == 'ZH' ? '排名' : 'Rank';
-    final String nameCol = widget.lang == 'ID' ? 'Nama'
-        : widget.lang == 'ZH' ? '姓名' : 'Name';
-    final String scoreCol = widget.lang == 'ID' ? 'Poin Bulan Ini'
-        : widget.lang == 'ZH' ? '本月积分' : 'Monthly Points';
+    final String rankCol = widget.lang == 'ID'
+        ? 'Rank'
+        : widget.lang == 'ZH'
+        ? '排名'
+        : 'Rank';
+    final String nameCol = widget.lang == 'ID'
+        ? 'Nama'
+        : widget.lang == 'ZH'
+        ? '姓名'
+        : 'Name';
+    final String scoreCol = widget.lang == 'ID'
+        ? 'Poin Bulan Ini'
+        : widget.lang == 'ZH'
+        ? '本月积分'
+        : 'Monthly Points';
 
     return Container(
       color: const Color(0xFFF8FAFF),
@@ -1228,51 +1593,80 @@ class _RankingScreenState extends State<RankingScreen> {
         children: [
           SizedBox(
             width: 48,
-            child: Text(rankCol,
+            child: Text(
+              rankCol,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 12.5, fontWeight: FontWeight.w600,
-                color: _AppColors.textSecondary))),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: _AppColors.textSecondary,
+              ),
+            ),
+          ),
           Expanded(
-            child: Text(nameCol,
+            child: Text(
+              nameCol,
               style: const TextStyle(
-                fontSize: 12.5, fontWeight: FontWeight.w600,
-                color: _AppColors.textSecondary))),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: _AppColors.textSecondary,
+              ),
+            ),
+          ),
           SizedBox(
             width: 100,
-            child: Text(scoreCol,
+            child: Text(
+              scoreCol,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 12.5, fontWeight: FontWeight.w600,
-                color: _AppColors.textSecondary))),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: _AppColors.textSecondary,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildTargetRow() {
-    final String targetText = widget.lang == 'ID' ? 'Target Bulanan'
-        : widget.lang == 'ZH' ? '月度目标' : 'Monthly Target';
+    final String targetText = widget.lang == 'ID'
+        ? 'Target Bulanan'
+        : widget.lang == 'ZH'
+        ? '月度目标'
+        : 'Monthly Target';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
       decoration: BoxDecoration(
         color: _AppColors.primaryLight,
-        border: Border(bottom: BorderSide(color: _AppColors.divider))),
+        border: Border(bottom: BorderSide(color: _AppColors.divider)),
+      ),
       child: Row(
         children: [
           const SizedBox(width: 48),
           Expanded(
-            child: Text(targetText,
+            child: Text(
+              targetText,
               style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w700,
-                color: _AppColors.primary))),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _AppColors.primary,
+              ),
+            ),
+          ),
           const SizedBox(
             width: 100,
-            child: Text('1000',
+            child: Text(
+              '1000',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w700,
-                color: _AppColors.primary))),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _AppColors.primary,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1311,8 +1705,8 @@ class _RankingScreenState extends State<RankingScreen> {
           color: m.isSelf
               ? _AppColors.selfHighlight
               : isTop3
-                  ? m.medalColor.withOpacity(0.04)
-                  : Colors.white,
+              ? m.medalColor.withOpacity(0.04)
+              : Colors.white,
           border: Border(
             bottom: BorderSide(color: _AppColors.divider, width: 1),
             left: isTop3
@@ -1325,7 +1719,8 @@ class _RankingScreenState extends State<RankingScreen> {
           children: [
             SizedBox(
               width: 48,
-              child: Center(child: _RankBadge(member: m))),
+              child: Center(child: _RankBadge(member: m)),
+            ),
             Expanded(
               child: Row(
                 children: [
@@ -1335,7 +1730,8 @@ class _RankingScreenState extends State<RankingScreen> {
                     color: m.avatarColor,
                     size: 34,
                     showRing: isTop3,
-                    ringColor: m.medalColor),
+                    ringColor: m.medalColor,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -1346,16 +1742,22 @@ class _RankingScreenState extends State<RankingScreen> {
                           m.name,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: isTop3 ? FontWeight.w700 : FontWeight.w500,
-                            color: _AppColors.textPrimary),
+                            fontWeight: isTop3
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: _AppColors.textPrimary,
+                          ),
                           overflow: TextOverflow.ellipsis,
                         ),
                         if (isTop3)
-                          Text(_badgeLabel(m.rank),
+                          Text(
+                            _badgeLabel(m.rank),
                             style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w600,
-                              color: m.medalColor)),
+                              color: m.medalColor,
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -1371,7 +1773,8 @@ class _RankingScreenState extends State<RankingScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: isTop3 ? m.medalColor : _AppColors.primaryDark),
+                  color: isTop3 ? m.medalColor : _AppColors.primaryDark,
+                ),
               ),
             ),
           ],
@@ -1393,42 +1796,53 @@ class _RankingScreenState extends State<RankingScreen> {
       decoration: BoxDecoration(
         color: _AppColors.selfHighlight,
         border: Border(
-            top: BorderSide(
-                color: _AppColors.selfHighlightBorder, width: 1.5)),
+          top: BorderSide(color: _AppColors.selfHighlightBorder, width: 1.5),
+        ),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 6,
-              offset: const Offset(0, -2))
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, -2),
+          ),
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
           SizedBox(
-              width: 48,
-              child: Center(child: _RankBadge(member: self))),
+            width: 48,
+            child: Center(child: _RankBadge(member: self)),
+          ),
           _Avatar(
-              name: self.name,
-              avatarUrl: self.avatarUrl,
-              color: self.avatarColor,
-              size: 34),
+            name: self.name,
+            avatarUrl: self.avatarUrl,
+            color: self.avatarColor,
+            size: 34,
+          ),
           const SizedBox(width: 10),
           Expanded(
-              child: Text(self.name,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _AppColors.textPrimary),
-                  overflow: TextOverflow.ellipsis)),
+            child: Text(
+              self.name,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _AppColors.textPrimary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           SizedBox(
-              width: 100,
-              child: Text('${self.monthlyPoints}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: _AppColors.primaryDark))),
+            width: 100,
+            child: Text(
+              '${self.monthlyPoints}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: _AppColors.primaryDark,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1442,9 +1856,17 @@ class _PodiumMember extends StatelessWidget {
   const _PodiumMember({required this.member, required this.position});
 
   // Tinggi platform podium: #1 paling menjulang
-  double get _platformHeight => position == 1 ? 115.0 : position == 2 ? 82.0 : 66.0;
-  double get _avatarSize      => position == 1 ? 66.0  : position == 2 ? 54.0  : 50.0;
-  double get _columnWidth     => position == 1 ? 108.0 : 92.0;
+  double get _platformHeight => position == 1
+      ? 115.0
+      : position == 2
+      ? 82.0
+      : 66.0;
+  double get _avatarSize => position == 1
+      ? 66.0
+      : position == 2
+      ? 54.0
+      : 50.0;
+  double get _columnWidth => position == 1 ? 108.0 : 92.0;
 
   // Warna platform: kristal/kaca berwarna medali
   Color get _platformColor => member.medalColor;
@@ -1529,7 +1951,11 @@ class _PodiumMember extends StatelessWidget {
               fontWeight: FontWeight.w800,
               letterSpacing: 0.3,
               shadows: const [
-                Shadow(color: Colors.black54, blurRadius: 6, offset: Offset(0, 1)),
+                Shadow(
+                  color: Colors.black54,
+                  blurRadius: 6,
+                  offset: Offset(0, 1),
+                ),
               ],
             ),
             overflow: TextOverflow.ellipsis,
@@ -1544,8 +1970,9 @@ class _PodiumMember extends StatelessWidget {
             height: _platformHeight,
             width: double.infinity,
             decoration: BoxDecoration(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(14)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(14),
+              ),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -1556,9 +1983,18 @@ class _PodiumMember extends StatelessWidget {
                 ],
               ),
               border: Border(
-                top: BorderSide(color: Colors.white.withOpacity(0.7), width: 1.5),
-                left: BorderSide(color: Colors.white.withOpacity(0.3), width: 1),
-                right: BorderSide(color: _platformColor.withOpacity(0.5), width: 1),
+                top: BorderSide(
+                  color: Colors.white.withOpacity(0.7),
+                  width: 1.5,
+                ),
+                left: BorderSide(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1,
+                ),
+                right: BorderSide(
+                  color: _platformColor.withOpacity(0.5),
+                  width: 1,
+                ),
               ),
               boxShadow: [
                 BoxShadow(
@@ -1610,7 +2046,9 @@ class _PodiumMember extends StatelessWidget {
                       const SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3),
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.22),
                           borderRadius: BorderRadius.circular(20),
@@ -1664,15 +2102,20 @@ class _PodiumShimmerPlaceholder extends StatelessWidget {
     );
   }
 
-  Widget _buildShimmerBlock({required double height, required double avatarSize}) {
+  Widget _buildShimmerBlock({
+    required double height,
+    required double avatarSize,
+  }) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         Container(
           height: avatarSize,
           width: avatarSize,
-          decoration:
-              const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
         ),
         const SizedBox(height: 10),
         Container(
@@ -1699,7 +2142,9 @@ class _RankRowShimmerPlaceholder extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: _AppColors.divider, width: 1)),
+          border: Border(
+            bottom: BorderSide(color: _AppColors.divider, width: 1),
+          ),
         ),
         child: Row(
           children: [
@@ -1707,7 +2152,10 @@ class _RankRowShimmerPlaceholder extends StatelessWidget {
             Container(
               height: 34,
               width: 34,
-              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -1736,15 +2184,21 @@ class _RankBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (member.rank == 1) return const Text('🥇', style: TextStyle(fontSize: 24));
-    if (member.rank == 2) return const Text('🥈', style: TextStyle(fontSize: 24));
-    if (member.rank == 3) return const Text('🥉', style: TextStyle(fontSize: 24));
-    return Text('${member.rank}',
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-            fontSize: 13.5,
-            fontWeight: FontWeight.w600,
-            color: _AppColors.textSecondary));
+    if (member.rank == 1)
+      return const Text('🥇', style: TextStyle(fontSize: 24));
+    if (member.rank == 2)
+      return const Text('🥈', style: TextStyle(fontSize: 24));
+    if (member.rank == 3)
+      return const Text('🥉', style: TextStyle(fontSize: 24));
+    return Text(
+      '${member.rank}',
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w600,
+        color: _AppColors.textSecondary,
+      ),
+    );
   }
 }
 
@@ -1778,13 +2232,19 @@ class _Avatar extends StatelessWidget {
             ? Border.all(color: (ringColor ?? bg).withOpacity(0.6), width: 2)
             : null,
         boxShadow: showRing
-            ? [BoxShadow(color: (ringColor ?? bg).withOpacity(0.25), blurRadius: 6)]
+            ? [
+                BoxShadow(
+                  color: (ringColor ?? bg).withOpacity(0.25),
+                  blurRadius: 6,
+                ),
+              ]
             : null,
       ),
       child: CircleAvatar(
         radius: size / 2,
-        backgroundImage:
-            (avatarUrl != null && avatarUrl!.isNotEmpty) ? NetworkImage(avatarUrl!) : null,
+        backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
+            ? NetworkImage(avatarUrl!)
+            : null,
         backgroundColor: bg.withOpacity(0.15),
         onBackgroundImageError: avatarUrl != null ? (_, __) {} : null,
         child: (avatarUrl == null || avatarUrl!.isEmpty)
@@ -1796,9 +2256,10 @@ class _Avatar extends StatelessWidget {
                     .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
                     .join(),
                 style: TextStyle(
-                    fontSize: size * 0.35,
-                    fontWeight: FontWeight.w700,
-                    color: bg),
+                  fontSize: size * 0.35,
+                  fontWeight: FontWeight.w700,
+                  color: bg,
+                ),
               )
             : null,
       ),
