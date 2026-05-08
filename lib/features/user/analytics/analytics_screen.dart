@@ -105,7 +105,7 @@ class AnalyticsScreen extends StatefulWidget {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late TabController _tabController;
   final SupabaseClient _supabase = Supabase.instance.client;
 
@@ -329,20 +329,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   /// Dipanggil dari setState-safe context (bukan dari dalam build).
   /// Rebuild TabController hanya jika jumlah tab berubah.
   void _rebuildTabControllerIfNeeded(int newCount) {
-    if (_currentTabCount != newCount) {
-      // Paksa animasi ke tab 0 SEBELUM dispose controller lama
-      if (_tabController.index != 0) {
-        try { _tabController.index = 0; } catch (_) {}
-      }
-      _tabController.removeListener(_onTabChanged);
-      final oldController = _tabController;
-      _tabController = TabController(length: newCount, vsync: this);
-      _currentTabCount = newCount;
-      _tabController.addListener(_onTabChanged);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) oldController.dispose();
-      });
+    if (_currentTabCount == newCount) {
+      // Jumlah tab sama, sinkronkan _activeTabIndex saja
+      _activeTabIndex = _tabController.index;
+      return;
     }
+    // Jumlah tab berubah — dispose lama, buat baru
+    _activeTabIndex = 0;
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose(); // dispose langsung, bukan di postFrameCallback
+    _tabController = TabController(length: newCount, vsync: this);
+    _currentTabCount = newCount;
+    _tabController.addListener(_onTabChanged);
   }
 
   void _fetchAllData({bool fromTabFilter = false}) {
@@ -351,12 +349,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     final levelBackendValue = ['Lokasi', 'Unit', 'Subunit', 'Area'][
         _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
 
-    final int newTabCount = _selectedFindingType == 'KTS' ? 2
+    final int newTabCount = _selectedFindingType == 'KTS Production' ? 2
       : _selectedFindingType == 'Accident' ? 3
       : 4;
 
-    // Rebuild controller PERTAMA, sebelum setState, agar tidak ada frame 
-    // di mana controller lama (index > 1) masih dipakai dengan TabBarView baru (2 anak)
+    // Reset activeTabIndex ke 0 saat finding type berubah (bukan dari tab filter)
+    if (!fromTabFilter && _currentTabCount != newTabCount) {
+      _activeTabIndex = 0;
+    }
+
+    // PENTING: rebuild controller SEBELUM setState agar TabBar/TabBarView
+    // langsung mendapat controller dengan length yang benar
     _rebuildTabControllerIfNeeded(newTabCount);
 
     setState(() {
@@ -380,19 +383,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         _recurringChartFuture = _fetchRecurringChartData();
         _recurringChartRefreshKey++;
 
-      } else if (_selectedFindingType == 'KTS') {
+      } else if (_selectedFindingType == 'KTS Production') {
         if (_filterMode == 'daily' && _selectedDate != null) {
           _ktsAnggotaFuture = _fetchKtsAnggotaDataDaily(_selectedDate!, _selectedUnitId);
         } else {
           _ktsAnggotaFuture = _fetchKtsAnggotaData(month, year, _selectedUnitId);
         }
-        _ktsInspeksiFuture = _fetchKtsInspeksiData(month, year, roleBackendValue);
-        _ktsLokasiFuture = _fetchKtsLokasiData(month, year, levelBackendValue);
-        _chartFuture = _fetchChartData(month, year, 'KTS');
+        _chartFuture = _fetchChartData(month, year, 'KTS Production');
         _chartRefreshKey++;
         _recurringFuture = _fetchRecurringData(ktsOnly: true);
-        _recurringChartFuture = _fetchRecurringChartData();
+        _recurringChartFuture = _fetchKtsRecurringChartData();
         _recurringChartRefreshKey++;
+
       } else {
         // Accident
         if (_filterMode == 'daily' && _selectedDate != null) {
@@ -405,8 +407,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         _accidentRecurringFuture = _fetchAccidentRecurringData();
         _chartFuture = _fetchChartData(month, year, 'Accident');
         _chartRefreshKey++;
-        _accidentRecurringFuture = _fetchAccidentRecurringData();
-        _recurringChartFuture = _fetchRecurringChartData();
+        _recurringChartFuture = _fetchAccidentRecurringChartData();
         _recurringChartRefreshKey++;
       }
     });
@@ -414,16 +415,33 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   void _onTabChanged() {
     if (!mounted) return;
+    // Hanya proses saat animasi benar-benar selesai
+    if (_tabController.indexIsChanging) return;
     final newIdx = _tabController.index;
-    if (_activeTabIndex != newIdx) {
-      setState(() {
-        _activeTabIndex = newIdx;
-        // Refresh chart sesuai tab baru
-        _refreshChart();
-      });
-    } else {
-      setState(() {});
-    }
+    if (_activeTabIndex == newIdx) return;
+
+    final month = _selectedMonth;
+    final year = DateTime.now().year;
+    setState(() {
+      _activeTabIndex = newIdx;
+      _chartFuture = _fetchChartData(month, year, _selectedFindingType);
+      _chartRefreshKey++;
+
+      final bool isRecurringTab =
+          (_selectedFindingType == '5R' && newIdx == 3) ||
+          (_selectedFindingType == 'KTS Production' && newIdx == 1) ||
+          (_selectedFindingType == 'Accident' && newIdx == 2);
+      if (isRecurringTab) {
+        if (_selectedFindingType == 'KTS Production') {
+          _recurringChartFuture = _fetchKtsRecurringChartData();
+        } else if (_selectedFindingType == 'Accident') {
+          _recurringChartFuture = _fetchAccidentRecurringChartData();
+        } else {
+          _recurringChartFuture = _fetchRecurringChartData();
+        }
+        _recurringChartRefreshKey++;
+      }
+    });
   }
   
   Future<void> _fetchChartTarget(int month, int year) async {
@@ -479,40 +497,83 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     final month = _selectedMonth;
     final year = DateTime.now().year;
     setState(() {
-      if (_selectedFindingType == '5R') {
-        _chartFuture = _fetchChartData(month, year, '5R');
-      } else if (_selectedFindingType == 'KTS') {
-        _chartFuture = _fetchChartData(month, year, 'KTS');
-      } else {
-        _chartFuture = _fetchChartData(month, year, 'Accident');
-      }
+      _chartFuture = _fetchChartData(month, year, _selectedFindingType);
+      _chartRefreshKey++; // wajib agar FutureBuilder rebuild dengan key baru
     });
   }
 
   void _fetchRecurring() {
-    final ktsOnly = _selectedFindingType == 'KTS';
+    final month = _selectedMonth;
+    final year = DateTime.now().year;
     setState(() {
-      _recurringFuture = _fetchRecurringData(ktsOnly: ktsOnly);
-      _recurringChartFuture = _fetchRecurringChartData();
+      if (_selectedFindingType == 'Accident') {
+        _accidentRecurringFuture = _fetchAccidentRecurringData();
+        _recurringChartFuture = _fetchAccidentRecurringChartData();
+      } else if (_selectedFindingType == 'KTS Production') {
+        _recurringFuture = _fetchRecurringData(ktsOnly: true);
+        _recurringChartFuture = _fetchKtsRecurringChartData();
+      } else {
+        _recurringFuture = _fetchRecurringData(ktsOnly: false);
+        _recurringChartFuture = _fetchRecurringChartData();
+      }
+      _chartFuture = _fetchChartData(month, year, _selectedFindingType);
+      _chartRefreshKey++;
+      _recurringChartRefreshKey++;
     });
-    _recurringChartRefreshKey++;
   }
 
   Future<List<MemberData>> _fetchAnggotaData(int month, int year, String? unitId) async {
     try {
-      final List<dynamic> response = await _supabase.rpc('get_anggota_stats', params: {
-        'selected_month': month, 'selected_year': year, 'selected_unit_id': unitId
-      });
-      return response.map((item) => MemberData(
-        name: item['nama'] as String,
-        unitName: item['unit_nama'] as String?,
-        findings: (item['temuan'] as num).toInt(),
-        completed: (item['selesai'] as num).toInt(),
-        // PERBAIKI: gunakan 'id_user' dan 'gambar_user', bukan 'user_id'/'avatar_url'
-        isSelf: item['id_user'] == _supabase.auth.currentUser?.id,
-        avatarUrl: item['gambar_user'] as String?,
-        avatarColor: const Color(0xFF0EA5E9),
-      )).toList();
+      // Step 1: Ambil user yang memenuhi filter unit
+      var userQuery = _supabase
+          .from('User')
+          .select('id_user, nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit)');
+      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
+      final List<dynamic> users = await userQuery;
+      if (users.isEmpty) return [];
+
+      final userIds = users.map((u) => u['id_user'].toString()).toList();
+
+      // Step 2: Ambil temuan 5R bulan ini untuk user tersebut
+      final List<dynamic> temuanRes = await _supabase
+          .from('temuan')
+          .select('id_user, id_penyelesaian')
+          .neq('jenis_temuan', 'KTS Production')
+          .gte('created_at', DateTime(year, month, 1).toIso8601String())
+          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String())
+          .inFilter('id_user', userIds);
+
+      // Step 3: Hitung temuan dan selesai per user
+      final Map<String, Map<String, int>> stats = {};
+      for (final t in temuanRes) {
+        final uid = t['id_user']?.toString() ?? '';
+        if (uid.isEmpty) continue;
+        stats.putIfAbsent(uid, () => {'temuan': 0, 'selesai': 0});
+        stats[uid]!['temuan'] = stats[uid]!['temuan']! + 1;
+        if (t['id_penyelesaian'] != null) {
+          stats[uid]!['selesai'] = stats[uid]!['selesai']! + 1;
+        }
+      }
+
+      final currentUserId = _supabase.auth.currentUser?.id;
+      final result = users.map((u) {
+        final uid = u['id_user']?.toString() ?? '';
+        final s = stats[uid] ?? {'temuan': 0, 'selesai': 0};
+        return MemberData(
+          name: u['nama'] as String? ?? '-',
+          unitName: (u['unit'] as Map<String, dynamic>?)?['nama_unit'] as String?,
+          findings: s['temuan']!,
+          completed: s['selesai']!,
+          isSelf: uid == currentUserId,
+          avatarUrl: u['gambar_user'] as String?,
+          avatarColor: const Color(0xFF0EA5E9),
+        );
+      }).toList()
+        ..sort((a, b) {
+          final c = b.findings.compareTo(a.findings);
+          return c != 0 ? c : a.name.compareTo(b.name);
+        });
+      return result;
     } catch (e) {
       debugPrint('Error fetching Anggota: $e');
       return [];
@@ -521,13 +582,39 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Future<List<InspectionData>> _fetchInspeksiData(int month, int year, String role) async {
     try {
-      final List<dynamic> response = await _supabase.rpc('get_inspeksi_stats', params: {
-        'selected_month': month, 'selected_year': year, 'role_type': role.toLowerCase(),
-      });
-      return response.map((item) => InspectionData(
-        name: item['nama'] as String,
-        findings: item['temuan'] as int,
-      )).toList();
+      // Filter kolom role sesuai backend value
+      final roleCol = role == 'Eksekutif' ? 'is_eksekutif'
+          : role == 'Profesional' ? 'is_pro'
+          : 'is_visitor';
+
+      final List<dynamic> temuanRes = await _supabase
+          .from('temuan')
+          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama)')
+          .neq('jenis_temuan', 'KTS Production')
+          .eq(roleCol, true)
+          .gte('created_at', DateTime(year, month, 1).toIso8601String())
+          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String());
+
+      final Map<String, Map<String, dynamic>> grouped = {};
+      for (final item in temuanRes) {
+        final user = item['User_Creator'] as Map<String, dynamic>?;
+        if (user == null) continue;
+        final userId = item['id_user']?.toString() ?? '';
+        if (userId.isEmpty) continue;
+        grouped.putIfAbsent(userId, () => {'nama': user['nama'] ?? '-', 'temuan': 0});
+        grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
+      }
+
+      return grouped.values
+          .map((item) => InspectionData(
+                name: item['nama'] as String,
+                findings: item['temuan'] as int,
+              ))
+          .toList()
+        ..sort((a, b) {
+          final c = b.findings.compareTo(a.findings);
+          return c != 0 ? c : a.name.compareTo(b.name);
+        });
     } catch (e) {
       debugPrint('Error fetching Inspeksi: $e');
       return [];
@@ -536,14 +623,69 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Future<List<LocationData>> _fetchLokasiData(int month, int year, String level) async {
     try {
-      final List<dynamic> response = await _supabase.rpc('get_lokasi_stats', params: {
-        'selected_month': month, 'selected_year': year, 'level_name': level.toLowerCase(),
-      });
-      return response.map((item) => LocationData(
-        name: item['nama_item'] as String,
-        pic: item['nama_pic'] as String,
-        value: (item['nilai_temuan'] as int).toString(),
-      )).toList();
+      final levelLower = level.toLowerCase();
+      final idMap = {
+        'lokasi': 'id_lokasi', 'unit': 'id_unit',
+        'subunit': 'id_subunit', 'area': 'id_area'
+      };
+      final nameMap = {
+        'lokasi': 'nama_lokasi', 'unit': 'nama_unit',
+        'subunit': 'nama_subunit', 'area': 'nama_area'
+      };
+      final idCol = idMap[levelLower] ?? 'id_lokasi';
+      final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
+
+      // Step 1: Ambil semua lokasi/unit/subunit/area
+      final List<dynamic> locations = await _supabase
+          .from(levelLower)
+          .select('$idCol, $nameCol');
+
+      // Step 2: Ambil temuan 5R bulan ini
+      final List<dynamic> temuanRes = await _supabase
+          .from('temuan')
+          .select(idCol)
+          .neq('jenis_temuan', 'KTS Production')
+          .gte('created_at', DateTime(year, month, 1).toIso8601String())
+          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String())
+          .not(idCol, 'is', null);
+
+      // Step 3: Hitung per lokasi
+      final Map<String, int> countMap = {};
+      for (final t in temuanRes) {
+        final id = t[idCol]?.toString() ?? '';
+        if (id.isEmpty) continue;
+        countMap[id] = (countMap[id] ?? 0) + 1;
+      }
+
+      // Step 4: Ambil PIC per lokasi (1 user per lokasi/unit/subunit/area)
+      final picColMap = {
+        'lokasi': 'id_lokasi', 'unit': 'id_unit',
+        'subunit': 'id_subunit', 'area': 'id_area'
+      };
+      final picFilterCol = picColMap[levelLower] ?? 'id_lokasi';
+      final List<dynamic> picRes = await _supabase
+          .from('User')
+          .select('$picFilterCol, nama')
+          .not(picFilterCol, 'is', null);
+
+      // Ambil PIC pertama per lokasi
+      final Map<String, String> picMap = {};
+      for (final p in picRes) {
+        final locId = p[picFilterCol]?.toString() ?? '';
+        if (locId.isEmpty || picMap.containsKey(locId)) continue;
+        picMap[locId] = p['nama']?.toString() ?? 'PIC belum diatur';
+      }
+
+      return locations.map<LocationData>((loc) {
+        final id = loc[idCol]?.toString() ?? '';
+        return LocationData(
+          name: loc[nameCol]?.toString() ?? '-',
+          pic: picMap[id] ?? 'PIC belum diatur',
+          value: (countMap[id] ?? 0).toString(),
+        );
+      }).toList()
+        ..sort((a, b) => (int.tryParse(b.value ?? '0') ?? 0)
+            .compareTo(int.tryParse(a.value ?? '0') ?? 0));
     } catch (e) {
       debugPrint('Error fetching Lokasi: $e');
       return [];
@@ -552,19 +694,61 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Future<List<MemberData>> _fetchAnggotaDataDaily(DateTime date, String? unitId) async {
     try {
-      final List<dynamic> response = await _supabase.rpc('get_anggota_stats_daily', params: {
-        'selected_date': '${date.year}-${date.month.toString().padLeft(2,'0')}-${date.day.toString().padLeft(2,'0')}',
-        'selected_unit_id': unitId,
-      });
-      return response.map((item) => MemberData(
-        name: item['nama'] as String,
-        unitName: item['unit_nama'] as String?,
-        findings: (item['temuan'] as num).toInt(),
-        completed: (item['selesai'] as num).toInt(),
-        isSelf: item['id_user'] == _supabase.auth.currentUser?.id,
-        avatarUrl: item['gambar_user'] as String?,
-        avatarColor: const Color(0xFF0EA5E9),
-      )).toList();
+      final start = DateTime(date.year, date.month, date.day);
+      final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+      // Step 1: Ambil user filter unit
+      var userQuery = _supabase
+          .from('User')
+          .select('id_user, nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit)');
+      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
+      final List<dynamic> users = await userQuery;
+      if (users.isEmpty) return [];
+
+      final userIds = users.map((u) => u['id_user'].toString()).toList();
+
+      // Step 2: Ambil temuan hari ini
+      final List<dynamic> temuanRes = await _supabase
+          .from('temuan')
+          .select('id_user, id_penyelesaian')
+          .neq('jenis_temuan', 'KTS Production')
+          .gte('created_at', start.toIso8601String())
+          .lte('created_at', end.toIso8601String())
+          .inFilter('id_user', userIds);
+
+      final Map<String, Map<String, int>> stats = {};
+      for (final t in temuanRes) {
+        final uid = t['id_user']?.toString() ?? '';
+        if (uid.isEmpty) continue;
+        stats.putIfAbsent(uid, () => {'temuan': 0, 'selesai': 0});
+        stats[uid]!['temuan'] = stats[uid]!['temuan']! + 1;
+        if (t['id_penyelesaian'] != null) {
+          stats[uid]!['selesai'] = stats[uid]!['selesai']! + 1;
+        }
+      }
+
+      // Hanya tampilkan yang ada temuan hari ini (seperti get_anggota_stats_daily)
+      final currentUserId = _supabase.auth.currentUser?.id;
+      return users
+          .where((u) => stats.containsKey(u['id_user']?.toString() ?? ''))
+          .map((u) {
+            final uid = u['id_user']?.toString() ?? '';
+            final s = stats[uid]!;
+            return MemberData(
+              name: u['nama'] as String? ?? '-',
+              unitName: (u['unit'] as Map<String, dynamic>?)?['nama_unit'] as String?,
+              findings: s['temuan']!,
+              completed: s['selesai']!,
+              isSelf: uid == currentUserId,
+              avatarUrl: u['gambar_user'] as String?,
+              avatarColor: const Color(0xFF0EA5E9),
+            );
+          })
+          .toList()
+          ..sort((a, b) {
+            final c = b.findings.compareTo(a.findings);
+            return c != 0 ? c : a.name.compareTo(b.name);
+          });
     } catch (e) {
       debugPrint('Error fetching Anggota daily: $e');
       return [];
@@ -573,27 +757,41 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Future<List<InspectionData>> _fetchInspeksiDataDaily(DateTime date, String role) async {
     try {
-      final startOfDay = DateTime(date.year, date.month, date.day);
-      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
-      final List<dynamic> response = await _supabase
+      final start = DateTime(date.year, date.month, date.day);
+      final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
+
+      final roleCol = role == 'Eksekutif' ? 'is_eksekutif'
+          : role == 'Profesional' ? 'is_pro'
+          : 'is_visitor';
+
+      final List<dynamic> temuanRes = await _supabase
           .from('temuan')
-          .select('id_user, is_pro, is_visitor, is_eksekutif, User_Creator:User!temuan_id_user_fkey(nama)')
-          .gte('created_at', startOfDay.toIso8601String())
-          .lte('created_at', endOfDay.toIso8601String())
-          .eq(role == 'Eksekutif' ? 'is_eksekutif' : role == 'Profesional' ? 'is_pro' : 'is_visitor', true);
+          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama)')
+          .neq('jenis_temuan', 'KTS Production')
+          .eq(roleCol, true)
+          .gte('created_at', start.toIso8601String())
+          .lte('created_at', end.toIso8601String());
+
       final Map<String, Map<String, dynamic>> grouped = {};
-      for (final item in response) {
+      for (final item in temuanRes) {
         final user = item['User_Creator'] as Map<String, dynamic>?;
         if (user == null) continue;
         final userId = item['id_user']?.toString() ?? '';
-        grouped.putIfAbsent(userId, () => {'nama': user['nama'] ?? '', 'temuan': 0});
+        if (userId.isEmpty) continue;
+        grouped.putIfAbsent(userId, () => {'nama': user['nama'] ?? '-', 'temuan': 0});
         grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
       }
-      return grouped.values.map((item) => InspectionData(
-        name: item['nama'] as String,
-        findings: item['temuan'] as int,
-      )).toList()
-        ..sort((a, b) => b.findings.compareTo(a.findings));
+
+      return grouped.values
+          .map((item) => InspectionData(
+                name: item['nama'] as String,
+                findings: item['temuan'] as int,
+              ))
+          .toList()
+        ..sort((a, b) {
+          final c = b.findings.compareTo(a.findings);
+          return c != 0 ? c : a.name.compareTo(b.name);
+        });
     } catch (e) {
       debugPrint('Error fetching Inspeksi daily: $e');
       return [];
@@ -601,47 +799,57 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Future<List<LocationData>> _fetchLokasiDataDaily(DateTime date, String level) async {
-    // Delegasikan ke _fetchLokasiData tapi filter by day
-    // Menggunakan query manual karena RPC hanya support month/year
     try {
-      final startOfDay = DateTime(date.year, date.month, date.day);
-      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+      final start = DateTime(date.year, date.month, date.day);
+      final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
       final levelLower = level.toLowerCase();
-      final Map<String, String> tableMap = {
-        'lokasi': 'lokasi', 'unit': 'unit', 'subunit': 'subunit', 'area': 'area'
+      final idMap = {
+        'lokasi': 'id_lokasi', 'unit': 'id_unit',
+        'subunit': 'id_subunit', 'area': 'id_area'
       };
-      final Map<String, String> idMap = {
-        'lokasi': 'id_lokasi', 'unit': 'id_unit', 'subunit': 'id_subunit', 'area': 'id_area'
+      final nameMap = {
+        'lokasi': 'nama_lokasi', 'unit': 'nama_unit',
+        'subunit': 'nama_subunit', 'area': 'nama_area'
       };
-      final Map<String, String> nameMap = {
-        'lokasi': 'nama_lokasi', 'unit': 'nama_unit', 'subunit': 'nama_subunit', 'area': 'nama_area'
-      };
-      final table = tableMap[levelLower] ?? 'lokasi';
       final idCol = idMap[levelLower] ?? 'id_lokasi';
       final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
 
-      // Fetch all locations
-      final locations = await _supabase.from(table).select('$idCol, $nameCol');
+      final List<dynamic> locations = await _supabase
+          .from(levelLower)
+          .select('$idCol, $nameCol');
 
-      // Fetch temuan for that day
-      final temuanList = await _supabase
+      final List<dynamic> temuanRes = await _supabase
           .from('temuan')
-          .select('$idCol')
-          .gte('created_at', startOfDay.toIso8601String())
-          .lte('created_at', endOfDay.toIso8601String());
+          .select(idCol)
+          .neq('jenis_temuan', 'KTS Production')
+          .gte('created_at', start.toIso8601String())
+          .lte('created_at', end.toIso8601String())
+          .not(idCol, 'is', null);
 
       final Map<String, int> countMap = {};
-      for (final t in temuanList) {
+      for (final t in temuanRes) {
         final id = t[idCol]?.toString() ?? '';
         if (id.isEmpty) continue;
         countMap[id] = (countMap[id] ?? 0) + 1;
       }
 
-      return (locations as List<dynamic>).map((loc) {
+      final List<dynamic> picRes = await _supabase
+          .from('User')
+          .select('$idCol, nama')
+          .not(idCol, 'is', null);
+
+      final Map<String, String> picMap = {};
+      for (final p in picRes) {
+        final locId = p[idCol]?.toString() ?? '';
+        if (locId.isEmpty || picMap.containsKey(locId)) continue;
+        picMap[locId] = p['nama']?.toString() ?? 'PIC belum diatur';
+      }
+
+      return locations.map<LocationData>((loc) {
         final id = loc[idCol]?.toString() ?? '';
         return LocationData(
           name: loc[nameCol]?.toString() ?? '-',
-          pic: '-',
+          pic: picMap[id] ?? 'PIC belum diatur',
           value: (countMap[id] ?? 0).toString(),
         );
       }).toList()
@@ -672,109 +880,345 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       }
 
       if (type == 'Accident') {
-        var query = _supabase
-            .from('accident_report')
-            .select('created_at, status')
-            .gte('created_at', startDt.toIso8601String())
-            .lte('created_at', endDt.toIso8601String());
-        if (_selectedUnitId != null) query = query.eq('id_unit', _selectedUnitId!);
-        final List<dynamic> res = await query;
+        if (_activeTabIndex == 2) {
+          // Recurring Accident tab: group by bulan sesuai filter recurring
+          final fromStr = _recurringFrom.toIso8601String();
+          final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
+          var query = _supabase
+              .from('accident_report')
+              .select('created_at, status')
+              .gte('created_at', fromStr)
+              .lte('created_at', toStr);
+          if (_recurringUserId != null) query = query.eq('id_pelapor', _recurringUserId!);
 
-        if (isDaily) {
-          return [_ChartBarData(
-            date: _selectedDate!.day,
-            temuan: res.length,
-            penyelesaian: res.where((t) => t['status'] == 'Selesai').length,
-          )];
-        }
-        final Map<int, int> laporanMap = {}, selesaiMap = {};
-        for (final t in res) {
-          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-          if (dt == null) continue;
-          laporanMap[dt.day] = (laporanMap[dt.day] ?? 0) + 1;
-          if (t['status'] == 'Selesai') selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
-        }
-        return List.generate(daysInMonth, (i) => _ChartBarData(
-          date: i + 1, temuan: laporanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+          final List<dynamic> res = await query;
+          final Map<String, int> laporanMap = {}, selesaiMap = {};
+          for (final t in res) {
+            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+            if (dt == null) continue;
+            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+            laporanMap[key] = (laporanMap[key] ?? 0) + 1;
+            if (t['status'] == 'Selesai') selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
+          }
+          final result = <_ChartBarData>[];
+          DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
+          final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
+          int idx = 1;
+          while (!cur.isAfter(endMonth)) {
+            final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
+            result.add(_ChartBarData(date: idx++, temuan: laporanMap[key] ?? 0, penyelesaian: selesaiMap[key] ?? 0));
+            cur = DateTime(cur.year, cur.month + 1);
+          }
+          return result;
 
-      } else if (type == 'KTS') {
-        var query = _supabase
-            .from('temuan')
-            .select('created_at, id_penyelesaian')
-            .eq('jenis_temuan', 'KTS Production')
-            .gte('created_at', startDt.toIso8601String())
-            .lte('created_at', endDt.toIso8601String());
-        if (_selectedUnitId != null) query = query.eq('id_unit', _selectedUnitId!);
-        final List<dynamic> res = await query;
+        } else if (_activeTabIndex == 1) {
+          // Location tab Accident: filter by level column
+          final levelBackend = ['lokasi', 'unit', 'subunit', 'area'][
+              _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
+          final idColMap = {'lokasi': 'id_lokasi', 'unit': 'id_unit', 'subunit': 'id_subunit', 'area': 'id_area'};
+          final idCol = idColMap[levelBackend] ?? 'id_lokasi';
 
-        if (isDaily) {
-          return [_ChartBarData(
-            date: _selectedDate!.day,
-            temuan: res.length,
-            penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
-          )];
+          var query = _supabase
+              .from('accident_report')
+              .select('created_at, status, $idCol')
+              .gte('created_at', startDt.toIso8601String())
+              .lte('created_at', endDt.toIso8601String())
+              .not(idCol, 'is', null);
+          if (_selectedUnitId != null) query = query.eq('id_unit', _selectedUnitId!);
+
+          final List<dynamic> res = await query;
+          if (isDaily) {
+            return [_ChartBarData(
+              date: _selectedDate!.day,
+              temuan: res.length,
+              penyelesaian: res.where((t) => t['status'] == 'Selesai').length,
+            )];
+          }
+          final Map<int, int> laporanMap = {}, selesaiMap = {};
+          for (final t in res) {
+            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+            if (dt == null) continue;
+            laporanMap[dt.day] = (laporanMap[dt.day] ?? 0) + 1;
+            if (t['status'] == 'Selesai') selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
+          }
+          return List.generate(daysInMonth, (i) => _ChartBarData(
+            date: i + 1, temuan: laporanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+
+        } else {
+          // Tab 0 = Members Accident: filter by unit via id_pelapor
+          var query = _supabase
+              .from('accident_report')
+              .select('created_at, status, id_pelapor')
+              .gte('created_at', startDt.toIso8601String())
+              .lte('created_at', endDt.toIso8601String());
+
+          if (_selectedUnitId != null) {
+            final usersInUnit = await _supabase
+                .from('User')
+                .select('id_user')
+                .eq('id_unit', _selectedUnitId!);
+            final userIds = (usersInUnit as List).map((u) => u['id_user'].toString()).toList();
+            if (userIds.isEmpty) {
+              return List.generate(isDaily ? 1 : daysInMonth, (i) => _ChartBarData(
+                date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
+            }
+            query = query.inFilter('id_pelapor', userIds);
+          }
+
+          final List<dynamic> res = await query;
+          if (isDaily) {
+            return [_ChartBarData(
+              date: _selectedDate!.day,
+              temuan: res.length,
+              penyelesaian: res.where((t) => t['status'] == 'Selesai').length,
+            )];
+          }
+          final Map<int, int> laporanMap = {}, selesaiMap = {};
+          for (final t in res) {
+            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+            if (dt == null) continue;
+            laporanMap[dt.day] = (laporanMap[dt.day] ?? 0) + 1;
+            if (t['status'] == 'Selesai') selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
+          }
+          return List.generate(daysInMonth, (i) => _ChartBarData(
+            date: i + 1, temuan: laporanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
         }
-        final Map<int, int> temuanMap = {}, selesaiMap = {};
-        for (final t in res) {
-          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-          if (dt == null) continue;
-          temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
-          if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
+      } else if (type == 'KTS Production') {
+        // Tab 0 = Members, Tab 1 = Recurring Findings
+        if (_activeTabIndex == 1) {
+          // Recurring tab KTS: group by bulan sesuai filter recurring
+          final fromStr = _recurringFrom.toIso8601String();
+          final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
+          var query = _supabase
+              .from('temuan')
+              .select('created_at, id_penyelesaian')
+              .eq('jenis_temuan', 'KTS Production')
+              .gte('created_at', fromStr)
+              .lte('created_at', toStr);
+          if (_recurringUserId != null) query = query.eq('id_user', _recurringUserId!);
+
+          final List<dynamic> res = await query;
+          final Map<String, int> temuanMap = {}, selesaiMap = {};
+          for (final t in res) {
+            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+            if (dt == null) continue;
+            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+            temuanMap[key] = (temuanMap[key] ?? 0) + 1;
+            if (t['id_penyelesaian'] != null) selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
+          }
+          final result = <_ChartBarData>[];
+          DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
+          final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
+          int idx = 1;
+          while (!cur.isAfter(endMonth)) {
+            final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
+            result.add(_ChartBarData(date: idx++, temuan: temuanMap[key] ?? 0, penyelesaian: selesaiMap[key] ?? 0));
+            cur = DateTime(cur.year, cur.month + 1);
+          }
+          return result;
+
+        } else {
+          // Tab 0 = Members: filter by unit (sama logika dengan 5R Members)
+          var query = _supabase
+              .from('temuan')
+              .select('created_at, id_penyelesaian, id_user')
+              .eq('jenis_temuan', 'KTS Production')
+              .gte('created_at', startDt.toIso8601String())
+              .lte('created_at', endDt.toIso8601String());
+
+          if (_selectedUnitId != null) {
+            final usersInUnit = await _supabase
+                .from('User')
+                .select('id_user')
+                .eq('id_unit', _selectedUnitId!);
+            final userIds = (usersInUnit as List).map((u) => u['id_user'].toString()).toList();
+            if (userIds.isEmpty) {
+              return List.generate(isDaily ? 1 : daysInMonth, (i) => _ChartBarData(
+                date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
+            }
+            query = query.inFilter('id_user', userIds);
+          }
+
+          final List<dynamic> res = await query;
+          if (isDaily) {
+            return [_ChartBarData(
+              date: _selectedDate!.day,
+              temuan: res.length,
+              penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
+            )];
+          }
+          final Map<int, int> temuanMap = {}, selesaiMap = {};
+          for (final t in res) {
+            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+            if (dt == null) continue;
+            temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
+            if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
+          }
+          return List.generate(daysInMonth, (i) => _ChartBarData(
+            date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
         }
-        return List.generate(daysInMonth, (i) => _ChartBarData(
-          date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
 
       } else {
         // 5R — chart sesuai tab aktif
-        // Tab 0: Members (filter unit), Tab 1: Inspection (filter role), Tab 2: Location (filter level), Tab 3: Recurring
-        String selectCols = 'created_at, id_penyelesaian';
-        var baseQuery = _supabase
-            .from('temuan')
-            .select(selectCols)
-            .neq('jenis_temuan', 'KTS Production')
-            .gte('created_at', startDt.toIso8601String())
-            .lte('created_at', endDt.toIso8601String());
-
-        // Filter sesuai tab
         if (_activeTabIndex == 0) {
-          // Members: filter by unit
-          if (_selectedUnitId != null) baseQuery = baseQuery.eq('id_unit', _selectedUnitId!);
+          // ── Members: filter by unit (sama persis dengan get_anggota_stats logic)
+          var query = _supabase
+              .from('temuan')
+              .select('created_at, id_penyelesaian, id_user, id_unit')
+              .neq('jenis_temuan', 'KTS Production')
+              .gte('created_at', startDt.toIso8601String())
+              .lte('created_at', endDt.toIso8601String());
+
+          // Filter unit: ambil id_user yang unit-nya sesuai, lalu filter temuan
+          if (_selectedUnitId != null) {
+            // Ambil dulu user yang ada di unit ini
+            final usersInUnit = await _supabase
+                .from('User')
+                .select('id_user')
+                .eq('id_unit', _selectedUnitId!);
+            final userIds = (usersInUnit as List).map((u) => u['id_user'].toString()).toList();
+            if (userIds.isEmpty) {
+              return List.generate(isDaily ? 1 : daysInMonth, (i) => _ChartBarData(
+                date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
+            }
+            query = query.inFilter('id_user', userIds);
+          }
+
+          final List<dynamic> res = await query;
+          if (isDaily) {
+            return [_ChartBarData(
+              date: _selectedDate!.day,
+              temuan: res.length,
+              penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
+            )];
+          }
+          final Map<int, int> temuanMap = {}, selesaiMap = {};
+          for (final t in res) {
+            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+            if (dt == null) continue;
+            temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
+            if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
+          }
+          return List.generate(daysInMonth, (i) => _ChartBarData(
+            date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+
         } else if (_activeTabIndex == 1) {
-          // Inspection: filter by role
+          // ── Inspection: filter by role (sama persis dengan get_inspeksi_stats logic)
           final roleBackend = ['Eksekutif', 'Profesional', 'Visitor'][
               _translatedRoles.indexOf(_selectedInspectionRole).clamp(0, 2)];
-          if (roleBackend == 'Eksekutif') baseQuery = baseQuery.eq('is_eksekutif', true);
-          else if (roleBackend == 'Profesional') baseQuery = baseQuery.eq('is_pro', true);
-          else baseQuery = baseQuery.eq('is_visitor', true);
+
+          var query = _supabase
+              .from('temuan')
+              .select('created_at, id_penyelesaian')
+              .neq('jenis_temuan', 'KTS Production')
+              .gte('created_at', startDt.toIso8601String())
+              .lte('created_at', endDt.toIso8601String());
+
+          // Filter role sesuai is_eksekutif / is_pro / is_visitor
+          if (roleBackend == 'Eksekutif') {
+            query = query.eq('is_eksekutif', true);
+          } else if (roleBackend == 'Profesional') {
+            query = query.eq('is_pro', true);
+          } else {
+            query = query.eq('is_visitor', true);
+          }
+
+          final List<dynamic> res = await query;
+          if (isDaily) {
+            return [_ChartBarData(
+              date: _selectedDate!.day,
+              temuan: res.length,
+              penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
+            )];
+          }
+          final Map<int, int> temuanMap = {}, selesaiMap = {};
+          for (final t in res) {
+            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+            if (dt == null) continue;
+            temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
+            if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
+          }
+          return List.generate(daysInMonth, (i) => _ChartBarData(
+            date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+
         } else if (_activeTabIndex == 2) {
-          // Location: filter by level column
+          // ── Location: filter by level column (sama persis dengan get_lokasi_stats logic)
           final levelBackend = ['lokasi', 'unit', 'subunit', 'area'][
               _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
-          // Tidak ada filter spesifik per level di chart — tampilkan semua, sesuai data lokasi tab
-          if (_selectedUnitId != null) baseQuery = baseQuery.eq('id_unit', _selectedUnitId!);
+
+          // Kolom id yang dipakai di tabel temuan sesuai level
+          final Map<String, String> idColMap = {
+            'lokasi': 'id_lokasi',
+            'unit': 'id_unit',
+            'subunit': 'id_subunit',
+            'area': 'id_area',
+          };
+          final idCol = idColMap[levelBackend] ?? 'id_lokasi';
+
+          var query = _supabase
+              .from('temuan')
+              .select('created_at, id_penyelesaian, $idCol')
+              .neq('jenis_temuan', 'KTS Production')
+              .gte('created_at', startDt.toIso8601String())
+              .lte('created_at', endDt.toIso8601String())
+              .not(idCol, 'is', null); // hanya yang punya lokasi
+
+          final List<dynamic> res = await query;
+          if (isDaily) {
+            return [_ChartBarData(
+              date: _selectedDate!.day,
+              temuan: res.length,
+              penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
+            )];
+          }
+          final Map<int, int> temuanMap = {}, selesaiMap = {};
+          for (final t in res) {
+            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+            if (dt == null) continue;
+            temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
+            if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
+          }
+          return List.generate(daysInMonth, (i) => _ChartBarData(
+            date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+
         } else {
-          // Recurring tab — tidak perlu filter tambahan
-          if (_selectedUnitId != null) baseQuery = baseQuery.eq('id_unit', _selectedUnitId!);
-        }
+          // ── Recurring tab (tab index 3): gunakan filter periode recurring
+          final fromStr = _recurringFrom.toIso8601String();
+          final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
+          var query = _supabase
+              .from('temuan')
+              .select('created_at, id_penyelesaian')
+              .neq('jenis_temuan', 'KTS Production')
+              .gte('created_at', fromStr)
+              .lte('created_at', toStr);
+          if (_recurringUserId != null) query = query.eq('id_user', _recurringUserId!);
 
-        final List<dynamic> res = await baseQuery;
-
-        if (isDaily) {
-          return [_ChartBarData(
-            date: _selectedDate!.day,
-            temuan: res.length,
-            penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
-          )];
+          final List<dynamic> res = await query;
+          // Chart recurring: group by bulan
+          final Map<String, int> temuanMap = {}, selesaiMap = {};
+          for (final t in res) {
+            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+            if (dt == null) continue;
+            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+            temuanMap[key] = (temuanMap[key] ?? 0) + 1;
+            if (t['id_penyelesaian'] != null) selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
+          }
+          // Bangun data per bulan sesuai range recurring
+          final result = <_ChartBarData>[];
+          DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
+          final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
+          int idx = 1;
+          while (!cur.isAfter(endMonth)) {
+            final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
+            result.add(_ChartBarData(
+              date: idx++,
+              temuan: temuanMap[key] ?? 0,
+              penyelesaian: selesaiMap[key] ?? 0,
+            ));
+            cur = DateTime(cur.year, cur.month + 1);
+          }
+          return result;
         }
-        final Map<int, int> temuanMap = {}, selesaiMap = {};
-        for (final t in res) {
-          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-          if (dt == null) continue;
-          temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
-          if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
-        }
-        return List.generate(daysInMonth, (i) => _ChartBarData(
-          date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
       }
     } catch (e) {
       debugPrint('Error fetching chart data: $e');
@@ -816,7 +1260,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             .select('created_at, id_penyelesaian, jenis_temuan')
             .gte('created_at', fromStr)
             .lte('created_at', toStr);
-        if (_selectedFindingType == 'KTS') {
+        if (_selectedFindingType == 'KTS Production') {
           query = query.eq('jenis_temuan', 'KTS Production');
         } else {
           query = query.neq('jenis_temuan', 'KTS Production');
@@ -842,6 +1286,71 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     }
   }
 
+  /// Chart recurring khusus KTS — digroup per topic (judul_temuan) sesuai yang tampil di tabel
+  Future<List<_ChartBarData>> _fetchKtsRecurringChartData() async {
+    try {
+      final fromStr = _recurringFrom.toIso8601String();
+      final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
+
+      var query = _supabase
+          .from('temuan')
+          .select('created_at, id_penyelesaian')
+          .eq('jenis_temuan', 'KTS Production')
+          .gte('created_at', fromStr)
+          .lte('created_at', toStr);
+      if (_recurringUserId != null) query = query.eq('id_user', _recurringUserId!);
+
+      final List<dynamic> res = await query;
+
+      final Map<String, int> temuanMap = {};
+      final Map<String, int> selesaiMap = {};
+      for (final t in res) {
+        final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+        if (dt == null) continue;
+        final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+        temuanMap[key] = (temuanMap[key] ?? 0) + 1;
+        if (t['id_penyelesaian'] != null) selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
+      }
+
+      return _buildMonthlyChartData(temuanMap, selesaiMap);
+    } catch (e) {
+      debugPrint('Error fetching KTS recurring chart: $e');
+      return [];
+    }
+  }
+
+  /// Chart recurring khusus Accident — digroup per bulan dari accident_report
+  Future<List<_ChartBarData>> _fetchAccidentRecurringChartData() async {
+    try {
+      final fromStr = _recurringFrom.toIso8601String();
+      final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
+
+      var query = _supabase
+          .from('accident_report')
+          .select('created_at, status')
+          .gte('created_at', fromStr)
+          .lte('created_at', toStr);
+      if (_recurringUserId != null) query = query.eq('id_pelapor', _recurringUserId!);
+
+      final List<dynamic> res = await query;
+
+      final Map<String, int> laporanMap = {};
+      final Map<String, int> selesaiMap = {};
+      for (final t in res) {
+        final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+        if (dt == null) continue;
+        final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+        laporanMap[key] = (laporanMap[key] ?? 0) + 1;
+        if (t['status'] == 'Selesai') selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
+      }
+
+      return _buildMonthlyChartData(laporanMap, selesaiMap);
+    } catch (e) {
+      debugPrint('Error fetching Accident recurring chart: $e');
+      return [];
+    }
+  }
+
   List<_ChartBarData> _buildMonthlyChartData(
       Map<String, int> primaryMap, Map<String, int> secondaryMap) {
     final result = <_ChartBarData>[];
@@ -861,58 +1370,67 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   // ── KTS Fetch Methods ────────────────────────────────────────────────────────
- Future<List<MemberData>> _fetchKtsAnggotaData(int month, int year, String? unitId) async {
-  try {
-    // Step 1: Fetch KTS temuan
-    var temuanQuery = _supabase
-        .from('temuan')
-        .select('id_user, status_temuan')
-        .eq('jenis_temuan', 'KTS Production')
-        .gte('created_at', DateTime(year, month, 1).toIso8601String())
-        .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String());
-    if (unitId != null) temuanQuery = temuanQuery.eq('id_unit', unitId);
-    final List<dynamic> temuanRes = await temuanQuery;
+  Future<List<MemberData>> _fetchKtsAnggotaData(int month, int year, String? unitId) async {
+    try {
+      // Langsung query dari tabel temuan jenis_temuan = KTS Production
+      var temuanQuery = _supabase
+          .from('temuan')
+          .select('id_user, id_penyelesaian, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit))')
+          .eq('jenis_temuan', 'KTS Production')
+          .gte('created_at', DateTime(year, month, 1).toIso8601String())
+          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String());
 
-    if (temuanRes.isEmpty) return [];
+      final List<dynamic> temuanRes = await temuanQuery;
 
-    // Step 2: Group by id_user
-    final Map<String, Map<String, dynamic>> grouped = {};
-    for (final item in temuanRes) {
-      final userId = item['id_user']?.toString() ?? '';
-      if (userId.isEmpty) continue;
-      grouped.putIfAbsent(userId, () => {'temuan': 0, 'selesai': 0});
-      grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
-      if ((item['status_temuan'] ?? '') == 'Selesai') {
-        grouped[userId]!['selesai'] = (grouped[userId]!['selesai'] as int) + 1;
+      if (temuanRes.isEmpty) return [];
+
+      // Grouping per user
+      final Map<String, Map<String, dynamic>> grouped = {};
+      for (final t in temuanRes) {
+        final user = t['User_Creator'] as Map<String, dynamic>?;
+        if (user == null) continue;
+        final uid = t['id_user']?.toString() ?? '';
+        if (uid.isEmpty) continue;
+
+        // Filter unit jika ada
+        if (unitId != null) {
+          final userUnitId = user['id_unit']?.toString();
+          if (userUnitId != unitId) continue;
+        }
+
+        grouped.putIfAbsent(uid, () => {
+          'nama': user['nama'] ?? '-',
+          'gambar_user': user['gambar_user'],
+          'unitName': (user['unit'] as Map<String, dynamic>?)?['nama_unit'],
+          'temuan': 0,
+          'selesai': 0,
+        });
+        grouped[uid]!['temuan'] = (grouped[uid]!['temuan'] as int) + 1;
+        if (t['id_penyelesaian'] != null) {
+          grouped[uid]!['selesai'] = (grouped[uid]!['selesai'] as int) + 1;
+        }
       }
+
+      final currentUserId = _supabase.auth.currentUser?.id;
+      return grouped.entries.map((e) {
+        final uid = e.key;
+        final v = e.value;
+        return MemberData(
+          name: v['nama'] as String? ?? '-',
+          unitName: v['unitName'] as String?,
+          findings: v['temuan'] as int,
+          completed: v['selesai'] as int,
+          isSelf: uid == currentUserId,
+          avatarUrl: v['gambar_user'] as String?,
+          avatarColor: const Color(0xFFFBBF24),
+        );
+      }).toList()
+        ..sort((a, b) => b.findings.compareTo(a.findings));
+    } catch (e) {
+      debugPrint('Error fetching KTS Anggota: $e');
+      return [];
     }
-
-    // Step 3: Fetch user info
-    final userIds = grouped.keys.toList();
-    final List<dynamic> usersRes = await _supabase
-        .from('User')
-        .select('id_user, nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit)')
-        .inFilter('id_user', userIds);
-
-    final currentUserId = _supabase.auth.currentUser?.id;
-    return usersRes.map((u) {
-      final uid = u['id_user']?.toString() ?? '';
-      final stats = grouped[uid] ?? {'temuan': 0, 'selesai': 0};
-      return MemberData(
-        name: u['nama'] as String? ?? '-',
-        unitName: (u['unit'] as Map<String, dynamic>?)?['nama_unit'] as String?,
-        findings: stats['temuan'] as int,
-        completed: stats['selesai'] as int,
-        isSelf: uid == currentUserId,
-        avatarUrl: u['gambar_user'] as String?,
-        avatarColor: const Color(0xFFF59E0B),
-      );
-    }).toList()..sort((a, b) => b.findings.compareTo(a.findings));
-  } catch (e) {
-    debugPrint('Error fetching KTS Anggota: $e');
-    return [];
   }
-}
 
   Future<List<InspectionData>> _fetchKtsInspeksiData(int month, int year, String role) async {
     try {
@@ -938,93 +1456,123 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Future<List<LocationData>> _fetchKtsLokasiData(int month, int year, String level) async {
     try {
-      final List<dynamic> response = await _supabase.rpc('get_lokasi_stats_kts', params: {
-        'selected_month': month, 'selected_year': year, 'level_name': level.toLowerCase(),
-      });
-      return response.map((item) => LocationData(
-        name: item['nama_item'] as String,
-        pic: item['nama_pic'] as String? ?? '-',
-        value: (item['nilai_temuan'] as int).toString(),
-      )).toList();
-    } catch (e) {
-      // Fallback: query manual
-      return _fetchLokasiDataKtsManual(month, year, level);
-    }
-  }
-
-  Future<List<LocationData>> _fetchLokasiDataKtsManual(int month, int year, String level) async {
-    try {
       final levelLower = level.toLowerCase();
-      final idMap = {'lokasi': 'id_lokasi', 'unit': 'id_unit', 'subunit': 'id_subunit', 'area': 'id_area'};
-      final nameMap = {'lokasi': 'nama_lokasi', 'unit': 'nama_unit', 'subunit': 'nama_subunit', 'area': 'nama_area'};
+      final idMap = {
+        'lokasi': 'id_lokasi', 'unit': 'id_unit',
+        'subunit': 'id_subunit', 'area': 'id_area'
+      };
+      final nameMap = {
+        'lokasi': 'nama_lokasi', 'unit': 'nama_unit',
+        'subunit': 'nama_subunit', 'area': 'nama_area'
+      };
       final idCol = idMap[levelLower] ?? 'id_lokasi';
       final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
-      final table = levelLower;
-      final locations = await _supabase.from(table).select('$idCol, $nameCol');
-      final temuanList = await _supabase.from('temuan').select(idCol)
+
+      final List<dynamic> locations = await _supabase
+          .from(levelLower)
+          .select('$idCol, $nameCol');
+
+      final List<dynamic> temuanRes = await _supabase
+          .from('temuan')
+          .select(idCol)
           .eq('jenis_temuan', 'KTS Production')
           .gte('created_at', DateTime(year, month, 1).toIso8601String())
-          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String());
+          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String())
+          .not(idCol, 'is', null);
+
       final Map<String, int> countMap = {};
-      for (final t in temuanList) {
+      for (final t in temuanRes) {
         final id = t[idCol]?.toString() ?? '';
         if (id.isEmpty) continue;
         countMap[id] = (countMap[id] ?? 0) + 1;
       }
-      return (locations as List<dynamic>).map((loc) => LocationData(
-        name: loc[nameCol]?.toString() ?? '-', pic: '-',
-        value: (countMap[loc[idCol]?.toString() ?? ''] ?? 0).toString(),
-      )).toList()..sort((a, b) => (int.tryParse(b.value ?? '0') ?? 0).compareTo(int.tryParse(a.value ?? '0') ?? 0));
-    } catch (e) { return []; }
+
+      final List<dynamic> picRes = await _supabase
+          .from('User')
+          .select('$idCol, nama')
+          .not(idCol, 'is', null);
+
+      final Map<String, String> picMap = {};
+      for (final p in picRes) {
+        final locId = p[idCol]?.toString() ?? '';
+        if (locId.isEmpty || picMap.containsKey(locId)) continue;
+        picMap[locId] = p['nama']?.toString() ?? 'PIC belum diatur';
+      }
+
+      return locations.map<LocationData>((loc) {
+        final id = loc[idCol]?.toString() ?? '';
+        return LocationData(
+          name: loc[nameCol]?.toString() ?? '-',
+          pic: picMap[id] ?? 'PIC belum diatur',
+          value: (countMap[id] ?? 0).toString(),
+        );
+      }).toList()
+        ..sort((a, b) => (int.tryParse(b.value ?? '0') ?? 0)
+            .compareTo(int.tryParse(a.value ?? '0') ?? 0));
+    } catch (e) {
+      debugPrint('Error fetching KTS Lokasi: $e');
+      return [];
+    }
   }
 
   Future<List<MemberData>> _fetchKtsAnggotaDataDaily(DateTime date, String? unitId) async {
     try {
       final start = DateTime(date.year, date.month, date.day);
       final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
-      var temuanQuery = _supabase
+
+      final List<dynamic> temuanRes = await _supabase
           .from('temuan')
-          .select('id_user, status_temuan')
+          .select('id_user, id_penyelesaian, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit))')
           .eq('jenis_temuan', 'KTS Production')
           .gte('created_at', start.toIso8601String())
           .lte('created_at', end.toIso8601String());
-      if (unitId != null) temuanQuery = temuanQuery.eq('id_unit', unitId);
-      final List<dynamic> temuanRes = await temuanQuery;
 
       if (temuanRes.isEmpty) return [];
 
       final Map<String, Map<String, dynamic>> grouped = {};
-      for (final item in temuanRes) {
-        final userId = item['id_user']?.toString() ?? '';
-        if (userId.isEmpty) continue;
-        grouped.putIfAbsent(userId, () => {'temuan': 0, 'selesai': 0});
-        grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
-        if ((item['status_temuan'] ?? '') == 'Selesai') {
-          grouped[userId]!['selesai'] = (grouped[userId]!['selesai'] as int) + 1;
+      for (final t in temuanRes) {
+        final user = t['User_Creator'] as Map<String, dynamic>?;
+        if (user == null) continue;
+        final uid = t['id_user']?.toString() ?? '';
+        if (uid.isEmpty) continue;
+
+        if (unitId != null) {
+          final userUnitId = user['id_unit']?.toString();
+          if (userUnitId != unitId) continue;
+        }
+
+        grouped.putIfAbsent(uid, () => {
+          'nama': user['nama'] ?? '-',
+          'gambar_user': user['gambar_user'],
+          'unitName': (user['unit'] as Map<String, dynamic>?)?['nama_unit'],
+          'temuan': 0,
+          'selesai': 0,
+        });
+        grouped[uid]!['temuan'] = (grouped[uid]!['temuan'] as int) + 1;
+        if (t['id_penyelesaian'] != null) {
+          grouped[uid]!['selesai'] = (grouped[uid]!['selesai'] as int) + 1;
         }
       }
 
-      final userIds = grouped.keys.toList();
-      final List<dynamic> usersRes = await _supabase
-          .from('User')
-          .select('id_user, nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit)')
-          .inFilter('id_user', userIds);
-
       final currentUserId = _supabase.auth.currentUser?.id;
-      return usersRes.map((u) {
-        final uid = u['id_user']?.toString() ?? '';
-        final stats = grouped[uid] ?? {'temuan': 0, 'selesai': 0};
+      return grouped.entries.map((e) {
+        final uid = e.key;
+        final v = e.value;
         return MemberData(
-          name: u['nama'] as String? ?? '-',
-          unitName: (u['unit'] as Map<String, dynamic>?)?['nama_unit'] as String?,
-          findings: stats['temuan'] as int,
-          completed: stats['selesai'] as int,
+          name: v['nama'] as String? ?? '-',
+          unitName: v['unitName'] as String?,
+          findings: v['temuan'] as int,
+          completed: v['selesai'] as int,
           isSelf: uid == currentUserId,
-          avatarUrl: u['gambar_user'] as String?,
-          avatarColor: const Color(0xFFF59E0B),
+          avatarUrl: v['gambar_user'] as String?,
+          avatarColor: const Color(0xFFFBBF24),
         );
-      }).toList()..sort((a, b) => b.findings.compareTo(a.findings));
-    } catch (e) { return []; }
+      }).toList()
+        ..sort((a, b) => b.findings.compareTo(a.findings));
+    } catch (e) {
+      debugPrint('Error fetching KTS Anggota daily: $e');
+      return [];
+    }
   }
 
   Future<List<InspectionData>> _fetchKtsInspeksiDataDaily(DateTime date, String role) async {
@@ -1126,59 +1674,56 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Future<List<LocationData>> _fetchAccidentLokasiData(int month, int year, String level) async {
     try {
       final levelLower = level.toLowerCase();
-      final List<dynamic> response = await _supabase.rpc('get_lokasi_stats_accident', params: {
-        'selected_month': month,
-        'selected_year': year,
-        'level_name': levelLower,
-      });
-      return response.map((item) => LocationData(
-        name: item['nama_item'] as String? ?? '-',
-        pic: item['nama_pic'] as String? ?? '-',
-        value: (item['nilai_temuan'] as num?)?.toInt().toString() ?? '0',
-      )).toList();
-    } catch (e) {
-      debugPrint('Error fetching Accident Lokasi RPC: $e, trying manual...');
-      return _fetchAccidentLokasiManual(month, year, level);
-    }
-  }
-
-  Future<List<LocationData>> _fetchAccidentLokasiManual(int month, int year, String level) async {
-    try {
-      final levelLower = level.toLowerCase();
-      final idMap = {
-        'lokasi': 'id_lokasi', 'unit': 'id_unit',
-        'subunit': 'id_subunit', 'area': 'id_area'
-      };
-      final nameMap = {
-        'lokasi': 'nama_lokasi', 'unit': 'nama_unit',
-        'subunit': 'nama_subunit', 'area': 'nama_area'
-      };
+      final idMap = {'lokasi': 'id_lokasi', 'unit': 'id_unit', 'subunit': 'id_subunit', 'area': 'id_area'};
+      final nameMap = {'lokasi': 'nama_lokasi', 'unit': 'nama_unit', 'subunit': 'nama_subunit', 'area': 'nama_area'};
       final idCol = idMap[levelLower] ?? 'id_lokasi';
       final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
 
-      final locations = await _supabase.from(levelLower).select('$idCol, $nameCol');
-      final reportList = await _supabase
+      // Step 1: Ambil semua lokasi/unit/subunit/area
+      final List<dynamic> locations = await _supabase
+          .from(levelLower)
+          .select('$idCol, $nameCol');
+
+      // Step 2: Hitung accident_report per lokasi bulan ini
+      final List<dynamic> reportRes = await _supabase
           .from('accident_report')
           .select(idCol)
           .gte('created_at', DateTime(year, month, 1).toIso8601String())
-          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String());
+          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String())
+          .not(idCol, 'is', null);
 
       final Map<String, int> countMap = {};
-      for (final t in reportList) {
+      for (final t in reportRes) {
         final id = t[idCol]?.toString() ?? '';
         if (id.isEmpty) continue;
         countMap[id] = (countMap[id] ?? 0) + 1;
       }
 
-      return (locations as List<dynamic>).map((loc) => LocationData(
-        name: loc[nameCol]?.toString() ?? '-',
-        pic: '-',
-        value: (countMap[loc[idCol]?.toString() ?? ''] ?? 0).toString(),
-      )).toList()
+      // Step 3: Ambil PIC per lokasi dari tabel User
+      final List<dynamic> picRes = await _supabase
+          .from('User')
+          .select('$idCol, nama')
+          .not(idCol, 'is', null);
+
+      final Map<String, String> picMap = {};
+      for (final p in picRes) {
+        final locId = p[idCol]?.toString() ?? '';
+        if (locId.isEmpty || picMap.containsKey(locId)) continue;
+        picMap[locId] = p['nama']?.toString() ?? 'PIC belum diatur';
+      }
+
+      return locations.map<LocationData>((loc) {
+        final id = loc[idCol]?.toString() ?? '';
+        return LocationData(
+          name: loc[nameCol]?.toString() ?? '-',
+          pic: picMap[id] ?? 'PIC belum diatur',
+          value: (countMap[id] ?? 0).toString(),
+        );
+      }).toList()
         ..sort((a, b) => (int.tryParse(b.value ?? '0') ?? 0)
             .compareTo(int.tryParse(a.value ?? '0') ?? 0));
     } catch (e) {
-      debugPrint('Error fetching Accident Lokasi manual: $e');
+      debugPrint('Error fetching Accident Lokasi: $e');
       return [];
     }
   }
@@ -1628,6 +2173,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -2288,7 +2834,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Widget _buildConditionalChart() {
     // Recurring Findings tab juga pakai collapsible chart (tanpa target line)
-    final activeColor = _selectedFindingType == 'KTS'
+    final activeColor = _selectedFindingType == 'KTS Production'
         ? const Color(0xFFF59E0B)
         : _selectedFindingType == 'Accident'
             ? const Color(0xFFEF4444)
@@ -2698,7 +3244,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            children: _selectedFindingType == 'KTS'
+            children: _selectedFindingType == 'KTS Production'
                 ? [
                     _buildAnggotaTab(),
                     _buildTemuanBerulangTab(filterKts: true),
@@ -2723,7 +3269,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   // ── Tab Bar ────────────────────────────────────────────────────────────────
   Widget _buildTabBar() {
-    final bool isKts = _selectedFindingType == 'KTS';
+    final bool isKts = _selectedFindingType == 'KTS Production';
     final bool isAccident = _selectedFindingType == 'Accident';
 
     final List<String> tabLabels;
@@ -2737,7 +3283,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       tabLabels = [getTxt('anggota'), getTxt('inspeksi'), getTxt('lokasi'), getTxt('temuan_berulang')];
     }
 
-    final activeColor = _selectedFindingType == 'KTS'
+    final activeColor = _selectedFindingType == 'KTS Production'
         ? const Color(0xFFF59E0B)
         : _selectedFindingType == 'Accident'
             ? const Color(0xFFEF4444)
@@ -2786,17 +3332,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Widget _buildFindingTypeSelector() {
     const types = [
       {'key': '5R', 'label': '5R Finding', 'icon': Icons.search_rounded},
-      {'key': 'KTS', 'label': 'KTS Production', 'icon': Icons.precision_manufacturing_rounded},
+      {'key': 'KTS Production', 'label': 'KTS Production', 'icon': Icons.precision_manufacturing_rounded},
       {'key': 'Accident', 'label': 'Accident Report', 'icon': Icons.warning_amber_rounded},
     ];
     const activeColors = {
       '5R': Color(0xFF0EA5E9),
-      'KTS': Color(0xFFF59E0B),
+      'KTS Production': Color(0xFFF59E0B),
       'Accident': Color(0xFFEF4444),
     };
     const borderColors = {
       '5R': Color(0xFF7DD3FC),
-      'KTS': Color(0xFFFCD34D),
+      'KTS Production': Color(0xFFFCD34D),
       'Accident': Color(0xFFFCA5A5),
     };
 
@@ -2867,7 +3413,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Widget _buildCollapsibleChart() {
     final activeColor = _selectedFindingType == '5R'
         ? const Color(0xFF0EA5E9)
-        : _selectedFindingType == 'KTS'
+        : _selectedFindingType == 'KTS Production'
             ? const Color(0xFFF59E0B)
             : const Color(0xFFEF4444);
 
@@ -2916,7 +3462,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         curve: Curves.easeInOut,
         child: _isChartExpanded
             ? FutureBuilder<List<_ChartBarData>>(
-                key: ValueKey('$_chartRefreshKey-$_selectedFindingType-$_selectedUnitId-$_filterMode-$_selectedMonthIndex'),
+                key: ValueKey('chart-$_chartRefreshKey-$_selectedFindingType-$_activeTabIndex'),
                 future: _chartFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
@@ -2979,7 +3525,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                         child: Builder(builder: (ctx) {
                           final bool isRecurringTab =
                               (_selectedFindingType == '5R'       && _activeTabIndex == 3) ||
-                              (_selectedFindingType == 'KTS'      && _activeTabIndex == 1) ||
+                              (_selectedFindingType == 'KTS Production'      && _activeTabIndex == 1) ||
                               (_selectedFindingType == 'Accident' && _activeTabIndex == 2);
                           return Wrap(spacing: 12, children: [
                             _chartLegendItem(colorTemuan,
@@ -3035,7 +3581,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                                   // Tampilkan target hanya jika bukan Recurring tab DAN bukan KTS/Accident
                                   final bool isRecurringTab =
                                       (_selectedFindingType == '5R'       && _activeTabIndex == 3) ||
-                                      (_selectedFindingType == 'KTS'      && _activeTabIndex == 1) ||
+                                      (_selectedFindingType == 'KTS Production'      && _activeTabIndex == 1) ||
                                       (_selectedFindingType == 'Accident' && _activeTabIndex == 2);
                                   final showTarget = _selectedFindingType == '5R'
                                       && !isRecurringTab
@@ -3061,9 +3607,26 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                                   final x = i * barGroupW + 4.0;
                                   final tH = (d.temuan / maxVal * chartH).clamp(0.0, chartH);
                                   final pH = (d.penyelesaian / maxVal * chartH).clamp(0.0, chartH);
-                                  final dateLabel = DateFormat('d/M',
-                                    widget.lang == 'ID' ? 'id_ID' : 'en_US',
-                                  ).format(DateTime(DateTime.now().year, _selectedMonthIndex + 1, d.date));
+                                  // Recurring tab (5R tab 3): label = nama bulan, bukan tanggal
+                                  final bool isRecurringTabActive =
+                                      (_selectedFindingType == '5R' && _activeTabIndex == 3) ||
+                                      (_selectedFindingType == 'KTS Production' && _activeTabIndex == 1) ||
+                                      (_selectedFindingType == 'Accident' && _activeTabIndex == 2);
+
+                                  String dateLabel;
+                                  if (isRecurringTabActive) {
+                                    // Hitung bulan dari index recurring range
+                                    final locale = widget.lang == 'ID' ? 'id_ID' : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
+                                    final targetMonth = DateTime(
+                                      _recurringFrom.year,
+                                      _recurringFrom.month + (d.date - 1),
+                                    );
+                                    dateLabel = DateFormat('MMM yy', locale).format(targetMonth);
+                                  } else {
+                                    dateLabel = DateFormat('d/M',
+                                      widget.lang == 'ID' ? 'id_ID' : 'en_US',
+                                    ).format(DateTime(DateTime.now().year, _selectedMonthIndex + 1, d.date));
+                                  }
                                   return Positioned(
                                     left: x, top: 0,
                                     child: SizedBox(
@@ -3282,7 +3845,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         Future<List<MemberData>>? activeFuture;
         if (_selectedFindingType == '5R') {
           activeFuture = _anggotaFuture;
-        } else if (_selectedFindingType == 'KTS') {
+        } else if (_selectedFindingType == 'KTS Production') {
           activeFuture = _ktsAnggotaFuture;
         } else {
           activeFuture = _accidentAnggotaFuture;
@@ -3428,7 +3991,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       Expanded(child: Builder(builder: (context) {
         final Future<List<InspectionData>>? activeFuture = _selectedFindingType == '5R'
             ? _inspeksiFuture
-            : _selectedFindingType == 'KTS'
+            : _selectedFindingType == 'KTS Production'
                 ? _ktsInspeksiFuture
                 : Future.value([]);
         if (activeFuture == null) return _buildInspeksiShimmer();
@@ -3482,7 +4045,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       Expanded(child: Builder(builder: (context) {
         final Future<List<LocationData>>? activeFuture = _selectedFindingType == '5R'
             ? _lokasiFuture
-            : _selectedFindingType == 'KTS'
+            : _selectedFindingType == 'KTS Production'
                 ? _ktsLokasiFuture
                 : _accidentLokasiFuture;
         if (activeFuture == null) return _buildLokasiShimmer();
@@ -3515,7 +4078,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     final toLabel = DateFormat('MMM yyyy', locale).format(_recurringTo);
     final periodLabel = '$fromLabel - $toLabel';
 
-    final activeColor = _selectedFindingType == 'KTS'
+    final activeColor = _selectedFindingType == 'KTS Production'
         ? const Color(0xFFF59E0B)
         : _AppColors.primary;
 
