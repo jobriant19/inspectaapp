@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'audit_form_screen.dart';
 import 'audit_question_manager_screen.dart';
 
 // ─── Colour constants ────────────────────────────────────────────────────────
@@ -126,7 +125,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
     super.initState();
     _tabCtrl = TabController(length: 4, vsync: this);
     _tabCtrl.addListener(_onTab);
-    _fetchLevel('lokasi');
+    // Fetch semua level sekaligus di background agar pindah tab tidak loading
+    for (final level in _levels) {
+      _fetchLevel(level);
+    }
   }
 
   @override
@@ -139,7 +141,8 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
   void _onTab() {
     if (_tabCtrl.indexIsChanging) return;
     final level = _levels[_tabCtrl.index];
-    if (_loading[level] == true && _data[level]!.isEmpty) {
+    // Hanya fetch jika data benar-benar belum pernah dimuat
+    if (_data[level]!.isEmpty && _loading[level] == true) {
       _fetchLevel(level);
     }
   }
@@ -384,7 +387,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                           locationName: item.name,
                         ),
                       ),
-                    ).then((_) => _fetchLevel(level)),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   // Audit button
@@ -534,7 +537,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
     }
 
     // ✅ BERUBAH: Buka form penjadwalan audit (audit_schedule), bukan form jawaban
-    await showModalBottomSheet(
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -545,7 +548,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
         locationName: item.name,
       ),
     );
-    _fetchLevel(level); // refresh setelah schedule dibuat
+    if (saved == true) _fetchLevel(level);
   }
 
   void _showDetail(_LocationItem item, String level) {
@@ -1012,30 +1015,27 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                   ),
                 ),
               ),
-              // ✅ BARU: Tombol filter (hanya untuk unit/subunit/area)
-              if (true) ...[
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => _showFilterSheet(level),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: filter != null
-                          ? _C.primary
-                          : _C.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: filter != null ? _C.primary : _C.divider,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.filter_list_rounded,
-                      color: filter != null ? Colors.white : _C.primary,
-                      size: 20,
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => _showFilterSheet(level),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: filter != null
+                        ? _C.primary
+                        : _C.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: filter != null ? _C.primary : _C.divider,
                     ),
                   ),
+                  child: Icon(
+                    Icons.filter_list_rounded,
+                    color: filter != null ? Colors.white : _C.primary,
+                    size: 20,
+                  ),
                 ),
-              ],
+              ),
             ],
           ),
         ),
@@ -1364,14 +1364,14 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
   Future<void> _fetchHistory() async {
     try {
       final rows = await _supabase
-          .from('audit_result')
-          .select(
-              'id_result, nilai_audit, tanggal_audit, catatan_audit, '
-              'User_Auditor:User!audit_result_id_auditor_fkey(nama, gambar_user)')
-          .eq('level_type', widget.level)
-          .eq('id_ref', widget.item.id)
-          .order('tanggal_audit', ascending: false)
-          .limit(20);
+        .from('audit_result')
+        .select(
+            'id_result, nilai_audit, tanggal_audit, catatan_audit, '
+            'User_Auditor:User!fk_audit_result_auditor(nama, gambar_user)')
+        .eq('level_type', widget.level)
+        .eq('id_ref', widget.item.id)
+        .order('tanggal_audit', ascending: false)
+        .limit(20);
       if (mounted) setState(() { _history = List<Map<String, dynamic>>.from(rows); _loading = false; });
     } catch (e) {
       if (mounted) setState(() => _loading = false);
@@ -1468,7 +1468,8 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
                             final row = _history[i];
                             final score = double.tryParse(
                                 row['nilai_audit']?.toString() ?? '');
-                            final auditor = row['auditorName']?.toString() ?? '-';
+                            final auditorData = row['User_Auditor'] as Map<String, dynamic>?;
+                            final auditor = auditorData?['nama']?.toString() ?? '-';
                             final date = row['tanggal_audit']?.toString() ?? '';
                             final catatan = row['catatan_audit'] as String?;
                             final color = _scoreColor(score);
@@ -1563,7 +1564,6 @@ class _AuditScheduleSheetState extends State<_AuditScheduleSheet> {
   DateTime? _periodeAwal;
   DateTime? _periodeAkhir;
   Map<String, dynamic>? _selectedAuditor;
-  String _catatan = '';
   bool _saving = false;
   bool _loadingAuditors = false;
   List<Map<String, dynamic>> _auditors = [];
