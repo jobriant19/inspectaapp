@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:intl/intl.dart';
 
 // ─── Import screen admin lainnya ───
+import '../audit/audit_location_screen.dart';
 import '../user/leaderboard/leaderboard_detail_screen.dart';
 import 'admin_help_reports_screen.dart';
 import 'admin_poin_screen.dart';
@@ -1235,6 +1236,22 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           ),
         ),
       ),
+      _MenuItem(
+        label: _lang == 'EN'
+            ? 'Audit\nLocation'
+            : _lang == 'ZH'
+                ? '审计\n位置'
+                : 'Audit\nLokasi',
+        icon: Icons.fact_check_rounded,
+        gradient: const [Color(0xFF0EA5E9), Color(0xFF0369A1)],
+        shadow: const Color(0xFF0EA5E9),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AuditLocationScreen(lang: _lang),
+          ),
+        ).then((_) => _fetchStats()),
+      ),
     ];
 
     return GridView.builder(
@@ -1244,7 +1261,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.3,
+        childAspectRatio: 1.25,
       ),
       itemCount: menus.length,
       itemBuilder: (_, i) => _buildMenuCard(menus[i]),

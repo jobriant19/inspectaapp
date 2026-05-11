@@ -1098,6 +1098,10 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1E3A8A),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
         shadowColor: Colors.black.withOpacity(0.08),
         title: Text(
           _langCode == 'EN'

@@ -72,6 +72,24 @@ class LocationData {
   });
 }
 
+class AuditLocationData {
+  final String id;
+  final String name;
+  final String pic;
+  final double? auditScore;
+  final String? auditDate;
+  final String? auditPeriod;
+
+  const AuditLocationData({
+    required this.id,
+    required this.name,
+    required this.pic,
+    this.auditScore,
+    this.auditDate,
+    this.auditPeriod,
+  });
+}
+
 class RecurringTopic {
   final String topic;
   final String locationArea;
@@ -241,6 +259,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Future<List<MemberData>>? _anggotaFuture;
   Future<List<InspectionData>>? _inspeksiFuture;
   Future<List<LocationData>>? _lokasiFuture;
+  Future<List<AuditLocationData>>? _auditLokasiFuture;
   Future<List<RecurringTopic>>? _recurringFuture;
 
   List<Map<String, dynamic>> _unitList = [];
@@ -358,8 +377,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       _activeTabIndex = 0;
     }
 
-    // PENTING: rebuild controller SEBELUM setState agar TabBar/TabBarView
-    // langsung mendapat controller dengan length yang benar
     _rebuildTabControllerIfNeeded(newTabCount);
 
     setState(() {
@@ -376,6 +393,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           _anggotaFuture = _fetchAnggotaData(month, year, _selectedUnitId);
           _inspeksiFuture = _fetchInspeksiData(month, year, roleBackendValue);
           _lokasiFuture = _fetchLokasiData(month, year, levelBackendValue);
+          _auditLokasiFuture = _fetchLokasiAuditData(month, year, levelBackendValue);
+
         }
         _chartFuture = _fetchChartData(month, year, '5R');
         _chartRefreshKey++;
@@ -433,10 +452,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           (_selectedFindingType == 'Accident' && newIdx == 2);
       if (isRecurringTab) {
         if (_selectedFindingType == 'KTS Production') {
+          _recurringFuture = _fetchRecurringData(ktsOnly: true);
           _recurringChartFuture = _fetchKtsRecurringChartData();
         } else if (_selectedFindingType == 'Accident') {
+          _accidentRecurringFuture = _fetchAccidentRecurringData();
           _recurringChartFuture = _fetchAccidentRecurringChartData();
         } else {
+          _recurringFuture = _fetchRecurringData(ktsOnly: false);
           _recurringChartFuture = _fetchRecurringChartData();
         }
         _recurringChartRefreshKey++;
@@ -503,8 +525,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   void _fetchRecurring() {
-    final month = _selectedMonth;
-    final year = DateTime.now().year;
     setState(() {
       if (_selectedFindingType == 'Accident') {
         _accidentRecurringFuture = _fetchAccidentRecurringData();
@@ -516,6 +536,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         _recurringFuture = _fetchRecurringData(ktsOnly: false);
         _recurringChartFuture = _fetchRecurringChartData();
       }
+      // Selalu refresh chart utama juga agar sinkron
+      final month = _selectedMonth;
+      final year = DateTime.now().year;
       _chartFuture = _fetchChartData(month, year, _selectedFindingType);
       _chartRefreshKey++;
       _recurringChartRefreshKey++;
@@ -688,6 +711,83 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             .compareTo(int.tryParse(a.value ?? '0') ?? 0));
     } catch (e) {
       debugPrint('Error fetching Lokasi: $e');
+      return [];
+    }
+  }
+
+  Future<List<AuditLocationData>> _fetchLokasiAuditData(
+    int month, int year, String level) async {
+    try {
+      final levelLower = level.toLowerCase();
+      final idMap   = {'lokasi':'id_lokasi','unit':'id_unit','subunit':'id_subunit','area':'id_area'};
+      final nameMap = {'lokasi':'nama_lokasi','unit':'nama_unit','subunit':'nama_subunit','area':'nama_area'};
+      final idCol   = idMap[levelLower]   ?? 'id_lokasi';
+      final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
+
+      // 1. Ambil semua lokasi/unit/subunit/area
+      final List<dynamic> locations = await _supabase.from(levelLower)
+          .select('$idCol, $nameCol, id_pic');
+
+      // 2. Ambil nilai audit terbaru per lokasi (bulan & tahun filter)
+      final startOfMonth = DateTime(year, month, 1).toIso8601String().split('T').first;
+      final endOfMonth   = DateTime(year, month + 1, 0).toIso8601String().split('T').first;
+
+      final List<dynamic> auditRows = await _supabase
+          .from('audit_result')
+          .select('id_ref, nilai_audit, tanggal_audit')
+          .eq('level_type', levelLower)
+          .gte('tanggal_audit', startOfMonth)
+          .lte('tanggal_audit', endOfMonth)
+          .order('tanggal_audit', ascending: false);
+
+      // Ambil hanya yang paling baru per id_ref
+      final Map<String, Map<String, dynamic>> auditMap = {};
+      for (final a in auditRows) {
+        final ref = a['id_ref'].toString();
+        if (!auditMap.containsKey(ref)) auditMap[ref] = a;
+      }
+
+      // 3. Ambil PIC per lokasi
+      final picIds = locations
+          .where((l) => l['id_pic'] != null)
+          .map((l) => l['id_pic'].toString())
+          .toSet()
+          .toList();
+      final Map<String, String> picMap = {};
+      if (picIds.isNotEmpty) {
+        final picRows = await _supabase
+            .from('User')
+            .select('id_user, nama')
+            .inFilter('id_user', picIds);
+        for (final p in picRows) {
+          picMap[p['id_user'].toString()] = p['nama']?.toString() ?? '-';
+        }
+      }
+
+      return locations.map<AuditLocationData>((loc) {
+        final id    = loc[idCol]?.toString() ?? '';
+        final audit = auditMap[id];
+        return AuditLocationData(
+          id: id,
+          name: loc[nameCol]?.toString() ?? '-',
+          pic: loc['id_pic'] != null
+              ? (picMap[loc['id_pic'].toString()] ?? 'PIC belum diatur')
+              : 'PIC belum diatur',
+          auditScore: audit != null
+              ? double.tryParse(audit['nilai_audit']?.toString() ?? '')
+              : null,
+          auditDate: audit?['tanggal_audit']?.toString(),
+        );
+      }).toList()
+        ..sort((a, b) {
+          // Sort: punya nilai dulu, lalu dari tertinggi ke terendah
+          if (a.auditScore == null && b.auditScore == null) return 0;
+          if (a.auditScore == null) return 1;
+          if (b.auditScore == null) return -1;
+          return b.auditScore!.compareTo(a.auditScore!);
+        });
+    } catch (e) {
+      debugPrint('Error fetching audit lokasi: $e');
       return [];
     }
   }
@@ -868,7 +968,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       final startOfMonth = DateTime(year, month, 1);
       final endOfMonth = DateTime(year, month + 1, 0, 23, 59, 59);
 
-      // Tentukan range waktu
       DateTime startDt, endDt;
       bool isDaily = _filterMode == 'daily' && _selectedDate != null;
       if (isDaily) {
@@ -879,146 +978,158 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         endDt = endOfMonth;
       }
 
+      // ── Helper: build daily chart dari List<dynamic> dengan field tanggal & selesai ──
+      List<_ChartBarData> buildDailyFromTemuan(List<dynamic> res) {
+        if (isDaily) {
+          return [_ChartBarData(
+            date: _selectedDate!.day,
+            temuan: res.length,
+            penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
+          )];
+        }
+        final Map<int, int> temuanMap = {}, selesaiMap = {};
+        for (final t in res) {
+          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+          if (dt == null) continue;
+          temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
+          if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
+        }
+        return List.generate(daysInMonth, (i) => _ChartBarData(
+          date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+      }
+
+      List<_ChartBarData> buildDailyFromAccident(List<dynamic> res) {
+        if (isDaily) {
+          return [_ChartBarData(
+            date: _selectedDate!.day,
+            temuan: res.length,
+            penyelesaian: res.where((t) => t['status'] == 'Selesai').length,
+          )];
+        }
+        final Map<int, int> laporanMap = {}, selesaiMap = {};
+        for (final t in res) {
+          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+          if (dt == null) continue;
+          laporanMap[dt.day] = (laporanMap[dt.day] ?? 0) + 1;
+          if (t['status'] == 'Selesai') selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
+        }
+        return List.generate(daysInMonth, (i) => _ChartBarData(
+          date: i + 1, temuan: laporanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+      }
+
+      // ── Helper: build monthly chart (untuk tab Recurring) ──
+      List<_ChartBarData> buildMonthlyFromTemuan(List<dynamic> res) {
+        final Map<String, int> temuanMap = {}, selesaiMap = {};
+        for (final t in res) {
+          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+          if (dt == null) continue;
+          final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+          temuanMap[key] = (temuanMap[key] ?? 0) + 1;
+          if (t['id_penyelesaian'] != null) selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
+        }
+        final result = <_ChartBarData>[];
+        DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
+        final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
+        int idx = 1;
+        while (!cur.isAfter(endMonth)) {
+          final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
+          result.add(_ChartBarData(date: idx++, temuan: temuanMap[key] ?? 0, penyelesaian: selesaiMap[key] ?? 0));
+          cur = DateTime(cur.year, cur.month + 1);
+        }
+        return result;
+      }
+
+      List<_ChartBarData> buildMonthlyFromAccident(List<dynamic> res) {
+        final Map<String, int> laporanMap = {}, selesaiMap = {};
+        for (final t in res) {
+          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
+          if (dt == null) continue;
+          final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
+          laporanMap[key] = (laporanMap[key] ?? 0) + 1;
+          if (t['status'] == 'Selesai') selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
+        }
+        final result = <_ChartBarData>[];
+        DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
+        final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
+        int idx = 1;
+        while (!cur.isAfter(endMonth)) {
+          final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
+          result.add(_ChartBarData(date: idx++, temuan: laporanMap[key] ?? 0, penyelesaian: selesaiMap[key] ?? 0));
+          cur = DateTime(cur.year, cur.month + 1);
+        }
+        return result;
+      }
+
+      // ════════════════════════════════════════════════════════════
+      // ACCIDENT
+      // ════════════════════════════════════════════════════════════
       if (type == 'Accident') {
+
+        // ── Tab 2: Recurring Accident — ditangani di luar (chart disembunyikan)
         if (_activeTabIndex == 2) {
-          // Recurring Accident tab: group by bulan sesuai filter recurring
-          final fromStr = _recurringFrom.toIso8601String();
-          final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
-          var query = _supabase
-              .from('accident_report')
-              .select('created_at, status')
-              .gte('created_at', fromStr)
-              .lte('created_at', toStr);
-          if (_recurringUserId != null) query = query.eq('id_pelapor', _recurringUserId!);
+          return [];
+        }
 
-          final List<dynamic> res = await query;
-          final Map<String, int> laporanMap = {}, selesaiMap = {};
-          for (final t in res) {
-            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-            if (dt == null) continue;
-            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-            laporanMap[key] = (laporanMap[key] ?? 0) + 1;
-            if (t['status'] == 'Selesai') selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
-          }
-          final result = <_ChartBarData>[];
-          DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
-          final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
-          int idx = 1;
-          while (!cur.isAfter(endMonth)) {
-            final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
-            result.add(_ChartBarData(date: idx++, temuan: laporanMap[key] ?? 0, penyelesaian: selesaiMap[key] ?? 0));
-            cur = DateTime(cur.year, cur.month + 1);
-          }
-          return result;
-
-        } else if (_activeTabIndex == 1) {
-          // Location tab Accident: filter by level column
+        // ── Tab 1: Location Accident ───────────────────────────────
+        else if (_activeTabIndex == 1) {
           final levelBackend = ['lokasi', 'unit', 'subunit', 'area'][
               _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
-          final idColMap = {'lokasi': 'id_lokasi', 'unit': 'id_unit', 'subunit': 'id_subunit', 'area': 'id_area'};
+          final idColMap = {
+            'lokasi': 'id_lokasi', 'unit': 'id_unit',
+            'subunit': 'id_subunit', 'area': 'id_area'
+          };
           final idCol = idColMap[levelBackend] ?? 'id_lokasi';
 
-          var query = _supabase
+          // Langsung ambil accident_report yang punya lokasi — tidak perlu ambil daftar lokasi dulu
+          final List<dynamic> res = await _supabase
               .from('accident_report')
               .select('created_at, status, $idCol')
               .gte('created_at', startDt.toIso8601String())
               .lte('created_at', endDt.toIso8601String())
               .not(idCol, 'is', null);
-          if (_selectedUnitId != null) query = query.eq('id_unit', _selectedUnitId!);
 
-          final List<dynamic> res = await query;
-          if (isDaily) {
-            return [_ChartBarData(
-              date: _selectedDate!.day,
-              temuan: res.length,
-              penyelesaian: res.where((t) => t['status'] == 'Selesai').length,
-            )];
-          }
-          final Map<int, int> laporanMap = {}, selesaiMap = {};
-          for (final t in res) {
-            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-            if (dt == null) continue;
-            laporanMap[dt.day] = (laporanMap[dt.day] ?? 0) + 1;
-            if (t['status'] == 'Selesai') selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
-          }
-          return List.generate(daysInMonth, (i) => _ChartBarData(
-            date: i + 1, temuan: laporanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+          return buildDailyFromAccident(res);
+        }
 
-        } else {
-          // Tab 0 = Members Accident: filter by unit via id_pelapor
+        // ── Tab 0: Members Accident ────────────────────────────────
+        else {
           var query = _supabase
               .from('accident_report')
               .select('created_at, status, id_pelapor')
               .gte('created_at', startDt.toIso8601String())
               .lte('created_at', endDt.toIso8601String());
 
+          // Filter unit hanya jika dipilih — jika tidak, ambil semua tanpa filter user
           if (_selectedUnitId != null) {
-            final usersInUnit = await _supabase
+            final List<dynamic> usersInUnit = await _supabase
                 .from('User')
                 .select('id_user')
                 .eq('id_unit', _selectedUnitId!);
-            final userIds = (usersInUnit as List).map((u) => u['id_user'].toString()).toList();
+            final userIds = usersInUnit.map((u) => u['id_user'].toString()).toList();
             if (userIds.isEmpty) {
-              return List.generate(isDaily ? 1 : daysInMonth, (i) => _ChartBarData(
-                date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
+              return List.generate(isDaily ? 1 : daysInMonth,
+                (i) => _ChartBarData(date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
             }
             query = query.inFilter('id_pelapor', userIds);
           }
 
           final List<dynamic> res = await query;
-          if (isDaily) {
-            return [_ChartBarData(
-              date: _selectedDate!.day,
-              temuan: res.length,
-              penyelesaian: res.where((t) => t['status'] == 'Selesai').length,
-            )];
-          }
-          final Map<int, int> laporanMap = {}, selesaiMap = {};
-          for (final t in res) {
-            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-            if (dt == null) continue;
-            laporanMap[dt.day] = (laporanMap[dt.day] ?? 0) + 1;
-            if (t['status'] == 'Selesai') selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
-          }
-          return List.generate(daysInMonth, (i) => _ChartBarData(
-            date: i + 1, temuan: laporanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+          return buildDailyFromAccident(res);
         }
-      } else if (type == 'KTS Production') {
-        // Tab 0 = Members, Tab 1 = Recurring Findings
+      }
+
+      // ════════════════════════════════════════════════════════════
+      // KTS PRODUCTION
+      // ════════════════════════════════════════════════════════════
+      else if (type == 'KTS Production') {
+
+        // ── Tab 1: Recurring KTS — ditangani di luar (chart disembunyikan)
         if (_activeTabIndex == 1) {
-          // Recurring tab KTS: group by bulan sesuai filter recurring
-          final fromStr = _recurringFrom.toIso8601String();
-          final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
-          var query = _supabase
-              .from('temuan')
-              .select('created_at, id_penyelesaian')
-              .eq('jenis_temuan', 'KTS Production')
-              .gte('created_at', fromStr)
-              .lte('created_at', toStr);
-          if (_recurringUserId != null) query = query.eq('id_user', _recurringUserId!);
+          return [];
+        }
 
-          final List<dynamic> res = await query;
-          final Map<String, int> temuanMap = {}, selesaiMap = {};
-          for (final t in res) {
-            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-            if (dt == null) continue;
-            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-            temuanMap[key] = (temuanMap[key] ?? 0) + 1;
-            if (t['id_penyelesaian'] != null) selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
-          }
-          final result = <_ChartBarData>[];
-          DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
-          final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
-          int idx = 1;
-          while (!cur.isAfter(endMonth)) {
-            final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
-            result.add(_ChartBarData(date: idx++, temuan: temuanMap[key] ?? 0, penyelesaian: selesaiMap[key] ?? 0));
-            cur = DateTime(cur.year, cur.month + 1);
-          }
-          return result;
-
-        } else {
-          // Tab 0 = Members: filter by unit (sama logika dengan 5R Members)
+        // ── Tab 0: Members KTS ─────────────────────────────────────
+        else {
           var query = _supabase
               .from('temuan')
               .select('created_at, id_penyelesaian, id_user')
@@ -1026,84 +1137,64 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               .gte('created_at', startDt.toIso8601String())
               .lte('created_at', endDt.toIso8601String());
 
+          // Filter unit hanya jika dipilih — jika tidak, ambil semua tanpa filter user
           if (_selectedUnitId != null) {
-            final usersInUnit = await _supabase
+            final List<dynamic> usersInUnit = await _supabase
                 .from('User')
                 .select('id_user')
                 .eq('id_unit', _selectedUnitId!);
-            final userIds = (usersInUnit as List).map((u) => u['id_user'].toString()).toList();
+            final userIds = usersInUnit.map((u) => u['id_user'].toString()).toList();
             if (userIds.isEmpty) {
-              return List.generate(isDaily ? 1 : daysInMonth, (i) => _ChartBarData(
-                date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
+              return List.generate(isDaily ? 1 : daysInMonth,
+                (i) => _ChartBarData(date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
             }
             query = query.inFilter('id_user', userIds);
           }
 
           final List<dynamic> res = await query;
-          if (isDaily) {
-            return [_ChartBarData(
-              date: _selectedDate!.day,
-              temuan: res.length,
-              penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
-            )];
-          }
-          final Map<int, int> temuanMap = {}, selesaiMap = {};
-          for (final t in res) {
-            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-            if (dt == null) continue;
-            temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
-            if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
-          }
-          return List.generate(daysInMonth, (i) => _ChartBarData(
-            date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+          return buildDailyFromTemuan(res);
+        }
+      }
+
+      // ════════════════════════════════════════════════════════════
+      // 5R FINDINGS
+      // ════════════════════════════════════════════════════════════
+      else {
+
+        // ── Tab 3: Recurring 5R — ditangani di luar (chart disembunyikan)
+        if (_activeTabIndex == 3) {
+          return [];
         }
 
-      } else {
-        // 5R — chart sesuai tab aktif
-        if (_activeTabIndex == 0) {
-          // ── Members: filter by unit (sama persis dengan get_anggota_stats logic)
+        // ── Tab 0: Members 5R ──────────────────────────────────────
+        else if (_activeTabIndex == 0) {
           var query = _supabase
               .from('temuan')
-              .select('created_at, id_penyelesaian, id_user, id_unit')
+              .select('created_at, id_penyelesaian, id_user')
               .neq('jenis_temuan', 'KTS Production')
               .gte('created_at', startDt.toIso8601String())
               .lte('created_at', endDt.toIso8601String());
 
-          // Filter unit: ambil id_user yang unit-nya sesuai, lalu filter temuan
+          // Filter unit hanya jika dipilih
           if (_selectedUnitId != null) {
-            // Ambil dulu user yang ada di unit ini
-            final usersInUnit = await _supabase
+            final List<dynamic> usersInUnit = await _supabase
                 .from('User')
                 .select('id_user')
                 .eq('id_unit', _selectedUnitId!);
-            final userIds = (usersInUnit as List).map((u) => u['id_user'].toString()).toList();
+            final userIds = usersInUnit.map((u) => u['id_user'].toString()).toList();
             if (userIds.isEmpty) {
-              return List.generate(isDaily ? 1 : daysInMonth, (i) => _ChartBarData(
-                date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
+              return List.generate(isDaily ? 1 : daysInMonth,
+                (i) => _ChartBarData(date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
             }
             query = query.inFilter('id_user', userIds);
           }
 
           final List<dynamic> res = await query;
-          if (isDaily) {
-            return [_ChartBarData(
-              date: _selectedDate!.day,
-              temuan: res.length,
-              penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
-            )];
-          }
-          final Map<int, int> temuanMap = {}, selesaiMap = {};
-          for (final t in res) {
-            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-            if (dt == null) continue;
-            temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
-            if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
-          }
-          return List.generate(daysInMonth, (i) => _ChartBarData(
-            date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+          return buildDailyFromTemuan(res);
+        }
 
-        } else if (_activeTabIndex == 1) {
-          // ── Inspection: filter by role (sama persis dengan get_inspeksi_stats logic)
+        // ── Tab 1: Inspection 5R ───────────────────────────────────
+        else if (_activeTabIndex == 1) {
           final roleBackend = ['Eksekutif', 'Profesional', 'Visitor'][
               _translatedRoles.indexOf(_selectedInspectionRole).clamp(0, 2)];
 
@@ -1114,7 +1205,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               .gte('created_at', startDt.toIso8601String())
               .lte('created_at', endDt.toIso8601String());
 
-          // Filter role sesuai is_eksekutif / is_pro / is_visitor
           if (roleBackend == 'Eksekutif') {
             query = query.eq('is_eksekutif', true);
           } else if (roleBackend == 'Profesional') {
@@ -1124,100 +1214,57 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           }
 
           final List<dynamic> res = await query;
-          if (isDaily) {
-            return [_ChartBarData(
-              date: _selectedDate!.day,
-              temuan: res.length,
-              penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
-            )];
-          }
-          final Map<int, int> temuanMap = {}, selesaiMap = {};
-          for (final t in res) {
-            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-            if (dt == null) continue;
-            temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
-            if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
-          }
-          return List.generate(daysInMonth, (i) => _ChartBarData(
-            date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
+          return buildDailyFromTemuan(res);
+        }
 
-        } else if (_activeTabIndex == 2) {
-          // ── Location: filter by level column (sama persis dengan get_lokasi_stats logic)
+        // ── Tab 2: Location 5R ─────────────────────────────────────
+        else {
+          if (!isDaily) {
+            // Ambil semua audit_result di bulan ini untuk level ini
+            final levelBackend = ['lokasi', 'unit', 'subunit', 'area'][
+                _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
+            final List<dynamic> auditRes = await _supabase
+                .from('audit_result')
+                .select('tanggal_audit, nilai_audit')
+                .eq('level_type', levelBackend)
+                .gte('tanggal_audit', startOfMonth.toIso8601String().split('T').first)
+                .lte('tanggal_audit', endOfMonth.toIso8601String().split('T').first);
+
+            // Group: rata-rata nilai_audit per hari
+            final Map<int, List<double>> dayScores = {};
+            for (final a in auditRes) {
+              final dt = DateTime.tryParse(a['tanggal_audit']?.toString() ?? '');
+              if (dt == null) continue;
+              final score = double.tryParse(a['nilai_audit']?.toString() ?? '');
+              if (score == null) continue;
+              dayScores.putIfAbsent(dt.day, () => []).add(score);
+            }
+            return List.generate(daysInMonth, (i) {
+              final day = i + 1;
+              final scores = dayScores[day] ?? [];
+              final avg = scores.isEmpty
+                  ? 0
+                  : (scores.reduce((a, b) => a + b) / scores.length).round();
+              return _ChartBarData(date: day, temuan: avg, penyelesaian: 0);
+            });
+          }
+
+          // Daily mode → tetap pakai temuan count seperti semula
           final levelBackend = ['lokasi', 'unit', 'subunit', 'area'][
               _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
-
-          // Kolom id yang dipakai di tabel temuan sesuai level
           final Map<String, String> idColMap = {
-            'lokasi': 'id_lokasi',
-            'unit': 'id_unit',
-            'subunit': 'id_subunit',
-            'area': 'id_area',
+            'lokasi': 'id_lokasi', 'unit': 'id_unit',
+            'subunit': 'id_subunit', 'area': 'id_area',
           };
           final idCol = idColMap[levelBackend] ?? 'id_lokasi';
-
-          var query = _supabase
+          final List<dynamic> res = await _supabase
               .from('temuan')
               .select('created_at, id_penyelesaian, $idCol')
               .neq('jenis_temuan', 'KTS Production')
               .gte('created_at', startDt.toIso8601String())
               .lte('created_at', endDt.toIso8601String())
-              .not(idCol, 'is', null); // hanya yang punya lokasi
-
-          final List<dynamic> res = await query;
-          if (isDaily) {
-            return [_ChartBarData(
-              date: _selectedDate!.day,
-              temuan: res.length,
-              penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
-            )];
-          }
-          final Map<int, int> temuanMap = {}, selesaiMap = {};
-          for (final t in res) {
-            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-            if (dt == null) continue;
-            temuanMap[dt.day] = (temuanMap[dt.day] ?? 0) + 1;
-            if (t['id_penyelesaian'] != null) selesaiMap[dt.day] = (selesaiMap[dt.day] ?? 0) + 1;
-          }
-          return List.generate(daysInMonth, (i) => _ChartBarData(
-            date: i + 1, temuan: temuanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
-
-        } else {
-          // ── Recurring tab (tab index 3): gunakan filter periode recurring
-          final fromStr = _recurringFrom.toIso8601String();
-          final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
-          var query = _supabase
-              .from('temuan')
-              .select('created_at, id_penyelesaian')
-              .neq('jenis_temuan', 'KTS Production')
-              .gte('created_at', fromStr)
-              .lte('created_at', toStr);
-          if (_recurringUserId != null) query = query.eq('id_user', _recurringUserId!);
-
-          final List<dynamic> res = await query;
-          // Chart recurring: group by bulan
-          final Map<String, int> temuanMap = {}, selesaiMap = {};
-          for (final t in res) {
-            final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-            if (dt == null) continue;
-            final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-            temuanMap[key] = (temuanMap[key] ?? 0) + 1;
-            if (t['id_penyelesaian'] != null) selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
-          }
-          // Bangun data per bulan sesuai range recurring
-          final result = <_ChartBarData>[];
-          DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
-          final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
-          int idx = 1;
-          while (!cur.isAfter(endMonth)) {
-            final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
-            result.add(_ChartBarData(
-              date: idx++,
-              temuan: temuanMap[key] ?? 0,
-              penyelesaian: selesaiMap[key] ?? 0,
-            ));
-            cur = DateTime(cur.year, cur.month + 1);
-          }
-          return result;
+              .not(idCol, 'is', null);
+          return buildDailyFromTemuan(res);
         }
       }
     } catch (e) {
@@ -2833,18 +2880,131 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildConditionalChart() {
-    // Recurring Findings tab juga pakai collapsible chart (tanpa target line)
-    final activeColor = _selectedFindingType == 'KTS Production'
-        ? const Color(0xFFF59E0B)
-        : _selectedFindingType == 'Accident'
-            ? const Color(0xFFEF4444)
-            : _AppColors.primary;
+    final bool isRecurringTabActive =
+        (_selectedFindingType == '5R' && _activeTabIndex == 3) ||
+        (_selectedFindingType == 'KTS Production' && _activeTabIndex == 1) ||
+        (_selectedFindingType == 'Accident' && _activeTabIndex == 2);
 
+    if (isRecurringTabActive) return const SizedBox.shrink();
+
+    // ── KTS Production → Members (tab 0): Pie Chart ──────────────────────────
+    if (_selectedFindingType == 'KTS Production' && _activeTabIndex == 0) {
+      return FutureBuilder<List<MemberData>>(
+        future: _ktsAnggotaFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildChartShimmerSmall();
+          }
+          final data = snapshot.data ?? [];
+          final totalFindings =
+              data.fold<int>(0, (sum, m) => sum + m.findings);
+          final totalCompleted =
+              data.fold<int>(0, (sum, m) => sum + m.completed);
+          return _buildAnalyticsPieChart(
+            totalPrimary: totalFindings,
+            totalSecondary: totalCompleted,
+            colorPrimary: const Color(0xFFF59E0B),
+            colorSecondary: const Color(0xFF10B981),
+            labelPrimary: widget.lang == 'ID' ? 'Temuan'
+                : widget.lang == 'ZH' ? '发现' : 'Findings',
+            labelSecondary: widget.lang == 'ID' ? 'Selesai'
+                : widget.lang == 'ZH' ? '已完成' : 'Completed',
+            activeColor: const Color(0xFFF59E0B),
+          );
+        },
+      );
+    }
+
+    // ── Accident → Members (tab 0): Pie Chart ────────────────────────────────
+    if (_selectedFindingType == 'Accident' && _activeTabIndex == 0) {
+      return FutureBuilder<List<MemberData>>(
+        future: _accidentAnggotaFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildChartShimmerSmall();
+          }
+          final data = snapshot.data ?? [];
+          final totalReports =
+              data.fold<int>(0, (sum, m) => sum + m.findings);
+          final totalCompleted =
+              data.fold<int>(0, (sum, m) => sum + m.completed);
+          return _buildAnalyticsPieChart(
+            totalPrimary: totalReports,
+            totalSecondary: totalCompleted,
+            colorPrimary: const Color(0xFFEF4444),
+            colorSecondary: const Color(0xFF10B981),
+            labelPrimary: widget.lang == 'ID' ? 'Laporan'
+                : widget.lang == 'ZH' ? '报告' : 'Reports',
+            labelSecondary: widget.lang == 'ID' ? 'Selesai'
+                : widget.lang == 'ZH' ? '已完成' : 'Completed',
+            activeColor: const Color(0xFFEF4444),
+          );
+        },
+      );
+    }
+
+    // ── Accident → Location (tab 1): Pie Chart ───────────────────────────────
+    if (_selectedFindingType == 'Accident' && _activeTabIndex == 1) {
+      return FutureBuilder<List<LocationData>>(
+        future: _accidentLokasiFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildChartShimmerSmall();
+          }
+          final data = snapshot.data ?? [];
+          // Primary = lokasi dengan temuan > 0, Secondary = lokasi dengan 0 temuan
+          final withFindings = data
+              .where((l) => (int.tryParse(l.value ?? '0') ?? 0) > 0)
+              .length;
+          final withoutFindings = data.length - withFindings;
+          // Total keseluruhan laporan untuk pie
+          final totalReports = data.fold<int>(
+              0, (sum, l) => sum + (int.tryParse(l.value ?? '0') ?? 0));
+          // Top 1 lokasi untuk label
+          final topLoc = data.isNotEmpty ? data.first : null;
+          final topCount =
+              topLoc != null ? (int.tryParse(topLoc.value ?? '0') ?? 0) : 0;
+          final othersCount = totalReports - topCount;
+
+          return _buildAnalyticsPieChart(
+            totalPrimary: topCount,
+            totalSecondary: othersCount,
+            colorPrimary: const Color(0xFFEF4444),
+            colorSecondary: const Color(0xFFF97316),
+            labelPrimary: topLoc != null
+                ? topLoc.name
+                : (widget.lang == 'ID' ? 'Teratas' : 'Top'),
+            labelSecondary: widget.lang == 'ID' ? 'Lokasi Lainnya'
+                : widget.lang == 'ZH' ? '其他位置' : 'Other Locations',
+            activeColor: const Color(0xFFEF4444),
+          );
+        },
+      );
+    }
+
+    // ── Selain kondisi di atas: Bar Chart (5R semua tab, dll) ────────────────
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
       child: KeyedSubtree(
-        key: ValueKey('collapsible-$_selectedFindingType-$_activeTabIndex'),
+        key: ValueKey(
+            'collapsible-$_selectedFindingType-$_activeTabIndex'),
         child: _buildCollapsibleChart(),
+      ),
+    );
+  }
+
+  /// Shimmer kecil saat pie chart loading
+  Widget _buildChartShimmerSmall() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[200]!,
+      highlightColor: Colors.grey[50]!,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        height: 158,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
       ),
     );
   }
@@ -3508,7 +3668,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   const double leftW = 28.0;
 
                   double valToY(int v) => chartH - (v / maxVal * chartH).clamp(0.0, chartH);
-                  final yLabels = List.generate(4, (i) => (maxVal / 3 * i).round());
+                  final yStep = (maxVal / 4).ceil().clamp(1, 99999);
+                  final yLabels = List.generate(5, (i) => i * yStep);
 
                   return Container(
                     margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -3527,6 +3688,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                               (_selectedFindingType == '5R'       && _activeTabIndex == 3) ||
                               (_selectedFindingType == 'KTS Production'      && _activeTabIndex == 1) ||
                               (_selectedFindingType == 'Accident' && _activeTabIndex == 2);
+
+                          // ── Tab Lokasi 5R (monthly): tampilkan legend audit score saja
+                          final bool isLocationAuditTab = _selectedFindingType == '5R'
+                              && _activeTabIndex == 2
+                              && !(_filterMode == 'daily' && _selectedDate != null);
+
+                          if (isLocationAuditTab) {
+                            return Wrap(spacing: 12, children: [
+                              _chartLegendItem(colorTemuan,
+                                widget.lang == 'ID' ? 'Rata-rata Nilai Audit'
+                                    : widget.lang == 'ZH' ? '平均审计分数'
+                                    : 'Avg Audit Score'),
+                            ]);
+                          }
+
                           return Wrap(spacing: 12, children: [
                             _chartLegendItem(colorTemuan,
                               _selectedFindingType == 'Accident'
@@ -3556,11 +3732,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                             width: leftW,
                             height: chartH,
                             child: Stack(children: yLabels.map((v) {
+                              final yPos = valToY(v);
+                              if (yPos < 0 || yPos > chartH) return const SizedBox.shrink();
                               return Positioned(
-                                top: valToY(v) - 7,
-                                right: 3,
-                                child: Text('$v', style: const TextStyle(
-                                  fontSize: 8, color: _AppColors.textMuted)),
+                                top: yPos - 7,
+                                right: 2,
+                                child: Text(
+                                  v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : '$v',
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                    color: _AppColors.textSecondary,
+                                  ),
+                                ),
                               );
                             }).toList()),
                           ),
@@ -3670,6 +3854,250 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     ]);
   }
 
+  /// Pie chart untuk analytics — terintegrasi dengan data tabel di bawahnya
+  Widget _buildAnalyticsPieChart({
+    required int totalPrimary,
+    required int totalSecondary,
+    required Color colorPrimary,
+    required Color colorSecondary,
+    required String labelPrimary,
+    required String labelSecondary,
+    required Color activeColor,
+  }) {
+    final total = totalPrimary + totalSecondary;
+    const Color colorEmpty = Color(0xFFE2E8F0);
+
+    final locale = widget.lang == 'ID' ? 'id_ID'
+        : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
+    final monthLabel = _filterMode == 'daily' && _selectedDate != null
+        ? DateFormat('d MMM yyyy', locale).format(_selectedDate!)
+        : DateFormat('MMMM yyyy', locale)
+            .format(DateTime(DateTime.now().year, _selectedMonthIndex + 1));
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: activeColor.withValues(alpha: 0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: activeColor.withValues(alpha: 0.07),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(children: [
+                Icon(Icons.pie_chart_rounded, size: 14, color: activeColor),
+                const SizedBox(width: 6),
+                Text(
+                  widget.lang == 'ID' ? 'Ringkasan $monthLabel'
+                      : widget.lang == 'ZH' ? '$monthLabel 摘要'
+                      : 'Summary $monthLabel',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: activeColor,
+                  ),
+                ),
+              ]),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: activeColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${widget.lang == 'ID' ? 'Total' : widget.lang == 'ZH' ? '总计' : 'Total'}: $total',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: activeColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (total == 0) ...[
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(children: [
+                  Icon(Icons.pie_chart_outline, size: 40,
+                      color: Colors.grey.shade300),
+                  const SizedBox(height: 6),
+                  Text(
+                    widget.lang == 'ID' ? 'Tidak ada data'
+                        : widget.lang == 'ZH' ? '暂无数据' : 'No data',
+                    style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                  ),
+                ]),
+              ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                // Donut pie
+                SizedBox(
+                  width: 130,
+                  height: 130,
+                  child: CustomPaint(
+                    painter: _AnalyticsPieChartPainter(
+                      primaryValue: totalPrimary.toDouble(),
+                      secondaryValue: totalSecondary.toDouble(),
+                      colorPrimary: colorPrimary,
+                      colorSecondary: colorSecondary,
+                      colorEmpty: colorEmpty,
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$total',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0C4A6E),
+                            ),
+                          ),
+                          Text(
+                            widget.lang == 'ID' ? 'Total'
+                                : widget.lang == 'ZH' ? '总计' : 'Total',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                // Info cards
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildPieInfoCardAnalytics(
+                        color: colorPrimary,
+                        label: labelPrimary,
+                        value: totalPrimary,
+                        total: total,
+                        icon: _selectedFindingType == 'Accident'
+                            ? Icons.warning_amber_rounded
+                            : Icons.search_rounded,
+                      ),
+                      const SizedBox(height: 8),
+                      _buildPieInfoCardAnalytics(
+                        color: colorSecondary,
+                        label: labelSecondary,
+                        value: totalSecondary,
+                        total: total,
+                        icon: Icons.check_circle_outline_rounded,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPieInfoCardAnalytics({
+    required Color color,
+    required String label,
+    required int value,
+    required int total,
+    required IconData icon,
+  }) {
+    final percent =
+        total > 0 ? (value / total * 100).toStringAsFixed(1) : '0.0';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 12, color: color),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: total > 0 ? value / total : 0,
+                    backgroundColor: color.withValues(alpha: 0.15),
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                    minHeight: 3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '$value',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0C4A6E),
+                ),
+              ),
+              Text(
+                '$percent%',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _chartLegendItem(Color color, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
     Container(width: 8, height: 8, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
     const SizedBox(width: 4),
@@ -3726,7 +4154,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         const colorPenyelesaian = Color(0xFF10B981);
 
         double valToY(int v) => chartH - (v / maxVal * chartH).clamp(0.0, chartH);
-        final yLabels = List.generate(3, (i) => (maxVal / 2 * i).round());
+        final yStep2 = (maxVal / 4).ceil().clamp(1, 99999);
+        final yLabels = List.generate(5, (i) => i * yStep2);
 
         return Container(
           margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -3753,10 +4182,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SizedBox(
                   width: leftW, height: chartH,
-                  child: Stack(children: yLabels.map((v) => Positioned(
-                    top: valToY(v) - 6, right: 3,
-                    child: Text('$v', style: const TextStyle(fontSize: 7.5, color: _AppColors.textMuted)),
-                  )).toList()),
+                  child: Stack(children: yLabels.map((v) {
+                    final yPos = valToY(v);
+                    if (yPos < 0 || yPos > chartH) return const SizedBox.shrink();
+                    return Positioned(
+                      top: yPos - 6, right: 2,
+                      child: Text(
+                        v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : '$v',
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: _AppColors.textSecondary,
+                        ),
+                      ),
+                    );
+                  }).toList()),
                 ),
                 Expanded(child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -4018,6 +4458,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   // ── Lokasi Tab ─────────────────────────────────────────────────────────────
   Widget _buildLokasiTab() {
+    // Untuk 5R monthly → pakai audit score
+    final bool use5RAudit = _selectedFindingType == '5R'
+        && !(_filterMode == 'daily' && _selectedDate != null);
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         color: Colors.transparent,
@@ -4039,15 +4483,60 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           )),
         ]),
       ),
-      _buildAuditPeriodBanner(),
+      if (!use5RAudit) _buildAuditPeriodBanner(),
       _buildLastUpdatedTextWidget(),
-      _buildTableHeader([getTxt('rank'), getTxt('lokasi'), getTxt('temuan')], flex: [1, 3, 1], isLocation: true),
+
+      // ── Header tabel ──
+      use5RAudit
+          ? _buildTableHeader(
+              [getTxt('rank'), getTxt('lokasi'), _getRankAuditLabel()],
+              flex: [1, 3, 1], isLocation: true)
+          : _buildTableHeader(
+              [getTxt('rank'), getTxt('lokasi'), getTxt('temuan')],
+              flex: [1, 3, 1], isLocation: true),
+
       Expanded(child: Builder(builder: (context) {
-        final Future<List<LocationData>>? activeFuture = _selectedFindingType == '5R'
-            ? _lokasiFuture
-            : _selectedFindingType == 'KTS Production'
-                ? _ktsLokasiFuture
-                : _accidentLokasiFuture;
+        if (use5RAudit) {
+          // ── 5R Monthly: tampilkan nilai audit ──
+          final Future<List<AuditLocationData>>? f = _auditLokasiFuture;
+          if (f == null) return _buildLokasiShimmer();
+          return FutureBuilder<List<AuditLocationData>>(
+            future: f,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return _buildLokasiShimmer();
+              }
+              final data = snapshot.data ?? [];
+              if (data.isEmpty) {
+                return Center(child: Text(
+                  getTxt('tidak_ada_data_level'),
+                  style: const TextStyle(color: _AppColors.textSecondary)));
+              }
+              return RefreshIndicator(
+                onRefresh: () async {
+                  _fetchAllData(fromTabFilter: true);
+                },
+                color: _AppColors.primary,
+                child: ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: data.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, color: _AppColors.divider, indent: 16),
+                  itemBuilder: (_, i) =>
+                      _buildAuditLocationRow(i + 1, data[i]),
+                ),
+              );
+            },
+          );
+        }
+
+        // ── Daily atau KTS/Accident: tampilkan temuan count seperti semula ──
+        final Future<List<LocationData>>? activeFuture =
+            _selectedFindingType == '5R'
+                ? _lokasiFuture
+                : _selectedFindingType == 'KTS Production'
+                    ? _ktsLokasiFuture
+                    : _accidentLokasiFuture;
         if (activeFuture == null) return _buildLokasiShimmer();
         return FutureBuilder<List<LocationData>>(
           future: activeFuture,
@@ -4055,20 +4544,32 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildLokasiShimmer();
             }
-          if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('${getTxt('tidak_ada_data_level')} "$_selectedLocationLevel".'));
-          }
-          final locationList = snapshot.data!;
-          return ListView.separated(
-            padding: EdgeInsets.zero,
-            itemCount: locationList.length,
-            separatorBuilder: (_, __) => Divider(height: 1, color: _AppColors.divider, indent: 16),
-            itemBuilder: (_, i) => _buildLocationRow(i + 1, locationList[i]),
-          );
-        },
-      );
+            if (snapshot.hasError ||
+                !snapshot.hasData ||
+                snapshot.data!.isEmpty) {
+              return Center(child: Text(
+                  '${getTxt('tidak_ada_data_level')} "$_selectedLocationLevel".'));
+            }
+            final locationList = snapshot.data!;
+            return ListView.separated(
+              padding: EdgeInsets.zero,
+              itemCount: locationList.length,
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, color: _AppColors.divider, indent: 16),
+              itemBuilder: (_, i) =>
+                  _buildLocationRow(i + 1, locationList[i]),
+            );
+          },
+        );
       })),
     ]);
+  }
+
+  // Label kolom kanan untuk tabel audit
+  String _getRankAuditLabel() {
+    if (widget.lang == 'EN') return 'Score';
+    if (widget.lang == 'ZH') return '评分';
+    return 'Nilai';
   }
 
   // ── Temuan Berulang Tab ────────────────────────────────────────────────────
@@ -5130,6 +5631,102 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       ]),
     );
   }
+
+  Widget _buildAuditLocationRow(int rank, AuditLocationData loc) {
+    final score = loc.auditScore;
+    Color scoreColor;
+    if (score == null) {
+      scoreColor = _AppColors.textMuted;
+    } else if (score >= 80) {
+      scoreColor = const Color(0xFF10B981);
+    } else if (score >= 60) {
+      scoreColor = const Color(0xFFF59E0B);
+    } else {
+      scoreColor = const Color(0xFFEF4444);
+    }
+
+    return GestureDetector(
+      onTap: () => _showAuditLocationDetail(loc),
+      child: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(children: [
+          // Rank badge
+          SizedBox(
+            width: 40,
+            child: rank <= 3
+                ? Text(['🥇','🥈','🥉'][rank - 1], style: const TextStyle(fontSize: 20))
+                : Text('$rank', textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 13, color: _AppColors.textSecondary)),
+          ),
+          // Location info
+          Expanded(
+            flex: 3,
+            child: Row(children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: scoreColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.location_city_rounded, color: scoreColor, size: 20)),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(loc.name, style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600, color: _AppColors.textPrimary),
+                    overflow: TextOverflow.ellipsis),
+                Text(loc.pic, style: const TextStyle(
+                    fontSize: 11.5, color: _AppColors.textSecondary),
+                    overflow: TextOverflow.ellipsis),
+                if (loc.auditDate != null) ...[
+                  const SizedBox(height: 2),
+                  // Mini progress bar
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: score != null ? score / 100 : 0,
+                      backgroundColor: scoreColor.withOpacity(0.15),
+                      valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+                      minHeight: 4,
+                    ),
+                  ),
+                ],
+              ])),
+            ])),
+          // Score
+          SizedBox(
+            width: 70,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  score != null ? '${score.toStringAsFixed(0)}%' : '-',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor)),
+                if (loc.auditDate != null)
+                  Text(loc.auditDate!.substring(0, 10),
+                      style: const TextStyle(fontSize: 9, color: _AppColors.textSecondary)),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // Detail popup untuk klik card audit
+  void _showAuditLocationDetail(AuditLocationData loc) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _AuditLocationDetailSheet(
+        lang: widget.lang,
+        loc: loc,
+        levelType: ['Lokasi','Unit','Subunit','Area'][
+            _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0,3)].toLowerCase(),
+      ),
+    );
+  }
 }
 
 // ─── Analytics Location Picker Sheet ─────────────────────────────────────────
@@ -5460,4 +6057,306 @@ class _DashedLinePainterSimple extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+class _AnalyticsPieChartPainter extends CustomPainter {
+  final double primaryValue;
+  final double secondaryValue;
+  final Color colorPrimary;
+  final Color colorSecondary;
+  final Color colorEmpty;
+
+  _AnalyticsPieChartPainter({
+    required this.primaryValue,
+    required this.secondaryValue,
+    required this.colorPrimary,
+    required this.colorSecondary,
+    required this.colorEmpty,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = primaryValue + secondaryValue;
+    final center = Offset(size.width / 2, size.height / 2);
+    final outerRadius = size.width / 2;
+    final innerRadius = outerRadius * 0.55;
+    final rect = Rect.fromCircle(center: center, radius: outerRadius);
+
+    if (total == 0) {
+      final paint = Paint()
+        ..color = colorEmpty
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = outerRadius - innerRadius;
+      canvas.drawCircle(center, (outerRadius + innerRadius) / 2, paint);
+      return;
+    }
+
+    double startAngle = -90 * (3.14159265 / 180);
+    const double gapAngle = 0.04;
+
+    final segments = [
+      {'value': primaryValue, 'color': colorPrimary},
+      {'value': secondaryValue, 'color': colorSecondary},
+    ];
+
+    for (final seg in segments) {
+      final value = seg['value'] as double;
+      final color = seg['color'] as Color;
+      if (value <= 0) continue;
+
+      final sweepAngle = (value / total) * 2 * 3.14159265 - gapAngle;
+
+      final shadowPaint = Paint()
+        ..color = color.withValues(alpha: 0.2)
+        ..style = PaintingStyle.fill
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+      final path = Path()
+        ..moveTo(center.dx, center.dy)
+        ..arcTo(rect, startAngle, sweepAngle, false)
+        ..close();
+      canvas.drawPath(path, shadowPaint);
+
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = outerRadius - innerRadius
+        ..strokeCap = StrokeCap.butt;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: (outerRadius + innerRadius) / 2),
+        startAngle,
+        sweepAngle,
+        false,
+        paint,
+      );
+
+      startAngle += sweepAngle + gapAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class _AuditLocationDetailSheet extends StatefulWidget {
+  final String lang;
+  final AuditLocationData loc;
+  final String levelType;
+  const _AuditLocationDetailSheet({required this.lang, required this.loc, required this.levelType});
+
+  @override
+  State<_AuditLocationDetailSheet> createState() => _AuditLocationDetailSheetState();
+}
+
+class _AuditLocationDetailSheetState extends State<_AuditLocationDetailSheet> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _history = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHistory();
+  }
+
+  Future<void> _fetchHistory() async {
+    try {
+      final rows = await _supabase
+          .from('audit_result')
+          .select(
+            'id_result, nilai_audit, tanggal_audit, catatan_audit, id_auditor',
+          )
+          .eq('level_type', widget.levelType)
+          .eq('id_ref', widget.loc.id)
+          .order('tanggal_audit', ascending: false)
+          .limit(15);
+
+      // Fetch auditor names separately
+      final auditorIds = List<Map<String, dynamic>>.from(rows)
+          .where((r) => r['id_auditor'] != null)
+          .map((r) => r['id_auditor'].toString())
+          .toSet()
+          .toList();
+      final Map<String, String> auditorMap = {};
+      if (auditorIds.isNotEmpty) {
+        final auditorRows = await _supabase
+            .from('User')
+            .select('id_user, nama')
+            .inFilter('id_user', auditorIds);
+        for (final a in List<Map<String, dynamic>>.from(auditorRows)) {
+          auditorMap[a['id_user'].toString()] = a['nama']?.toString() ?? '-';
+        }
+      }
+
+      // For each result, also fetch answers
+      final result = <Map<String, dynamic>>[];
+      final allIds = List<Map<String, dynamic>>.from(rows).map((r) => r['id_result'].toString()).toList();
+      
+      // Batch fetch semua answers sekaligus (menghindari N+1 query)
+      Map<String, List<Map<String, dynamic>>> answersMap = {};
+      if (allIds.isNotEmpty) {
+        final allAnswers = await _supabase
+            .from('audit_answer')
+            .select('id_result, jawaban, id_question')
+            .inFilter('id_result', allIds)
+            .order('created_at');
+        
+        // Batch fetch questions
+        final questionIds = List<Map<String, dynamic>>.from(allAnswers)
+            .map((a) => a['id_question'].toString())
+            .toSet()
+            .toList();
+        final Map<String, String> questionMap = {};
+        if (questionIds.isNotEmpty) {
+          final qRows = await _supabase
+              .from('audit_question')
+              .select('id_question, pertanyaan')
+              .inFilter('id_question', questionIds);
+          for (final q in List<Map<String, dynamic>>.from(qRows)) {
+            questionMap[q['id_question'].toString()] = q['pertanyaan']?.toString() ?? '-';
+          }
+        }
+        
+        for (final a in List<Map<String, dynamic>>.from(allAnswers)) {
+          final resultId = a['id_result'].toString();
+          answersMap.putIfAbsent(resultId, () => []);
+          answersMap[resultId]!.add({
+            'jawaban': a['jawaban'],
+            'audit_question': {'pertanyaan': questionMap[a['id_question']?.toString() ?? ''] ?? '-'},
+          });
+        }
+      }
+
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final resultId = row['id_result'].toString();
+        result.add({
+          ...row,
+          'auditorName': auditorMap[row['id_auditor']?.toString() ?? ''] ?? '-',
+          'answers': answersMap[resultId] ?? [],
+        });
+      }
+      if (mounted) setState(() { _history = result; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Color _scoreColor(double? s) {
+    if (s == null) return const Color(0xFF94A3B8);
+    if (s >= 80) return const Color(0xFF10B981);
+    if (s >= 60) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.8,
+      maxChildSize: 0.95,
+      minChildSize: 0.4,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(children: [
+          Container(margin: const EdgeInsets.only(top: 10), width: 40, height: 4,
+            decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+            child: Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.loc.name, style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1E3A8A))),
+                Text(widget.loc.pic, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+              ])),
+              if (widget.loc.auditScore != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _scoreColor(widget.loc.auditScore).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10)),
+                  child: Text('${widget.loc.auditScore!.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w800,
+                          color: _scoreColor(widget.loc.auditScore))),
+                ),
+            ]),
+          ),
+          const Divider(height: 1),
+          Expanded(child: _loading
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF0EA5E9)))
+              : _history.isEmpty
+                  ? Center(child: Text(
+                      widget.lang == 'EN' ? 'No audit history.' : 'Belum ada riwayat audit.',
+                      style: const TextStyle(color: Color(0xFF64748B))))
+                  : ListView.separated(
+                      controller: ctrl,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      itemCount: _history.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) {
+                        final h = _history[i];
+                        final score = double.tryParse(h['nilai_audit']?.toString() ?? '');
+                        final auditor = (h['User_Auditor'] as Map<String, dynamic>?)?['nama'] ?? '-';
+                        final date    = h['tanggal_audit']?.toString() ?? '';
+                        final catatan = h['catatan_audit'] as String?;
+                        final answers = h['answers'] as List<Map<String, dynamic>>? ?? [];
+                        final color   = _scoreColor(score);
+
+                        return Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: color.withOpacity(0.3))),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(children: [
+                              Container(width: 44, height: 44,
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.12), shape: BoxShape.circle),
+                                child: Center(child: Text(
+                                    score != null ? '${score.toStringAsFixed(0)}%' : '-',
+                                    style: TextStyle(fontSize: 11,
+                                        fontWeight: FontWeight.w800, color: color)))),
+                              const SizedBox(width: 10),
+                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(auditor, style: const TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E3A8A))),
+                                Text(date, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                                if (catatan != null && catatan.isNotEmpty)
+                                  Text(catatan, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                              ])),
+                            ]),
+                            if (answers.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              const Divider(height: 1),
+                              const SizedBox(height: 6),
+                              ...answers.map((a) {
+                                final jawaban = a['jawaban'] as bool? ?? false;
+                                final pertanyaan = (a['audit_question'] as Map<String, dynamic>?)?['pertanyaan'] ?? '-';
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 3),
+                                  child: Row(children: [
+                                    Icon(
+                                      jawaban ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                                      size: 14,
+                                      color: jawaban ? const Color(0xFF10B981) : const Color(0xFFEF4444)),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(pertanyaan,
+                                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF334155)))),
+                                  ]),
+                                );
+                              }),
+                            ],
+                          ]),
+                        );
+                      },
+                    )),
+        ]),
+      ),
+    );
+  }
 }

@@ -787,7 +787,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // 1. is_verificator = true, ATAU
       // 2. id_jabatan = 1 (Eksekutif), ATAU
       // 3. id_jabatan = 5 (HRD)
-      final bool canVerify = isVerif || idJabatan == 1 || idJabatan == 5;
+      final bool canVerify = isVerif || idJabatan == 1 || idJabatan == 5 || idJabatan == 2;
 
       if (mounted) {
         setState(() {
@@ -996,7 +996,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _userImage         = dbImage ?? metaImage;
         _userRole          = roleName;
         final int? jabatanIdFromRow = userRow['id_jabatan'] as int?;
-        _isExecutiveVerificator = isVerifFromDb || jabatanIdFromRow == 1 || jabatanIdFromRow == 5;
+        _isExecutiveVerificator = isVerifFromDb || jabatanIdFromRow == 1 || jabatanIdFromRow == 5 || jabatanIdFromRow == 2;
         _userJabatanId     = userRow['id_jabatan'] as int?;
         _userUnitId        = userRow['id_unit']?.toString();
         _userLokasiId      = userRow['id_lokasi']?.toString();

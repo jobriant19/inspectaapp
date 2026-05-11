@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../audit/audit_form_screen.dart';
 import '../explore/explore_screen.dart';
 import '../finding/finding_detail_screen.dart';
 import '../ktsproduksi/kts_detail_screen.dart';
@@ -81,6 +82,7 @@ class HomeContentState extends State<HomeContent> {
   Set<String> _activeTabs = {'my'};
   String _activeTypeFilter = '';
   Future<List<Map<String, dynamic>>>? _findingsFuture;
+  Future<List<Map<String, dynamic>>>? _pendingAuditsFuture;
 
   // Cache untuk screen yang sudah pernah dibuka
   final Map<String, Widget> _cachedScreens = {};
@@ -163,6 +165,7 @@ class HomeContentState extends State<HomeContent> {
   void initState() {
     super.initState();
     _findingsFuture = _buildFindingsFuture();
+    _pendingAuditsFuture = _fetchPendingAudits();
     // Daftarkan refreshFindings ke parent melalui onRefresh
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.onRefresh != null) {
@@ -323,6 +326,48 @@ class HomeContentState extends State<HomeContent> {
 
       return combined;
     });
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchPendingAudits() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return [];
+    try {
+      final rows = await Supabase.instance.client
+          .from('audit_schedule')
+          .select(
+            'id_schedule, level_type, id_ref, periode_mulai, periode_selesai, status',
+          )
+          .eq('id_auditor', userId)
+          .inFilter('status', ['pending', 'in_progress'])
+          .lte('periode_mulai',
+              DateTime.now().toIso8601String().split('T').first)
+          .gte('periode_selesai',
+              DateTime.now().toIso8601String().split('T').first);
+  
+      if (rows.isEmpty) return [];
+  
+      // Resolve location names for each schedule
+      final result = <Map<String, dynamic>>[];
+      for (final row in List<Map<String, dynamic>>.from(rows)) {
+        final level = row['level_type'] as String;
+        final idRef = row['id_ref'].toString();
+        final nameCol = 'nama_$level';
+        final idCol   = 'id_$level';
+        final loc = await Supabase.instance.client
+            .from(level)
+            .select('$idCol, $nameCol')
+            .eq(idCol, idRef)
+            .maybeSingle();
+        result.add({
+          ...row,
+          'location_name': loc?[nameCol]?.toString() ?? idRef,
+        });
+      }
+      return result;
+    } catch (e) {
+      debugPrint('Pending audits error: $e');
+      return [];
+    }
   }
 
   Widget _buildTabChip(String tabKey, String label) {
@@ -684,7 +729,7 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
-  // ── WIDGET BARU: Choose Mode Button ──
+  // ── Choose Mode Button ──
   Widget _buildChooseModeButton() {
     final bool anyActive = widget.isProMode || widget.isVisitorMode;
 
@@ -816,7 +861,128 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
-  // ── WIDGET BARU: Executive Verification Button ──
+  Widget _buildPendingAuditSection() {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _pendingAuditsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox.shrink();
+        }
+        final tasks = snapshot.data ?? [];
+        if (tasks.isEmpty) return const SizedBox.shrink();
+  
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 25),
+            _buildSectionLabel(
+              widget.lang == 'EN' ? 'Pending Audit Tasks'
+                  : widget.lang == 'ZH' ? '待完成审计任务'
+                  : 'Tugas Audit',
+            ),
+            const SizedBox(height: 10),
+            ...tasks.map((task) => _buildAuditTaskCard(task)).toList(),
+          ],
+        );
+      },
+    );
+  }
+  
+  Widget _buildAuditTaskCard(Map<String, dynamic> task) {
+    const teal = Color(0xFF14B8A6);
+    const tealLt = Color(0xFFCCFBF1);
+    final level = task['level_type'] as String;
+    final locationName = task['location_name'] as String;
+    final from = task['periode_mulai']?.toString() ?? '';
+    final to   = task['periode_selesai']?.toString() ?? '';
+  
+    String levelLabel;
+    switch (level) {
+      case 'unit':    levelLabel = widget.lang == 'EN' ? 'Unit' : 'Unit'; break;
+      case 'subunit': levelLabel = widget.lang == 'EN' ? 'Sub-Unit' : 'Sub-Unit'; break;
+      case 'area':    levelLabel = widget.lang == 'EN' ? 'Area' : 'Area'; break;
+      default:        levelLabel = widget.lang == 'EN' ? 'Location' : 'Lokasi';
+    }
+  
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AuditFormScreen(
+              lang: widget.lang,
+              levelType: level,
+              idRef: task['id_ref'].toString(),
+              locationName: locationName,
+              idSchedule: task['id_schedule'].toString(),
+            ),
+          ),
+        );
+        setState(() {
+          _pendingAuditsFuture = _fetchPendingAudits();
+        });
+      },
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF14B8A6), Color(0xFF0F766E)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: teal.withOpacity(0.30),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.fact_check_rounded,
+                  size: 20, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    locationName,
+                    style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '$levelLabel  •  $from → $to',
+                    style: GoogleFonts.poppins(
+                        fontSize: 11, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                size: 14, color: Colors.white70),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Executive Verification Button ──
   Widget _buildExecVerifButton() {
     return GestureDetector(
       onTap: () {
@@ -928,10 +1094,13 @@ class HomeContentState extends State<HomeContent> {
           _buildSectionLabel(_t('inspeksi')),
           const SizedBox(height: 10),
 
-          // Choose Mode Button (menggantikan dua switch lama)
+          // Choose Mode Button
           _buildChooseModeButton(),
 
-          // Executive Verification Button (hanya muncul jika eksekutif+verificator)
+          // AUDIT TASK SECTION
+          _buildPendingAuditSection(),
+
+          // Executive Verification Button
           if (widget.isExecVerificator) ...[
             const SizedBox(height: 10),
             _buildExecVerifButton(),
