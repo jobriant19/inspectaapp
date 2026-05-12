@@ -94,7 +94,7 @@ class _SplashScreenState extends State<SplashScreen> {
           ? userImage 
           : metaImage;
 
-        // Precache gambar user DAN logo header secara paralel
+        // Precache gambar user, logo header, DAN bgadmin secara paralel
         if (mounted) {
           final List<Future> precacheTasks = [];
           if (imageToUse != null) {
@@ -105,6 +105,11 @@ class _SplashScreenState extends State<SplashScreen> {
           }
           precacheTasks.add(
             precacheImage(const AssetImage('assets/images/logo1.png'), context)
+                .catchError((_) {}),
+          );
+          // Preload bgadmin agar welcome banner langsung muncul
+          precacheTasks.add(
+            precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
                 .catchError((_) {}),
           );
           await Future.wait(precacheTasks);
@@ -150,12 +155,38 @@ class _SplashScreenState extends State<SplashScreen> {
         final bool isAdminSplash = (userData['id_jabatan'] as int?) == 6;
 
         if (isAdminSplash) {
+          // Fetch stats paralel agar 4 card langsung muncul
+          int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
+          int sTotalTemuan = 0, sTemuanBelum = 0, sTemuanSelesai = 0;
+          try {
+            final statsResults = await Future.wait([
+              Supabase.instance.client.from('User').count(),
+              Supabase.instance.client.from('lokasi').count(),
+              Supabase.instance.client.from('kategoritemuan').count(),
+              Supabase.instance.client.from('temuan').count(),
+              Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Belum'),
+              Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Selesai'),
+            ]);
+            sTotalUsers    = statsResults[0] as int;
+            sTotalLokasi   = statsResults[1] as int;
+            sTotalKategori = statsResults[2] as int;
+            sTotalTemuan   = statsResults[3] as int;
+            sTemuanBelum   = statsResults[4] as int;
+            sTemuanSelesai = statsResults[5] as int;
+          } catch (_) {}
+          if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (_) => AdminHomeScreen(
                 initialUserName: (userData['nama'] as String?) ?? metaName?.toString(),
                 initialUserImage: imageToUse,
+                initialTotalUsers: sTotalUsers,
+                initialTotalLokasi: sTotalLokasi,
+                initialTotalKategori: sTotalKategori,
+                initialTotalTemuan: sTotalTemuan,
+                initialTemuanBelum: sTemuanBelum,
+                initialTemuanSelesai: sTemuanSelesai,
               ),
             ),
           );

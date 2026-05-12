@@ -126,6 +126,13 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     });
 
     _fetchProfile();
+    // Pastikan bgadmin sudah di-cache agar home screen langsung muncul saat pop
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      precacheImage(
+        const AssetImage('assets/images/bgadmin.png'),
+        context,
+      ).catchError((_) {});
+    });
   }
 
   @override
@@ -540,7 +547,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new,
-                color: Color(0xFF6366F1)),
+                color: Color(0xFF059669)),
             onPressed: () {
               if (_isEditMode) {
                 setState(() {
@@ -560,7 +567,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             getTxt(_isEditMode ? 'edit_title' : 'title'),
             style: GoogleFonts.poppins(
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF6366F1),
+              color: const Color(0xFF059669),
               fontSize: 18,
             ),
           ),
@@ -571,10 +578,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             if (!_isEditMode && !_isLoading)
               TextButton.icon(
                 icon: const Icon(Icons.edit_rounded,
-                    color: Color(0xFF6366F1), size: 18),
+                    color: Color(0xFF059669), size: 18),
                 label: Text(getTxt('edit'),
                     style: const TextStyle(
-                        color: Color(0xFF6366F1),
+                        color: Color(0xFF059669),
                         fontWeight: FontWeight.bold)),
                 onPressed: () => setState(() => _isEditMode = true),
                 style: TextButton.styleFrom(
@@ -588,109 +595,13 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             : SingleChildScrollView(
                 child: Column(
                   children: [
-                    // ── Header gradient ──
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.only(top: 30, bottom: 36),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(36),
-                          bottomRight: Radius.circular(36),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          GestureDetector(
-                            onTap: _pickImage,
-                            child: Stack(
-                              alignment: Alignment.bottomRight,
-                              children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: Colors.white, width: 4),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black
-                                            .withOpacity(0.18),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 6),
-                                      ),
-                                    ],
-                                  ),
-                                  child: CircleAvatar(
-                                    radius: 56,
-                                    backgroundColor:
-                                        const Color(0xFFEDE9FE),
-                                    backgroundImage: _imageBytes != null
-                                        ? MemoryImage(_imageBytes!)
-                                            as ImageProvider
-                                        : (_imageUrl != null &&
-                                                _imageUrl!.isNotEmpty
-                                            ? CachedNetworkImageProvider(
-                                                _imageUrl!)
-                                            : null),
-                                    child: (_imageBytes == null &&
-                                            (_imageUrl == null ||
-                                                _imageUrl!.isEmpty))
-                                        ? const Icon(Icons.person,
-                                            size: 56,
-                                            color: Color(0xFF6366F1))
-                                        : null,
-                                  ),
-                                ),
-                                if (_isEditMode)
-                                  Container(
-                                    padding: const EdgeInsets.all(7),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                          color: const Color(0xFF6366F1),
-                                          width: 2),
-                                    ),
-                                    child: const Icon(Icons.camera_alt,
-                                        color: Color(0xFF6366F1),
-                                        size: 18),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 7),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                    Icons.admin_panel_settings_rounded,
-                                    color: Colors.white,
-                                    size: 15),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _jabatan,
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                    // ── Header dengan background image + overlay hijau ──
+                    _AnimatedProfileHeader(
+                      jabatan: _jabatan,
+                      imageBytes: _imageBytes,
+                      imageUrl: _imageUrl,
+                      isEditMode: _isEditMode,
+                      onTap: _pickImage,
                     ),
 
                     // ── Form fields ──
@@ -726,13 +637,13 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: _hasChanges
-                                      ? const Color(0xFF6366F1)
+                                      ? const Color(0xFF059669)
                                       : Colors.grey.shade300,
                                   shape: RoundedRectangleBorder(
                                       borderRadius:
                                           BorderRadius.circular(16)),
                                   elevation: _hasChanges ? 4 : 0,
-                                  shadowColor: const Color(0xFF6366F1)
+                                  shadowColor: const Color(0xFF059669)
                                       .withOpacity(0.35),
                                 ),
                                 onPressed: _hasChanges && !_isSaving
@@ -828,7 +739,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6366F1),
+                  color: Color(0xFF059669),
                   letterSpacing: 0.3)),
         ),
         Container(
@@ -840,13 +751,13 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: enabled
-                  ? const Color(0xFF6366F1)
+                  ? const Color(0xFF059669)
                   : Colors.transparent,
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF6366F1).withOpacity(0.07),
+                color: const Color(0xFF059669).withOpacity(0.07),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -857,10 +768,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEDE9FE),
+                  color: const Color(0xFFD1FAE5),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: const Color(0xFF6366F1), size: 20),
+                child: Icon(icon, color: const Color(0xFF059669), size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -899,7 +810,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF6366F1),
+                  color: Color(0xFF059669),
                   letterSpacing: 0.3)),
         ),
         Container(
@@ -911,7 +822,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF6366F1).withOpacity(0.07),
+                color: const Color(0xFF059669).withOpacity(0.07),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -922,10 +833,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEDE9FE),
+                  color: const Color(0xFFD1FAE5),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: const Color(0xFF6366F1), size: 20),
+                child: Icon(icon, color: const Color(0xFF059669), size: 20),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -940,6 +851,232 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─── Animated Profile Header ──────────────────────────────────────────────────
+class _AnimatedProfileHeader extends StatefulWidget {
+  final String jabatan;
+  final Uint8List? imageBytes;
+  final String? imageUrl;
+  final bool isEditMode;
+  final VoidCallback onTap;
+
+  const _AnimatedProfileHeader({
+    required this.jabatan,
+    required this.imageBytes,
+    required this.imageUrl,
+    required this.isEditMode,
+    required this.onTap,
+  });
+
+  @override
+  State<_AnimatedProfileHeader> createState() =>
+      _AnimatedProfileHeaderState();
+}
+
+class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _borderCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _borderCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _borderCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        bottomLeft: Radius.circular(36),
+        bottomRight: Radius.circular(36),
+      ),
+      child: Container(
+        width: double.infinity,
+        height: 220,
+        // ── Fallback warna hijau cerah jika gambar gagal ──
+        color: const Color.fromARGB(255, 255, 255, 255),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // ── Background image TANPA overlay ──
+            Image.asset(
+              'assets/images/bgadmin.png',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+
+            // ── Dekorasi lingkaran latar (subtle) ──
+            Positioned(
+              top: -30,
+              right: -20,
+              child: Container(
+                width: 130,
+                height: 130,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.06),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -40,
+              left: 30,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.04),
+                ),
+              ),
+            ),
+
+            // ── Konten utama ──
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Avatar dengan border gradient hijau-biru ──
+                  GestureDetector(
+                    onTap: widget.onTap,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Ring gradient seperti admin_home_screen
+                        Container(
+                          padding: const EdgeInsets.all(2.5),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF34D399), Color(0xFF38BDF8)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF059669).withOpacity(0.4),
+                                blurRadius: 14,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: CircleAvatar(
+                              radius: 50,
+                              backgroundColor: const Color(0xFFD1FAE5),
+                              backgroundImage: widget.imageBytes != null
+                                  ? MemoryImage(widget.imageBytes!)
+                                      as ImageProvider
+                                  : (widget.imageUrl != null &&
+                                          widget.imageUrl!.isNotEmpty
+                                      ? CachedNetworkImageProvider(
+                                          widget.imageUrl!)
+                                      : null),
+                              child: (widget.imageBytes == null &&
+                                      (widget.imageUrl == null ||
+                                          widget.imageUrl!.isEmpty))
+                                  ? const Icon(Icons.person,
+                                      size: 50, color: Color(0xFF059669))
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        if (widget.isEditMode)
+                          Positioned(
+                            right: 2,
+                            bottom: 2,
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: const Color(0xFF10B981), width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.camera_alt,
+                                  color: Color(0xFF10B981), size: 15),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── Badge jabatan: border solid hijau, animasi hanya perubahan warna ──
+                  AnimatedBuilder(
+                    animation: _borderCtrl,
+                    builder: (_, child) {
+                      // Interpolasi warna border: hijau cerah ↔ biru cerah
+                      final borderColor = Color.lerp(
+                        const Color(0xFF34D399),
+                        const Color(0xFF38BDF8),
+                        (_borderCtrl.value < 0.5
+                            ? _borderCtrl.value * 2
+                            : (1 - _borderCtrl.value) * 2),
+                      )!;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(255, 69, 223, 118),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: borderColor,
+                            width: 2.5,
+                          ),
+                        ),
+                        child: child,
+                      );
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.admin_panel_settings_rounded,
+                            color: Colors.white, size: 15),
+                        const SizedBox(width: 7),
+                        Text(
+                          widget.jabatan,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

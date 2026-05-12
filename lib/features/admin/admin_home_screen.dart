@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:intl/intl.dart';
 
 // ─── Import screen admin lainnya ───
@@ -27,11 +28,24 @@ import '../auth/login_screen.dart';
 class AdminHomeScreen extends StatefulWidget {
   final String? initialUserName;
   final String? initialUserImage;
+  // ── Stats awal agar 4 card langsung muncul tanpa shimmer ──
+  final int? initialTotalUsers;
+  final int? initialTotalLokasi;
+  final int? initialTotalKategori;
+  final int? initialTotalTemuan;
+  final int? initialTemuanBelum;
+  final int? initialTemuanSelesai;
 
   const AdminHomeScreen({
     super.key,
     this.initialUserName,
     this.initialUserImage,
+    this.initialTotalUsers,
+    this.initialTotalLokasi,
+    this.initialTotalKategori,
+    this.initialTotalTemuan,
+    this.initialTemuanBelum,
+    this.initialTemuanSelesai,
   });
 
   @override
@@ -42,8 +56,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     with SingleTickerProviderStateMixin {
   String _lang = 'ID';
   String _adminName = 'Admin';
+  String _adminJabatan = 'Admin';
   String? _adminImage;
   bool _isLoadingStats = true;
+  final _bgImageProvider = const AssetImage('assets/images/bgadmin.png');
 
   // Stats
   int _totalUsers = 0;
@@ -79,13 +95,34 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     }
     _adminImage = widget.initialUserImage;
 
+    if (widget.initialTotalUsers != null) {
+      _totalUsers    = widget.initialTotalUsers!;
+      _totalLokasi   = widget.initialTotalLokasi ?? 0;
+      _totalKategori = widget.initialTotalKategori ?? 0;
+      _totalTemuan   = widget.initialTotalTemuan ?? 0;
+      _temuanBelum   = widget.initialTemuanBelum ?? 0;
+      _temuanSelesai = widget.initialTemuanSelesai ?? 0;
+      _isLoadingStats = false; // ← langsung tampil, skip shimmer
+    }
+
     _loadLanguage().then((_) {
       _fetchStats();
-      _fetchLeaderboardData(); // ← tambahkan
+      _fetchLeaderboardData();
       _animCtrl.forward();
     });
 
     _loadAdminInfo();
+    // Preload bgadmin segera saat widget pertama kali build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      precacheImage(
+        const AssetImage('assets/images/bgadmin.png'),
+        context,
+      ).catchError((_) {});
+      precacheImage(
+        const AssetImage('assets/images/logo1.png'),
+        context,
+      ).catchError((_) {});
+    });
   }
 
   @override
@@ -108,8 +145,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     }
   }
 
-  Future<void> _fetchStats() async {
-    setState(() => _isLoadingStats = true);
+  Future<void> _fetchStats({bool showLoading = false}) async {
+    if (showLoading) setState(() => _isLoadingStats = true);
     try {
       final results = await Future.wait([
         Supabase.instance.client.from('User').count(),
@@ -208,7 +245,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(colors: [
-                    const Color(0xFF6366F1).withOpacity(0.12),
+                    const Color(0xFF059669).withOpacity(0.10),
                     Colors.transparent,
                   ]),
                 ),
@@ -223,7 +260,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: RadialGradient(colors: [
-                    const Color(0xFF8B5CF6).withOpacity(0.08),
+                    const Color(0xFF10B981).withOpacity(0.07),
                     Colors.transparent,
                   ]),
                 ),
@@ -235,8 +272,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   _buildHeader(),
                   Expanded(
                     child: RefreshIndicator(
-                      onRefresh: _fetchStats,
-                      color: const Color(0xFF6366F1),
+                      onRefresh: () => _fetchStats(showLoading: false),
+                      color: const Color(0xFF059669),
                       backgroundColor: Colors.white,
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -311,7 +348,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  colors: [Color(0xFF059669), Color(0xFF34D399)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -327,7 +364,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF1E3A8A),
+              color: const Color.fromARGB(255, 29, 199, 97),
             ),
           ),
           const Spacer(),
@@ -369,13 +406,13 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  colors: [Color(0xFF34D399), Color(0xFF38BDF8)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF6366F1).withOpacity(0.3),
+                    color: const Color(0xFF059669).withOpacity(0.35),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -481,12 +518,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                           horizontal: 18, vertical: 14),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? const Color(0xFF6366F1).withOpacity(0.08)
+                            ? const Color(0xFF059669).withOpacity(0.08)
                             : Colors.grey.shade50,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isSelected
-                              ? const Color(0xFF6366F1)
+                              ? const Color(0xFF059669)
                               : Colors.grey.shade200,
                           width: isSelected ? 1.5 : 1,
                         ),
@@ -505,14 +542,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                                     : FontWeight.w500,
                                 fontSize: 15,
                                 color: isSelected
-                                    ? const Color(0xFF6366F1)
-                                    : const Color(0xFF1E3A8A),
+                                    ? const Color(0xFF059669)
+                                    : const Color.fromARGB(255, 7, 139, 97),
                               ),
                             ),
                           ),
                           if (isSelected)
                             const Icon(Icons.check_circle_rounded,
-                                color: Color(0xFF6366F1), size: 20),
+                                color:  Color(0xFF059669), size: 20),
                         ],
                       ),
                     ),
@@ -526,10 +563,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: const Color(0xFF6366F1).withOpacity(0.08),
+          color: const Color(0xFF059669).withOpacity(0.08),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: const Color(0xFF6366F1).withOpacity(0.25)),
+              color: const Color(0xFF059669).withOpacity(0.25)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -548,12 +585,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF6366F1),
+               color: const Color(0xFF059669),
               ),
             ),
             const SizedBox(width: 2),
             const Icon(Icons.keyboard_arrow_down_rounded,
-                size: 14, color: Color(0xFF6366F1)),
+                size: 14, color:  Color(0xFF059669)),
           ],
         ),
       ),
@@ -590,13 +627,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       if (userId == null) return;
       final row = await Supabase.instance.client
           .from('User')
-          .select('nama, gambar_user')
+          .select('nama, gambar_user, jabatan!User_id_jabatan_fkey(nama_jabatan)')
           .eq('id_user', userId)
           .maybeSingle();
       if (row != null && mounted) {
         setState(() {
-          _adminName = row['nama'] ?? _adminName;
-          _adminImage = row['gambar_user'] ?? _adminImage;
+          _adminName    = row['nama'] ?? _adminName;
+          _adminImage   = row['gambar_user'] ?? _adminImage;
+          _adminJabatan = row['jabatan']?['nama_jabatan'] ?? 'Admin';
         });
       }
     } catch (e) {
@@ -833,147 +871,155 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     return Container(
       margin: const EdgeInsets.only(top: 16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1D6EE8), Color(0xFF2563EB)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1D6EE8).withOpacity(0.35),
+            color: Colors.black.withOpacity(0.22),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          // Dekorasi lingkaran latar
-          Positioned(
-            top: -30,
-            right: -20,
-            child: Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.07),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // ── Background image — gaplessPlayback agar langsung muncul tanpa flash ──
+            Positioned.fill(
+              child: Image(
+                image: _bgImageProvider,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
+                  // Jika sudah di-cache, tampil langsung tanpa animasi
+                  if (wasSynchronouslyLoaded || frame != null) return child;
+                  // Fallback gradient sementara menunggu decode
+                  return Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF065F46), Color(0xFF059669)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (_, __, ___) => Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF065F46), Color(0xFF059669)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          Positioned(
-            bottom: -40,
-            right: 60,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.05),
+            // ── Overlay gelap HANYA di area teks agar terbaca ──
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: Container(
+                height: 110,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.55),
+                      Colors.black.withOpacity(0.0),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
               ),
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Baris atas: teks sambutan ──
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _lang == 'EN'
-                                ? 'Welcome back,'
-                                : _lang == 'ZH'
-                                    ? '欢迎回来，'
-                                    : 'Selamat datang kembali,',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white.withOpacity(0.85),
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _adminName,
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.18),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                  color: Colors.white.withOpacity(0.3)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+            // ── Dekorasi lingkaran ──
+            Positioned(
+              top: -30, right: -20,
+              child: Container(
+                width: 140, height: 140,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.06),
+                ),
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Baris atas: welcome + jam ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // ── Kiri: teks welcome + badge jabatan ──
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Welcome + nama dalam 1 baris
+                            Row(
                               children: [
-                                const Icon(Icons.shield_rounded,
-                                    color: Colors.white, size: 13),
-                                const SizedBox(width: 5),
                                 Text(
-                                  _lang == 'EN'
-                                      ? 'Super Admin'
-                                      : _lang == 'ZH'
-                                          ? '超级管理员'
-                                          : 'Super Admin',
+                                  _lang == 'EN' ? 'Hello, '
+                                      : _lang == 'ZH' ? '你好, '
+                                      : 'Halo, ',
                                   style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withOpacity(0.90),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black.withOpacity(0.6),
+                                        blurRadius: 6,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Flexible(
+                                  child: Text(
+                                    _adminName,
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withOpacity(0.7),
+                                          blurRadius: 8,
+                                        ),
+                                      ],
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 7),
+                            // Badge jabatan dari DB (via _AnimatedAdminBadge)
+                            _AnimatedAdminBadge(lang: _lang, jabatan: _adminJabatan),
+                          ],
+                        ),
                       ),
-                    ),
-                    // Ikon admin di pojok kanan
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                            color: Colors.white.withOpacity(0.25)),
-                      ),
-                      child: const Icon(
-                        Icons.admin_panel_settings_rounded,
-                        color: Colors.white,
-                        size: 32,
-                      ),
-                    ),
-                  ],
+                      const SizedBox(width: 10),
+                      // ── Kanan: jam analog + digital + tanggal ──
+                      _DigitalClockWidget(lang: _lang),
+                    ],
+                  ),
                 ),
-              ),
-
-              // ── Divider ──
-              Container(
-                height: 1,
-                color: Colors.white.withOpacity(0.15),
-              ),
-
-              // ── 4 Stats Card di bawah ──
-              _isLoadingStats
-                  ? _buildBannerStatsShimmer()
-                  : _buildBannerStats(),
-
-              const SizedBox(height: 4),
-            ],
-          ),
-        ],
+                // ── Divider ──
+                Container(height: 1, color: Colors.white.withOpacity(0.18)),
+                // ── 4 Stats Card ──
+                _isLoadingStats
+                    ? _buildBannerStatsShimmer()
+                    : _buildBannerStats(),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1003,66 +1049,49 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   Widget _buildBannerStats() {
     final stats = [
       _BannerStat(
-        label: _lang == 'EN'
-            ? 'Users'
-            : _lang == 'ZH'
-                ? '用户'
-                : 'Pengguna',
+        label: _lang == 'EN' ? 'Users' : _lang == 'ZH' ? '用户' : 'Pengguna',
         value: _totalUsers,
         icon: Icons.people_rounded,
         color: const Color(0xFF3B82F6),
-        iconBg: const Color(0xFFDEEFFB),
+        iconBg: const Color(0xFF3B82F6),
       ),
       _BannerStat(
-        label: _lang == 'EN'
-            ? 'Locations'
-            : _lang == 'ZH'
-                ? '位置'
-                : 'Lokasi',
+        label: _lang == 'EN' ? 'Locations' : _lang == 'ZH' ? '位置' : 'Lokasi',
         value: _totalLokasi,
         icon: Icons.location_city_rounded,
         color: const Color(0xFF10B981),
-        iconBg: const Color(0xFFD1FAE5),
+        iconBg: const Color(0xFF10B981),
       ),
       _BannerStat(
-        label: _lang == 'EN'
-            ? 'Categories'
-            : _lang == 'ZH'
-                ? '类别'
-                : 'Kategori',
+        label: _lang == 'EN' ? 'Categories' : _lang == 'ZH' ? '类别' : 'Kategori',
         value: _totalKategori,
         icon: Icons.category_rounded,
         color: const Color(0xFFF59E0B),
-        iconBg: const Color(0xFFFEF3C7),
+        iconBg: const Color(0xFFF59E0B),
       ),
       _BannerStat(
-        label: _lang == 'EN'
-            ? 'Findings'
-            : _lang == 'ZH'
-                ? '发现'
-                : 'Temuan',
+        label: _lang == 'EN' ? 'Findings' : _lang == 'ZH' ? '发现' : 'Temuan',
         value: _totalTemuan,
         icon: Icons.assignment_rounded,
         color: const Color(0xFFEF4444),
-        iconBg: const Color(0xFFFEE2E2),
+        iconBg: const Color(0xFFEF4444),
       ),
     ];
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
       child: Row(
         children: stats.map((s) {
           return Expanded(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.symmetric(
-                  vertical: 12, horizontal: 6),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                color: s.color,
+                borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
+                    color: s.color.withOpacity(0.4),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -1071,29 +1100,23 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: s.iconBg,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(s.icon, color: s.color, size: 18),
-                  ),
-                  const SizedBox(height: 8),
+                  Icon(s.icon, color: Colors.white.withOpacity(0.90), size: 18),
+                  const SizedBox(height: 5),
                   Text(
                     '${s.value}',
                     style: GoogleFonts.poppins(
-                      color: const Color(0xFF1E3A8A),
-                      fontSize: 20,
+                      color: Colors.white,
+                      fontSize: 17,
                       fontWeight: FontWeight.w800,
+                      height: 1.1,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     s.label,
                     style: GoogleFonts.poppins(
-                      color: Colors.black54,
-                      fontSize: 9,
+                      color: Colors.white.withOpacity(0.88),
+                      fontSize: 8,
                       fontWeight: FontWeight.w600,
                     ),
                     textAlign: TextAlign.center,
@@ -1117,7 +1140,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           height: 18,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+              colors: [Color(0xFF059669), Color(0xFF34D399)],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
@@ -1407,7 +1430,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.calendar_today_rounded,
-                      size: 14, color: Color(0xFF6366F1)),
+                      size: 14, color: Color(0xFF059669)),
                   const SizedBox(width: 6),
                   Text(
                     DateFormat('d MMM yyyy',
@@ -1454,18 +1477,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF6366F1) : Colors.white,
+            color: isActive ? const Color(0xFF059669) : Colors.white,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isActive
-                  ? const Color(0xFF6366F1)
+                  ? const Color(0xFF059669)
                   : const Color(0xFFBAE6FD),
             ),
             boxShadow: isActive
                 ? [
                     BoxShadow(
                       color:
-                          const Color(0xFF6366F1).withOpacity(0.25),
+                          const Color(0xFF059669).withOpacity(0.25),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     )
@@ -1964,8 +1987,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   }
 
   Widget _buildLbTable() {
-    const Color primaryColor = Color(0xFF6366F1);
-    const Color primaryLight = Color(0xFFEDE9FE);
+    const Color primaryColor = Color(0xFF059669);
+    const Color primaryLight = Color(0xFFD1FAE5);
     const Color borderColor  = Color(0xFFE2E8F0);
     const Color textPrimary  = Color(0xFF1E3A8A);
     const Color textSecondary = Color(0xFF64748B);
@@ -2114,11 +2137,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     const Color gold    = Color(0xFFF59E0B);
     const Color silver  = Color(0xFF94A3B8);
     const Color bronze  = Color(0xFFCD7F32);
-    const Color primary = Color(0xFF6366F1);
+    const Color primary = Color(0xFF059669);
     const Color textPrimary = Color(0xFF1E3A8A);
     const Color textSecondary = Color(0xFF64748B);
     const Color border  = Color(0xFFE2E8F0);
-    const Color primaryLight = Color(0xFFEDE9FE);
+    const Color primaryLight = Color(0xFFD1FAE5);
 
     Color? leftBorder;
     Color bgColor    = Colors.white;
@@ -2415,21 +2438,363 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       ],
     );
   }
+}
 
-  void _showComingSoon() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _lang == 'EN' ? 'Coming Soon!' : 'Segera Hadir!',
-          style: GoogleFonts.poppins(),
-        ),
-        backgroundColor: const Color(0xFF6366F1),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
+// ── Animated Admin Badge (border stroke animasi seperti Google) ──
+class _AnimatedAdminBadge extends StatefulWidget {
+  final String lang;
+  final String jabatan;
+  const _AnimatedAdminBadge({required this.lang, required this.jabatan});
+
+  @override
+  State<_AnimatedAdminBadge> createState() => _AnimatedAdminBadgeState();
+}
+
+class _AnimatedAdminBadgeState extends State<_AnimatedAdminBadge>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) {
+        final t = _ctrl.value < 0.5
+            ? _ctrl.value * 2
+            : (1 - _ctrl.value) * 2;
+        final borderColor = Color.lerp(
+          const Color(0xFF34D399),
+          const Color(0xFF38BDF8),
+          t,
+        )!;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            // Latar gelap semi-transparan agar teks terbaca di atas gambar
+            color: Colors.black.withOpacity(0.38),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: borderColor.withOpacity(0.35),
+                blurRadius: 8,
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.verified_rounded,
+              color: Color(0xFF34D399), size: 12),
+          const SizedBox(width: 5),
+          Text(
+            widget.jabatan,
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+              shadows: [
+                Shadow(
+                  color: Colors.black.withOpacity(0.5),
+                  blurRadius: 4,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+// ── Digital Clock Widget real-time (Analog + Digital) ──
+class _DigitalClockWidget extends StatefulWidget {
+  final String lang;
+  const _DigitalClockWidget({required this.lang});
+
+  @override
+  State<_DigitalClockWidget> createState() => _DigitalClockWidgetState();
+}
+
+class _DigitalClockWidgetState extends State<_DigitalClockWidget> {
+  late DateTime _now;
+  late Timer _timer;
+
+  static const _days   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  static const _months = ['JAN','FEB','MAR','APR','MAY','JUN',
+                           'JUL','AUG','SEP','OCT','NOV','DEC'];
+
+  @override
+  void initState() {
+    super.initState();
+    _now = DateTime.now();
+    _timer = Timer.periodic(const Duration(seconds: 1),
+        (_) { if (mounted) setState(() => _now = DateTime.now()); });
+  }
+
+  @override
+  void dispose() { _timer.cancel(); super.dispose(); }
+
+  String _pad(int v) => v.toString().padLeft(2, '0');
+
+  @override
+  Widget build(BuildContext context) {
+    final h    = _pad(_now.hour);
+    final m    = _pad(_now.minute);
+    final s    = _pad(_now.second);
+    final year = _now.year.toString();
+
+    // ── Nama hari & bulan sesuai bahasa ──
+    final String dayStr;
+    final String monStr;
+
+    if (widget.lang == 'ID') {
+      const daysID  = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+      const monsID  = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+      dayStr = daysID[_now.weekday % 7];
+      monStr = monsID[_now.month - 1];
+    } else if (widget.lang == 'ZH') {
+      const daysZH  = ['日','一','二','三','四','五','六'];
+      const monsZH  = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+      dayStr = '周${daysZH[_now.weekday % 7]}';
+      monStr = monsZH[_now.month - 1];
+    } else {
+      const daysEN  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const monsEN  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      dayStr = daysEN[_now.weekday % 7];
+      monStr = monsEN[_now.month - 1];
+    }
+
+    final date = _pad(_now.day);
+
+    // Format keterangan waktu sesuai bahasa
+    final String dateLabel;
+    if (widget.lang == 'ID') {
+      dateLabel = '$dayStr, $date $monStr $year';
+    } else if (widget.lang == 'ZH') {
+      dateLabel = '$year年$monStr$date日 $dayStr';
+    } else {
+      dateLabel = '$dayStr, $date $monStr $year';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.38),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // ── Kiri: Jam Analog ──
+          SizedBox(
+            width: 54,
+            height: 54,
+            child: CustomPaint(
+              painter: _AnalogClockPainter(now: _now),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // ── Kanan: Digital + tanggal di bawah ──
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // HH:MM besar + :SS lebih besar & jelas
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '$h:$m',
+                    style: GoogleFonts.sourceCodePro(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withOpacity(0.6),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Separator titik dua
+                  Text(
+                    ':',
+                    style: GoogleFonts.sourceCodePro(
+                      color: Colors.white.withOpacity(0.70),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  // Detik — ukuran lebih besar & warna hijau terang
+                  Text(
+                    s,
+                    style: GoogleFonts.sourceCodePro(
+                      color: const Color(0xFF6EE7B7), // hijau lebih terang
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1,
+                      shadows: [
+                        Shadow(
+                          color: const Color(0xFF059669).withOpacity(0.8),
+                          blurRadius: 8,
+                          offset: const Offset(0, 0),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              // Keterangan waktu sesuai bahasa
+              Text(
+                dateLabel,
+                style: GoogleFonts.poppins(
+                  color: Colors.white.withOpacity(0.85),
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.3,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Analog Clock Painter ──
+class _AnalogClockPainter extends CustomPainter {
+  final DateTime now;
+  const _AnalogClockPainter({required this.now});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r  = size.width / 2 - 2;
+    final center = Offset(cx, cy);
+    const pi2 = 6.283185307;
+
+    // ── Background lingkaran ──
+    canvas.drawCircle(
+      center, r,
+      Paint()..color = Colors.white.withOpacity(0.10),
+    );
+
+    // ── Ring luar ──
+    canvas.drawCircle(
+      center, r,
+      Paint()
+        ..color = Colors.white.withOpacity(0.30)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
+    );
+
+    // ── Tick marks (12 jam) ──
+    for (int i = 0; i < 12; i++) {
+      final angle = (i / 12) * pi2 - pi2 / 4;
+      final isMajor = i % 3 == 0;
+      final outer = r - 1;
+      final inner = isMajor ? r - 6 : r - 4;
+      canvas.drawLine(
+        Offset(cx + inner * cos(angle), cy + inner * sin(angle)),
+        Offset(cx + outer * cos(angle), cy + outer * sin(angle)),
+        Paint()
+          ..color = isMajor
+              ? Colors.white.withOpacity(0.90)
+              : Colors.white.withOpacity(0.45)
+          ..strokeWidth = isMajor ? 1.8 : 1.0
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+
+    // ── Jarum jam (hour) ──
+    final hourAngle =
+        ((now.hour % 12) + now.minute / 60) / 12 * pi2 - pi2 / 4;
+    canvas.drawLine(
+      center,
+      Offset(cx + (r * 0.45) * cos(hourAngle),
+             cy + (r * 0.45) * sin(hourAngle)),
+      Paint()
+        ..color = Colors.white
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // ── Jarum menit (minute) ──
+    final minAngle =
+        (now.minute + now.second / 60) / 60 * pi2 - pi2 / 4;
+    canvas.drawLine(
+      center,
+      Offset(cx + (r * 0.65) * cos(minAngle),
+             cy + (r * 0.65) * sin(minAngle)),
+      Paint()
+        ..color = Colors.white.withOpacity(0.90)
+        ..strokeWidth = 1.8
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // ── Jarum detik (second) — hijau cerah ──
+    final secAngle = now.second / 60 * pi2 - pi2 / 4;
+    // ekor kecil ke belakang
+    canvas.drawLine(
+      Offset(cx - (r * 0.15) * cos(secAngle),
+             cy - (r * 0.15) * sin(secAngle)),
+      Offset(cx + (r * 0.80) * cos(secAngle),
+             cy + (r * 0.80) * sin(secAngle)),
+      Paint()
+        ..color = const Color(0xFF34D399)
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // ── Titik tengah ──
+    canvas.drawCircle(center, 3,
+        Paint()..color = const Color(0xFF34D399));
+    canvas.drawCircle(center, 1.5,
+        Paint()..color = Colors.white);
+  }
+
+  double cos(double a) => math.cos(a);
+  double sin(double a) => math.sin(a);
+
+  @override
+  bool shouldRepaint(covariant _AnalogClockPainter old) =>
+      old.now.second != now.second;
 }
 
 // ─── Data models ───
