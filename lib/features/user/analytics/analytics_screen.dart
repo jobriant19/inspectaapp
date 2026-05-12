@@ -232,6 +232,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   int _currentTabCount = 4;
   bool _fetchTriggeredByTabFilter = false;
 
+  // ─── Shimmer state untuk chart per-tab ────────────────────────────────────
+  bool _isChartLoadingForTab = false;
+
   // ─── Accident Report data ─────────────────────────────────────────────────
   Future<List<MemberData>>? _accidentAnggotaFuture;
   Future<List<LocationData>>? _accidentLokasiFuture;
@@ -277,7 +280,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(_onTabChanged);
     _initLocaleDependentLists();
-    _fetchUnits().then((_) => _fetchAllData());
+    _fetchUnits().then((_) {
+      _fetchAllData();
+      // Pastikan chart & tabel langsung visible tanpa shimmer awal
+      setState(() => _isChartLoadingForTab = false);
+    });
     _fetchTarget();
   }
 
@@ -363,6 +370,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   void _fetchAllData({bool fromTabFilter = false}) {
+    // Reset shimmer tab ketika fetch dipicu manual (bukan dari tab switch)
+    if (!fromTabFilter) {
+      _isChartLoadingForTab = false;
+    }
     final roleBackendValue = ['Eksekutif', 'Profesional', 'Visitor'][
         _translatedRoles.indexOf(_selectedInspectionRole).clamp(0, 2)];
     final levelBackendValue = ['Lokasi', 'Unit', 'Subunit', 'Area'][
@@ -434,35 +445,47 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   void _onTabChanged() {
     if (!mounted) return;
-    // Hanya proses saat animasi benar-benar selesai
     if (_tabController.indexIsChanging) return;
     final newIdx = _tabController.index;
     if (_activeTabIndex == newIdx) return;
 
     final month = _selectedMonth;
     final year = DateTime.now().year;
-    setState(() {
-      _activeTabIndex = newIdx;
-      _chartFuture = _fetchChartData(month, year, _selectedFindingType);
-      _chartRefreshKey++;
 
-      final bool isRecurringTab =
-          (_selectedFindingType == '5R' && newIdx == 3) ||
-          (_selectedFindingType == 'KTS Production' && newIdx == 1) ||
-          (_selectedFindingType == 'Accident' && newIdx == 2);
-      if (isRecurringTab) {
-        if (_selectedFindingType == 'KTS Production') {
-          _recurringFuture = _fetchRecurringData(ktsOnly: true);
-          _recurringChartFuture = _fetchKtsRecurringChartData();
-        } else if (_selectedFindingType == 'Accident') {
-          _accidentRecurringFuture = _fetchAccidentRecurringData();
-          _recurringChartFuture = _fetchAccidentRecurringChartData();
-        } else {
-          _recurringFuture = _fetchRecurringData(ktsOnly: false);
-          _recurringChartFuture = _fetchRecurringChartData();
+    // Aktifkan shimmer dulu
+    setState(() {
+      _isChartLoadingForTab = true;
+      _activeTabIndex = newIdx;
+    });
+
+    // Fetch data, lalu matikan shimmer
+    Future.wait([
+      _fetchChartData(month, year, _selectedFindingType),
+    ]).then((results) {
+      if (!mounted) return;
+      setState(() {
+        _chartFuture = Future.value(results[0]);
+        _chartRefreshKey++;
+        _isChartLoadingForTab = false;
+
+        final bool isRecurringTab =
+            (_selectedFindingType == '5R' && newIdx == 3) ||
+            (_selectedFindingType == 'KTS Production' && newIdx == 1) ||
+            (_selectedFindingType == 'Accident' && newIdx == 2);
+        if (isRecurringTab) {
+          if (_selectedFindingType == 'KTS Production') {
+            _recurringFuture = _fetchRecurringData(ktsOnly: true);
+            _recurringChartFuture = _fetchKtsRecurringChartData();
+          } else if (_selectedFindingType == 'Accident') {
+            _accidentRecurringFuture = _fetchAccidentRecurringData();
+            _recurringChartFuture = _fetchAccidentRecurringChartData();
+          } else {
+            _recurringFuture = _fetchRecurringData(ktsOnly: false);
+            _recurringChartFuture = _fetchRecurringChartData();
+          }
+          _recurringChartRefreshKey++;
         }
-        _recurringChartRefreshKey++;
-      }
+      });
     });
   }
   
@@ -2887,107 +2910,230 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
     if (isRecurringTabActive) return const SizedBox.shrink();
 
-    // ── KTS Production → Members (tab 0): Pie Chart ──────────────────────────
+    // Shimmer saat loading perpindahan tab
+    if (_isChartLoadingForTab) {
+      return _buildChartShimmerSmall();
+    }
+
+    // ── KTS Production → Members (tab 0): Collapsible + Pie Chart ──
     if (_selectedFindingType == 'KTS Production' && _activeTabIndex == 0) {
-      return FutureBuilder<List<MemberData>>(
-        future: _ktsAnggotaFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildChartShimmerSmall();
-          }
-          final data = snapshot.data ?? [];
-          final totalFindings =
-              data.fold<int>(0, (sum, m) => sum + m.findings);
-          final totalCompleted =
-              data.fold<int>(0, (sum, m) => sum + m.completed);
-          return _buildAnalyticsPieChart(
-            totalPrimary: totalFindings,
-            totalSecondary: totalCompleted,
-            colorPrimary: const Color(0xFFF59E0B),
-            colorSecondary: const Color(0xFF10B981),
-            labelPrimary: widget.lang == 'ID' ? 'Temuan'
-                : widget.lang == 'ZH' ? '发现' : 'Findings',
-            labelSecondary: widget.lang == 'ID' ? 'Selesai'
-                : widget.lang == 'ZH' ? '已完成' : 'Completed',
-            activeColor: const Color(0xFFF59E0B),
-          );
-        },
-      );
+      final activeColor = const Color(0xFFF59E0B);
+      final locale = widget.lang == 'ID' ? 'id_ID'
+          : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
+      final monthLabel = _filterMode == 'daily' && _selectedDate != null
+          ? DateFormat('d MMM yyyy', locale).format(_selectedDate!)
+          : DateFormat('MMMM yyyy', locale)
+              .format(DateTime(DateTime.now().year, _selectedMonthIndex + 1));
+
+      return Column(children: [
+        GestureDetector(
+          onTap: () => setState(() => _isChartExpanded = !_isChartExpanded),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: activeColor.withOpacity(0.4), width: 1.2),
+              boxShadow: [BoxShadow(color: activeColor.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
+            ),
+            child: Row(children: [
+              Icon(Icons.bar_chart_rounded, size: 16, color: activeColor),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                widget.lang == 'ID' ? 'Grafik $monthLabel'
+                    : widget.lang == 'ZH' ? '$monthLabel 图表'
+                    : 'Chart $monthLabel',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: activeColor),
+              )),
+              AnimatedRotation(
+                turns: _isChartExpanded ? 0.5 : 0,
+                duration: const Duration(milliseconds: 250),
+                child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: activeColor),
+              ),
+            ]),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: _isChartExpanded
+              ? FutureBuilder<List<MemberData>>(
+                  future: _ktsAnggotaFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return _buildChartShimmerSmall();
+                    }
+                    final data = snapshot.data ?? [];
+                    final totalFindings = data.fold<int>(0, (sum, m) => sum + m.findings);
+                    final totalCompleted = data.fold<int>(0, (sum, m) => sum + m.completed);
+                    return _buildAnalyticsPieChart(
+                      totalPrimary: totalFindings,
+                      totalSecondary: totalCompleted,
+                      colorPrimary: const Color(0xFFF59E0B),
+                      colorSecondary: const Color(0xFF10B981),
+                      labelPrimary: widget.lang == 'ID' ? 'Temuan'
+                          : widget.lang == 'ZH' ? '发现' : 'Findings',
+                      labelSecondary: widget.lang == 'ID' ? 'Selesai'
+                          : widget.lang == 'ZH' ? '已完成' : 'Completed',
+                      activeColor: const Color(0xFFF59E0B),
+                    );
+                  },
+                )
+              : const SizedBox.shrink(),
+        ),
+      ]);
     }
 
-    // ── Accident → Members (tab 0): Pie Chart ────────────────────────────────
+    // ── Accident → Members (tab 0): Collapsible + Pie Chart ──
     if (_selectedFindingType == 'Accident' && _activeTabIndex == 0) {
-      return FutureBuilder<List<MemberData>>(
-        future: _accidentAnggotaFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildChartShimmerSmall();
-          }
-          final data = snapshot.data ?? [];
-          final totalReports =
-              data.fold<int>(0, (sum, m) => sum + m.findings);
-          final totalCompleted =
-              data.fold<int>(0, (sum, m) => sum + m.completed);
-          return _buildAnalyticsPieChart(
-            totalPrimary: totalReports,
-            totalSecondary: totalCompleted,
-            colorPrimary: const Color(0xFFEF4444),
-            colorSecondary: const Color(0xFF10B981),
-            labelPrimary: widget.lang == 'ID' ? 'Laporan'
-                : widget.lang == 'ZH' ? '报告' : 'Reports',
-            labelSecondary: widget.lang == 'ID' ? 'Selesai'
-                : widget.lang == 'ZH' ? '已完成' : 'Completed',
-            activeColor: const Color(0xFFEF4444),
-          );
-        },
-      );
+      final activeColor = const Color(0xFFEF4444);
+      final locale = widget.lang == 'ID' ? 'id_ID'
+          : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
+      final monthLabel = _filterMode == 'daily' && _selectedDate != null
+          ? DateFormat('d MMM yyyy', locale).format(_selectedDate!)
+          : DateFormat('MMMM yyyy', locale)
+              .format(DateTime(DateTime.now().year, _selectedMonthIndex + 1));
+
+      return Column(children: [
+        GestureDetector(
+          onTap: () => setState(() => _isChartExpanded = !_isChartExpanded),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: activeColor.withOpacity(0.4), width: 1.2),
+              boxShadow: [BoxShadow(color: activeColor.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
+            ),
+            child: Row(children: [
+              Icon(Icons.bar_chart_rounded, size: 16, color: activeColor),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                widget.lang == 'ID' ? 'Grafik $monthLabel'
+                    : widget.lang == 'ZH' ? '$monthLabel 图表'
+                    : 'Chart $monthLabel',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: activeColor),
+              )),
+              AnimatedRotation(
+                turns: _isChartExpanded ? 0.5 : 0,
+                duration: const Duration(milliseconds: 250),
+                child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: activeColor),
+              ),
+            ]),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: _isChartExpanded
+              ? FutureBuilder<List<MemberData>>(
+                  future: _accidentAnggotaFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return _buildChartShimmerSmall();
+                    }
+                    final data = snapshot.data ?? [];
+                    final totalReports = data.fold<int>(0, (sum, m) => sum + m.findings);
+                    final totalCompleted = data.fold<int>(0, (sum, m) => sum + m.completed);
+                    return _buildAnalyticsPieChart(
+                      totalPrimary: totalReports,
+                      totalSecondary: totalCompleted,
+                      colorPrimary: const Color(0xFFEF4444),
+                      colorSecondary: const Color(0xFF10B981),
+                      labelPrimary: widget.lang == 'ID' ? 'Laporan'
+                          : widget.lang == 'ZH' ? '报告' : 'Reports',
+                      labelSecondary: widget.lang == 'ID' ? 'Selesai'
+                          : widget.lang == 'ZH' ? '已完成' : 'Completed',
+                      activeColor: const Color(0xFFEF4444),
+                    );
+                  },
+                )
+              : const SizedBox.shrink(),
+        ),
+      ]);
     }
 
-    // ── Accident → Location (tab 1): Pie Chart ───────────────────────────────
+    // ── Accident → Location (tab 1): Collapsible + Pie Chart ──
     if (_selectedFindingType == 'Accident' && _activeTabIndex == 1) {
-      return FutureBuilder<List<LocationData>>(
-        future: _accidentLokasiFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildChartShimmerSmall();
-          }
-          final data = snapshot.data ?? [];
-          // Primary = lokasi dengan temuan > 0, Secondary = lokasi dengan 0 temuan
-          final withFindings = data
-              .where((l) => (int.tryParse(l.value ?? '0') ?? 0) > 0)
-              .length;
-          final withoutFindings = data.length - withFindings;
-          // Total keseluruhan laporan untuk pie
-          final totalReports = data.fold<int>(
-              0, (sum, l) => sum + (int.tryParse(l.value ?? '0') ?? 0));
-          // Top 1 lokasi untuk label
-          final topLoc = data.isNotEmpty ? data.first : null;
-          final topCount =
-              topLoc != null ? (int.tryParse(topLoc.value ?? '0') ?? 0) : 0;
-          final othersCount = totalReports - topCount;
+      final activeColor = const Color(0xFFEF4444);
+      final locale = widget.lang == 'ID' ? 'id_ID'
+          : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
+      final monthLabel = _filterMode == 'daily' && _selectedDate != null
+          ? DateFormat('d MMM yyyy', locale).format(_selectedDate!)
+          : DateFormat('MMMM yyyy', locale)
+              .format(DateTime(DateTime.now().year, _selectedMonthIndex + 1));
 
-          return _buildAnalyticsPieChart(
-            totalPrimary: topCount,
-            totalSecondary: othersCount,
-            colorPrimary: const Color(0xFFEF4444),
-            colorSecondary: const Color(0xFFF97316),
-            labelPrimary: topLoc != null
-                ? topLoc.name
-                : (widget.lang == 'ID' ? 'Teratas' : 'Top'),
-            labelSecondary: widget.lang == 'ID' ? 'Lokasi Lainnya'
-                : widget.lang == 'ZH' ? '其他位置' : 'Other Locations',
-            activeColor: const Color(0xFFEF4444),
-          );
-        },
-      );
+      return Column(children: [
+        GestureDetector(
+          onTap: () => setState(() => _isChartExpanded = !_isChartExpanded),
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: activeColor.withOpacity(0.4), width: 1.2),
+              boxShadow: [BoxShadow(color: activeColor.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
+            ),
+            child: Row(children: [
+              Icon(Icons.bar_chart_rounded, size: 16, color: activeColor),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                widget.lang == 'ID' ? 'Grafik $monthLabel'
+                    : widget.lang == 'ZH' ? '$monthLabel 图表'
+                    : 'Chart $monthLabel',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: activeColor),
+              )),
+              AnimatedRotation(
+                turns: _isChartExpanded ? 0.5 : 0,
+                duration: const Duration(milliseconds: 250),
+                child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: activeColor),
+              ),
+            ]),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: _isChartExpanded
+              ? FutureBuilder<List<LocationData>>(
+                  future: _accidentLokasiFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return _buildChartShimmerSmall();
+                    }
+                    final data = snapshot.data ?? [];
+                    final totalReports = data.fold<int>(
+                        0, (sum, l) => sum + (int.tryParse(l.value ?? '0') ?? 0));
+                    final topLoc = data.isNotEmpty ? data.first : null;
+                    final topCount = topLoc != null
+                        ? (int.tryParse(topLoc.value ?? '0') ?? 0) : 0;
+                    final othersCount = totalReports - topCount;
+                    return _buildAnalyticsPieChart(
+                      totalPrimary: topCount,
+                      totalSecondary: othersCount,
+                      colorPrimary: const Color(0xFFEF4444),
+                      colorSecondary: const Color(0xFFF97316),
+                      labelPrimary: topLoc != null ? topLoc.name
+                          : (widget.lang == 'ID' ? 'Teratas' : 'Top'),
+                      labelSecondary: widget.lang == 'ID' ? 'Lokasi Lainnya'
+                          : widget.lang == 'ZH' ? '其他位置' : 'Other Locations',
+                      activeColor: const Color(0xFFEF4444),
+                    );
+                  },
+                )
+              : const SizedBox.shrink(),
+        ),
+      ]);
     }
 
-    // ── Selain kondisi di atas: Bar Chart (5R semua tab, dll) ────────────────
+    // ── Selain kondisi di atas: Bar Chart (5R semua tab, dll) ──
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
       child: KeyedSubtree(
-        key: ValueKey(
-            'collapsible-$_selectedFindingType-$_activeTabIndex'),
+        key: ValueKey('collapsible-$_selectedFindingType-$_activeTabIndex'),
         child: _buildCollapsibleChart(),
       ),
     );
