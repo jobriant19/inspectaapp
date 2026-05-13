@@ -111,6 +111,10 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1E3A8A),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           widget.lang == 'EN' ? 'About Inspecta' : 'Tentang Inspecta',
           style: GoogleFonts.poppins(

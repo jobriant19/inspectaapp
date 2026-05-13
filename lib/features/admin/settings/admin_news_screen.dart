@@ -423,6 +423,10 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1E3A8A),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           widget.lang == 'EN' ? 'Latest News' : 'Kabar Terbaru',
           style: GoogleFonts.poppins(

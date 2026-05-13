@@ -60,6 +60,10 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1E3A8A),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
         shadowColor: Colors.black.withOpacity(0.08),
         title: Text(
           _lang == 'EN' ? 'Location Management' : _lang == 'ZH' ? '位置管理' : 'Kelola Lokasi',

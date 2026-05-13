@@ -50,6 +50,10 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1E3A8A),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
         shadowColor: Colors.black.withOpacity(0.06),
         title: Text(
           widget.lang == 'EN' ? 'Category Management' : widget.lang == 'ZH' ? '分类管理': 'Kelola Kategori',

@@ -311,6 +311,10 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1E3A8A),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           widget.title,
           style: GoogleFonts.poppins(
