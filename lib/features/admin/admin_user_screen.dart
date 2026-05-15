@@ -4,7 +4,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/services/auth_service.dart';
-import 'shared/admin_image_picker_widget.dart'; // ← sesuaikan path
+import 'shared/admin_image_picker_widget.dart';
 
 class AdminUserScreen extends StatefulWidget {
   final String lang;
@@ -481,27 +481,21 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton.icon(
+                          child: ElevatedButton.icon(
                             onPressed: () {
                               Navigator.pop(ctx);
                               _showUserDialog(user: user);
                             },
-                            icon: const Icon(Icons.edit_outlined, size: 16),
+                            icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.white),
                             label: Text(
-                              langCode == 'EN'
-                                  ? 'Edit'
-                                  : langCode == 'ZH'
-                                      ? '编辑'
-                                      : 'Edit',
-                              style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600),
+                              langCode == 'EN' ? 'Edit' : langCode == 'ZH' ? '编辑' : 'Edit',
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.white),
                             ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _primary,
-                              side: BorderSide(color: _primary),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2563EB),
                               padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
                             ),
                           ),
                         ),
@@ -1890,7 +1884,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             children: [
               _buildIconBtn(
                 Icons.edit_outlined,
-                const Color(0xFF6366F1),
+                const Color(0xFF2563EB),
                 () => _showUserDialog(user: user),
               ),
               const SizedBox(height: 8),

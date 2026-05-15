@@ -993,6 +993,23 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   }
 
   Widget _buildMenuGrid() {
+    PageRoute<T> _slideRoute<T>(Widget screen) {
+      return PageRouteBuilder<T>(
+        pageBuilder: (_, animation, __) => screen,
+        transitionsBuilder: (_, animation, __, child) {
+          final slide = Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOut,
+          ));
+          return SlideTransition(position: slide, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      );
+    }
+
     final menus = [
       _MenuItem(
         label: _lang == 'EN'
@@ -1005,9 +1022,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         shadow: const Color(0xFF6366F1),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AdminUserScreen(lang: _lang),
-          ),
+          _slideRoute(AdminUserScreen(lang: _lang)),
         ).then((_) => _fetchStats()),
       ),
       _MenuItem(
@@ -1021,9 +1036,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         shadow: const Color(0xFF10B981),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AdminLocationScreen(lang: _lang),
-          ),
+          _slideRoute(AdminLocationScreen(lang: _lang)),
         ).then((_) => _fetchStats()),
       ),
       _MenuItem(
@@ -1037,9 +1050,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         shadow: const Color(0xFFF59E0B),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AdminCategoryScreen(lang: _lang),
-          ),
+          _slideRoute(AdminCategoryScreen(lang: _lang)),
         ).then((_) => _fetchStats()),
       ),
       _MenuItem(
@@ -1053,12 +1064,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         shadow: const Color(0xFFEF4444),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AdminSettingsScreen(lang: _lang),
-          ),
+          _slideRoute(AdminSettingsScreen(lang: _lang)),
         ).then((_) => _fetchStats()),
       ),
-      // ── 2 MENU BARU ──
       _MenuItem(
         label: _lang == 'EN'
             ? 'Point\nConfiguration'
@@ -1066,13 +1074,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 ? '积分\n配置'
                 : 'Konfigurasi\nPoin',
         icon: Icons.stars_rounded,
-        gradient: const [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-        shadow: const Color(0xFF8B5CF6),
+        gradient: const [Color.fromARGB(255, 245, 229, 11), Color.fromARGB(255, 217, 175, 6)],
+        shadow: const Color.fromARGB(255, 245, 233, 11),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AdminPoinScreen(lang: _lang),
-          ),
+          _slideRoute(AdminPoinScreen(lang: _lang)),
         ),
       ),
       _MenuItem(
@@ -1086,9 +1092,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         shadow: const Color(0xFF0EA5E9),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AdminHelpReportsScreen(lang: _lang),
-          ),
+          _slideRoute(AdminHelpReportsScreen(lang: _lang)),
         ),
       ),
       _MenuItem(
@@ -1098,13 +1102,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 ? '审计\n位置'
                 : 'Audit\nLokasi',
         icon: Icons.fact_check_rounded,
-        gradient: const [Color(0xFF0EA5E9), Color(0xFF0369A1)],
-        shadow: const Color(0xFF0EA5E9),
+        gradient: const [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
+        shadow: const Color(0xFF8B5CF6),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AuditLocationScreen(lang: _lang),
-          ),
+          _slideRoute(AuditLocationScreen(lang: _lang)),
         ).then((_) => _fetchStats()),
       ),
     ];

@@ -7,7 +7,7 @@ import 'audit_question_manager_screen.dart';
 
 // ─── Colour constants ────────────────────────────────────────────────────────
 class _C {
-  static const primary    = Color(0xFF6366F1);
+  static const primary    = Color(0xFF8B5CF6);
   static const primaryLt  = Color(0xFFEDE9FE);
   static const green      = Color(0xFF10B981);
   static const amber      = Color(0xFFF59E0B);
@@ -1148,9 +1148,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: _C.textMain, size: 20),
+              color: _C.primary, size: 20),   // ← ungu
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -1158,7 +1159,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
           style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: _C.textMain),
+              color: _C.primary),   // ← ungu
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(50),
@@ -1174,12 +1175,12 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               child: TabBar(
                 controller: _tabCtrl,
                 indicator: BoxDecoration(
-                  color: _C.primary,
+                  color: _C.primary,   // ← ungu
                   borderRadius: BorderRadius.circular(8),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelColor: Colors.white,
-                unselectedLabelColor: _C.primary,
+                unselectedLabelColor: _C.primary,   // ← ungu
                 labelStyle: GoogleFonts.poppins(
                     fontWeight: FontWeight.w700, fontSize: 11.5),
                 unselectedLabelStyle:

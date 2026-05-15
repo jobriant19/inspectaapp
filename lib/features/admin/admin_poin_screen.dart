@@ -122,7 +122,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.poppins()),
-        backgroundColor: isError ? Colors.red : const Color(0xFF8B5CF6),
+        backgroundColor: isError ? Colors.red : const Color.fromARGB(255, 241, 245, 11),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -199,7 +199,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                         Text(_t('aktif'), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A))),
                         Switch(
                           value: isAktif,
-                          activeColor: const Color(0xFF8B5CF6),
+                          activeColor: const Color.fromARGB(255, 233, 245, 11),   // ← kuning (ganti dari 0xFF8B5CF6)
                           onChanged: (v) => setModalState(() => isAktif = v),
                         ),
                       ],
@@ -223,7 +223,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5CF6),
+                          backgroundColor: const Color.fromARGB(255, 237, 245, 11),   // ← kuning (ganti dari 0xFF8B5CF6)
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
@@ -255,7 +255,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
         fillColor: enabled ? Colors.grey.shade50 : Colors.grey.shade100,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF8B5CF6))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color.fromARGB(255, 245, 241, 11))),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
       validator: (v) {
@@ -341,32 +341,29 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
         ),
         title: Text(
           _t('title'),
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A)),
+          style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              color: const Color.fromARGB(255, 213, 217, 6)),  // ← kuning gelap (terbaca)
         ),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1E3A8A)),
+        iconTheme: const IconThemeData(color: Color.fromARGB(255, 213, 217, 6)),  // ← kuning
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: Colors.black.withOpacity(0.06)),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showForm(),
-        backgroundColor: const Color(0xFF8B5CF6),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: Text(_t('add'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600)),
-      ),
+      // ← TIDAK ADA floatingActionButton
       body: _isLoading
           ? _buildShimmer()
           : RefreshIndicator(
               onRefresh: _fetchData,
-              color: const Color(0xFF8B5CF6),
+              color: const Color.fromARGB(255, 245, 229, 11),   // ← kuning
               child: _items.isEmpty
                   ? _buildEmpty()
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                       itemCount: _items.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (_, i) => _buildCard(_items[i]),
@@ -376,16 +373,28 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
   }
 
   Widget _buildCard(Map<String, dynamic> item) {
+    const primaryColor = Color.fromARGB(255, 245, 233, 11);   // ← kuning cerah
+    const primaryDark  = Color.fromARGB(255, 217, 213, 6);   // ← kuning gelap
+    const primaryLight = Color(0xFFFFFBEB);   // ← kuning sangat muda
+
     final isAktif = item['is_aktif'] as bool? ?? true;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isAktif ? const Color(0xFF8B5CF6).withOpacity(0.2) : Colors.grey.shade200,
+          color: isAktif
+              ? primaryColor.withOpacity(0.35)
+              : Colors.grey.shade200,
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3)),
+          BoxShadow(
+            color: isAktif
+                ? primaryColor.withOpacity(0.10)
+                : Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
       child: Padding(
@@ -393,27 +402,37 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Poin badge
+            // ── Poin badge ──
             Container(
-              width: 56,
-              height: 56,
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: isAktif
-                      ? [const Color(0xFF8B5CF6), const Color(0xFF7C3AED)]
+                      ? [primaryColor, primaryDark]
                       : [Colors.grey.shade400, Colors.grey.shade500],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(14),
+                boxShadow: isAktif
+                    ? [BoxShadow(
+                        color: primaryColor.withOpacity(0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3))]
+                    : [],
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.stars_rounded, color: Colors.white, size: 16),
+                  const SizedBox(height: 2),
                   Text(
                     '${item['poin']}',
-                    style: GoogleFonts.poppins(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800),
+                    style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800),
                   ),
                 ],
               ),
@@ -428,55 +447,115 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                       Expanded(
                         child: Text(
                           item['nama'] ?? '',
-                          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A)),
+                          style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1E3A8A)),
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: (isAktif ? const Color(0xFF10B981) : Colors.grey).withOpacity(0.1),
+                          color: (isAktif ? primaryColor : Colors.grey)
+                              .withOpacity(0.12),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          isAktif ? (widget.lang == 'EN' ? 'Active' : widget.lang == 'ZH' ? '启用' : 'Aktif')
-                                  : (widget.lang == 'EN' ? 'Inactive' : widget.lang == 'ZH' ? '禁用' : 'Nonaktif'),
+                          isAktif
+                              ? (widget.lang == 'EN'
+                                  ? 'Active'
+                                  : widget.lang == 'ZH'
+                                      ? '启用'
+                                      : 'Aktif')
+                              : (widget.lang == 'EN'
+                                  ? 'Inactive'
+                                  : widget.lang == 'ZH'
+                                      ? '禁用'
+                                      : 'Nonaktif'),
                           style: TextStyle(
                             fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: isAktif ? const Color(0xFF10B981) : Colors.grey,
+                            fontWeight: FontWeight.w700,
+                            color: isAktif ? primaryDark : Colors.grey,
                           ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '[${item['kode']}]',
-                    style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF8B5CF6), fontWeight: FontWeight.w600),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '[${item['kode']}]',
+                      style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: primaryDark,
+                          fontWeight: FontWeight.w700),
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     item['deskripsi_template'] ?? '',
-                    style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: Colors.black54),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (item['keterangan'] != null && (item['keterangan'] as String).isNotEmpty) ...[
+                  if (item['keterangan'] != null &&
+                      (item['keterangan'] as String).isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
                       item['keterangan'],
-                      style: GoogleFonts.poppins(fontSize: 11, color: Colors.black38, fontStyle: FontStyle.italic),
+                      style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.black38,
+                          fontStyle: FontStyle.italic),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                   const SizedBox(height: 10),
+                  // ── Hanya tombol Edit ──
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      _actionBtn(Icons.edit_rounded, const Color(0xFF6366F1), () => _showForm(item: item)),
-                      const SizedBox(width: 8),
-                      _actionBtn(Icons.delete_rounded, const Color(0xFFEF4444), () => _deleteItem(item['id'] as int)),
+                      GestureDetector(
+                        onTap: () => _showForm(item: item),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: primaryColor.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.edit_rounded,
+                                  size: 14, color: primaryDark),
+                              const SizedBox(width: 5),
+                              Text(
+                                widget.lang == 'EN'
+                                    ? 'Edit'
+                                    : widget.lang == 'ZH'
+                                        ? '编辑'
+                                        : 'Ubah',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: primaryDark),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -507,9 +586,22 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.stars_outlined, size: 72, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(_t('empty'), style: GoogleFonts.poppins(fontSize: 14, color: Colors.black38)),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color.fromARGB(255, 241, 245, 11).withOpacity(0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.stars_outlined,
+                size: 56,
+                color: const Color.fromARGB(255, 245, 245, 11).withOpacity(0.5)),
+          ),
+          const SizedBox(height: 12),
+          Text(_t('empty'),
+              style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.black38,
+                  fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -523,7 +615,13 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
       itemBuilder: (_, __) => Shimmer.fromColors(
         baseColor: Colors.grey.shade200,
         highlightColor: Colors.grey.shade50,
-        child: Container(height: 100, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
+        child: Container(
+          height: 100,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
       ),
     );
   }

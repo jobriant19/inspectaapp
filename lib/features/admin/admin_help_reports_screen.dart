@@ -18,6 +18,38 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   String _filterStatus = 'Semua';
+  String _searchQuery = '';
+
+  List<Map<String, dynamic>> get _searchFiltered {
+    final all = _t('all');
+    List<Map<String, dynamic>> base = _items;
+
+    // Filter status
+    if (_filterStatus != all) {
+      const statusMap = {
+        'Dikirim': 'Dikirim', 'Sent': 'Dikirim', '已发送': 'Dikirim',
+        'Dilihat': 'Dilihat', 'Viewed': 'Dilihat', '已查看': 'Dilihat',
+        'Selesai': 'Selesai', 'Completed': 'Selesai', '已完成': 'Selesai',
+      };
+      final dbStatus = statusMap[_filterStatus] ?? _filterStatus;
+      base = base.where((i) => i['status'] == dbStatus).toList();
+    }
+
+    // Filter search
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      base = base.where((i) {
+        final title =
+            (i['title'] as String? ?? '').toLowerCase();
+        final userName =
+            (i['_userName'] as String? ?? '').toLowerCase();
+        return title.contains(q) || userName.contains(q);
+      }).toList();
+    }
+
+    return base;
+  }
+
   Uint8List? _replyImageBytes;
   String? _replyImageExt;
 
@@ -57,6 +89,8 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'replied_at': 'Dibalas pada',
         'reply_image': 'Gambar Balasan',
         'pick_image': 'Pilih Gambar',
+        'search_hint': 'Cari laporan atau pelapor...',
+        'report_count': 'laporan',
       },
       'EN': {
         'title': 'Help Reports',
@@ -92,6 +126,8 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'replied_at': 'Replied at',
         'reply_image': 'Reply Image',
         'pick_image': 'Pick Image',
+        'search_hint': 'Search reports or reporter...',
+        'report_count': 'reports',
       },
       'ZH': {
         'title': '帮助报告',
@@ -127,6 +163,8 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'replied_at': '回复于',
         'reply_image': '回复图片',
         'pick_image': '选择图片',
+        'search_hint': '搜索报告或报告人...',
+        'report_count': '条报告',
       },
     };
     return txt[widget.lang]?[key] ?? txt['ID']![key] ?? key;
@@ -630,61 +668,194 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final statusTabs = [_t('all'), _t('sent'), _t('viewed'), _t('completed')];
+    const primaryColor = Color(0xFF0EA5E9);
+
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_rounded), onPressed: () => Navigator.pop(context)),
-        title: Text(_t('title'), style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
-        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded,
+              color: primaryColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          _t('title'),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700,
+            color: primaryColor,
+            fontSize: 16,
+          ),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color.fromARGB(255, 255, 255, 255), Color.fromARGB(255, 255, 255, 255)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1E3A8A)),
         centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.black.withOpacity(0.06)),
+          child: Container(
+              height: 1, color: Colors.white.withOpacity(0.15)),
         ),
       ),
       body: Column(
         children: [
+          // ── Search Bar ──
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: statusTabs.map((tab) {
-                  final isActive = _filterStatus == tab;
-                  return GestureDetector(
-                    onTap: () => setState(() => _filterStatus = tab),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: isActive ? const Color(0xFF0EA5E9) : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(tab, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: isActive ? Colors.white : Colors.black45)),
-                    ),
-                  );
-                }).toList(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: Colors.black.withOpacity(0.08)),
+              ),
+              child: TextField(
+                onChanged: (v) => setState(() => _searchQuery = v),
+                style: GoogleFonts.poppins(
+                    color: const Color(0xFF1E3A8A), fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: _t('search_hint'),
+                  hintStyle: GoogleFonts.poppins(
+                      color: Colors.black38, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search,
+                      color: Colors.black38, size: 20),
+                  border: InputBorder.none,
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
             ),
           ),
+          // ── Filter Tabs ──
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            child: Row(
+              children: [
+                _t('all'),
+                _t('sent'),
+                _t('viewed'),
+                _t('completed'),
+              ].map((tab) {
+                final isActive = _filterStatus == tab;
+                Color tabColor;
+                IconData tabIcon;
+                if (tab == _t('sent')) {
+                  tabColor = primaryColor;
+                  tabIcon = Icons.send_rounded;
+                } else if (tab == _t('viewed')) {
+                  tabColor = const Color(0xFFF59E0B);
+                  tabIcon = Icons.visibility_rounded;
+                } else if (tab == _t('completed')) {
+                  tabColor = const Color(0xFF10B981);
+                  tabIcon = Icons.check_circle_rounded;
+                } else {
+                  tabColor = const Color(0xFF6366F1);
+                  tabIcon = Icons.list_alt_rounded;
+                }
+
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () =>
+                        setState(() => _filterStatus = tab),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin:
+                          EdgeInsets.only(right: tab != _t('completed') ? 6 : 0),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? tabColor
+                            : tabColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isActive
+                              ? tabColor
+                              : tabColor.withOpacity(0.25),
+                          width: 1.5,
+                        ),
+                        boxShadow: isActive
+                            ? [
+                                BoxShadow(
+                                  color: tabColor.withOpacity(0.25),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                )
+                              ]
+                            : [],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            tabIcon,
+                            size: 14,
+                            color: isActive
+                                ? Colors.white
+                                : tabColor,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            tab,
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: isActive
+                                  ? Colors.white
+                                  : tabColor,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          // ── Count info ──
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${_searchFiltered.length} ${_t('report_count')}',
+                style: GoogleFonts.poppins(
+                    color: Colors.black38, fontSize: 12),
+              ),
+            ),
+          ),
+          // ── List ──
           Expanded(
             child: _isLoading
                 ? _buildShimmer()
                 : RefreshIndicator(
                     onRefresh: _fetchData,
-                    color: const Color(0xFF0EA5E9),
-                    child: _filtered.isEmpty
+                    color: primaryColor,
+                    child: _searchFiltered.isEmpty
                         ? _buildEmpty()
                         : ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                            itemCount: _filtered.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
-                            itemBuilder: (_, i) => _buildCard(_filtered[i]),
+                            padding: const EdgeInsets.fromLTRB(
+                                16, 4, 16, 32),
+                            itemCount: _searchFiltered.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (_, i) =>
+                                _buildCard(_searchFiltered[i]),
                           ),
                   ),
           ),
@@ -835,9 +1006,24 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.inbox_outlined, size: 72, color: Colors.grey.shade300),
-        const SizedBox(height: 16),
-        Text(_t('empty'), style: GoogleFonts.poppins(fontSize: 14, color: Colors.black38)),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0EA5E9).withOpacity(0.06),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.inbox_outlined,
+              size: 56,
+              color: const Color(0xFF0EA5E9).withOpacity(0.4)),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _t('empty'),
+          style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.black38,
+              fontWeight: FontWeight.w500),
+        ),
       ],
     ),
   );
@@ -845,11 +1031,17 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   Widget _buildShimmer() => ListView.separated(
     padding: const EdgeInsets.all(16),
     itemCount: 5,
-    separatorBuilder: (_, __) => const SizedBox(height: 12),
+    separatorBuilder: (_, __) => const SizedBox(height: 10),
     itemBuilder: (_, __) => Shimmer.fromColors(
       baseColor: Colors.grey.shade200,
       highlightColor: Colors.grey.shade50,
-      child: Container(height: 90, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
+      child: Container(
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
     ),
   );
 }
