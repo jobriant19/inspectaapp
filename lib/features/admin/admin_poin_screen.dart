@@ -122,7 +122,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: GoogleFonts.poppins()),
-        backgroundColor: isError ? Colors.red : const Color.fromARGB(255, 241, 245, 11),
+        backgroundColor: isError ? Colors.red : const Color(0xFFEAB308),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
@@ -174,12 +174,30 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      isEdit ? _t('edit') : _t('add'),
-                      style: GoogleFonts.poppins(
-                        fontSize: 17, fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1E3A8A),
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF3B82F6).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            isEdit ? Icons.edit_rounded : Icons.add_rounded,
+                            color: const Color(0xFF2563EB),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          isEdit ? _t('edit') : _t('add'),
+                          style: GoogleFonts.poppins(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF2563EB), // biru cerah
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
                     _formField(kodeCtrl, _t('kode'), enabled: !isEdit),
@@ -196,10 +214,13 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(_t('aktif'), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A))),
+                        Text(_t('aktif'), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF2563EB))),
                         Switch(
                           value: isAktif,
-                          activeColor: const Color.fromARGB(255, 233, 245, 11),   // ← kuning (ganti dari 0xFF8B5CF6)
+                          activeColor: const Color(0xFF22C55E), // hijau cerah
+                          activeTrackColor: const Color(0xFFBBF7D0), // hijau muda track
+                          inactiveThumbColor: Colors.grey.shade400,
+                          inactiveTrackColor: Colors.grey.shade200,
                           onChanged: (v) => setModalState(() => isAktif = v),
                         ),
                       ],
@@ -223,11 +244,28 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(255, 237, 245, 11),   // ← kuning (ganti dari 0xFF8B5CF6)
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 3,
+                          shadowColor: const Color(0xFF2563EB).withOpacity(0.4),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
-                        child: Text(_t('save'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.save_rounded, size: 18, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(
+                              _t('save'),
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -343,11 +381,11 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
           _t('title'),
           style: GoogleFonts.poppins(
               fontWeight: FontWeight.w700,
-              color: const Color.fromARGB(255, 213, 217, 6)),  // ← kuning gelap (terbaca)
+              color: const Color.fromARGB(255, 240, 244, 1)),  // ← kuning gelap (terbaca)
         ),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color.fromARGB(255, 213, 217, 6)),  // ← kuning
+        iconTheme: const IconThemeData(color: Color.fromARGB(255, 240, 244, 1)),  // ← kuning
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
@@ -359,7 +397,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
           ? _buildShimmer()
           : RefreshIndicator(
               onRefresh: _fetchData,
-              color: const Color.fromARGB(255, 245, 229, 11),   // ← kuning
+              color: const Color.fromARGB(255, 245, 244, 1),   // ← kuning
               child: _items.isEmpty
                   ? _buildEmpty()
                   : ListView.separated(
@@ -373,8 +411,8 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
   }
 
   Widget _buildCard(Map<String, dynamic> item) {
-    const primaryColor = Color.fromARGB(255, 245, 233, 11);   // ← kuning cerah
-    const primaryDark  = Color.fromARGB(255, 217, 213, 6);   // ← kuning gelap
+    const primaryColor = Color.fromARGB(255, 245, 244, 1);   // ← kuning cerah
+    const primaryDark  = Color.fromARGB(255, 213, 210, 7);   // ← kuning gelap
     const primaryLight = Color(0xFFFFFBEB);   // ← kuning sangat muda
 
     final isAktif = item['is_aktif'] as bool? ?? true;
@@ -457,9 +495,16 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: (isAktif ? primaryColor : Colors.grey)
-                              .withOpacity(0.12),
+                          color: isAktif
+                              ? const Color(0xFF22C55E).withOpacity(0.15)
+                              : Colors.grey.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isAktif
+                                ? const Color(0xFF22C55E).withOpacity(0.5)
+                                : Colors.grey.withOpacity(0.3),
+                            width: 1,
+                          ),
                         ),
                         child: Text(
                           isAktif
@@ -476,7 +521,9 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: isAktif ? primaryDark : Colors.grey,
+                            color: isAktif
+                                ? const Color(0xFF16A34A)
+                                : Colors.grey,
                           ),
                         ),
                       ),
@@ -487,14 +534,18 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: primaryColor.withOpacity(0.10),
+                      color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: Colors.grey.shade300,
+                        width: 1,
+                      ),
                     ),
                     child: Text(
                       '[${item['kode']}]',
                       style: GoogleFonts.poppins(
                           fontSize: 11,
-                          color: primaryDark,
+                          color: Colors.black87,
                           fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -530,16 +581,16 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 7),
                           decoration: BoxDecoration(
-                            color: primaryColor.withOpacity(0.12),
+                            color: const Color(0xFF3B82F6).withOpacity(0.10),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                                color: primaryColor.withOpacity(0.3)),
+                                color: const Color(0xFF3B82F6).withOpacity(0.35)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.edit_rounded,
-                                  size: 14, color: primaryDark),
+                              const Icon(Icons.edit_rounded,
+                                  size: 14, color: Color(0xFF2563EB)),
                               const SizedBox(width: 5),
                               Text(
                                 widget.lang == 'EN'
@@ -550,7 +601,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                                 style: GoogleFonts.poppins(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
-                                    color: primaryDark),
+                                    color: const Color(0xFF2563EB)), // biru cerah
                               ),
                             ],
                           ),
@@ -589,7 +640,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color.fromARGB(255, 241, 245, 11).withOpacity(0.08),
+              color: const Color.fromARGB(255, 251, 255, 6).withOpacity(0.08),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.stars_outlined,

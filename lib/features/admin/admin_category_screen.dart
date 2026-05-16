@@ -283,7 +283,8 @@ class _KategoriList extends StatefulWidget {
   State<_KategoriList> createState() => _KategoriListState();
 }
 
-class _KategoriListState extends State<_KategoriList> {
+class _KategoriListState extends State<_KategoriList>
+  with AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> _data = [];
   bool _isLoading = true;
   String _search = '';
@@ -291,6 +292,9 @@ class _KategoriListState extends State<_KategoriList> {
   String _sortOrder = 'none';  // 'none' | 'asc' | 'desc'
 
   static const _bg = Color(0xFFF8FAFC);
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -301,11 +305,21 @@ class _KategoriListState extends State<_KategoriList> {
   @override
   void didUpdateWidget(_KategoriList old) {
     super.didUpdateWidget(old);
-    if (old.isKts != widget.isKts) _load();
+    if (old.isKts != widget.isKts) _loadIfEmpty();
+  }
+
+  // Tambahkan method baru di bawahnya:
+  Future<void> _loadIfEmpty() async {
+    if (_data.isEmpty) {
+      _load();
+    } else {
+      // Data sudah ada, langsung filter ulang tanpa loading
+      setState(() {});
+    }
   }
 
   Future<void> _load() async {
-    setState(() => _isLoading = true);
+    if (!_isLoading) setState(() => _isLoading = true);
     try {
       final res = await Supabase.instance.client
           .from('kategoritemuan')
@@ -778,6 +792,7 @@ class _KategoriListState extends State<_KategoriList> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final data = _filtered;
     final addTitle = widget.lang == 'EN'
         ? 'Add New Category'
@@ -1048,7 +1063,8 @@ class _SubkategoriList extends StatefulWidget {
   State<_SubkategoriList> createState() => _SubkategoriListState();
 }
 
-class _SubkategoriListState extends State<_SubkategoriList> {
+class _SubkategoriListState extends State<_SubkategoriList>
+  with AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> _data = [];
   List<Map<String, dynamic>> _allKategori = [];
   bool _isLoading = true;
@@ -1059,6 +1075,9 @@ class _SubkategoriListState extends State<_SubkategoriList> {
   static const _bg = Color(0xFFF8FAFC);
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
     _load();
@@ -1067,11 +1086,19 @@ class _SubkategoriListState extends State<_SubkategoriList> {
   @override
   void didUpdateWidget(_SubkategoriList old) {
     super.didUpdateWidget(old);
-    if (old.isKts != widget.isKts) _load();
+    if (old.isKts != widget.isKts) _loadIfEmpty();
+  }
+
+  Future<void> _loadIfEmpty() async {
+    if (_data.isEmpty) {
+      _load();
+    } else {
+      setState(() {});
+    }
   }
 
   Future<void> _load() async {
-    setState(() => _isLoading = true);
+    if (!_isLoading) setState(() => _isLoading = true);
     try {
       final results = await Future.wait([
         Supabase.instance.client
@@ -1522,6 +1549,7 @@ class _SubkategoriListState extends State<_SubkategoriList> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final data = _filtered;
     final addTitle = widget.lang == 'EN'
         ? 'Add New Sub-Category'
