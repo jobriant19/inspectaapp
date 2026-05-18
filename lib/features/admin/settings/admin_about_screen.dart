@@ -109,8 +109,9 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
       backgroundColor: _bg,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: _primary,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded),
           onPressed: () => Navigator.pop(context),
@@ -120,7 +121,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 16,
-            color: const Color(0xFF1E3A8A),
+            color: _primary,
           ),
         ),
         actions: [

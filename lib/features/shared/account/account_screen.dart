@@ -68,6 +68,7 @@ class _AccountScreenState extends State<AccountScreen> {
       'select_lang': 'Select Language',
       'visitor': 'Visitor',
       'verifier_role': 'Verifier',
+      'cancel': 'Cancel'
     },
     'ID': {
       'title': 'Akun Saya',
@@ -86,6 +87,7 @@ class _AccountScreenState extends State<AccountScreen> {
       'select_lang': 'Pilih Bahasa',
       'visitor': 'Pengunjung',
       'verifier_role': 'Verifier',
+      'cancel': 'Batal'
     },
     'ZH': {
       'title': '我的账户',
@@ -104,6 +106,7 @@ class _AccountScreenState extends State<AccountScreen> {
       'select_lang': '选择语言',
       'visitor': '访客',
       'verifier_role': '验证者',
+      'cancel': '取消'
     },
   };
 
@@ -379,17 +382,128 @@ class _AccountScreenState extends State<AccountScreen> {
                     icon: const Icon(Icons.logout, color: Colors.redAccent),
                     label: Text(
                       getTxt('logout'),
-                      style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.red.withOpacity(0.1),
                       elevation: 0,
                       minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      shape:
+                          RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     ),
                     onPressed: () async {
-                      await Supabase.instance.client.auth.signOut();
-                      if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        barrierDismissible: true,
+                        builder: (_) => Dialog(
+                          backgroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28)),
+                          elevation: 0,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFFFEBEB),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.logout_rounded,
+                                    color: Color(0xFFEF4444),
+                                    size: 38,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  getTxt('logout'),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  getTxt('logout_desc'),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF64748B),
+                                    height: 1.5,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 28),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => Navigator.pop(context, true),
+                                    icon: const Icon(Icons.logout_rounded,
+                                        color: Colors.white, size: 18),
+                                    label: Text(
+                                      getTxt('logout'),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFEF4444),
+                                      elevation: 0,
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(14)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.pop(context, false),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(
+                                          color: Color(0xFFE2E8F0), width: 1.5),
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(14)),
+                                    ),
+                                    child: Text(
+                                      getTxt('cancel'),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                      if (confirmed == true) {
+                        await Supabase.instance.client.auth.signOut();
+                        if (mounted) {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            (route) => false,
+                          );
+                        }
+                      }
                     },
                   ),
                 ],

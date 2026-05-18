@@ -18,6 +18,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
   List<Map<String, dynamic>> _data = [];
   bool _isLoading = true;
   String _filterType = 'all'; // 'all', 'update', 'maintenance'
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -49,6 +50,22 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     return _data
         .where((d) => (d['type'] ?? '').toLowerCase() == _filterType)
         .toList();
+  }
+
+  List<Map<String, dynamic>> get _filteredWithSearch {
+    final base = _filtered;
+    if (_searchQuery.trim().isEmpty) return base;
+    final q = _searchQuery.toLowerCase();
+    return base.where((d) {
+      final titleId = (d['title_id'] ?? '').toString().toLowerCase();
+      final titleEn = (d['title_en'] ?? '').toString().toLowerCase();
+      final titleZh = (d['title_zh'] ?? '').toString().toLowerCase();
+      final contentId = (d['content_id'] ?? '').toString().toLowerCase();
+      return titleId.contains(q) ||
+          titleEn.contains(q) ||
+          titleZh.contains(q) ||
+          contentId.contains(q);
+    }).toList();
   }
 
   void _showFormDialog({Map<String, dynamic>? item}) {
@@ -368,40 +385,119 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
 
   Future<void> _deleteNews(int id) async {
     final ok = await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
-            title: Text(
-              widget.lang == 'EN' ? 'Delete News?' : 'Hapus Berita?',
-              style: GoogleFonts.poppins(
-                  color: const Color(0xFF1E3A8A),
-                  fontWeight: FontWeight.bold),
-            ),
-            content: Text(
-              widget.lang == 'EN'
-                  ? 'This action cannot be undone.'
-                  : 'Tindakan ini tidak dapat dibatalkan.',
-              style: GoogleFonts.poppins(color: Colors.black54),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(widget.lang == 'EN' ? 'Cancel' : 'Batal',
-                    style: TextStyle(color: Colors.grey.shade500)),
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFEBEB),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded,
+                  color: Color(0xFFEF4444),
+                  size: 38,
+                ),
               ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444)),
-                child: Text(widget.lang == 'EN' ? 'Delete' : 'Hapus',
-                    style: const TextStyle(color: Colors.white)),
+              const SizedBox(height: 20),
+              Text(
+                widget.lang == 'EN'
+                    ? 'Delete News?'
+                    : widget.lang == 'ZH'
+                        ? '删除新闻？'
+                        : 'Hapus Berita?',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E293B),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.lang == 'EN'
+                    ? 'This action cannot be undone.'
+                    : widget.lang == 'ZH'
+                        ? '此操作无法撤销。'
+                        : 'Tindakan ini tidak dapat dibatalkan.',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: const Color(0xFF64748B),
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context, true),
+                  icon: const Icon(Icons.delete_forever_rounded,
+                      color: Colors.white, size: 18),
+                  label: Text(
+                    widget.lang == 'EN'
+                        ? 'Delete'
+                        : widget.lang == 'ZH'
+                            ? '删除'
+                            : 'Hapus',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(
+                        color: Color(0xFFE2E8F0), width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(
+                    widget.lang == 'EN'
+                        ? 'Cancel'
+                        : widget.lang == 'ZH'
+                            ? '取消'
+                            : 'Batal',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
-        ) ??
-        false;
+        ),
+      ),
+    ) ??
+    false;
     if (!ok) return;
     try {
       await Supabase.instance.client
@@ -421,8 +517,9 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       backgroundColor: _bg,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: const Color(0xFFF59E0B),
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded),
           onPressed: () => Navigator.pop(context),
@@ -432,64 +529,170 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 16,
-            color: const Color(0xFF1E3A8A),
+            color: const Color(0xFFF59E0B),
           ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: _primary),
-            onPressed: _load,
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showFormDialog(),
-        backgroundColor: _primary,
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: Text(
-          widget.lang == 'EN' ? 'Add News' : 'Tambah Berita',
-          style: GoogleFonts.poppins(
-              color: Colors.white, fontWeight: FontWeight.w600),
         ),
       ),
       body: Column(
         children: [
-          // ── Filter bar ──
+          // ── Banner Add Button (seperti admin_location_screen) ──
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: GestureDetector(
+              onTap: () => _showFormDialog(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_primary, _primary.withOpacity(0.75)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _primary.withOpacity(0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.lang == 'EN' ? 'Add New Article' : widget.lang == 'ZH' ? '添加新文章' : 'Tambah Berita Baru',
+                            style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white),
+                          ),
+                          Text(
+                            widget.lang == 'EN' ? 'Tap to add a new article' : widget.lang == 'ZH' ? '点击以添加新文章' : 'Ketuk untuk menambah berita baru',
+                            style: GoogleFonts.poppins(
+                                fontSize: 10, color: Colors.white.withOpacity(0.85)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios_rounded,
+                        color: Colors.white, size: 14),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // ── Search ──
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black.withOpacity(0.08)),
+              ),
+              child: TextField(
+                onChanged: (v) => setState(() => _searchQuery = v),
+                style: GoogleFonts.poppins(
+                    color: const Color(0xFF1E3A8A), fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: widget.lang == 'EN'
+                      ? 'Search news...'
+                      : widget.lang == 'ZH'
+                          ? '搜索新闻...'
+                          : 'Cari berita...',
+                  hintStyle:
+                      GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+                  prefixIcon:
+                      const Icon(Icons.search, color: Colors.black38, size: 20),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ),
+          // ── Filter Pills dengan icon ──
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
             child: Row(
               children: [
-                _filterPill('all',
-                    widget.lang == 'EN' ? 'All' : 'Semua', Colors.black54),
+                Expanded(
+                  child: _filterPill(
+                    'all',
+                    widget.lang == 'EN' ? 'All' : widget.lang == 'ZH' ? '全部' : 'Semua',
+                    Colors.black54,
+                    Icons.list_rounded,
+                  ),
+                ),
                 const SizedBox(width: 8),
-                _filterPill('update', 'Update', const Color(0xFF6366F1)),
+                Expanded(
+                  child: _filterPill(
+                    'update',
+                    'Update',
+                    const Color(0xFF6366F1),
+                    Icons.update_rounded,
+                  ),
+                ),
                 const SizedBox(width: 8),
-                _filterPill('maintenance', 'Maintenance',
-                    const Color(0xFFF59E0B)),
+                Expanded(
+                  child: _filterPill(
+                    'maintenance',
+                    widget.lang == 'EN' ? 'Maint.' : 'Maint.',
+                    const Color(0xFFF59E0B),
+                    Icons.build_rounded,
+                  ),
+                ),
               ],
             ),
           ),
-
+          // ── Count ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${_filteredWithSearch.length} ${widget.lang == 'EN' ? 'articles' : widget.lang == 'ZH' ? '篇文章' : 'berita'}',
+                style: GoogleFonts.poppins(color: Colors.black38, fontSize: 12),
+              ),
+            ),
+          ),
           // ── List ──
           Expanded(
             child: _isLoading
                 ? _buildShimmer()
-                : _filtered.isEmpty
+                : _filteredWithSearch.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.campaign_outlined,
-                                size: 56,
-                                color: Colors.black12),
+                                size: 56, color: Colors.black12),
                             const SizedBox(height: 12),
                             Text(
                               widget.lang == 'EN'
                                   ? 'No news yet'
-                                  : 'Belum ada berita',
-                              style: GoogleFonts.poppins(
-                                  color: Colors.black38),
+                                  : widget.lang == 'ZH'
+                                      ? '暂无新闻'
+                                      : 'Belum ada berita',
+                              style:
+                                  GoogleFonts.poppins(color: Colors.black38),
                             ),
                           ],
                         ),
@@ -498,12 +701,12 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                         onRefresh: _load,
                         color: _primary,
                         child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                          itemCount: _filtered.length,
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                          itemCount: _filteredWithSearch.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: 10),
                           itemBuilder: (_, i) =>
-                              _buildNewsCard(_filtered[i]),
+                              _buildNewsCard(_filteredWithSearch[i]),
                         ),
                       ),
           ),
@@ -512,24 +715,48 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     );
   }
 
-  Widget _filterPill(String type, String label, Color color) {
+  Widget _filterPill(String type, String label, Color color, IconData icon) {
     final isActive = _filterType == type;
     return GestureDetector(
       onTap: () => setState(() => _filterType = type),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
-          color: isActive ? color : color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.poppins(
-            color: isActive ? Colors.white : color,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+          color: isActive ? color : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? color : color.withOpacity(0.35),
+            width: 1.5,
           ),
+          boxShadow: isActive
+              ? [BoxShadow(
+                  color: color.withOpacity(0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2))]
+              : [],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 13,
+                color: isActive ? Colors.white : color),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  color: isActive ? Colors.white : color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );

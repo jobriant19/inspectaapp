@@ -24,6 +24,11 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
   static const _bg = Color(0xFFF8FAFC);
   static const _primary = Color(0xFF0891B2);
 
+  // Warna AppBar menyesuaikan docType
+  Color get _appBarColor => widget.docType == 'privacy_policy'
+      ? const Color(0xFF059669)   // hijau — sesuai button Privacy Policy di settings
+      : const Color(0xFF0891B2);  // biru — sesuai button Terms & Conditions di settings
+
   // 3 bahasa: ID, EN, ZH
   final _langs = [
     {'code': 'ID', 'label': 'Indonesia', 'flag': '🇮🇩'},
@@ -256,36 +261,111 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
   Future<void> _deleteDoc(int id, String langCode) async {
     final ok = await showDialog<bool>(
           context: context,
-          builder: (_) => AlertDialog(
+          barrierDismissible: true,
+          builder: (_) => Dialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
-            title: Text(
-              widget.lang == 'EN' ? 'Delete?' : 'Hapus?',
-              style: GoogleFonts.poppins(
-                  color: const Color(0xFF1E3A8A),
-                  fontWeight: FontWeight.bold),
-            ),
-            content: Text(
-              widget.lang == 'EN'
-                  ? 'Delete $langCode document?'
-                  : 'Hapus dokumen $langCode?',
-              style: GoogleFonts.poppins(color: Colors.black54),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(widget.lang == 'EN' ? 'Cancel' : 'Batal',
-                    style: TextStyle(color: Colors.grey.shade500)),
+                borderRadius: BorderRadius.circular(28)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFEBEB),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.delete_forever_rounded,
+                      color: Color(0xFFEF4444),
+                      size: 38,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    widget.lang == 'EN'
+                        ? 'Delete Document?'
+                        : widget.lang == 'ZH'
+                            ? '删除文档？'
+                            : 'Hapus Dokumen?',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1E293B),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${widget.lang == 'EN' ? 'Are you sure to delete' : widget.lang == 'ZH' ? '确定要删除' : 'Yakin menghapus'} "$langCode ${widget.lang == 'EN' ? 'document' : 'dokumen'}"?',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: const Color(0xFF64748B),
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(context, true),
+                      icon: const Icon(Icons.delete_forever_rounded,
+                          color: Colors.white, size: 18),
+                      label: Text(
+                        widget.lang == 'EN'
+                            ? 'Delete'
+                            : widget.lang == 'ZH'
+                                ? '删除'
+                                : 'Hapus',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(
+                            color: Color(0xFFE2E8F0), width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text(
+                        widget.lang == 'EN'
+                            ? 'Cancel'
+                            : widget.lang == 'ZH'
+                                ? '取消'
+                                : 'Batal',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444)),
-                child: Text(widget.lang == 'EN' ? 'Delete' : 'Hapus',
-                    style: const TextStyle(color: Colors.white)),
-              ),
-            ],
+            ),
           ),
         ) ??
         false;
@@ -309,10 +389,11 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
       backgroundColor: _bg,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: _appBarColor,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
+          icon: Icon(Icons.arrow_back_ios_rounded, color: _appBarColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -320,8 +401,12 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 16,
-            color: const Color(0xFF1E3A8A),
+            color: _appBarColor,
           ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: Colors.white.withOpacity(0.15)),
         ),
       ),
       body: _isLoading
@@ -529,22 +614,19 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                 ),
                 if (hasDoc) ...[
                   const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.delete_outline_rounded,
-                        size: 15, color: Color(0xFFEF4444)),
-                    label: Text(
-                      widget.lang == 'EN' ? 'Delete' : 'Hapus',
-                      style: GoogleFonts.poppins(
-                          color: const Color(0xFFEF4444),
-                          fontWeight: FontWeight.w600),
+                  GestureDetector(
+                    onTap: () => _deleteDoc(doc['id'], code),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: const Color(0xFFEF4444).withOpacity(0.35)),
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded,
+                          size: 18, color: Color(0xFFEF4444)),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFFEF4444)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: () => _deleteDoc(doc['id'], code),
                   ),
                 ],
               ],

@@ -12,6 +12,23 @@ class AdminSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    PageRoute<T> _slideRoute<T>(Widget screen) {
+      return PageRouteBuilder<T>(
+        pageBuilder: (_, animation, __) => screen,
+        transitionsBuilder: (_, animation, __, child) {
+          final slide = Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOut,
+          ));
+          return SlideTransition(position: slide, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      );
+    }
+
     final menus = [
       _SettingMenu(
         title: lang == 'EN' ? 'About Inspecta'
@@ -24,7 +41,7 @@ class AdminSettingsScreen extends StatelessWidget {
         color: const Color(0xFF6366F1),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => AdminAboutScreen(lang: lang)),
+          _slideRoute(AdminAboutScreen(lang: lang)),
         ),
       ),
       _SettingMenu(
@@ -38,15 +55,13 @@ class AdminSettingsScreen extends StatelessWidget {
         color: const Color(0xFF0891B2),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AdminLegalScreen(
-              lang: lang,
-              docType: 'terms_conditions',
-              title: lang == 'EN' ? 'Terms & Conditions'
-                  : lang == 'ZH' ? '条款与条件'
-                  : 'Syarat dan Ketentuan',
-            ),
-          ),
+          _slideRoute(AdminLegalScreen(
+            lang: lang,
+            docType: 'terms_conditions',
+            title: lang == 'EN' ? 'Terms & Conditions'
+                : lang == 'ZH' ? '条款与条件'
+                : 'Syarat dan Ketentuan',
+          )),
         ),
       ),
       _SettingMenu(
@@ -60,15 +75,13 @@ class AdminSettingsScreen extends StatelessWidget {
         color: const Color(0xFF059669),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => AdminLegalScreen(
-              lang: lang,
-              docType: 'privacy_policy',
-              title: lang == 'EN' ? 'Privacy Policy'
-                  : lang == 'ZH' ? '隐私政策'
-                  : 'Kebijakan Privasi',
-            ),
-          ),
+          _slideRoute(AdminLegalScreen(
+            lang: lang,
+            docType: 'privacy_policy',
+            title: lang == 'EN' ? 'Privacy Policy'
+                : lang == 'ZH' ? '隐私政策'
+                : 'Kebijakan Privasi',
+          )),
         ),
       ),
       _SettingMenu(
@@ -82,7 +95,7 @@ class AdminSettingsScreen extends StatelessWidget {
         color: const Color(0xFFF59E0B),
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => AdminNewsScreen(lang: lang)),
+          _slideRoute(AdminNewsScreen(lang: lang)),
         ),
       ),
     ];
@@ -91,8 +104,9 @@ class AdminSettingsScreen extends StatelessWidget {
       backgroundColor: _bg,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: const Color(0xFFEF4444),
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded),
           onPressed: () => Navigator.pop(context),
@@ -103,7 +117,7 @@ class AdminSettingsScreen extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 16,
-            color: const Color(0xFF1E3A8A),
+            color: const Color(0xFFEF4444),
           ),
         ),
       ),

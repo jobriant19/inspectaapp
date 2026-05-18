@@ -267,19 +267,19 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: Color(0xFF2563EB)),
+          icon: const Icon(CupertinoIcons.back, color: Color.fromARGB(255, 235, 199, 37)),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(t['title']!,
             style: GoogleFonts.inter(
-                color: const Color(0xFF2563EB),
+                color: const Color.fromARGB(255, 235, 199, 37),
                 fontWeight: FontWeight.w700,
                 fontSize: 17)),
         centerTitle: true,
         actions: [
           IconButton(
             onPressed: _fetchReports,
-            icon: const Icon(CupertinoIcons.refresh, color: Color(0xFF2563EB)),
+            icon: const Icon(CupertinoIcons.refresh, color: Color.fromARGB(255, 235, 199, 37)),
           ),
         ],
         bottom: PreferredSize(

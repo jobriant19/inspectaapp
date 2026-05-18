@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -688,7 +689,7 @@ class _LocationScreenState extends State<LocationScreen>
       ),
       title: Text(
         appBarTitle,
-        style: const TextStyle(
+        style: GoogleFonts.inter(
             color: Color(0xFF2563EB),
             fontWeight: FontWeight.w700,
             fontSize: 17),
