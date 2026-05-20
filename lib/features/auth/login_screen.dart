@@ -21,126 +21,79 @@ class _LoginScreenState extends State<LoginScreen>
 
   StreamSubscription? _authStateSubscription;
 
-  // Controller Form
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  String? _selectedJabatan;
 
-  bool isLogin = true;
   bool isRememberMe = false;
   bool isLoading = false;
   bool isPasswordVisible = false;
 
-  // Variabel untuk kekuatan password
-  String _passStrengthText = "";
-  Color _passStrengthColor = Colors.transparent;
-
-  // --- FITUR LOKALISASI (TRANSLATE) ---
+  // ─── Localisation ───────────────────────────────────────────────────────────
   String selectedLanguage = 'EN';
 
   final Map<String, Map<String, String>> translations = {
     'EN': {
       'login': 'Login',
-      'signup': 'Sign Up',
       'welcome': 'Welcome Back!',
       'tagline_login': 'Inspecta: Make Your Discipline day!',
-      'get_started': 'Get Started Free',
-      'tagline_signup': 'Free Forever. No Credit Card Needed',
       'email_label': 'Email Address',
       'email_hint': 'Email',
-      'name_label': 'Your Name',
-      'name_hint': '@yourname',
       'pass_label': 'Password',
       'remember_me': 'Remember Me',
       'forgot_pass': 'Forgot Password?',
       'or_login': 'Or continue with',
-      'or_signup': 'Or sign up with',
       'google': 'Login with Google',
-      'weak': 'Weak',
-      'medium': 'Medium',
-      'strong': 'Strong',
       'err_email': 'Fill E-mail First',
       'err_pass': 'Fill Password First',
       'err_email_pass': 'Fill E-mail & Password First',
-      'err_name': 'Fill Name First',
       'err_wrong': 'Wrong Email or Password!',
-      'err_len': 'Password must be at least 6 characters',
       'try_again': 'Try Again',
       'reset_sent': 'Reset link sent to your email',
       'fill_email_reset': 'Fill your email to reset password!',
-      'role_label': 'Job Title',
-      'role_hint': 'Select Job Title',
-      'err_role': 'Select Job Title First',
       'err_unknown': 'Unknown Email! Not registered.',
+      'sign_in': 'Sign In',
     },
     'ID': {
       'login': 'Masuk',
-      'signup': 'Daftar',
       'welcome': 'Selamat Datang!',
       'tagline_login': 'Inspecta: Jadikan Harimu Disiplin!',
-      'get_started': 'Mulai Gratis',
-      'tagline_signup': 'Gratis Selamanya. Tanpa Kartu Kredit',
       'email_label': 'Alamat Email',
       'email_hint': 'Email',
-      'name_label': 'Nama Anda',
-      'name_hint': '@namaanda',
       'pass_label': 'Kata Sandi',
       'remember_me': 'Ingat Saya',
       'forgot_pass': 'Lupa Sandi?',
       'or_login': 'Atau masuk dengan',
-      'or_signup': 'Atau daftar dengan',
       'google': 'Masuk dengan Google',
-      'weak': 'Lemah',
-      'medium': 'Sedang',
-      'strong': 'Kuat',
       'err_email': 'Isi E-mail Terlebih Dahulu',
       'err_pass': 'Isi Password Terlebih Dahulu',
       'err_email_pass': 'Isi E-mail & Password Terlebih Dahulu',
-      'err_name': 'Isi Nama Terlebih Dahulu',
       'err_wrong': 'Email atau Password Salah!',
-      'err_len': 'Password minimal 6 karakter',
       'try_again': 'Coba Lagi',
       'reset_sent': 'Link reset dikirim ke email Anda',
       'fill_email_reset': 'Isi email dulu untuk mereset password!',
-      'role_label': 'Jabatan',
-      'role_hint': 'Pilih Jabatan',
-      'err_role': 'Pilih Jabatan Terlebih Dahulu',
       'err_unknown': 'Email Tidak Terdaftar!',
+      'sign_in': 'Masuk',
     },
     'ZH': {
       'login': '登录',
-      'signup': '注册',
       'welcome': '欢迎回来！',
       'tagline_login': 'Inspecta: 让您的纪律日!',
-      'get_started': '免费开始',
-      'tagline_signup': '永久免费。无需信用卡',
       'email_label': '电子邮件地址',
       'email_hint': '电子邮件',
-      'name_label': '您的名字',
-      'name_hint': '@您的名字',
       'pass_label': '密码',
       'remember_me': '记住我',
       'forgot_pass': '忘记密码？',
       'or_login': '或继续使用',
-      'or_signup': '或注册使用',
       'google': '使用Google登录',
-      'weak': '弱',
-      'medium': '中',
-      'strong': '强',
       'err_email': '请先填写电子邮件',
       'err_pass': '请先填写密码',
       'err_email_pass': '请先填写电子邮件和密码',
-      'err_name': '请先填写姓名',
       'err_wrong': '邮箱或密码错误！',
-      'err_len': '密码至少需要6个字符',
       'try_again': '重试',
       'reset_sent': '重置链接已发送到您的邮箱',
       'fill_email_reset': '请先填写您的邮箱以重置密码！',
-      'role_label': '职位',
-      'role_hint': '选择职位',
-      'err_role': '请先选择职位',
       'err_unknown': '未知的电子邮件！',
+      'sign_in': '登录',
     },
   };
 
@@ -151,10 +104,7 @@ class _LoginScreenState extends State<LoginScreen>
     super.initState();
     _loadSavedCredentials();
     _emailController.addListener(() => setState(() {}));
-    _nameController.addListener(() => setState(() {}));
     _passwordController.addListener(() => setState(() {}));
-    _passwordController.addListener(_checkPasswordStrength);
-    
     _setupAuthListener();
   }
 
@@ -162,241 +112,223 @@ class _LoginScreenState extends State<LoginScreen>
   void dispose() {
     _authStateSubscription?.cancel();
     _emailController.dispose();
-    _nameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   void _setupAuthListener() {
-    _authStateSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+    _authStateSubscription =
+        Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       final AuthChangeEvent event = data.event;
       final Session? session = data.session;
 
       if (event == AuthChangeEvent.signedIn && session != null) {
-        // Ambil nama provider secara aman (google atau email)
-        final String provider = session.user.appMetadata['provider'] ?? 'email';
+        final String provider =
+            session.user.appMetadata['provider'] ?? 'email';
 
-        // HANYA proses pengecekan database jika login lewat GOOGLE
         if (provider == 'google') {
           if (!mounted) return;
-          
-          setState(() {
-            isLoading = true; 
-          });
+          setState(() => isLoading = true);
 
           try {
-            // Cek apakah email google tersebut ADA di database tabel User
             final userData = await Supabase.instance.client
                 .from('User')
-                .select('id_user, email, gambar_user, is_verificator')
+                .select(
+                    'id_user, email, gambar_user, is_verificator, id_jabatan')
                 .eq('email', session.user.email!)
                 .maybeSingle();
 
             if (userData == null) {
-              // Jika email TIDAK DITEMUKAN di tabel User: Sign Out & Munculkan Pop up Error
               await Supabase.instance.client.auth.signOut();
               if (mounted) {
                 setState(() => isLoading = false);
-                _showCustomDialog(getTxt('err_unknown')); // Pastikan 'err_unknown' sudah ditambah di map translations
+                _showCustomDialog(getTxt('err_unknown'));
               }
-              return; // Berhenti disini, jangan masuk ke HomeScreen
-            } else {
-              // Jika email DITEMUKAN: Lanjut cek dan perbarui foto profil jika kosong
-              final String? googleImage = session.user.userMetadata?['avatar_url'] ?? session.user.userMetadata?['picture'];
+              return;
+            }
 
-              if ((userData['gambar_user'] == null || userData['gambar_user'] == "") && googleImage != null) {
-                await Supabase.instance.client.from('User').update({
-                  'gambar_user': googleImage
-                }).eq('id_user', userData['id_user']);
+            final String? googleImage =
+                session.user.userMetadata?['avatar_url'] ??
+                    session.user.userMetadata?['picture'];
+
+            if ((userData['gambar_user'] == null ||
+                    userData['gambar_user'] == '') &&
+                googleImage != null) {
+              await Supabase.instance.client.from('User').update(
+                  {'gambar_user': googleImage}).eq('id_user', userData['id_user']);
+            }
+
+            if (mounted) {
+              final String? googleImg = userData['gambar_user'];
+              if (googleImg != null && googleImg.isNotEmpty) {
+                await precacheImage(
+                    CachedNetworkImageProvider(googleImg), context);
               }
-
-              if (mounted) {
-                final String? googleImg = userData['gambar_user'];
-                if (mounted && googleImg != null && googleImg.isNotEmpty) {
+              final int? jabatanGoogle = userData['id_jabatan'] as int?;
+              if (jabatanGoogle == 6) {
+                int sTotalUsers = 0,
+                    sTotalLokasi = 0,
+                    sTotalKategori = 0;
+                int sTotalTemuan = 0, sTemuanBelum = 0, sTemuanSelesai = 0;
+                try {
+                  final statsResults = await Future.wait([
+                    Supabase.instance.client.from('User').count(),
+                    Supabase.instance.client.from('lokasi').count(),
+                    Supabase.instance.client.from('kategoritemuan').count(),
+                    Supabase.instance.client.from('temuan').count(),
+                    Supabase.instance.client
+                        .from('temuan')
+                        .count()
+                        .eq('status_temuan', 'Belum'),
+                    Supabase.instance.client
+                        .from('temuan')
+                        .count()
+                        .eq('status_temuan', 'Selesai'),
+                    precacheImage(
+                            const AssetImage('assets/images/bgadmin.png'),
+                            context)
+                        .catchError((_) {}),
+                  ]);
+                  sTotalUsers = statsResults[0] as int;
+                  sTotalLokasi = statsResults[1] as int;
+                  sTotalKategori = statsResults[2] as int;
+                  sTotalTemuan = statsResults[3] as int;
+                  sTemuanBelum = statsResults[4] as int;
+                  sTemuanSelesai = statsResults[5] as int;
+                } catch (_) {
                   await precacheImage(
-                    CachedNetworkImageProvider(googleImg),
-                    context,
-                  );
+                          const AssetImage('assets/images/bgadmin.png'),
+                          context)
+                      .catchError((_) {});
                 }
-                final int? jabatanGoogle = userData['id_jabatan'] as int?;
-                if (jabatanGoogle == 6) {
-                  int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
-                  int sTotalTemuan = 0, sTemuanBelum = 0, sTemuanSelesai = 0;
-                  try {
-                    final statsResults = await Future.wait([
-                      Supabase.instance.client.from('User').count(),
-                      Supabase.instance.client.from('lokasi').count(),
-                      Supabase.instance.client.from('kategoritemuan').count(),
-                      Supabase.instance.client.from('temuan').count(),
-                      Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Belum'),
-                      Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Selesai'),
-                      precacheImage(const AssetImage('assets/images/bgadmin.png'), context).catchError((_) {}),
-                    ]);
-                    sTotalUsers    = statsResults[0] as int;
-                    sTotalLokasi   = statsResults[1] as int;
-                    sTotalKategori = statsResults[2] as int;
-                    sTotalTemuan   = statsResults[3] as int;
-                    sTemuanBelum   = statsResults[4] as int;
-                    sTemuanSelesai = statsResults[5] as int;
-                  } catch (_) {
-                    await precacheImage(
-                      const AssetImage('assets/images/bgadmin.png'), context,
-                    ).catchError((_) {});
-                  }
-                  if (!mounted) return;
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AdminHomeScreen(
-                        initialUserName: userData['nama'],
-                        initialUserImage: userData['gambar_user'],
-                        initialTotalUsers: sTotalUsers,
-                        initialTotalLokasi: sTotalLokasi,
-                        initialTotalKategori: sTotalKategori,
-                        initialTotalTemuan: sTotalTemuan,
-                        initialTemuanBelum: sTemuanBelum,
-                        initialTemuanSelesai: sTemuanSelesai,
-                      ),
+                if (!mounted) return;
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AdminHomeScreen(
+                      initialUserName: userData['nama'],
+                      initialUserImage: userData['gambar_user'],
+                      initialTotalUsers: sTotalUsers,
+                      initialTotalLokasi: sTotalLokasi,
+                      initialTotalKategori: sTotalKategori,
+                      initialTotalTemuan: sTotalTemuan,
+                      initialTemuanBelum: sTemuanBelum,
+                      initialTemuanSelesai: sTemuanSelesai,
                     ),
-                  );
-                } else {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HomeScreen()),
-                  );
-                }
+                  ),
+                );
+              } else {
+                if (!mounted) return;
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const HomeScreen()),
+                );
               }
             }
           } catch (e) {
-            print("Error Mengecek Google User: $e");
             if (mounted) setState(() => isLoading = false);
           }
         }
-        // JIKA PROVIDER == EMAIL (Manual), abaikan. Biarkan _submitForm yang memproses navigasi.
       }
     });
   }
 
-  // FITUR: Pengecekan Password cerdas (Keragaman Karakter)
-  void _checkPasswordStrength() {
-    if (isLogin) return;
-    String pass = _passwordController.text;
-    setState(() {
-      if (pass.isEmpty) {
-        _passStrengthText = "";
-        _passStrengthColor = Colors.transparent;
-      } else {
-        bool hasLower = RegExp(r'[a-z]').hasMatch(pass);
-        bool hasUpper = RegExp(r'[A-Z]').hasMatch(pass);
-        bool hasDigit = RegExp(r'\d').hasMatch(pass);
-        bool hasSpecial = RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(pass);
-
-        int strengthScore = 0;
-        if (pass.length >= 6) strengthScore++;
-        if (pass.length >= 8) strengthScore++;
-        if (hasLower && hasUpper) strengthScore++;
-        if (hasDigit) strengthScore++;
-        if (hasSpecial) strengthScore++;
-
-        if (strengthScore <= 2) {
-          _passStrengthText = getTxt('weak');
-          _passStrengthColor = const Color(0xFFFF4B4B);
-        } else if (strengthScore <= 4) {
-          _passStrengthText = getTxt('medium');
-          _passStrengthColor = Colors.orangeAccent;
-        } else {
-          _passStrengthText = getTxt('strong');
-          _passStrengthColor = const Color(0xFF4CD978);
-        }
-      }
-    });
+  // ─── Remember Me – diperbaiki ────────────────────────────────────────────────
+  // Simpan langsung saat user toggle, bukan hanya saat submit
+  void _onRememberMeChanged(bool? value) async {
+    final newVal = value ?? false;
+    setState(() => isRememberMe = newVal);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('remember_me', newVal);
+    if (!newVal) {
+      // Hapus kredensial tersimpan langsung ketika dinonaktifkan
+      await prefs.remove('saved_email');
+      await prefs.remove('saved_password');
+    }
   }
 
   void _loadSavedCredentials() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
-      // Memuat bahasa yang dipilih dari Onboarding
-      String? savedLang = prefs.getString('lang');
+      final savedLang = prefs.getString('lang');
       if (savedLang != null && translations.containsKey(savedLang)) {
         selectedLanguage = savedLang;
       }
-
       isRememberMe = prefs.getBool('remember_me') ?? false;
       if (isRememberMe) {
-        _emailController.text = prefs.getString('email') ?? '';
-        _passwordController.text = prefs.getString('password') ?? '';
+        _emailController.text = prefs.getString('saved_email') ?? '';
+        _passwordController.text = prefs.getString('saved_password') ?? '';
       }
     });
   }
 
   void _saveCredentials() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
     await prefs.setString('lang', selectedLanguage);
     if (isRememberMe) {
       await prefs.setBool('remember_me', true);
-      await prefs.setString('email', _emailController.text);
-      await prefs.setString('password', _passwordController.text);
+      await prefs.setString('saved_email', _emailController.text.trim());
+      await prefs.setString('saved_password', _passwordController.text.trim());
     } else {
       await prefs.setBool('remember_me', false);
-      await prefs.remove('email');
-      await prefs.remove('password');
+      await prefs.remove('saved_email');
+      await prefs.remove('saved_password');
     }
   }
 
-  // Pop-Up Notif
   void _showCustomDialog(String message) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           backgroundColor: Colors.white,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+            padding:
+                const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: const BoxDecoration(
-                    color: Color(0xFFFF4B4B),
+                    color: Color.fromARGB(255, 255, 25, 25),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.close, color: Colors.white, size: 40),
+                  child: const Icon(Icons.close, color: Colors.white, size: 36),
                 ),
                 const SizedBox(height: 20),
                 Text(
                   message,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 25),
+                const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
-                  height: 40,
+                  height: 44,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00C9E4),
+                      backgroundColor: const Color(0xFF1976D2),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                          borderRadius: BorderRadius.circular(10)),
                       elevation: 0,
                     ),
                     onPressed: () => Navigator.of(context).pop(),
                     child: Text(
                       getTxt('try_again'),
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14),
                     ),
                   ),
                 ),
@@ -409,11 +341,9 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _submitForm() async {
-    String email = _emailController.text.trim();
-    String pass = _passwordController.text.trim();
-    String name = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final pass = _passwordController.text.trim();
 
-    // --- Validasi Form ---
     if (email.isEmpty && pass.isEmpty) {
       _showCustomDialog(getTxt('err_email_pass'));
       return;
@@ -423,648 +353,562 @@ class _LoginScreenState extends State<LoginScreen>
     } else if (pass.isEmpty) {
       _showCustomDialog(getTxt('err_pass'));
       return;
-    } else if (!isLogin) {
-      if (name.isEmpty) {
-        _showCustomDialog(getTxt('err_name'));
-        return;
-      } else if (_selectedJabatan == null) {
-        _showCustomDialog(getTxt('err_role'));
-        return;
-      } else if (pass.length < 6) {
-        _showCustomDialog(getTxt('err_len'));
-        return;
-      }
     }
 
     setState(() => isLoading = true);
     _saveCredentials();
 
-    // ==========================================
-    // PROSES HASHING PASSWORD MELALUI AUTH SERVICE
-    // ==========================================
     String hashedPass = pass;
     try {
-      // Memanggil AuthService untuk mengubah password mentah menjadi Argon2
       hashedPass = await _auth.hashPassword(email, pass);
     } catch (e) {
-      print("Argon2 Hashing Error: $e");
       if (mounted) setState(() => isLoading = false);
-      _showCustomDialog("Terjadi kesalahan enkripsi keamanan password.");
+      _showCustomDialog('Terjadi kesalahan enkripsi keamanan password.');
       return;
     }
 
-    if (isLogin) {
-      // ==========================
-      // 1. PROSES LOGIN MANUAL (DIPERCEPAT)
-      // ==========================
-      try {
-        // Jalankan sign in
-        final AuthResponse? res = await _auth.signInWithEmail(email, hashedPass);
+    try {
+      final AuthResponse? res = await _auth.signInWithEmail(email, hashedPass);
 
-        if (res != null && res.user != null) {
-          final userId = res.user!.id;
+      if (res != null && res.user != null) {
+        final userId = res.user!.id;
 
-          // Ambil semua data secara PARALEL agar lebih cepat
-          final results = await Future.wait([
-            Supabase.instance.client
-                .from('User')
-                .select('nama, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, is_verificator, jabatan(nama_jabatan)')
-                .eq('id_user', userId)
-                .single(),
-            Supabase.instance.client
-                .from('log_poin')
-                .select('poin, deskripsi, tipe_aktivitas, created_at')
-                .eq('id_user', userId)
-                .order('created_at', ascending: false)
-                .limit(1),
-          ]);
+        final results = await Future.wait([
+          Supabase.instance.client
+              .from('User')
+              .select(
+                  'nama, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, is_verificator, jabatan(nama_jabatan)')
+              .eq('id_user', userId)
+              .single(),
+          Supabase.instance.client
+              .from('log_poin')
+              .select('poin, deskripsi, tipe_aktivitas, created_at')
+              .eq('id_user', userId)
+              .order('created_at', ascending: false)
+              .limit(1),
+        ]);
 
-          final userData = results[0] as Map<String, dynamic>;
-          final logs = results[1] as List<dynamic>;
-          Map<String, dynamic>? latestLog = logs.isNotEmpty ? logs.first : null;
+        final userData = results[0] as Map<String, dynamic>;
+        final logs = results[1] as List<dynamic>;
+        Map<String, dynamic>? latestLog =
+            logs.isNotEmpty ? logs.first : null;
 
-          final bool isVerificator = userData['is_verificator'] as bool? ?? false;
-          final int? idJabatan = userData['id_jabatan'] as int?;
-          final bool canShowVerifButton = isVerificator || idJabatan == 1 || idJabatan == 5;
+        final bool isVerificator =
+            userData['is_verificator'] as bool? ?? false;
+        final int? idJabatan = userData['id_jabatan'] as int?;
+        final bool canShowVerifButton =
+            isVerificator || idJabatan == 1 || idJabatan == 5;
 
-          // Resolusi lokasi (paralel juga jika memungkinkan)
-          String locationName = '...';
-          final idArea    = userData['id_area'];
-          final idSubunit = userData['id_subunit'];
-          final idUnit    = userData['id_unit'];
-          final idLokasi  = userData['id_lokasi'];
+        String locationName = '...';
+        final idArea = userData['id_area'];
+        final idSubunit = userData['id_subunit'];
+        final idUnit = userData['id_unit'];
+        final idLokasi = userData['id_lokasi'];
 
-          if (idArea != null) {
-            final d = await Supabase.instance.client
-                .from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
-            locationName = d?['nama_area'] ?? locationName;
-          } else if (idSubunit != null) {
-            final d = await Supabase.instance.client
-                .from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
-            locationName = d?['nama_subunit'] ?? locationName;
-          } else if (idUnit != null) {
-            final d = await Supabase.instance.client
-                .from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
-            locationName = d?['nama_unit'] ?? locationName;
-          } else if (idLokasi != null) {
-            final d = await Supabase.instance.client
-                .from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
-            locationName = d?['nama_lokasi'] ?? locationName;
-          }
+        if (idArea != null) {
+          final d = await Supabase.instance.client
+              .from('area')
+              .select('nama_area')
+              .eq('id_area', idArea)
+              .maybeSingle();
+          locationName = d?['nama_area'] ?? locationName;
+        } else if (idSubunit != null) {
+          final d = await Supabase.instance.client
+              .from('subunit')
+              .select('nama_subunit')
+              .eq('id_subunit', idSubunit)
+              .maybeSingle();
+          locationName = d?['nama_subunit'] ?? locationName;
+        } else if (idUnit != null) {
+          final d = await Supabase.instance.client
+              .from('unit')
+              .select('nama_unit')
+              .eq('id_unit', idUnit)
+              .maybeSingle();
+          locationName = d?['nama_unit'] ?? locationName;
+        } else if (idLokasi != null) {
+          final d = await Supabase.instance.client
+              .from('lokasi')
+              .select('nama_lokasi')
+              .eq('id_lokasi', idLokasi)
+              .maybeSingle();
+          locationName = d?['nama_lokasi'] ?? locationName;
+        }
 
-          if (mounted) {
-            // Precache gambar user DAN logo header secara paralel
-            final List<Future> precacheTasks = [
-              precacheImage(const AssetImage('assets/images/logo1.png'), context)
+        if (mounted) {
+          final List<Future> precacheTasks = [
+            precacheImage(
+                    const AssetImage('assets/images/logo1.png'), context)
+                .catchError((_) {}),
+          ];
+          final String? imageToPreload = userData['gambar_user'];
+          if (imageToPreload != null && imageToPreload.isNotEmpty) {
+            precacheTasks.add(
+              precacheImage(
+                      CachedNetworkImageProvider(imageToPreload), context)
                   .catchError((_) {}),
-            ];
-            final String? imageToPreload = userData['gambar_user'];
-            if (imageToPreload != null && imageToPreload.isNotEmpty) {
-              precacheTasks.add(
-                precacheImage(CachedNetworkImageProvider(imageToPreload), context)
-                    .catchError((_) {}),
-              );
-            }
-            await Future.wait(precacheTasks);
-
-            // Fetch notif count & monthly poin PARALEL sebelum push
-            int initialNotifCount = 0;
-            int initialMonthlyPoin = 0;
-            try {
-              final now = DateTime.now();
-              final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
-              final startOfNextMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
-
-              final preloadResults = await Future.wait([
-                // Notif count
-                Supabase.instance.client
-                    .from('temuan')
-                    .count(CountOption.exact)
-                    .eq('id_penanggung_jawab', userId)
-                    .neq('status_temuan', 'Selesai'),
-                // Monthly poin dari log_poin
-                Supabase.instance.client
-                    .from('log_poin')
-                    .select('poin')
-                    .eq('id_user', userId)
-                    .gte('created_at', startOfMonth)
-                    .lt('created_at', startOfNextMonth),
-              ]);
-
-              initialNotifCount = preloadResults[0] as int;
-              final logList = preloadResults[1] as List<dynamic>;
-              int total = 0;
-              for (final log in logList) {
-                total += ((log['poin'] as num?)?.toInt() ?? 0);
-              }
-              initialMonthlyPoin = total;
-            } catch (_) {}
-
-            final bool isAdmin = idJabatan == 6;
-
-            if (isAdmin) {
-              // Preload bgadmin + fetch stats paralel sebelum masuk admin screen
-              int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
-              int sTotalTemuan = 0, sTemuanBelum = 0, sTemuanSelesai = 0;
-              try {
-                final statsResults = await Future.wait([
-                  Supabase.instance.client.from('User').count(),
-                  Supabase.instance.client.from('lokasi').count(),
-                  Supabase.instance.client.from('kategoritemuan').count(),
-                  Supabase.instance.client.from('temuan').count(),
-                  Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Belum'),
-                  Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Selesai'),
-                  precacheImage(const AssetImage('assets/images/bgadmin.png'), context).catchError((_) {}),
-                ]);
-                sTotalUsers    = statsResults[0] as int;
-                sTotalLokasi   = statsResults[1] as int;
-                sTotalKategori = statsResults[2] as int;
-                sTotalTemuan   = statsResults[3] as int;
-                sTemuanBelum   = statsResults[4] as int;
-                sTemuanSelesai = statsResults[5] as int;
-              } catch (_) {
-                await precacheImage(
-                  const AssetImage('assets/images/bgadmin.png'), context,
-                ).catchError((_) {});
-              }
-              if (!mounted) return;
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AdminHomeScreen(
-                    initialUserName: userData['nama'],
-                    initialUserImage: userData['gambar_user'],
-                    initialTotalUsers: sTotalUsers,
-                    initialTotalLokasi: sTotalLokasi,
-                    initialTotalKategori: sTotalKategori,
-                    initialTotalTemuan: sTotalTemuan,
-                    initialTemuanBelum: sTemuanBelum,
-                    initialTemuanSelesai: sTemuanSelesai,
-                  ),
-                ),
-              );
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => HomeScreen(
-                    initialUserName: userData['nama'],
-                    initialUserPoin: userData['poin'],
-                    initialUserImage: userData['gambar_user'],
-                    initialUserRole: userData['jabatan']?['nama_jabatan'],
-                    initialUserLocation: locationName,
-                    initialLatestLog: latestLog,
-                    initialUserJabatanId: idJabatan,
-                    initialIsVerificator: canShowVerifButton,
-                    initialNotifCount: initialNotifCount,
-                    initialMonthlyPoin: initialMonthlyPoin,
-                  ),
-                ),
-              );
-            }
-          }
-        } else {
-          _showCustomDialog(getTxt('err_wrong'));
-        }
-      } on AuthException catch (e) {
-        if (e.message.toLowerCase().contains("invalid login credentials")) {
-          _showCustomDialog(getTxt('err_wrong'));
-        } else if (e.message.toLowerCase().contains("email not confirmed")) {
-          _showCustomDialog("Email belum dikonfirmasi!");
-        } else {
-          _showCustomDialog("Gagal Login: ${e.message}");
-        }
-      } catch (e) {
-        _showCustomDialog("Terjadi kesalahan sistem saat login.");
-      } finally {
-        if (mounted) setState(() => isLoading = false);
-      }
-
-    } else {
-      // ==========================
-      // 2. PROSES SIGN UP MANUAL
-      // ==========================
-      try {
-        // Memanggil fungsi dari AuthService dengan password yang sudah di-hash
-        final AuthResponse? res = await _auth.signUpWithEmail(email, hashedPass);
-
-        if (res != null && res.user != null) {
-          int idJabatan = 4; // Default Staff
-          if (_selectedJabatan == 'Eksekutif') idJabatan = 1;
-          if (_selectedJabatan == 'Manager') idJabatan = 2;
-          if (_selectedJabatan == 'Kasie') idJabatan = 3;
-
-          // INSERT KE TABEL User Database Publik Anda
-          await Supabase.instance.client.from('User').insert({
-            'id_user': res.user!.id, 
-            'nama': name,
-            'email': email,
-            'pass': hashedPass, // Menyimpan format Argon2 ke Tabel
-            'id_jabatan': idJabatan,
-            'poin': 0,
-            'is_visitor': false,
-            'timestamp': DateTime.now().toIso8601String(),
-          });
-
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const HomeScreen()),
             );
           }
-        } else {
-           _showCustomDialog("Pendaftaran gagal, silakan coba lagi.");
+          await Future.wait(precacheTasks);
+
+          int initialNotifCount = 0;
+          int initialMonthlyPoin = 0;
+          try {
+            final now = DateTime.now();
+            final startOfMonth =
+                DateTime(now.year, now.month, 1).toIso8601String();
+            final startOfNextMonth =
+                DateTime(now.year, now.month + 1, 1).toIso8601String();
+
+            final preloadResults = await Future.wait([
+              Supabase.instance.client
+                  .from('temuan')
+                  .count(CountOption.exact)
+                  .eq('id_penanggung_jawab', userId)
+                  .neq('status_temuan', 'Selesai'),
+              Supabase.instance.client
+                  .from('log_poin')
+                  .select('poin')
+                  .eq('id_user', userId)
+                  .gte('created_at', startOfMonth)
+                  .lt('created_at', startOfNextMonth),
+            ]);
+
+            initialNotifCount = preloadResults[0] as int;
+            final logList = preloadResults[1] as List<dynamic>;
+            int total = 0;
+            for (final log in logList) {
+              total += ((log['poin'] as num?)?.toInt() ?? 0);
+            }
+            initialMonthlyPoin = total;
+          } catch (_) {}
+
+          final bool isAdmin = idJabatan == 6;
+
+          if (isAdmin) {
+            int sTotalUsers = 0,
+                sTotalLokasi = 0,
+                sTotalKategori = 0;
+            int sTotalTemuan = 0, sTemuanBelum = 0, sTemuanSelesai = 0;
+            try {
+              final statsResults = await Future.wait([
+                Supabase.instance.client.from('User').count(),
+                Supabase.instance.client.from('lokasi').count(),
+                Supabase.instance.client.from('kategoritemuan').count(),
+                Supabase.instance.client.from('temuan').count(),
+                Supabase.instance.client
+                    .from('temuan')
+                    .count()
+                    .eq('status_temuan', 'Belum'),
+                Supabase.instance.client
+                    .from('temuan')
+                    .count()
+                    .eq('status_temuan', 'Selesai'),
+                precacheImage(
+                        const AssetImage('assets/images/bgadmin.png'),
+                        context)
+                    .catchError((_) {}),
+              ]);
+              sTotalUsers = statsResults[0] as int;
+              sTotalLokasi = statsResults[1] as int;
+              sTotalKategori = statsResults[2] as int;
+              sTotalTemuan = statsResults[3] as int;
+              sTemuanBelum = statsResults[4] as int;
+              sTemuanSelesai = statsResults[5] as int;
+            } catch (_) {
+              await precacheImage(
+                      const AssetImage('assets/images/bgadmin.png'),
+                      context)
+                  .catchError((_) {});
+            }
+            if (!mounted) return;
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AdminHomeScreen(
+                  initialUserName: userData['nama'],
+                  initialUserImage: userData['gambar_user'],
+                  initialTotalUsers: sTotalUsers,
+                  initialTotalLokasi: sTotalLokasi,
+                  initialTotalKategori: sTotalKategori,
+                  initialTotalTemuan: sTotalTemuan,
+                  initialTemuanBelum: sTemuanBelum,
+                  initialTemuanSelesai: sTemuanSelesai,
+                ),
+              ),
+            );
+          } else {
+            if (!mounted) return;
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeScreen(
+                  initialUserName: userData['nama'],
+                  initialUserPoin: userData['poin'],
+                  initialUserImage: userData['gambar_user'],
+                  initialUserRole: userData['jabatan']?['nama_jabatan'],
+                  initialUserLocation: locationName,
+                  initialLatestLog: latestLog,
+                  initialUserJabatanId: idJabatan,
+                  initialIsVerificator: canShowVerifButton,
+                  initialNotifCount: initialNotifCount,
+                  initialMonthlyPoin: initialMonthlyPoin,
+                ),
+              ),
+            );
+          }
         }
-      } on AuthException catch (e) {
-        print("SignUp Auth Error: ${e.message}");
-        _showCustomDialog("Pendaftaran Gagal: ${e.message}"); 
-      } catch (e) {
-        print("SignUp Database Error: $e");
-        _showCustomDialog("Gagal menyimpan data ke database. Cek Terminal / Debug Console.");
-      } finally {
-        if (mounted) setState(() => isLoading = false);
+      } else {
+        _showCustomDialog(getTxt('err_wrong'));
       }
+    } on AuthException catch (e) {
+      if (e.message.toLowerCase().contains('invalid login credentials')) {
+        _showCustomDialog(getTxt('err_wrong'));
+      } else if (e.message.toLowerCase().contains('email not confirmed')) {
+        _showCustomDialog('Email belum dikonfirmasi!');
+      } else {
+        _showCustomDialog('Gagal Login: ${e.message}');
+      }
+    } catch (_) {
+      _showCustomDialog('Terjadi kesalahan sistem saat login.');
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
-  // KOMPONEN: Radial Glow Background
-  Widget _buildRadialGlow(
-    double? top,
-    double? left,
-    double? right,
-    double? bottom,
-    Color centerColor,
-    Color edgeColor,
-    double size,
-  ) {
-    return Positioned(
-      top: top,
-      left: left,
-      right: right,
-      bottom: bottom,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [centerColor.withOpacity(0.6), edgeColor.withOpacity(0.0)],
-            stops: const [0.0, 1.0],
-          ),
-        ),
-      ),
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  DropdownMenuItem<String> _buildDropdownItem(
+      String value, String flag, String label) {
+    return DropdownMenuItem(
+      value: value,
+      child: Row(children: [
+        Text(flag, style: const TextStyle(fontSize: 16)),
+        const SizedBox(width: 8),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87)),
+      ]),
     );
   }
 
+  // ─── BUILD ───────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFCBE5F6),
+      backgroundColor: const Color(0xFFE3F2FD),
       body: Stack(
         children: [
-          // --- 1. RADIAL EFEK BACKGROUND ---
-          _buildRadialGlow(
-            null,
-            -50,
-            null,
-            100,
-            const Color(0xFF4CD978),
-            const Color(0xFFD25A63),
-            300,
+          // ── Blob biru latar ──────────────────────────────────────────────────
+          Positioned(
+            top: -80,
+            left: -60,
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF1976D2).withOpacity(0.12),
+              ),
+            ),
           ),
-          _buildRadialGlow(
-            null,
-            null,
-            -50,
-            -50,
-            const Color(0xFF00B5E4),
-            const Color(0xFF360060),
-            350,
+          Positioned(
+            top: -30,
+            right: -40,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF42A5F5).withOpacity(0.15),
+              ),
+            ),
           ),
-          _buildRadialGlow(
-            -50,
-            null,
-            -50,
-            null,
-            const Color(0xFFB379DF),
-            const Color(0xFF360060),
-            250,
+          Positioned(
+            bottom: 120,
+            right: -80,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF1565C0).withOpacity(0.08),
+              ),
+            ),
           ),
 
-          // --- 2. KONTEN UTAMA ---
+          // ── Konten utama ─────────────────────────────────────────────────────
           SafeArea(
             bottom: false,
             child: CustomScrollView(
+              physics: const ClampingScrollPhysics(),
               slivers: [
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: Column(
                     children: [
-                      // Dropdown Bahasa
+                      // Language picker
                       Padding(
-                        padding: const EdgeInsets.only(right: 20.0, top: 10.0),
+                        padding: const EdgeInsets.only(right: 16.0, top: 8.0),
                         child: Align(
                           alignment: Alignment.topRight,
-                          child: Container(
-                            height: 35,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.7),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: DropdownButton<String>(
-                              value: selectedLanguage,
-                              underline: const SizedBox(),
-                              icon: const Icon(
-                                Icons.arrow_drop_down,
-                                color: Colors.black87,
+                          child: GestureDetector(
+                            onTap: () {
+                              final langs = [
+                                {'code': 'EN', 'flag': '🇬🇧', 'label': 'English'},
+                                {'code': 'ID', 'flag': '🇮🇩', 'label': 'Indonesia'},
+                                {'code': 'ZH', 'flag': '🇨🇳', 'label': '中文'},
+                              ];
+                              showModalBottomSheet(
+                                context: context,
+                                backgroundColor: Colors.transparent,
+                                builder: (ctx) => Container(
+                                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 40, height: 4,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade300,
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        'Select Language',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 16,
+                                          color: Color(0xFF1E3A8A),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      ...langs.map((l) {
+                                        final isSelected = selectedLanguage == l['code'];
+                                        return GestureDetector(
+                                          onTap: () async {
+                                            final prefs = await SharedPreferences.getInstance();
+                                            await prefs.setString('lang', l['code']!);
+                                            if (mounted) {
+                                              setState(() => selectedLanguage = l['code']!);
+                                            }
+                                            if (ctx.mounted) Navigator.pop(ctx);
+                                          },
+                                          child: Container(
+                                            margin: const EdgeInsets.only(bottom: 10),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 18, vertical: 14),
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? const Color(0xFF1976D2).withOpacity(0.08)
+                                                  : Colors.grey.shade50,
+                                              borderRadius: BorderRadius.circular(14),
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? const Color(0xFF1976D2)
+                                                    : Colors.grey.shade200,
+                                                width: isSelected ? 1.5 : 1,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Text(l['flag']!,
+                                                    style: const TextStyle(fontSize: 24)),
+                                                const SizedBox(width: 14),
+                                                Expanded(
+                                                  child: Text(
+                                                    l['label']!,
+                                                    style: TextStyle(
+                                                      fontWeight: isSelected
+                                                          ? FontWeight.w700
+                                                          : FontWeight.w500,
+                                                      fontSize: 15,
+                                                      color: isSelected
+                                                          ? const Color(0xFF1976D2)
+                                                          : const Color(0xFF1565C0),
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (isSelected)
+                                                  const Icon(Icons.check_circle_rounded,
+                                                      color: Color(0xFF1976D2), size: 20),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              height: 34,
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.75),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFF90CAF9), width: 1),
                               ),
-                              items: [
-                                _buildDropdownItem('EN', '🇬🇧', 'English'),
-                                _buildDropdownItem('ID', '🇮🇩', 'Indonesia'),
-                                _buildDropdownItem('ZH', '🇨🇳', '中文'),
-                              ],
-                              onChanged: (value) async{
-                                SharedPreferences prefs = await SharedPreferences.getInstance();
-                                await prefs.setString('lang', value!);
-                                setState(() {
-                                  selectedLanguage = value;
-                                  _checkPasswordStrength();
-                                });
-                              },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    selectedLanguage == 'EN'
+                                        ? '🇬🇧'
+                                        : selectedLanguage == 'ID'
+                                            ? '🇮🇩'
+                                            : '🇨🇳',
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    selectedLanguage,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  const Icon(Icons.keyboard_arrow_down_rounded,
+                                      size: 18, color: Color(0xFF1565C0)),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
 
-                      // --- AREA ILUSTRASI & ANIMASI CUBE ---
+                      // ── Ilustrasi & Logo ─────────────────────────────────────
                       SizedBox(
-                        height: 210,
+                        height: size.height * 0.22,
                         width: double.infinity,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // Cube Kiri Atas (Tarik dari assets)
-                            Positioned(
-                              top: 20,
-                              left: 40,
-                              child: _buildEntranceAnim(
-                                child: Image.asset(
-                                  'assets/images/topcube.png',
-                                  width: 55,
-                                  errorBuilder: (c, e, s) => const Icon(
-                                    Icons.view_in_ar,
-                                    color: Colors.amber,
-                                    size: 30,
-                                  ), // Fallback jika gambar belum ada
-                                ),
-                                delay: 200,
+                        child: Center(
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.0, end: 1.0),
+                            duration: const Duration(milliseconds: 900),
+                            curve: Curves.elasticOut,
+                            builder: (context, v, child) => Transform.scale(
+                              scale: v.clamp(0.0, 1.0),
+                              child: Opacity(
+                                opacity: v.clamp(0.0, 1.0),
+                                child: child,
                               ),
                             ),
-                            // Cube Kanan Bawah (Tarik dari assets)
-                            Positioned(
-                              bottom: 30,
-                              right: 1,
-                              child: _buildEntranceAnim(
-                                child: Image.asset(
-                                  'assets/images/bottomcube.png',
-                                  width: 45,
-                                  errorBuilder: (c, e, s) => const Icon(
-                                    Icons.view_in_ar,
-                                    color: Colors.pinkAccent,
-                                    size: 25,
+                            child: Image.asset(
+                              'assets/images/logo1.png',
+                              height: size.height * 0.13,
+                              fit: BoxFit.contain,
+                              errorBuilder: (c, e, s) => Container(
+                                width: 80, height: 80,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF1976D2), Color(0xFF42A5F5)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF1976D2).withOpacity(0.3),
+                                      blurRadius: 16,
+                                    ),
+                                  ],
                                 ),
-                                delay: 400,
+                                child: const Icon(Icons.shield, color: Colors.white, size: 42),
                               ),
                             ),
-
-                            // Ilustrasi Utama (Animasi Toggle)
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 600),
-                              transitionBuilder:
-                                  (Widget child, Animation<double> animation) {
-                                    return ScaleTransition(
-                                      scale: Tween<double>(begin: 0.8, end: 1.0)
-                                          .animate(
-                                            CurvedAnimation(
-                                              parent: animation,
-                                              curve: Curves.easeOutBack,
-                                            ),
-                                          ),
-                                      child: FadeTransition(
-                                        opacity: animation,
-                                        child: child,
-                                      ),
-                                    );
-                                  },
-                              child: isLogin
-                                  ? Image.asset(
-                                      'assets/images/login_illustration.png',
-                                      key: const ValueKey<bool>(true),
-                                      height: 190,
-                                      fit: BoxFit.contain,
-                                    )
-                                  : Row(
-                                      key: const ValueKey<bool>(false),
-                                      children: [
-                                        // Area Kiri: Logo Aplikasi
-                                        Expanded(
-                                          flex: 4,
-                                          child: Container(
-                                            alignment: Alignment.centerRight, 
-                                            padding: const EdgeInsets.only(
-                                              right: 5,
-                                            ),
-                                            child: Image.asset(
-                                              'assets/images/logo.png',
-                                              width:
-                                                  180,
-                                              errorBuilder: (c, e, s) => Icon(
-                                                Icons.shield_outlined,
-                                                size: 70,
-                                                color: Colors.blue.shade800,
-                                              ), // Fallback
-                                            ),
-                                          ),
-                                        ),
-                                        // Area Kanan: Ilustrasi Sign Up
-                                        Expanded(
-                                          flex: 5,
-                                          child: Image.asset(
-                                            'assets/images/signup_illustration.png',
-                                            height: 190,
-                                            fit: BoxFit.contain,
-                                            alignment: Alignment.centerLeft,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 15),
-                                      ],
-                                    ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
 
-                      // --- FORM Glassmorph ---
+                      // ── Glass card Form ──────────────────────────────────────
                       Expanded(
                         child: ClipRRect(
                           borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(40),
-                          ),
+                              top: Radius.circular(36)),
                           child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            filter:
+                                ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                             child: Container(
                               width: double.infinity,
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.25),
+                                color: Colors.white.withOpacity(0.92),
                                 borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(40),
-                                ),
+                                    top: Radius.circular(36)),
                                 border: Border.all(
-                                  color: Colors.white.withOpacity(0.5),
-                                  width: 1.5,
-                                ),
+                                    color: const Color(0xFF90CAF9)
+                                        .withOpacity(0.6),
+                                    width: 1.2),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 30,
-                                vertical: 25,
-                              ),
+                              padding: EdgeInsets.fromLTRB(
+                                  24,
+                                  24,
+                                  24,
+                                  MediaQuery.of(context).viewInsets.bottom +
+                                      24),
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
-                                  // TAB LOGIN / SIGN UP
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _buildTabButton(getTxt('login'), true),
-                                      const SizedBox(width: 40),
-                                      _buildTabButton(getTxt('signup'), false),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
-
-                                  // Tagline
+                                  // Title
                                   Center(
                                     child: Text(
-                                      isLogin
-                                          ? getTxt('welcome')
-                                          : getTxt('get_started'),
+                                      getTxt('welcome'),
                                       style: const TextStyle(
-                                        fontSize: 32,
+                                        fontSize: 26,
                                         fontWeight: FontWeight.w900,
-                                        color: Colors.white,
-                                        shadows: [
-                                          Shadow(
-                                            color: Colors.black26,
-                                            blurRadius: 8,
-                                            offset: Offset(0, 2),
-                                          ),
-                                        ],
+                                        color: Color(0xFF0D47A1),
                                       ),
                                     ),
                                   ),
                                   const SizedBox(height: 4),
                                   Center(
                                     child: Text(
-                                      isLogin
-                                          ? getTxt('tagline_login')
-                                          : getTxt('tagline_signup'),
-                                      style: const TextStyle(
+                                      getTxt('tagline_login'),
+                                      style: TextStyle(
                                         fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.black87,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF1565C0)
+                                            .withOpacity(0.75),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 30),
+                                  const SizedBox(height: 28),
 
-                                  // 1. FORM EMAIL
-                                  _buildInputLabel(getTxt('email_label')),
-                                  _buildGlassTextField(
+                                  // Email
+                                  _buildLabel(getTxt('email_label')),
+                                  _buildTextField(
                                     hint: getTxt('email_hint'),
                                     controller: _emailController,
                                     icon: Icons.email_outlined,
                                     isPassword: false,
+                                    keyboardType:
+                                        TextInputType.emailAddress,
                                   ),
+                                  const SizedBox(height: 16),
 
-                                  // 2. FORM NAME
-                                  if (!isLogin) ...[
-                                    const SizedBox(height: 15),
-                                    _buildInputLabel(getTxt('name_label')),
-                                    _buildGlassTextField(
-                                      hint: getTxt('name_hint'),
-                                      controller: _nameController,
-                                      icon: Icons.person_outline,
-                                      isPassword: false,
-                                    ),
-
-                                    const SizedBox(height: 15),
-                                    // 3. FORM ROLE
-                                    _buildInputLabel(getTxt('role_label')),
-                                    Container(
-                                      height: 50,
-                                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFB6E3EF).withOpacity(0.55),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: _selectedJabatan != null ? Colors.black87 : Colors.white.withOpacity(0.8), 
-                                          width: 1.0,
-                                        ),
-                                      ),
-                                      child: DropdownButtonHideUnderline(
-                                        child: DropdownButton<String>(
-                                          isExpanded: true,
-                                          dropdownColor: const Color(0xFFB6E3EF),
-                                          icon: Icon(
-                                            Icons.arrow_drop_down,
-                                            color: _selectedJabatan != null ? Colors.black87 : Colors.white, // DIUBAH
-                                          ),
-                                          value: _selectedJabatan,
-                                          style: TextStyle(
-                                            color: _selectedJabatan != null ? Colors.black87 : Colors.white, // DIUBAH
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                          hint: Text(
-                                            getTxt('role_hint'),
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          items: ['Eksekutif', 'Manager', 'Kasie', 'Staff'].map((String value) {
-                                            return DropdownMenuItem<String>(
-                                              value: value,
-                                              child: Text(value, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
-                                            );
-                                          }).toList(),
-                                          onChanged: (newValue) {
-                                            setState(() {
-                                              _selectedJabatan = newValue;
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-
-                                  const SizedBox(height: 15),
-
-                                  // 4. FORM PASSWORD
-                                  _buildInputLabel(getTxt('pass_label')),
-                                  _buildGlassTextField(
-                                    hint: "••••••••",
+                                  // Password
+                                  _buildLabel(getTxt('pass_label')),
+                                  _buildTextField(
+                                    hint: '••••••••',
                                     controller: _passwordController,
-                                    icon: Icons.key_outlined,
+                                    icon: Icons.lock_outline,
                                     isPassword: true,
                                   ),
+                                  const SizedBox(height: 10),
 
-                                  const SizedBox(height: 8),
-
-                                  // LUPA PASSWORD & REMEMBER ME
+                                  // Remember Me + Forgot Password
                                   Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
@@ -1072,112 +916,86 @@ class _LoginScreenState extends State<LoginScreen>
                                       Row(
                                         children: [
                                           SizedBox(
-                                            width: 24,
-                                            height: 24,
+                                            width: 22,
+                                            height: 22,
                                             child: Checkbox(
                                               value: isRememberMe,
                                               activeColor: const Color(
-                                                0xFF00C9E4,
-                                              ),
+                                                  0xFF1976D2),
                                               side: const BorderSide(
-                                                color: Colors.black54,
-                                              ),
-                                              onChanged: (value) => setState(
-                                                () => isRememberMe = value!,
-                                              ),
+                                                  color: Color(0xFF90CAF9),
+                                                  width: 1.5),
+                                              shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          4)),
+                                              onChanged:
+                                                  _onRememberMeChanged,
                                             ),
                                           ),
-                                          const SizedBox(width: 5),
+                                          const SizedBox(width: 6),
                                           Text(
                                             getTxt('remember_me'),
                                             style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.black87,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF1565C0),
                                             ),
                                           ),
                                         ],
                                       ),
-                                      if (isLogin)
-                                        GestureDetector(
-                                          onTap: () {
-                                            if (_emailController
-                                                .text
-                                                .isNotEmpty) {
-                                              _auth.resetPassword(
-                                                _emailController.text,
-                                              );
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    getTxt('reset_sent'),
-                                                  ),
-                                                  backgroundColor: Colors.green,
-                                                ),
-                                              );
-                                            } else {
-                                              _showCustomDialog(
-                                                getTxt('fill_email_reset'),
-                                              );
-                                            }
-                                          },
-                                          child: Text(
-                                            getTxt('forgot_pass'),
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w900,
-                                              color: Colors.black87,
-                                            ),
+                                      GestureDetector(
+                                        onTap: () {
+                                          if (_emailController
+                                              .text.isNotEmpty) {
+                                            _auth.resetPassword(
+                                                _emailController.text);
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(SnackBar(
+                                              content: Text(
+                                                  getTxt('reset_sent')),
+                                              backgroundColor:
+                                                  const Color(0xFF1976D2),
+                                            ));
+                                          } else {
+                                            _showCustomDialog(getTxt(
+                                                'fill_email_reset'));
+                                          }
+                                        },
+                                        child: Text(
+                                          getTxt('forgot_pass'),
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF1565C0),
                                           ),
                                         ),
+                                      ),
                                     ],
                                   ),
 
-                                  const SizedBox(height: 25),
+                                  const SizedBox(height: 24),
 
-                                  // TOMBOL LOGIN / SIGN UP
-                                  Container(
+                                  // Tombol Sign In
+                                  SizedBox(
                                     width: double.infinity,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12),
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Color(0xFF00C9E4),
-                                          Color(0xFF42E27A),
-                                        ],
-                                        begin: Alignment.centerLeft,
-                                        end: Alignment.centerRight,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(
-                                            0xFF42E27A,
-                                          ).withOpacity(0.4),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
+                                    height: 52,
                                     child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.transparent,
-                                        shadowColor: Colors.transparent,
+                                        backgroundColor: const Color(0xFF1976D2),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
+                                            borderRadius: BorderRadius.circular(14)),
+                                        shadowColor:
+                                            const Color(0xFF1976D2).withOpacity(0.4),
                                       ),
-                                      onPressed: _submitForm,
+                                      onPressed: isLoading ? null : _submitForm,
                                       child: Text(
-                                        isLogin ? 'Sign in' : 'Sign up',
+                                        getTxt('sign_in'),
                                         style: const TextStyle(
-                                          fontSize: 17,
+                                          fontSize: 16,
                                           fontWeight: FontWeight.w700,
-                                          color: Colors.white,
                                         ),
                                       ),
                                     ),
@@ -1185,67 +1003,70 @@ class _LoginScreenState extends State<LoginScreen>
 
                                   const SizedBox(height: 20),
 
-                                  // BUTTON CONTINUE WITH GOOGLE
-                                  Row(
-                                    children: [
-                                      Expanded(
+                                  // Divider
+                                  Row(children: [
+                                    Expanded(
                                         child: Divider(
-                                          color: Colors.black.withOpacity(0.1),
-                                          thickness: 1,
-                                        ),
-                                      ),
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                        ),
-                                        child: Text(
-                                          isLogin
-                                              ? getTxt('or_login')
-                                              : getTxt('or_signup'),
-                                          style: const TextStyle(
+                                            color: const Color(0xFF90CAF9)
+                                                .withOpacity(0.5))),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12),
+                                      child: Text(
+                                        getTxt('or_login'),
+                                        style: const TextStyle(
                                             fontSize: 11,
-                                            color: Colors.black87,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
+                                            color: Color(0xFF1565C0),
+                                            fontWeight: FontWeight.w600),
                                       ),
-                                      Expanded(
+                                    ),
+                                    Expanded(
                                         child: Divider(
-                                          color: Colors.black.withOpacity(0.1),
-                                          thickness: 1,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                            color: const Color(0xFF90CAF9)
+                                                .withOpacity(0.5))),
+                                  ]),
 
-                                  const SizedBox(height: 15),
+                                  const SizedBox(height: 14),
 
-                                  // TOMBOL GOOGLE
+                                  // Google Button
                                   SizedBox(
                                     width: double.infinity,
                                     height: 50,
-                                    child: ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(
+                                    child: OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor:
+                                            const Color(0xFF1565C0),
+                                        side: const BorderSide(
+                                            color: Color(0xFF90CAF9),
+                                            width: 1.2),
                                         backgroundColor: Colors.white,
-                                        foregroundColor: Colors.black,
-                                        elevation: 0,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          side: BorderSide(color: Colors.black.withOpacity(0.8), width: 1.2)
-                                        ),
+                                            borderRadius:
+                                                BorderRadius.circular(14)),
                                       ),
-                                      onPressed: () async {
-                                        await _auth.signInWithGoogle();
-                                      },
-                                      icon: Image.network('assets/images/Google.svg', height: 22, errorBuilder: (c,e,s) => const Icon(Icons.g_mobiledata, size: 30)), 
+                                      onPressed: isLoading
+                                          ? null
+                                          : () async {
+                                              await _auth.signInWithGoogle();
+                                            },
+                                      icon: Image.asset(
+                                        'assets/images/Google.svg',
+                                        height: 22,
+                                        errorBuilder: (c, e, s) => const Icon(
+                                            Icons.g_mobiledata,
+                                            size: 28,
+                                            color: Color(0xFF1976D2)),
+                                      ),
                                       label: Text(
                                         getTxt('google'),
-                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14),
                                       ),
                                     ),
                                   ),
 
-                                  const SizedBox(height: 20),
+                                  const SizedBox(height: 16),
                                 ],
                               ),
                             ),
@@ -1263,170 +1084,84 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  DropdownMenuItem<String> _buildDropdownItem(
-    String value,
-    String flag,
-    String label,
-  ) {
-    return DropdownMenuItem(
-      value: value,
-      child: Row(
-        children: [
-          Text(flag, style: const TextStyle(fontSize: 16)),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInputLabel(String label) {
+  Widget _buildLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6, left: 2),
       child: Text(
         label,
         style: const TextStyle(
-          color: Colors.black87,
+          color: Color(0xFF0D47A1),
           fontSize: 13,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
   }
 
-  // Text Field B6E3EF
-  Widget _buildGlassTextField({
+  Widget _buildTextField({
     required String hint,
     required TextEditingController controller,
     required IconData icon,
     required bool isPassword,
+    TextInputType keyboardType = TextInputType.text,
   }) {
-    bool isFilled = controller.text.isNotEmpty; // Cek apakah form sudah ada isinya
-    Color activeColor = isFilled ? Colors.black87 : Colors.white; // Hitam jika diisi, Putih jika kosong
-    Color borderColor = isFilled ? Colors.black87 : Colors.white.withOpacity(0.8);
-
+    final isFilled = controller.text.isNotEmpty;
     return Container(
-      height: 50,
+      height: 52,
       decoration: BoxDecoration(
-        color: const Color(0xFFB6E3EF).withOpacity(0.55),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: 1.0),
+        color: const Color(0xFFE3F2FD).withOpacity(0.7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isFilled
+              ? const Color(0xFF1976D2)
+              : const Color(0xFF90CAF9).withOpacity(0.8),
+          width: 1.2,
+        ),
       ),
       child: TextFormField(
         controller: controller,
+        keyboardType: keyboardType,
+        textInputAction:
+            isPassword ? TextInputAction.done : TextInputAction.next,
         obscureText: isPassword ? !isPasswordVisible : false,
-        style: TextStyle(
-          color: activeColor,
-          fontWeight: FontWeight.bold,
+        onFieldSubmitted: isPassword ? (_) => _submitForm() : null,
+        style: const TextStyle(
+          color: Color(0xFF0D47A1),
+          fontWeight: FontWeight.w600,
           fontSize: 14,
         ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(
-            color: Colors.white, // Hint tetap putih
+          hintStyle: TextStyle(
+            color: const Color(0xFF90CAF9).withOpacity(0.9),
             fontSize: 14,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
           ),
-          prefixIcon: Icon(icon, color: activeColor, size: 20),
-
+          prefixIcon: Icon(icon,
+              color: isFilled
+                  ? const Color(0xFF1976D2)
+                  : const Color(0xFF90CAF9),
+              size: 20),
           suffixIcon: isPassword
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!isLogin && _passStrengthText.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: Row(
-                          children: [
-                            Text("―――  ", style: TextStyle(color: _passStrengthColor, fontSize: 11, fontWeight: FontWeight.bold)),
-                            Text(_passStrengthText, style: TextStyle(color: _passStrengthColor, fontSize: 11, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    IconButton(
-                      icon: Icon(
-                        isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                        color: activeColor,
-                        size: 20,
-                      ),
-                      onPressed: () => setState(() => isPasswordVisible = !isPasswordVisible),
-                    ),
-                  ],
+              ? IconButton(
+                  icon: Icon(
+                    isPasswordVisible
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: isFilled
+                        ? const Color(0xFF1976D2)
+                        : const Color(0xFF90CAF9),
+                    size: 20,
+                  ),
+                  onPressed: () =>
+                      setState(() => isPasswordVisible = !isPasswordVisible),
                 )
               : null,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
-    );
-  }
-
-  Widget _buildTabButton(String title, bool isLoginTab) {
-    bool isActive = isLogin == isLoginTab;
-    return GestureDetector(
-      onTap: () {
-        if (isLogin != isLoginTab) {
-          setState(() {
-            isLogin = isLoginTab;
-            _emailController.clear();
-            _passwordController.clear();
-            _nameController.clear();
-            _selectedJabatan = null;
-            _checkPasswordStrength();
-          });
-        }
-      },
-      child: Column(
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: isActive ? FontWeight.w900 : FontWeight.w600,
-              color: isActive ? Colors.white : Colors.black54,
-              shadows: isActive
-                  ? [
-                      const Shadow(
-                        color: Colors.black26,
-                        blurRadius: 5,
-                        offset: Offset(0, 2),
-                      ),
-                    ]
-                  : [],
-            ),
-          ),
-          const SizedBox(height: 5),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            height: 3,
-            width: isActive ? 35 : 0,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Animasi Cube
-  Widget _buildEntranceAnim({required Widget child, required int delay}) {
-    return TweenAnimationBuilder(
-      tween: Tween<double>(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.elasticOut,
-      builder: (context, double value, childWidget) {
-        return Transform.scale(scale: value, child: childWidget);
-      },
-      child: child,
     );
   }
 }
