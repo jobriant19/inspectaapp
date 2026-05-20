@@ -15,6 +15,7 @@ import '../user/leaderboard/leaderboard_detail_screen.dart';
 import 'admin_help_reports_screen.dart';
 import 'admin_poin_screen.dart';
 import 'admin_profile_screen.dart';
+import 'admin_verification_screen.dart';
 import 'settings/admin_settings_screen.dart';
 import 'admin_user_screen.dart';
 import 'admin_location_screen.dart';
@@ -1107,6 +1108,21 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         onTap: () => Navigator.push(
           context,
           _slideRoute(AuditLocationScreen(lang: _lang)),
+        ).then((_) => _fetchStats()),
+      ),
+      _MenuItem(
+        label: _lang == 'EN'
+            ? 'Verification\nSettings'
+            : _lang == 'ZH'
+                ? '验证\n设置'
+                : 'Pengaturan\nVerifikasi',
+        icon: Icons.verified_user_rounded,
+        gradient: const [Color(0xFF0F766E), Color(0xFF0D9488)],
+        // Warna ungu — belum dipakai di menu lain, serasi dengan tema
+        shadow: const Color(0xFF0F766E),
+        onTap: () => Navigator.push(
+          context,
+          _slideRoute(AdminVerificationScreen(lang: _lang)),
         ).then((_) => _fetchStats()),
       ),
     ];

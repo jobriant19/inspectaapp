@@ -69,6 +69,20 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   bool _isAccidentVoteValid = false;
   bool _showResolutionForm = false; // form penyelesaian setelah vote
 
+  // ── Konfigurasi verifikasi dari DB ──
+  int _verifikasiDurasiHari = 7;
+  int _minSuaraFinalisasi = 3;
+  bool _autoValidJikaTimeout = true;
+  
+  bool _isDecoyMode = false;
+  Map<String, dynamic>? _decoyData;
+
+  // Internal: set berisi index sesi verifikasi mana yang akan jadi decoy
+  // dalam batch 10 verifikasi berikutnya. Diisi ulang setiap batch habis.
+  final Set<int> _decoyPositions = {};
+  int _sessionVerifCount = 0; // counter total verifikasi sejak layar dibuka
+  int _currentBatchStart = 0; // awal batch saat ini (kelipatan 10)
+
   // ── Popup state untuk notif verifikasi ──
   bool _showVerifPopup = false;
   bool _isVoteValid = false;
@@ -235,13 +249,14 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   void initState() {
     super.initState();
     _lang = widget.lang;
-    // Deteksi apakah user adalah HRD (id_jabatan = 5)
-    _isHrdMode = widget.userJabatanId == 5;
-    if (_isHrdMode) {
-      _loadNextAccidentReport();
-    } else {
-      _loadNextTemuan();
-    }
+    _isHrdMode = widget.userJabatanId == 5 || widget.userJabatanId == 2;
+    _loadVerifikasiConfig().then((_) {
+      if (_isHrdMode) {
+        _loadNextAccidentReport();
+      } else {
+        _loadNextTemuan();
+      }
+    });
   }
 
   @override
@@ -251,6 +266,64 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     super.dispose();
   }
 
+  Future<void> _loadVerifikasiConfig() async {
+    try {
+      final rows = await _client
+          .from('verifikasi_config')
+          .select('kode, nilai_int');
+      for (final row in rows) {
+        switch (row['kode']) {
+          case 'durasi_verifikasi_hari':
+            _verifikasiDurasiHari = row['nilai_int'] ?? 7;
+            break;
+          case 'min_suara_finalisasi':
+            _minSuaraFinalisasi = row['nilai_int'] ?? 3;
+            break;
+          case 'auto_valid_jika_timeout':
+            _autoValidJikaTimeout = (row['nilai_int'] ?? 1) == 1;
+            break;
+          // Hapus case 'jeda_decoy_min' dan 'jeda_decoy_max'
+          // Admin tidak lagi mengatur posisi decoy
+        }
+      }
+    } catch (e) {
+      debugPrint('loadVerifikasiConfig error: $e');
+    }
+    // Generate posisi decoy batch pertama setelah config selesai dimuat
+    _generateDecoyBatch(batchStart: 0);
+  }
+
+  /// Generate posisi decoy untuk batch 10 verifikasi berikutnya.
+  ///
+  /// Aturan:
+  /// - Per 5 verifikasi dalam batch → tepat 1 posisi decoy acak
+  /// - Batch 10 → 2 decoy (posisi 0-4 dapat 1, posisi 5-9 dapat 1)
+  /// - Posisi dipilih murni random, tidak ada pola
+  /// - Admin tidak bisa mengatur, user tidak bisa menebak
+  void _generateDecoyBatch({required int batchStart}) {
+    _decoyPositions.clear();
+    _currentBatchStart = batchStart;
+
+    final rng = DateTime.now().microsecondsSinceEpoch;
+
+    // Batch dibagi 2 slot: slot A = indeks 0-4, slot B = indeks 5-9
+    // Masing-masing slot mendapat tepat 1 posisi decoy acak
+    // Sehingga: 5 verif → 1 decoy, 10 verif → 2 decoy
+
+    // Slot A: pilih 1 posisi acak dari 0,1,2,3,4
+    final int posA = batchStart + (rng % 5);
+
+    // Slot B: pilih 1 posisi acak dari 5,6,7,8,9
+    // Gunakan seed berbeda agar posA dan posB tidak berkorelasi
+    final int seedB = rng ^ (rng >> 17) ^ (rng * 0x45d9f3b);
+    final int posB = batchStart + 5 + (seedB.abs() % 5);
+
+    _decoyPositions.add(posA);
+    _decoyPositions.add(posB);
+
+    debugPrint('[Decoy] Batch $batchStart–${batchStart + 9}: posisi decoy = $_decoyPositions');
+  }
+
   Future<void> _loadNextTemuan() async {
     setState(() {
       _isLoading = true;
@@ -258,6 +331,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       _showSuccess = false;
       _temuanData = null;
       _showVerifPopup = false;
+      _isDecoyMode = false;
+      _decoyData = null;
     });
 
     try {
@@ -267,10 +342,34 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           .from('verifikasi_log')
           .select('id_temuan')
           .eq('id_verificator', userId);
-
       final List<dynamic> verifiedIds =
           verifiedLogs.map<dynamic>((l) => l['id_temuan']).toList();
 
+      final cutoffDate = DateTime.now()
+          .subtract(Duration(days: _verifikasiDurasiHari))
+          .toIso8601String();
+
+      // Cek apakah batch saat ini sudah habis (setiap 10 verifikasi)
+      // Jika iya, generate batch baru sebelum menentukan apakah ini decoy
+      if (_sessionVerifCount > 0 &&
+          _sessionVerifCount % 10 == 0 &&
+          _sessionVerifCount != _currentBatchStart) {
+        _generateDecoyBatch(batchStart: _sessionVerifCount);
+      }
+
+      // Cek apakah posisi sesi ini adalah decoy
+      final bool shouldShowDecoy =
+          _decoyPositions.contains(_sessionVerifCount);
+
+      // Naikkan counter SETELAH pengecekan
+      _sessionVerifCount++;
+
+      if (shouldShowDecoy) {
+        await _loadDecoyTemuan(userId, verifiedIds, cutoffDate);
+        return;
+      }
+
+      // ── Verifikasi Normal (tidak ada perubahan dari kode asli) ──
       var query = _client.from('temuan').select('''
         id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, status_temuan,
         id_kategoritemuan_uuid,
@@ -281,7 +380,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         unit:id_unit(nama_unit)
       ''')
           .eq('status_temuan', 'Selesai')
-          .eq('is_verif', false);
+          .eq('is_verif', false)
+          .gte('created_at', cutoffDate);
 
       if (verifiedIds.isNotEmpty) {
         query = query.not('id_temuan', 'in', verifiedIds);
@@ -295,12 +395,12 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       if (!mounted) return;
 
       if (result == null) {
+        await _checkAndAutoFinalizeTimeout();
         final totalEligible = await _client
             .from('temuan')
             .select('id_temuan')
             .eq('status_temuan', 'Selesai')
             .eq('is_verif', false);
-
         setState(() {
           _noData = true;
           _isLoading = false;
@@ -311,18 +411,16 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         return;
       }
 
+      // Skip accident jika bukan HRD
       final String katName =
           (result['kategoritemuan']?['nama_kategoritemuan']?.toString() ?? '')
               .toLowerCase();
       final bool isAccident =
           katName.contains('kecelakaan') || katName.contains('accident');
-      const int hrdJabatanId = 5;
-      final bool isHrd = widget.userJabatanId == hrdJabatanId;
 
-      if (isAccident && !isHrd) {
+      if (isAccident && !_isHrdMode) {
         final verifiedIdsUpdated = List<dynamic>.from(verifiedIds)
           ..add(result['id_temuan']);
-
         var queryNext = _client.from('temuan').select('''
           id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, status_temuan,
           id_kategoritemuan_uuid,
@@ -334,37 +432,21 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         ''')
             .eq('status_temuan', 'Selesai')
             .eq('is_verif', false)
+            .gte('created_at', cutoffDate)
             .not('id_temuan', 'in', verifiedIdsUpdated);
-
         final nextResult = await queryNext
             .order('created_at', ascending: true)
             .limit(1)
             .maybeSingle();
-
         if (!mounted) return;
-
         if (nextResult == null) {
           setState(() {
             _noData = true;
             _isLoading = false;
             _allVotedByUser = true;
           });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(t('accident_restricted'),
-                    style: GoogleFonts.poppins(color: Colors.white)),
-                backgroundColor: Colors.orange.shade700,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                margin: const EdgeInsets.all(16),
-              ),
-            );
-          }
           return;
         }
-
         setState(() {
           _temuanData = nextResult;
           _isLoading = false;
@@ -383,6 +465,118 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     } catch (e) {
       debugPrint('ExecVerif loadNextTemuan error: $e');
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// Load decoy: ambil 2 temuan berbeda, swap gambar finding/completion secara acak
+  Future<void> _loadDecoyTemuan(
+    String userId,
+    List<dynamic> verifiedIds,
+    String cutoffDate,
+  ) async {
+    try {
+      // Query temuan yang belum diverifikasi user ini
+      // (sama dengan query normal, tapi ambil 2 untuk di-swap)
+      var query = _client.from('temuan').select('''
+        id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, status_temuan,
+        id_kategoritemuan_uuid,
+        penyelesaian:id_penyelesaian (gambar_penyelesaian, catatan_penyelesaian),
+        kategoritemuan:id_kategoritemuan_uuid (nama_kategoritemuan),
+        lokasi:id_lokasi(nama_lokasi),
+        area:id_area(nama_area),
+        unit:id_unit(nama_unit)
+      ''')
+          .eq('status_temuan', 'Selesai')
+          .eq('is_verif', false)
+          .gte('created_at', cutoffDate);
+
+      // Exclude yang sudah diverifikasi oleh user ini
+      if (verifiedIds.isNotEmpty) {
+        query = query.not('id_temuan', 'in', verifiedIds);
+      }
+
+      // Ambil 2 temuan berbeda untuk bahan swap
+      final results = await query
+          .order('created_at', ascending: true)
+          .limit(2);
+
+      if (!mounted) return;
+
+      // Jika data kurang dari 2, tidak bisa buat decoy → tampilkan normal
+      if (results.length < 2) {
+        debugPrint('[Decoy] Data tidak cukup untuk decoy, tampilkan normal.');
+        setState(() => _isDecoyMode = false);
+        final result = results.isNotEmpty ? results.first : null;
+        if (result == null) {
+          setState(() { _noData = true; _isLoading = false; });
+          return;
+        }
+        setState(() {
+          _temuanData = result;
+          _isLoading = false;
+        });
+        _startCountdown();
+        return;
+      }
+
+      // Pilih jenis swap secara acak:
+      // 0 = swap gambar finding saja (swap_finding)
+      // 1 = swap gambar completion saja (swap_completion)
+      // 2 = swap keduanya (both) — paling sulit
+      final int swapType =
+          DateTime.now().microsecondsSinceEpoch % 3;
+
+      final Map<String, dynamic> primary = Map.from(results[0]);
+      final Map<String, dynamic> secondary = Map.from(results[1]);
+      Map<String, dynamic> decoyTemuan = Map.from(primary);
+
+      switch (swapType) {
+        case 0: // swap_finding: gambar temuan diambil dari secondary
+          decoyTemuan['gambar_temuan'] = secondary['gambar_temuan'];
+          break;
+        case 1: // swap_completion: gambar penyelesaian diambil dari secondary
+          final completionCopy = Map<String, dynamic>.from(
+              primary['penyelesaian'] as Map? ?? {});
+          completionCopy['gambar_penyelesaian'] =
+              (secondary['penyelesaian'] as Map?)?['gambar_penyelesaian'];
+          decoyTemuan['penyelesaian'] = completionCopy;
+          break;
+        case 2: // both: swap gambar finding DAN completion
+        default:
+          decoyTemuan['gambar_temuan'] = secondary['gambar_temuan'];
+          final completionCopyBoth = Map<String, dynamic>.from(
+              primary['penyelesaian'] as Map? ?? {});
+          completionCopyBoth['gambar_penyelesaian'] =
+              (secondary['penyelesaian'] as Map?)?['gambar_penyelesaian'];
+          decoyTemuan['penyelesaian'] = completionCopyBoth;
+          break;
+      }
+
+      debugPrint('[Decoy] Jenis swap: $swapType (0=finding, 1=completion, 2=both)');
+
+      // Jawaban BENAR untuk soal decoy adalah TIDAK VALID
+      // karena gambar temuan dan penyelesaian sengaja tidak cocok
+      setState(() {
+        _isDecoyMode = true;
+        _decoyData = Map.from(primary); // simpan data asli untuk referensi
+        _temuanData = decoyTemuan;       // tampilkan yang sudah di-swap
+        _isLoading = false;
+        _allVotedByUser = false;
+      });
+      _startCountdown();
+    } catch (e) {
+      debugPrint('loadDecoyTemuan error: $e');
+      // Jika gagal, kembali ke mode normal
+      if (mounted) setState(() { _isDecoyMode = false; _isLoading = false; });
+    }
+  }
+
+  /// Auto-finalisasi temuan yang sudah melewati batas waktu
+  Future<void> _checkAndAutoFinalizeTimeout() async {
+    try {
+      await _client.rpc('auto_finalize_timeout_temuan');
+    } catch (e) {
+      debugPrint('autoFinalizeTimeout error: $e');
     }
   }
 
@@ -406,6 +600,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
   void _startVerificationTimer() {
     _verificationTimer?.cancel();
+    // Durasi dari config (dalam hari), untuk UI tampilkan 5 menit sebagai batas baca
     setState(() {
       _verificationSecondsLeft = 300;
       _verificationExpired = false;
@@ -432,15 +627,23 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     if (_temuanData == null) return;
     _verificationTimer?.cancel();
 
-    // 1. Tampilkan popup langsung (sebelum proses berat)
+    if (_isDecoyMode) {
+      // Decoy: jawaban BENAR adalah TIDAK VALID (karena gambar sengaja tidak match)
+      // Tidak ada perubahan data DB, hanya feedback ke user
+      final bool answeredCorrectly = !isValid;
+      _handleDecoyResult(answeredCorrectly, isValid);
+      return;
+    }
+
+    // ── Verifikasi normal: sama persis dengan kode asli ──
     setState(() {
       _showVerifPopup = true;
       _isVoteValid = isValid;
     });
 
     final String temuanId = _temuanData!['id_temuan'].toString();
+    unawaited(_processVerificationBackground(temuanId, isValid));
 
-    // 3. Langsung tutup popup dan tampilkan success setelah 800ms
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) {
       setState(() {
@@ -448,6 +651,142 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         _showSuccess = true;
       });
     }
+  }
+
+  void _handleDecoyResult(bool answeredCorrectly, bool userVote) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        Future.delayed(const Duration(seconds: 4), () {
+          if (ctx.mounted && Navigator.of(ctx).canPop()) {
+            Navigator.of(ctx).pop();
+          }
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: answeredCorrectly
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFF59E0B),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: (answeredCorrectly
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFF59E0B))
+                        .withOpacity(0.25),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        color: (answeredCorrectly
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFFF59E0B))
+                            .withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        answeredCorrectly
+                            ? Icons.military_tech_rounded
+                            : Icons.psychology_alt_rounded,
+                        size: 38,
+                        color: answeredCorrectly
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFF59E0B),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      answeredCorrectly
+                          ? (_lang == 'ID'
+                              ? '🎯 Ketelitian Terbukti!'
+                              : '🎯 Sharp Eye!')
+                          : (_lang == 'ID'
+                              ? '🔍 Periksa Lebih Teliti'
+                              : '🔍 Look More Carefully'),
+                      style: GoogleFonts.poppins(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: answeredCorrectly
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFF59E0B),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      answeredCorrectly
+                          ? (_lang == 'ID'
+                              ? 'Anda berhasil mendeteksi ketidaksesuaian gambar temuan dan penyelesaian. Bagus!'
+                              : 'You detected the mismatch between finding and completion images. Well done!')
+                          : (_lang == 'ID'
+                              ? 'Gambar temuan dan penyelesaian tidak sesuai satu sama lain. Periksa lebih seksama.'
+                              : 'The finding and completion images did not match. Examine more carefully.'),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        height: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _lang == 'ID'
+                            ? 'Ini adalah uji ketelitian otomatis — tidak mempengaruhi data verifikasi.'
+                            : 'This was an automatic focus test — it does not affect verification data.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          color: Colors.grey.shade500,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    // Lanjut ke temuan berikutnya setelah dialog ditutup
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _isDecoyMode = false;
+          _decoyData = null;
+          _showSuccess = false;
+        });
+        _loadNextTemuan();
+      }
+    });
   }
 
   Future<void> _processVerificationBackground(String temuanId, bool isValid) async {
@@ -1141,14 +1480,16 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     try {
       final userId = _client.auth.currentUser!.id;
 
-      // Ambil laporan yang sudah divote oleh HRD ini
+      // Ambil laporan yang sudah divote oleh user ini
       final votedLogs = await _client
           .from('accident_verifikasi_log')
           .select('id_laporan')
           .eq('id_verificator', userId);
       final List votedIds = votedLogs.map((l) => l['id_laporan']).toList();
 
-      // Query laporan yang belum final dan belum divote
+      // Query laporan yang:
+      // 1. Belum difinalisasi (is_verif = false) — sudah difinalisasi tidak perlu verifikasi lagi
+      // 2. Belum divote oleh user ini
       var query = _client.from('accident_report').select('''
         id_laporan, judul, deskripsi, foto_bukti,
         tanggal_kejadian, waktu_kejadian, penyebab,
@@ -1159,7 +1500,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         pihak_terdampak:id_pihak_terdampak(nama),
         supervisor_user:id_supervisor(nama),
         saksi_user:id_saksi(nama)
-      ''').eq('is_verif', false);
+      ''').eq('is_verif', false); // hanya yang BELUM difinalisasi
 
       if (votedIds.isNotEmpty) {
         query = query.not('id_laporan', 'in', votedIds);
@@ -1215,11 +1556,23 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     final userId = _client.auth.currentUser!.id;
 
     try {
-      await _client.rpc('handle_accident_verification_vote', params: {
-        'p_laporan_id': lapdoranId,
-        'p_verificator_id': userId,
-        'p_vote_is_correct': isValid,
-      });
+      // Insert/update vote log
+      await _client.from('accident_verifikasi_log').upsert({
+        'id_laporan': lapdoranId,
+        'id_verificator': userId,
+        'jawaban_benar': isValid,
+        'waktu_verifikasi': DateTime.now().toIso8601String(),
+      }, onConflict: 'id_laporan,id_verificator');
+
+      // Langsung finalisasi — vote pertama yang masuk menentukan hasil
+      // isValid sesuai pilihan HRD/Manager yang bersangkutan
+      await _client.from('accident_report').update({
+        'is_verif': true,
+        'hasil_verifikasi_mayoritas': isValid,
+        'status': 'Selesai',
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id_laporan', lapdoranId);
+
     } catch (e) {
       debugPrint('submitAccidentVerification error: $e');
     }
@@ -1236,63 +1589,88 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   Future<void> _loadAccidentHistory() async {
     setState(() => _accidentHistoryLoading = true);
     try {
-      final userId = _client.auth.currentUser!.id;
-      final logs = await _client
-          .from('accident_verifikasi_log')
+      // Ambil SEMUA accident report — baik yang sudah maupun belum difinalisasi
+      // Tampilkan semua agar history lengkap; filter is_verif tidak dibatasi
+      final allReports = await _client
+          .from('accident_report')
           .select('''
-            id_log, jawaban_benar, waktu_verifikasi,
-            laporan:id_laporan (
-              id_laporan, judul, deskripsi, foto_bukti,
-              tanggal_kejadian, tingkat_keparahan, status,
-              is_verif, hasil_verifikasi_mayoritas, created_at,
-              lokasi:id_lokasi(nama_lokasi),
-              pelapor:id_pelapor(nama)
-            )
+            id_laporan, judul, deskripsi, foto_bukti,
+            tanggal_kejadian, waktu_kejadian, penyebab,
+            tingkat_keparahan, departemen_terdampak, tindakan_diambil,
+            status, created_at, updated_at, is_verif,
+            hasil_verifikasi_mayoritas,
+            lokasi:id_lokasi(nama_lokasi),
+            pelapor:id_pelapor(nama),
+            pihak_terdampak:id_pihak_terdampak(nama)
           ''')
-          .eq('id_verificator', userId)
-          .order('waktu_verifikasi', ascending: false);
+          .order('created_at', ascending: false);
 
       final List<Map<String, dynamic>> processed = [];
       final List<String> lapdoranIds = [];
 
-      for (final item in logs) {
-        final rawLaporan = item['laporan'];
-        if (rawLaporan == null) continue;
-        final data = Map<String, dynamic>.from(rawLaporan as Map);
-        data['user_vote'] = item['jawaban_benar'] as bool? ?? false;
-        data['waktu_verifikasi'] = item['waktu_verifikasi'];
+      for (final item in allReports) {
+        final data = Map<String, dynamic>.from(item as Map);
         processed.add(data);
         final lid = data['id_laporan']?.toString();
         if (lid != null) lapdoranIds.add(lid);
       }
 
-      // Hitung vote stats per laporan
       final Map<String, Map<String, dynamic>> voteStats = {};
+
       if (lapdoranIds.isNotEmpty) {
-        final allVotes = await _client
+        // Ambil semua log verifikasi beserta data verificator
+        final allVoteLogs = await _client
             .from('accident_verifikasi_log')
-            .select('id_laporan, jawaban_benar')
+            .select('''
+              id_laporan,
+              jawaban_benar,
+              id_verificator,
+              waktu_verifikasi,
+              verificator:id_verificator (
+                nama,
+                id_jabatan,
+                gambar_user,
+                jabatan:id_jabatan (nama_jabatan)
+              )
+            ''')
             .inFilter('id_laporan', lapdoranIds);
 
-        final totalHrd = await _client
-            .from('User')
-            .select('id_user')
-            .eq('id_jabatan', 5);
-        final int totalHrdCount = totalHrd.length > 0 ? totalHrd.length : 1;
-
         for (final lid in lapdoranIds) {
-          final votesForLaporan = allVotes
+          final votesForLaporan = allVoteLogs
               .where((v) => v['id_laporan']?.toString() == lid)
               .toList();
+
           final int validCount =
               votesForLaporan.where((v) => v['jawaban_benar'] == true).length;
           final int invalidCount =
               votesForLaporan.where((v) => v['jawaban_benar'] == false).length;
+
+          // Detail verificator yang sudah vote
+          final Map<String, Map<String, String>> verifDetailMap = {};
+          for (final v in votesForLaporan) {
+            final vid = v['id_verificator']?.toString();
+            if (vid == null) continue;
+            final rawVerif = v['verificator'];
+            if (rawVerif == null) continue;
+            final nama = rawVerif['nama']?.toString() ?? vid;
+            final jabatanId = rawVerif['id_jabatan'];
+            final jabatanName =
+                rawVerif['jabatan']?['nama_jabatan']?.toString() ?? '';
+            final fotoUrl = rawVerif['gambar_user']?.toString() ?? '';
+            verifDetailMap[vid] = {
+              'nama': nama,
+              'jabatan': jabatanName,
+              'jabatan_id': jabatanId?.toString() ?? '',
+              'foto_url': fotoUrl,
+            };
+          }
+
           voteStats[lid] = {
             'valid_count': validCount,
             'invalid_count': invalidCount,
             'total': validCount + invalidCount,
-            'total_hrd': totalHrdCount,
+            'total_hrd': validCount + invalidCount,
+            'verif_detail_map': verifDetailMap,
           };
         }
       }
@@ -1323,25 +1701,45 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             ? const Color(0xFFF97316)
             : const Color(0xFF16A34A);
 
+    // Warna tema header berdasarkan jabatan
+    final List<Color> headerColors = widget.userJabatanId == 2
+        ? [const Color(0xFF7C3AED), const Color(0xFF6D28D9)]
+        : [const Color(0xFFDC2626), const Color(0xFFB91C1C)];
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header card
+          // ── Header Card ──
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFDC2626), Color(0xFFB91C1C)],
+              gradient: LinearGradient(
+                colors: headerColors,
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: headerColors.last.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               children: [
-                const Icon(Icons.health_and_safety_outlined,
-                    color: Colors.white70, size: 28),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.health_and_safety_outlined,
+                      color: Colors.white, size: 24),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -1356,11 +1754,12 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                         style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
-                            fontSize: 15),
+                            fontSize: 14),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         _lang == 'ID'
-                            ? 'Periksa dan edit laporan jika perlu'
+                            ? 'Periksa dan edit laporan jika diperlukan'
                             : _lang == 'ZH'
                                 ? '检查并编辑报告（如需要）'
                                 : 'Review and edit the report if needed',
@@ -1370,6 +1769,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 // Tombol Edit
                 GestureDetector(
                   onTap: () => _showEditAccidentDialog(laporan),
@@ -1380,7 +1780,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.edit_rounded,
-                        color: Colors.white, size: 20),
+                        color: Colors.white, size: 18),
                   ),
                 ),
               ],
@@ -1388,27 +1788,64 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           ),
           const SizedBox(height: 16),
 
-          // Foto bukti
+          // ── Foto Bukti ──
           if (laporan['foto_bukti'] != null) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.network(
-                laporan['foto_bukti'],
-                width: double.infinity,
-                height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 200,
-                  color: Colors.grey.shade100,
-                  child: Icon(Icons.image_not_supported_outlined,
-                      color: Colors.grey.shade400, size: 48),
-                ),
+              child: Stack(
+                children: [
+                  Image.network(
+                    laporan['foto_bukti'],
+                    width: double.infinity,
+                    height: 200,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 200,
+                      color: Colors.grey.shade100,
+                      child: Icon(Icons.image_not_supported_outlined,
+                          color: Colors.grey.shade400, size: 48),
+                    ),
+                  ),
+                  // Badge severity di atas foto
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: sevColor,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: sevColor.withOpacity(0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.warning_amber_rounded,
+                              size: 12, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(severity,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
           ],
 
-          // Info laporan
+          // ── Info Utama ──
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -1416,65 +1853,113 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(laporan['judul'] ?? '-',
-                          style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF1E3A8A))),
-                    ),
-                  ],
+                // Judul laporan
+                Text(
+                  laporan['judul'] ?? '-',
+                  style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF1E3A8A)),
                 ),
-                const SizedBox(height: 8),
-                _buildAccidentInfoRow(Icons.warning_amber_rounded,
-                    _lang == 'ID' ? 'Keparahan' : 'Severity',
-                    severity, sevColor),
-                _buildAccidentInfoRow(Icons.person_outline,
-                    _lang == 'ID' ? 'Pelapor' : 'Reporter',
-                    laporan['pelapor']?['nama'] ?? '-', Colors.grey.shade700),
-                _buildAccidentInfoRow(Icons.personal_injury_outlined,
-                    _lang == 'ID' ? 'Pihak Terdampak' : 'Affected',
-                    laporan['pihak_terdampak']?['nama'] ?? '-',
-                    Colors.grey.shade700),
-                if (laporan['supervisor_user']?['nama'] != null)
-                  _buildAccidentInfoRow(Icons.supervisor_account_outlined,
-                      _lang == 'ID' ? 'Supervisor' : 'Supervisor',
-                      laporan['supervisor_user']['nama'], Colors.grey.shade700),
-                if (laporan['saksi_user']?['nama'] != null)
-                  _buildAccidentInfoRow(Icons.visibility_outlined,
-                      _lang == 'ID' ? 'Saksi' : 'Witness',
-                      laporan['saksi_user']['nama'], Colors.grey.shade700),
-                _buildAccidentInfoRow(Icons.location_on_outlined,
-                    _lang == 'ID' ? 'Lokasi' : 'Location',
-                    laporan['lokasi']?['nama_lokasi'] ?? '-',
-                    Colors.grey.shade700),
-                _buildAccidentInfoRow(Icons.calendar_today,
-                    _lang == 'ID' ? 'Tanggal' : 'Date',
-                    laporan['tanggal_kejadian']?.toString() ?? '-',
-                    Colors.grey.shade700),
-                _buildAccidentInfoRow(Icons.access_time,
-                    _lang == 'ID' ? 'Waktu' : 'Time',
-                    laporan['waktu_kejadian']?.toString().substring(0, 5) ?? '-',
-                    Colors.grey.shade700),
-                _buildAccidentInfoRow(Icons.build_circle_outlined,
-                    _lang == 'ID' ? 'Penyebab' : 'Cause',
-                    laporan['penyebab'] ?? '-', Colors.grey.shade700),
-                if (laporan['departemen_terdampak'] != null)
-                  _buildAccidentInfoRow(Icons.business_outlined,
-                      _lang == 'ID' ? 'Departemen' : 'Department',
-                      laporan['departemen_terdampak'], Colors.grey.shade700),
+                if (laporan['foto_bukti'] == null) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: sevColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: sevColor.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            size: 12, color: sevColor),
+                        const SizedBox(width: 4),
+                        Text(severity,
+                            style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: sevColor)),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                const Divider(height: 1),
+                const SizedBox(height: 14),
+                // Grid 2 kolom untuk info
+                _buildInfoGrid([
+                  {
+                    'icon': Icons.person_outline,
+                    'label': _lang == 'ID' ? 'Pelapor' : 'Reporter',
+                    'value': laporan['pelapor']?['nama'] ?? '-',
+                  },
+                  {
+                    'icon': Icons.personal_injury_outlined,
+                    'label': _lang == 'ID' ? 'Pihak Terdampak' : 'Affected',
+                    'value': laporan['pihak_terdampak']?['nama'] ?? '-',
+                  },
+                  {
+                    'icon': Icons.location_on_outlined,
+                    'label': _lang == 'ID' ? 'Lokasi' : 'Location',
+                    'value': laporan['lokasi']?['nama_lokasi'] ?? '-',
+                  },
+                  {
+                    'icon': Icons.calendar_today,
+                    'label': _lang == 'ID' ? 'Tanggal' : 'Date',
+                    'value': laporan['tanggal_kejadian']?.toString() ?? '-',
+                  },
+                  {
+                    'icon': Icons.access_time,
+                    'label': _lang == 'ID' ? 'Waktu' : 'Time',
+                    'value': laporan['waktu_kejadian']
+                            ?.toString()
+                            .substring(0, 5) ??
+                        '-',
+                  },
+                  {
+                    'icon': Icons.build_circle_outlined,
+                    'label': _lang == 'ID' ? 'Penyebab' : 'Cause',
+                    'value': laporan['penyebab'] ?? '-',
+                  },
+                  if (laporan['supervisor_user']?['nama'] != null)
+                    {
+                      'icon': Icons.supervisor_account_outlined,
+                      'label': 'Supervisor',
+                      'value': laporan['supervisor_user']['nama'],
+                    },
+                  if (laporan['saksi_user']?['nama'] != null)
+                    {
+                      'icon': Icons.visibility_outlined,
+                      'label': _lang == 'ID' ? 'Saksi' : 'Witness',
+                      'value': laporan['saksi_user']['nama'],
+                    },
+                  if (laporan['departemen_terdampak'] != null)
+                    {
+                      'icon': Icons.business_outlined,
+                      'label': _lang == 'ID' ? 'Departemen' : 'Department',
+                      'value': laporan['departemen_terdampak'],
+                    },
+                ]),
               ],
             ),
           ),
           const SizedBox(height: 12),
 
-          // Deskripsi
+          // ── Deskripsi Kejadian ──
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
@@ -1486,28 +1971,37 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                Row(children: [
+                  Icon(Icons.description_outlined,
+                      size: 14, color: Colors.orange.shade800),
+                  const SizedBox(width: 6),
+                  Text(
                     _lang == 'ID'
                         ? 'Deskripsi Kejadian'
                         : _lang == 'ZH'
                             ? '事故描述'
                             : 'Incident Description',
                     style: GoogleFonts.poppins(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: Colors.orange.shade800)),
-                const SizedBox(height: 6),
-                Text(laporan['deskripsi'] ?? '-',
-                    style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: const Color(0xFF1E3A8A),
-                        height: 1.5)),
+                        color: Colors.orange.shade800),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                Text(
+                  laporan['deskripsi'] ?? '-',
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: const Color(0xFF1E3A8A),
+                      height: 1.5),
+                ),
               ],
             ),
           ),
+
           if (laporan['tindakan_diambil'] != null &&
               laporan['tindakan_diambil'].toString().isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
@@ -1519,97 +2013,191 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  Row(children: [
+                    Icon(Icons.medical_services_outlined,
+                        size: 14, color: Colors.green.shade800),
+                    const SizedBox(width: 6),
+                    Text(
                       _lang == 'ID'
                           ? 'Tindakan yang Diambil'
                           : _lang == 'ZH'
                               ? '已采取的措施'
                               : 'Action Taken',
                       style: GoogleFonts.poppins(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Colors.green.shade800)),
-                  const SizedBox(height: 6),
-                  Text(laporan['tindakan_diambil'],
-                      style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: const Color(0xFF1E3A8A),
-                          height: 1.5)),
+                          color: Colors.green.shade800),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(
+                    laporan['tindakan_diambil'],
+                    style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: const Color(0xFF1E3A8A),
+                        height: 1.5),
+                  ),
                 ],
               ),
             ),
           ],
+
           const SizedBox(height: 20),
 
-          // Countdown & swipe
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          // ── Countdown & Swipe Area ──
+          Container(
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: canSwipe
-                  ? const Color(0xFFDC2626).withOpacity(0.1)
-                  : Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: canSwipe
-                    ? const Color(0xFFDC2626).withOpacity(0.3)
-                    : Colors.orange.shade200,
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  canSwipe ? Icons.swipe_rounded : Icons.timer_outlined,
-                  size: 16,
-                  color: canSwipe
-                      ? const Color(0xFFDC2626)
-                      : Colors.orange.shade700,
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  canSwipe
-                      ? t('swipe_now')
-                      : '${t("wait_prefix")} $_accidentCountdown ${t("wait_suffix")}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              ],
+            ),
+            child: Column(
+              children: [
+                // Status countdown
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
                     color: canSwipe
-                        ? const Color(0xFFDC2626)
-                        : Colors.orange.shade700,
+                        ? headerColors.first.withOpacity(0.08)
+                        : Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: canSwipe
+                          ? headerColors.first.withOpacity(0.3)
+                          : Colors.orange.shade200,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        canSwipe
+                            ? Icons.swipe_rounded
+                            : Icons.timer_outlined,
+                        size: 18,
+                        color: canSwipe
+                            ? headerColors.first
+                            : Colors.orange.shade700,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        canSwipe
+                            ? t('swipe_now')
+                            : '${t("wait_prefix")} $_accidentCountdown ${t("wait_suffix")}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: canSwipe
+                              ? headerColors.first
+                              : Colors.orange.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // Swipe Valid
+                SizedBox(
+                  width: double.infinity,
+                  child: _SwipeButton(
+                    label: t('swipe_correct'),
+                    color: const Color(0xFF16A34A),
+                    icon: Icons.arrow_forward_rounded,
+                    direction: _SwipeDirection.leftToRight,
+                    enabled: canSwipe,
+                    onSwiped: () => _submitAccidentVerification(true),
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Swipe Invalid
+                SizedBox(
+                  width: double.infinity,
+                  child: _SwipeButton(
+                    label: t('swipe_incorrect'),
+                    color: const Color(0xFFDC2626),
+                    icon: Icons.arrow_back_rounded,
+                    direction: _SwipeDirection.rightToLeft,
+                    enabled: canSwipe,
+                    onSwiped: () => _submitAccidentVerification(false),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-
-          SizedBox(
-            width: double.infinity,
-            child: _SwipeButton(
-              label: t('swipe_correct'),
-              color: const Color(0xFF16A34A),
-              icon: Icons.arrow_forward_rounded,
-              direction: _SwipeDirection.leftToRight,
-              enabled: canSwipe,
-              onSwiped: () => _submitAccidentVerification(true),
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: _SwipeButton(
-              label: t('swipe_incorrect'),
-              color: const Color(0xFFDC2626),
-              icon: Icons.arrow_back_rounded,
-              direction: _SwipeDirection.rightToLeft,
-              enabled: canSwipe,
-              onSwiped: () => _submitAccidentVerification(false),
-            ),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
         ],
       ),
+    );
+  }
+
+  // ── Helper: Grid 2 kolom untuk info laporan ──
+  Widget _buildInfoGrid(List<Map<String, dynamic>> items) {
+    final List<Widget> rows = [];
+    for (int i = 0; i < items.length; i += 2) {
+      final left = items[i];
+      final right = i + 1 < items.length ? items[i + 1] : null;
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _buildInfoGridItem(left)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: right != null
+                    ? _buildInfoGridItem(right)
+                    : const SizedBox(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Column(children: rows);
+  }
+
+  Widget _buildInfoGridItem(Map<String, dynamic> item) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(item['icon'] as IconData,
+            size: 14, color: Colors.grey.shade500),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item['label'] as String,
+                style: GoogleFonts.poppins(
+                    fontSize: 10, color: Colors.grey.shade500),
+              ),
+              Text(
+                item['value'] as String,
+                style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1E3A8A)),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -2259,283 +2847,756 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     final String? lid = data['id_laporan']?.toString();
     final String title = data['judul']?.toString() ?? '-';
     final String? imageUrl = data['foto_bukti']?.toString();
-    final bool userVote = data['user_vote'] as bool? ?? false;
     final bool? finalOutcome = data['hasil_verifikasi_mayoritas'] as bool?;
     final bool isFinalized = data['is_verif'] as bool? ?? false;
     final String severity = data['tingkat_keparahan'] ?? '';
+    final String lokasiName = data['lokasi']?['nama_lokasi']?.toString() ?? '-';
+    final String pelaporName = data['pelapor']?['nama']?.toString() ?? '-';
+    final String pihakName =
+        data['pihak_terdampak']?['nama']?.toString() ?? '-';
+    final String tanggalKejadian = data['tanggal_kejadian']?.toString() ?? '-';
+    final String penyebab = data['penyebab']?.toString() ?? '-';
 
-    final stats = lid != null ? (_accidentVoteStats[lid] ?? {}) : <String, dynamic>{};
+    // Waktu finalisasi — gunakan updated_at jika ada, fallback ke created_at
+    String finalisasiDateStr = '-';
+    try {
+      final rawDate = data['updated_at'] ?? data['created_at'];
+      if (rawDate != null) {
+        final dt = DateTime.parse(rawDate.toString()).toLocal();
+        finalisasiDateStr = DateFormat('dd MMM yyyy, HH:mm').format(dt);
+      }
+    } catch (_) {}
+
+    final stats =
+        lid != null ? (_accidentVoteStats[lid] ?? {}) : <String, dynamic>{};
     final int validCount = (stats['valid_count'] as int?) ?? 0;
     final int invalidCount = (stats['invalid_count'] as int?) ?? 0;
     final int totalVotes = (stats['total'] as int?) ?? 0;
-    final int totalHrd = (stats['total_hrd'] as int?) ?? 1;
 
-    Color accent;
-    String statusLabel;
-    IconData statusIcon;
+    final Map<String, Map<String, String>> verifDetailMap =
+        (stats['verif_detail_map'] as Map?)?.map(
+              (k, v) => MapEntry(
+                k.toString(),
+                (v as Map).map((dk, dv) =>
+                    MapEntry(dk.toString(), dv?.toString() ?? '')),
+              ),
+            ) ??
+            {};
 
-    if (!isFinalized || finalOutcome == null) {
-      accent = Colors.orange.shade400;
-      statusLabel = t('pending');
-      statusIcon = Icons.hourglass_empty_rounded;
-    } else {
-      final bool inMajority = userVote == finalOutcome;
-      accent = inMajority ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-      statusLabel = inMajority ? t('majority') : t('minority');
-      statusIcon = inMajority ? Icons.emoji_events_rounded : Icons.highlight_off_rounded;
-    }
+    // Status berdasarkan hasil_verifikasi_mayoritas
+    final Color accent =
+        finalOutcome == true ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    final String statusLabel =
+        finalOutcome == true ? t('valid') : t('invalid');
+    final IconData statusIcon =
+        finalOutcome == true ? Icons.verified_rounded : Icons.cancel_rounded;
 
-    final String voteLabel = userVote ? t('valid') : t('invalid');
-    final Color voteColor = userVote ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-    final double validRatio = totalVotes > 0 ? validCount / totalVotes : 0.0;
     final Color sevColor = severity == 'Berat'
         ? const Color(0xFFDC2626)
         : severity == 'Menengah'
             ? const Color(0xFFF97316)
             : const Color(0xFF16A34A);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-              color: accent.withOpacity(0.08),
-              blurRadius: 12, offset: const Offset(0, 4))
-        ],
-      ),
-      child: Column(
-        children: [
-          // Header
-          Row(
-            children: [
-              Container(
-                width: 6, height: 100,
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(19),
-                      bottomLeft: Radius.circular(4)),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Foto
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  width: 72, height: 72,
-                  color: Colors.grey.shade100,
-                  child: imageUrl != null
-                      ? Image.network(imageUrl, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(
-                              Icons.warning_amber_rounded,
-                              color: sevColor, size: 28))
-                      : Icon(Icons.warning_amber_rounded,
-                          color: sevColor, size: 28),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Badge kecelakaan
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDC2626).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
+    final double validRatio = totalVotes > 0 ? validCount / totalVotes : 0.0;
+
+    return GestureDetector(
+      onTap: () => _showAccidentHistoryDetail(
+          data, stats, accent, statusLabel, statusIcon,
+          statusLabel, accent, validRatio),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+                color: accent.withOpacity(0.08),
+                blurRadius: 14,
+                offset: const Offset(0, 4))
+          ],
+        ),
+        child: Column(
+          children: [
+            // ── Header: foto + info utama ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Foto bukti
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      color: Colors.grey.shade100,
+                      child: imageUrl != null
+                          ? Image.network(imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: sevColor, size: 28))
+                          : Icon(Icons.warning_amber_rounded,
+                              color: sevColor, size: 28),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Info tengah
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Badge ACCIDENT + Severity
+                        Row(children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              _lang == 'ID' ? 'KECELAKAAN'
+                                  : _lang == 'ZH' ? '事故' : 'ACCIDENT',
+                              style: GoogleFonts.poppins(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white),
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: sevColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(
+                                  color: sevColor.withOpacity(0.4), width: 1),
+                            ),
+                            child: Text(severity,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w700,
+                                    color: sevColor)),
+                          ),
+                        ]),
+                        const SizedBox(height: 5),
+                        // Judul
+                        Text(title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF1E3A8A),
+                                height: 1.25)),
+                        const SizedBox(height: 5),
+                        // Lokasi
+                        Row(children: [
+                          const Icon(Icons.place_rounded,
+                              size: 12, color: Color(0xFF0891B2)),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(lokasiName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF0891B2))),
+                          ),
+                        ]),
+                        const SizedBox(height: 3),
+                        // Pelapor
+                        Row(children: [
+                          Icon(Icons.person_outline,
+                              size: 12, color: Colors.grey.shade500),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(pelaporName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600)),
+                          ),
+                        ]),
+                        const SizedBox(height: 4),
+                        // Waktu finalisasi
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF1E3A8A).withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: const Color(0xFF1E3A8A)
+                                    .withOpacity(0.12)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.verified_rounded,
+                                  size: 11, color: Color(0xFF1E3A8A)),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${_lang == 'ID' ? 'Final' : 'Finalized'}: $finalisasiDateStr',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF1E3A8A)),
+                              ),
+                            ],
+                          ),
                         ),
-                        child: Text(
-                          _lang == 'ID' ? 'LAPORAN KECELAKAAN'
-                              : _lang == 'ZH' ? '事故报告' : 'ACCIDENT REPORT',
-                          style: GoogleFonts.poppins(
-                              fontSize: 8, fontWeight: FontWeight.w800,
-                              color: const Color(0xFFDC2626)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Status badge kanan
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withOpacity(0.4),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(statusIcon, color: Colors.white, size: 18),
+                            const SizedBox(height: 3),
+                            Text(
+                              statusLabel,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(title,
-                          maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                              fontSize: 12.5, fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A), height: 1.25)),
-                      const SizedBox(height: 4),
-                      Row(children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: sevColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(severity,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 9, fontWeight: FontWeight.w700,
-                                  color: sevColor)),
-                        ),
-                      ]),
                     ],
                   ),
+                ],
+              ),
+            ),
+
+            // ── Divider ──
+            Container(height: 1, color: Colors.grey.shade100),
+
+            // ── Verificator badges ──
+            if (verifDetailMap.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.verified_user_rounded,
+                          size: 13, color: Color(0xFF1E3A8A)),
+                      const SizedBox(width: 5),
+                      Text(
+                        _lang == 'ID' ? 'Diverifikasi Oleh'
+                            : _lang == 'ZH' ? '由...验证' : 'Verified By',
+                        style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF1E3A8A)),
+                      ),
+                    ]),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: verifDetailMap.entries.map((entry) {
+                        final nama = entry.value['nama'] ?? '-';
+                        final jabatan = entry.value['jabatan'] ?? '';
+                        final jabatanId = entry.value['jabatan_id'] ?? '';
+                        final fotoUrl = entry.value['foto_url'] ?? '';
+
+                        Color badgeColor;
+                        IconData badgeIcon;
+                        if (jabatanId == '5') {
+                          badgeColor = const Color(0xFFEC4899);
+                          badgeIcon = Icons.people_rounded;
+                        } else if (jabatanId == '2') {
+                          badgeColor = const Color(0xFF3B82F6);
+                          badgeIcon = Icons.workspace_premium_rounded;
+                        } else if (jabatanId == '1') {
+                          badgeColor = const Color(0xFFFB7185);
+                          badgeIcon = Icons.workspace_premium_rounded;
+                        } else {
+                          badgeColor = const Color(0xFF8B5CF6);
+                          badgeIcon = Icons.badge_rounded;
+                        }
+
+                        return Container(
+                          padding:
+                              const EdgeInsets.fromLTRB(6, 5, 10, 5),
+                          decoration: BoxDecoration(
+                            color: badgeColor.withOpacity(0.07),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                                color: badgeColor.withOpacity(0.25),
+                                width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: badgeColor.withOpacity(0.15),
+                                  border: Border.all(
+                                      color: badgeColor.withOpacity(0.4),
+                                      width: 1.5),
+                                ),
+                                child: ClipOval(
+                                  child: fotoUrl.isNotEmpty
+                                      ? Image.network(fotoUrl,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              Icon(badgeIcon,
+                                                  size: 14,
+                                                  color: badgeColor))
+                                      : Icon(badgeIcon,
+                                          size: 14, color: badgeColor),
+                                ),
+                              ),
+                              const SizedBox(width: 7),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(nama,
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: badgeColor)),
+                                  if (jabatan.isNotEmpty)
+                                    Text(jabatan,
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 9,
+                                            color:
+                                                badgeColor.withOpacity(0.7),
+                                            fontWeight: FontWeight.w500)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                child: Row(children: [
+                  Icon(Icons.info_outline_rounded,
+                      size: 13, color: Colors.grey.shade400),
+                  const SizedBox(width: 5),
+                  Text(
+                    _lang == 'ID'
+                        ? 'Belum ada yang memverifikasi'
+                        : 'No verifier yet',
+                    style: GoogleFonts.poppins(
+                        fontSize: 11, color: Colors.grey.shade400),
+                  ),
+                ]),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Detail popup saat history card diklik ──
+  void _showAccidentHistoryDetail(
+    Map<String, dynamic> data,
+    Map<String, dynamic> stats,
+    Color accent,
+    String statusLabel,
+    IconData statusIcon,
+    String voteLabel,
+    Color voteColor,
+    double validRatio,
+  ) {
+    final String title = data['judul']?.toString() ?? '-';
+    final String? imageUrl = data['foto_bukti']?.toString();
+    final String severity = data['tingkat_keparahan'] ?? '';
+    final String deskripsi = data['deskripsi']?.toString() ?? '-';
+    final String lokasiName = data['lokasi']?['nama_lokasi']?.toString() ?? '-';
+    final String pelaporName = data['pelapor']?['nama']?.toString() ?? '-';
+    final String pihakName =
+        data['pihak_terdampak']?['nama']?.toString() ?? '-';
+    final String tanggal =
+        data['tanggal_kejadian']?.toString() ?? '-';
+    final String waktu =
+        data['waktu_kejadian']?.toString().substring(0, 5) ?? '-';
+    final String penyebab = data['penyebab']?.toString() ?? '-';
+    final bool? finalOutcome = data['hasil_verifikasi_mayoritas'] as bool?;
+    final bool isFinalized = data['is_verif'] as bool? ?? false;
+    final int validCount = (stats['valid_count'] as int?) ?? 0;
+    final int invalidCount = (stats['invalid_count'] as int?) ?? 0;
+    final int totalVotes = (stats['total'] as int?) ?? 0;
+    final int totalHrd = (stats['total_hrd'] as int?) ?? 1;
+
+    String dateStr = '-';
+    try {
+      final rawDate = data['waktu_verifikasi'] ?? data['created_at'];
+      if (rawDate != null) {
+        final dt = DateTime.parse(rawDate.toString()).toLocal();
+        dateStr = DateFormat('dd MMM yyyy, HH:mm').format(dt);
+      }
+    } catch (_) {}
+
+    final Color sevColor = severity == 'Berat'
+        ? const Color(0xFFDC2626)
+        : severity == 'Menengah'
+            ? const Color(0xFFF97316)
+            : const Color(0xFF16A34A);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFF0F7FF),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 4),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+              // Header
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: widget.userJabatanId == 2
+                        ? [const Color(0xFF7C3AED), const Color(0xFF6D28D9)]
+                        : [const Color(0xFFDC2626), const Color(0xFFB91C1C)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
                   children: [
                     Container(
-                      width: 40, height: 40,
+                      padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: accent.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: accent.withOpacity(0.3), width: 1.5),
-                      ),
-                      child: Icon(statusIcon, color: accent, size: 22),
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8)),
+                      child: const Icon(Icons.health_and_safety_outlined,
+                          color: Colors.white, size: 20),
                     ),
-                    const SizedBox(height: 3),
-                    Text(statusLabel,
-                        style: GoogleFonts.poppins(
-                            fontSize: 9, fontWeight: FontWeight.w700, color: accent)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _lang == 'ID'
+                                ? 'Detail Laporan Kecelakaan'
+                                : _lang == 'ZH'
+                                    ? '事故报告详情'
+                                    : 'Accident Report Detail',
+                            style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14),
+                          ),
+                          Text(dateStr,
+                              style: GoogleFonts.poppins(
+                                  color: Colors.white70, fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    // Badge Valid/Invalid berwarna solid
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: Colors.white.withOpacity(0.4), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.2),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(statusIcon, size: 13, color: Colors.white),
+                          const SizedBox(width: 5),
+                          Text(
+                            statusLabel,
+                            style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Scrollable content
+              Expanded(
+                child: ListView(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // Foto bukti
+                    if (imageUrl != null) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Stack(children: [
+                          Image.network(
+                            imageUrl,
+                            width: double.infinity,
+                            height: 200,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                                height: 200,
+                                color: Colors.grey.shade100,
+                                child: const Icon(
+                                    Icons.image_not_supported_outlined,
+                                    size: 48)),
+                          ),
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: sevColor,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                const Icon(Icons.warning_amber_rounded,
+                                    size: 12, color: Colors.white),
+                                const SizedBox(width: 4),
+                                Text(severity,
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white)),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
+                    // Judul & Identitas
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF1E3A8A))),
+                          const SizedBox(height: 12),
+                          const Divider(height: 1),
+                          const SizedBox(height: 12),
+                          _buildDetailInfoRow(Icons.person_outline,
+                              _lang == 'ID' ? 'Pelapor' : 'Reporter',
+                              pelaporName),
+                          _buildDetailInfoRow(Icons.personal_injury_outlined,
+                              _lang == 'ID' ? 'Pihak Terdampak' : 'Affected',
+                              pihakName),
+                          _buildDetailInfoRow(Icons.location_on_outlined,
+                              _lang == 'ID' ? 'Lokasi' : 'Location', lokasiName),
+                          _buildDetailInfoRow(Icons.calendar_today,
+                              _lang == 'ID' ? 'Tanggal' : 'Date', tanggal),
+                          _buildDetailInfoRow(Icons.access_time,
+                              _lang == 'ID' ? 'Waktu' : 'Time', waktu),
+                          _buildDetailInfoRow(Icons.build_circle_outlined,
+                              _lang == 'ID' ? 'Penyebab' : 'Cause', penyebab),
+                          if (data['supervisor_user']?['nama'] != null)
+                            _buildDetailInfoRow(
+                                Icons.supervisor_account_outlined,
+                                'Supervisor',
+                                data['supervisor_user']['nama'].toString()),
+                          if (data['saksi_user']?['nama'] != null)
+                            _buildDetailInfoRow(
+                                Icons.visibility_outlined,
+                                _lang == 'ID' ? 'Saksi' : 'Witness',
+                                data['saksi_user']['nama'].toString()),
+                          if (data['departemen_terdampak'] != null)
+                            _buildDetailInfoRow(
+                                Icons.business_outlined,
+                                _lang == 'ID' ? 'Departemen' : 'Department',
+                                data['departemen_terdampak'].toString()),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Deskripsi
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.orange.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Icon(Icons.description_outlined,
+                                size: 14, color: Colors.orange.shade800),
+                            const SizedBox(width: 6),
+                            Text(
+                              _lang == 'ID'
+                                  ? 'Deskripsi Kejadian'
+                                  : _lang == 'ZH'
+                                      ? '事故描述'
+                                      : 'Incident Description',
+                              style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.orange.shade800),
+                            ),
+                          ]),
+                          const SizedBox(height: 8),
+                          Text(deskripsi,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: const Color(0xFF1E3A8A),
+                                  height: 1.5)),
+                        ],
+                      ),
+                    ),
+
+                    if (data['tindakan_diambil'] != null &&
+                        data['tindakan_diambil'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              Icon(Icons.medical_services_outlined,
+                                  size: 14, color: Colors.green.shade800),
+                              const SizedBox(width: 6),
+                              Text(
+                                _lang == 'ID'
+                                    ? 'Tindakan yang Diambil'
+                                    : 'Action Taken',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.green.shade800),
+                              ),
+                            ]),
+                            const SizedBox(height: 8),
+                            Text(data['tindakan_diambil'].toString(),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: const Color(0xFF1E3A8A),
+                                    height: 1.5)),
+                          ],
+                        ),
+                      ),
+                    ],
+                    
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
             ],
           ),
-          Container(margin: const EdgeInsets.symmetric(horizontal: 12),
-              height: 1, color: accent.withOpacity(0.12)),
-          // Bottom stats
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        ),
+      ),
+    );
+  }
+
+  // Helper row untuk detail di bottom sheet
+  Widget _buildDetailInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E3A8A).withOpacity(0.07),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 14, color: const Color(0xFF1E3A8A)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _VotePill(
-                        label: voteLabel,
-                        color: voteColor,
-                        icon: userVote
-                            ? Icons.thumb_up_rounded
-                            : Icons.thumb_down_rounded),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isFinalized
-                            ? const Color(0xFF16A34A).withOpacity(0.1)
-                            : Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isFinalized
-                              ? const Color(0xFF16A34A).withOpacity(0.3)
-                              : Colors.orange.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Row(children: [
-                        Icon(
-                            isFinalized
-                                ? Icons.verified_rounded
-                                : Icons.pending_rounded,
-                            size: 10,
-                            color: isFinalized
-                                ? const Color(0xFF16A34A)
-                                : Colors.orange),
-                        const SizedBox(width: 3),
-                        Text(isFinalized ? t('finalized') : t('not_finalized'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: isFinalized
-                                    ? const Color(0xFF16A34A)
-                                    : Colors.orange)),
-                      ]),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _VoteCountChip(
-                        icon: Icons.thumb_up_rounded,
-                        label: t('votes_valid'),
-                        count: validCount,
-                        color: const Color(0xFF16A34A)),
-                    Text('$totalVotes / $totalHrd HRD',
-                        style: GoogleFonts.poppins(
-                            fontSize: 9.5, color: Colors.grey.shade500)),
-                    _VoteCountChip(
-                        icon: Icons.thumb_down_rounded,
-                        label: t('votes_invalid'),
-                        count: invalidCount,
-                        color: const Color(0xFFDC2626),
-                        iconOnRight: true),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Stack(children: [
-                    Container(
-                        height: 8,
-                        width: double.infinity,
-                        color: const Color(0xFFDC2626).withOpacity(0.18)),
-                    FractionallySizedBox(
-                      widthFactor: validRatio.clamp(0.0, 1.0),
-                      child: Container(
-                        height: 8,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                              colors: [Color(0xFF16A34A), Color(0xFF4ADE80)]),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
-                if (isFinalized && finalOutcome != null) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: finalOutcome
-                          ? const Color(0xFF16A34A).withOpacity(0.07)
-                          : const Color(0xFFDC2626).withOpacity(0.07),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: finalOutcome
-                            ? const Color(0xFF16A34A).withOpacity(0.2)
-                            : const Color(0xFFDC2626).withOpacity(0.2),
-                      ),
-                    ),
-                    child: Row(children: [
-                      Icon(
-                        finalOutcome
-                            ? Icons.thumb_up_rounded
-                            : Icons.thumb_down_rounded,
-                        size: 13,
-                        color: finalOutcome
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFFDC2626),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${t("majority_result")}: ${finalOutcome ? t("valid") : t("invalid")}',
-                        style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: finalOutcome
-                                ? const Color(0xFF16A34A)
-                                : const Color(0xFFDC2626)),
-                      ),
-                    ]),
-                  ),
-                ],
+                Text(label,
+                    style: GoogleFonts.poppins(
+                        fontSize: 10, color: Colors.grey.shade500)),
+                Text(value,
+                    style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E3A8A))),
               ],
             ),
           ),
@@ -2611,16 +3672,62 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   }
 
   Widget _buildHeader() {
-    final String roleLabel = _isHrdMode
-        ? (_lang == 'EN' ? 'HRD' : _lang == 'ZH' ? '人力资源' : 'HRD')
-        : 'Executive';
-    final String screenTitle = _isHrdMode
-        ? (_lang == 'EN'
-            ? 'Accident Verification'
-            : _lang == 'ZH'
-                ? '事故验证'
-                : 'Verifikasi Kecelakaan')
-        : t('screen_title');
+    String roleLabel;
+    if (widget.userJabatanId == 5) {
+      roleLabel = 'HRD';
+    } else if (widget.userJabatanId == 2) {
+      roleLabel = _lang == 'EN' ? 'Manager' : _lang == 'ZH' ? '经理' : 'Manager';
+    } else if (widget.userJabatanId == 1) {
+      roleLabel = _lang == 'EN' ? 'Executive' : _lang == 'ZH' ? '高管' : 'Eksekutif';
+    } else if (widget.userJabatanId == 3) {
+      roleLabel = _lang == 'EN' ? 'Supervisor' : _lang == 'ZH' ? '主管' : 'Supervisor';
+    } else if (widget.userJabatanId == 4) {
+      roleLabel = 'Staff';
+    } else {
+      roleLabel = 'Executive';
+    }
+
+    String screenTitle;
+    if (_isHrdMode) {
+      screenTitle = _lang == 'EN'
+          ? 'Accident Verification'
+          : _lang == 'ZH'
+              ? '事故验证'
+              : 'Verifikasi Kecelakaan';
+    } else {
+      screenTitle = t('screen_title');
+    }
+
+    // Warna badge sesuai getCardGradient dari jabatan_helper.dart
+    // Ambil warna pertama (paling cerah) dan terakhir (medium) sebagai gradient badge
+    List<Color> badgeColors;
+    IconData badgeIcon;
+
+    switch (widget.userJabatanId) {
+      case 1: // Eksekutif: Pink-Rose
+        badgeColors = [const Color(0xFFFB7185), const Color(0xFFFDA4AF)];
+        badgeIcon = Icons.workspace_premium_rounded;
+        break;
+      case 2: // Manager: Biru
+        badgeColors = [const Color(0xFF3B82F6), const Color(0xFF60A5FA)];
+        badgeIcon = Icons.workspace_premium_rounded;
+        break;
+      case 3: // Supervisor: Teal/Cyan
+        badgeColors = [const Color(0xFF06B6D4), const Color(0xFF22D3EE)];
+        badgeIcon = Icons.manage_accounts_rounded;
+        break;
+      case 4: // Staff: Ungu
+        badgeColors = [const Color(0xFF8B5CF6), const Color(0xFFA78BFA)];
+        badgeIcon = Icons.badge_rounded;
+        break;
+      case 5: // HRD: Pink
+        badgeColors = [const Color(0xFFEC4899), const Color(0xFFF472B6)];
+        badgeIcon = Icons.people_rounded;
+        break;
+      default:
+        badgeColors = [const Color(0xFF00C9E4), const Color(0xFF0891B2)];
+        badgeIcon = Icons.verified_rounded;
+    }
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -2628,7 +3735,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00C9E4).withOpacity(0.1),
+            color: badgeColors.first.withOpacity(0.15),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -2660,19 +3767,27 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: _isHrdMode
-                    ? [const Color(0xFF16A34A), const Color(0xFF15803D)]
-                    : [const Color(0xFF00C9E4), const Color(0xFF0891B2)],
+                colors: badgeColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: badgeColors.first.withOpacity(0.4),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.verified_rounded, color: Colors.white, size: 14),
-                const SizedBox(width: 4),
+                Icon(badgeIcon, color: Colors.white, size: 14),
+                const SizedBox(width: 5),
                 Text(
                   roleLabel,
                   style: GoogleFonts.poppins(
@@ -3034,52 +4149,104 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     final Color timerColor =
         isUrgent ? const Color(0xFFDC2626) : const Color(0xFF00C9E4);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: timerColor.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: timerColor.withOpacity(0.3)),
-      ),
-      child: Column(children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(children: [
-              Icon(Icons.timer_rounded, size: 16, color: timerColor),
-              const SizedBox(width: 6),
-              Text(
-                _lang == 'ID'
-                    ? 'Batas waktu verifikasi'
-                    : _lang == 'ZH'
-                        ? '验证截止时间'
-                        : 'Verification time limit',
-                style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: timerColor,
-                    fontWeight: FontWeight.w600),
-              ),
-            ]),
-            Text(
-              '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
-              style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: timerColor),
+    // Label decoy
+    final bool showDecoyBadge = _isDecoyMode;
+
+    return Column(
+      children: [
+        if (showDecoyBadge)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF59E0B).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.5)),
             ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 5,
-            backgroundColor: timerColor.withOpacity(0.12),
-            valueColor: AlwaysStoppedAnimation<Color>(timerColor),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.psychology_alt_rounded,
+                    size: 14, color: Color(0xFFF59E0B)),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    _lang == 'ID'
+                        ? '🔍 Uji Ketelitian — Perhatikan gambar dengan seksama!'
+                        : '🔍 Focus Test — Examine the images carefully!',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFFF59E0B),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
           ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: timerColor.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: timerColor.withOpacity(0.3)),
+          ),
+          child: Column(children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(children: [
+                  Icon(Icons.timer_rounded, size: 16, color: timerColor),
+                  const SizedBox(width: 6),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _lang == 'ID'
+                            ? 'Batas waktu verifikasi'
+                            : _lang == 'ZH'
+                                ? '验证截止时间'
+                                : 'Verification time limit',
+                        style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: timerColor,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        _lang == 'ID'
+                            ? 'Auto-valid setelah $_verifikasiDurasiHari hari'
+                            : 'Auto-valid after $_verifikasiDurasiHari days',
+                        style: GoogleFonts.poppins(
+                            fontSize: 9.5,
+                            color: timerColor.withOpacity(0.7)),
+                      ),
+                    ],
+                  ),
+                ]),
+                Text(
+                  '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+                  style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: timerColor),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 5,
+                backgroundColor: timerColor.withOpacity(0.12),
+                valueColor: AlwaysStoppedAnimation<Color>(timerColor),
+              ),
+            ),
+          ]),
         ),
-      ]),
+      ],
     );
   }
 
