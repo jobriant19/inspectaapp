@@ -16,6 +16,7 @@ import 'dart:math' as math;
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'home_news_popup.dart';
 import 'user_info_card.dart';
 import 'activity_log_dialog.dart';
 import 'home_content.dart';
@@ -389,6 +390,10 @@ class _HomeScreenState extends State<HomeScreen> {
         // ✅ Jika sudah login hari ini, skip dialog tapi tetap refresh data
         if (status == 'already_logged_in_today' || status.isEmpty) {
           _fetchUserData(silent: true);
+          await Future.delayed(const Duration(milliseconds: 600));
+          if (mounted) {
+            await HomeNewsPopup.showIfNeeded(context, lang: _lang);
+          }
           return;
         }
 
@@ -434,6 +439,12 @@ class _HomeScreenState extends State<HomeScreen> {
           );
           if (!mounted) return;
           _fetchUserData(silent: true);
+          if (dailyBonus <= 0) {
+            await Future.delayed(const Duration(milliseconds: 500));
+            if (mounted) {
+              await HomeNewsPopup.showIfNeeded(context, lang: _lang);
+            }
+          }
         }
 
         if (dailyBonus > 0) {
@@ -446,6 +457,10 @@ class _HomeScreenState extends State<HomeScreen> {
           if (!mounted) return;
           // ✅ Refresh data setelah semua dialog selesai → animasi poin update
           _fetchUserData(silent: true);
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) {
+            await HomeNewsPopup.showIfNeeded(context, lang: _lang);
+          }
         }
 
       } catch (e) {

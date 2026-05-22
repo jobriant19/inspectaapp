@@ -19,12 +19,14 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   Map<String, dynamic>? _cachedAppInfo;
   // Cache legal: key = 'terms_conditions' / 'privacy_policy'
   Map<String, List<Map<String, dynamic>>> _cachedLegal = {};
+  List<Map<String, dynamic>> _cachedNews = [];
 
   @override
   void initState() {
     super.initState();
     _prefetchAppInfo();
     _prefetchLegal();
+    _prefetchNews();
   }
 
   Future<void> _prefetchAppInfo() async {
@@ -57,6 +59,21 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
       setState(() => _cachedLegal = grouped);
     } catch (e) {
       debugPrint('Prefetch legal error: $e');
+    }
+  }
+
+  Future<void> _prefetchNews() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('latest_news')
+          .select()
+          .order('published_at', ascending: false);
+      if (mounted) {
+        setState(() => _cachedNews =
+            List<Map<String, dynamic>>.from(res));
+      }
+    } catch (e) {
+      debugPrint('Prefetch news error: $e');
     }
   }
 
@@ -170,7 +187,10 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         color: const Color(0xFFF59E0B),
         onTap: () => Navigator.push(
           context,
-          _slideRoute(AdminNewsScreen(lang: widget.lang)),
+          _slideRoute(AdminNewsScreen(
+            lang: widget.lang,
+            initialData: _cachedNews.isEmpty ? null : _cachedNews,
+          )),
         ),
       ),
     ];
