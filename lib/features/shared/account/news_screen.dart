@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
@@ -19,7 +20,7 @@ class NewsScreen extends StatefulWidget {
 
 class _NewsScreenState extends State<NewsScreen> {
   late String _currentLang;
-  bool _isLoading = true;
+  bool _isLoading = false;
   String? _error;
   List<Map<String, dynamic>> _updates = [];
   List<Map<String, dynamic>> _maintenance = [];
@@ -34,6 +35,7 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 
   Future<void> _fetchNews() async {
+    // Tidak set _isLoading = true agar tidak ada loading indicator
     try {
       final response = await Supabase.instance.client
           .from('latest_news')
@@ -41,31 +43,22 @@ class _NewsScreenState extends State<NewsScreen> {
           .order('published_at', ascending: false);
 
       if (mounted) {
-        // --- AWAL PERUBAHAN ---
-
-        // 1. Casting `response` ke List<dynamic> agar lebih eksplisit.
         final List<dynamic> allNewsData = response;
-
-        // 2. Gunakan List.from() dan casting setiap elemen menjadi Map<String, dynamic>
-        //    saat memfilter dan membuat list baru. Ini adalah cara yang aman.
         final updatesList = List<Map<String, dynamic>>.from(
-          allNewsData.where((item) => item['type'] == 'update')
+          allNewsData.where((item) => item['type'] == 'update'),
         );
         final maintenanceList = List<Map<String, dynamic>>.from(
-          allNewsData.where((item) => item['type'] == 'maintenance')
+          allNewsData.where((item) => item['type'] == 'maintenance'),
         );
-
         setState(() {
           _updates = updatesList;
           _maintenance = maintenanceList;
-          _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _error = "Failed to load news. Please try again later.";
-          _isLoading = false;
         });
       }
     }
@@ -76,23 +69,34 @@ class _NewsScreenState extends State<NewsScreen> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: const Color(0xFFEFF6FF),
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios),
+            icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1D72F3)),
             onPressed: () => Navigator.of(context).pop(),
           ),
-          title: Text(getTxt('news_title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          iconTheme: const IconThemeData(color: Color(0xFF1E3A8A)),
+          title: Text(
+            getTxt('news_title'),
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1D72F3),
+              fontSize: 18,
+            ),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 1,
+          shadowColor: Colors.black.withOpacity(0.08),
+          iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
           centerTitle: true,
           bottom: TabBar(
-            labelColor: const Color(0xFF1E3A8A),
-            unselectedLabelColor: Colors.grey.shade600,
-            indicatorColor: const Color(0xFF1E3A8A),
+            labelColor: const Color(0xFF1D72F3),
+            unselectedLabelColor: Colors.grey.shade500,
+            indicatorColor: const Color(0xFF1D72F3),
             indicatorWeight: 3,
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            labelStyle: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold, fontSize: 14),
+            unselectedLabelStyle:
+                GoogleFonts.poppins(fontSize: 14),
             tabs: [
               Tab(text: getTxt('update_notes')),
               Tab(text: getTxt('maintenance_notices')),

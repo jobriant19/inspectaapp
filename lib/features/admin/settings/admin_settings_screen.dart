@@ -1,14 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_about_screen.dart';
 import 'admin_legal_screen.dart';
 import 'admin_news_screen.dart';
 
-class AdminSettingsScreen extends StatelessWidget {
+class AdminSettingsScreen extends StatefulWidget {
   final String lang;
   const AdminSettingsScreen({super.key, required this.lang});
 
+  @override
+  State<AdminSettingsScreen> createState() => _AdminSettingsScreenState();
+}
+
+class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   static const _bg = Color(0xFFF8FAFC);
+
+  Map<String, dynamic>? _cachedAppInfo;
+  // Cache legal: key = 'terms_conditions' / 'privacy_policy'
+  Map<String, List<Map<String, dynamic>>> _cachedLegal = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _prefetchAppInfo();
+    _prefetchLegal();
+  }
+
+  Future<void> _prefetchAppInfo() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('app_info')
+          .select()
+          .order('id')
+          .limit(1)
+          .maybeSingle();
+      if (mounted) setState(() => _cachedAppInfo = res);
+    } catch (e) {
+      debugPrint('Prefetch app_info error: $e');
+    }
+  }
+
+  Future<void> _prefetchLegal() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('legal_documents')
+          .select()
+          .order('lang_code')
+          .order('section_order');
+      if (!mounted) return;
+      final Map<String, List<Map<String, dynamic>>> grouped = {};
+      for (final row in List<Map<String, dynamic>>.from(res)) {
+        final key = row['doc_type']?.toString() ?? '';
+        grouped.putIfAbsent(key, () => []).add(row);
+      }
+      setState(() => _cachedLegal = grouped);
+    } catch (e) {
+      debugPrint('Prefetch legal error: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,71 +81,96 @@ class AdminSettingsScreen extends StatelessWidget {
 
     final menus = [
       _SettingMenu(
-        title: lang == 'EN' ? 'About Inspecta'
-            : lang == 'ZH' ? '关于 Inspecta'
-            : 'Tentang Inspecta',
-        subtitle: lang == 'EN' ? 'App name, version, website'
-            : lang == 'ZH' ? '应用名称、版本、网站'
-            : 'Nama aplikasi, versi, website',
+        title: widget.lang == 'EN'
+            ? 'About Inspecta'
+            : widget.lang == 'ZH'
+                ? '关于 Inspecta'
+                : 'Tentang Inspecta',
+        subtitle: widget.lang == 'EN'
+            ? 'App name, version, website'
+            : widget.lang == 'ZH'
+                ? '应用名称、版本、网站'
+                : 'Nama aplikasi, versi, website',
         icon: Icons.info_outline_rounded,
-        color: const Color(0xFF6366F1),
+        color: const Color(0xFF1D72F3),
         onTap: () => Navigator.push(
           context,
-          _slideRoute(AdminAboutScreen(lang: lang)),
+          _slideRoute(AdminAboutScreen(
+            lang: widget.lang,
+            initialData: _cachedAppInfo, // ← kirim data cache
+          )),
         ),
       ),
       _SettingMenu(
-        title: lang == 'EN' ? 'Terms & Conditions'
-            : lang == 'ZH' ? '条款与条件'
-            : 'Syarat dan Ketentuan',
-        subtitle: lang == 'EN' ? 'Manage terms per language'
-            : lang == 'ZH' ? '按语言管理条款'
-            : 'Kelola syarat per bahasa',
+        title: widget.lang == 'EN'
+            ? 'Terms & Conditions'
+            : widget.lang == 'ZH'
+                ? '条款与条件'
+                : 'Syarat dan Ketentuan',
+        subtitle: widget.lang == 'EN'
+            ? 'Manage terms per language'
+            : widget.lang == 'ZH'
+                ? '按语言管理条款'
+                : 'Kelola syarat per bahasa',
         icon: Icons.gavel_rounded,
         color: const Color(0xFF0891B2),
         onTap: () => Navigator.push(
           context,
           _slideRoute(AdminLegalScreen(
-            lang: lang,
+            lang: widget.lang,
             docType: 'terms_conditions',
-            title: lang == 'EN' ? 'Terms & Conditions'
-                : lang == 'ZH' ? '条款与条件'
-                : 'Syarat dan Ketentuan',
+            title: widget.lang == 'EN'
+                ? 'Terms & Conditions'
+                : widget.lang == 'ZH'
+                    ? '条款与条件'
+                    : 'Syarat dan Ketentuan',
+            initialDocs: _cachedLegal['terms_conditions'],
           )),
         ),
       ),
       _SettingMenu(
-        title: lang == 'EN' ? 'Privacy Policy'
-            : lang == 'ZH' ? '隐私政策'
-            : 'Kebijakan Privasi',
-        subtitle: lang == 'EN' ? 'Manage privacy policy per language'
-            : lang == 'ZH' ? '按语言管理隐私政策'
-            : 'Kelola kebijakan privasi per bahasa',
+        title: widget.lang == 'EN'
+            ? 'Privacy Policy'
+            : widget.lang == 'ZH'
+                ? '隐私政策'
+                : 'Kebijakan Privasi',
+        subtitle: widget.lang == 'EN'
+            ? 'Manage privacy policy per language'
+            : widget.lang == 'ZH'
+                ? '按语言管理隐私政策'
+                : 'Kelola kebijakan privasi per bahasa',
         icon: Icons.shield_outlined,
         color: const Color(0xFF059669),
         onTap: () => Navigator.push(
           context,
           _slideRoute(AdminLegalScreen(
-            lang: lang,
+            lang: widget.lang,
             docType: 'privacy_policy',
-            title: lang == 'EN' ? 'Privacy Policy'
-                : lang == 'ZH' ? '隐私政策'
-                : 'Kebijakan Privasi',
+            title: widget.lang == 'EN'
+                ? 'Privacy Policy'
+                : widget.lang == 'ZH'
+                    ? '隐私政策'
+                    : 'Kebijakan Privasi',
+            initialDocs: _cachedLegal['privacy_policy'], // ← tambah ini
           )),
         ),
       ),
       _SettingMenu(
-        title: lang == 'EN' ? 'Latest News'
-            : lang == 'ZH' ? '最新消息'
-            : 'Kabar Terbaru',
-        subtitle: lang == 'EN' ? 'Updates & maintenance notices'
-            : lang == 'ZH' ? '更新与维护通知'
-            : 'Pembaruan & pemberitahuan pemeliharaan',
+        title: widget.lang == 'EN'
+            ? 'Latest News'
+            : widget.lang == 'ZH'
+                ? '最新消息'
+                : 'Kabar Terbaru',
+        subtitle: widget.lang == 'EN'
+            ? 'Updates & maintenance notices'
+            : widget.lang == 'ZH'
+                ? '更新与维护通知'
+                : 'Pembaruan & pemberitahuan pemeliharaan',
         icon: Icons.campaign_outlined,
         color: const Color(0xFFF59E0B),
         onTap: () => Navigator.push(
           context,
-          _slideRoute(AdminNewsScreen(lang: lang)),
+          _slideRoute(AdminNewsScreen(lang: widget.lang)),
         ),
       ),
     ];
@@ -113,7 +188,11 @@ class AdminSettingsScreen extends StatelessWidget {
         ),
         shadowColor: Colors.black.withOpacity(0.06),
         title: Text(
-          lang == 'EN' ? 'App Settings' : lang == 'ZH' ? '应用设置' : 'Pengaturan Aplikasi',
+          widget.lang == 'EN'
+              ? 'App Settings'
+              : widget.lang == 'ZH'
+                  ? '应用设置'
+                  : 'Pengaturan Aplikasi',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
             fontSize: 16,
@@ -161,7 +240,11 @@ class AdminSettingsScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          lang == 'EN' ? 'App Settings' : lang == 'ZH' ? '应用设置' : 'Pengaturan Aplikasi',
+                          widget.lang == 'EN'
+                              ? 'App Settings'
+                              : widget.lang == 'ZH'
+                                  ? '应用设置'
+                                  : 'Pengaturan Aplikasi',
                           style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
@@ -170,8 +253,10 @@ class AdminSettingsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          lang == 'EN' ? 'Manage app content & information'
-                                  : lang == 'ZH' ? '管理应用内容与信息'
+                          widget.lang == 'EN'
+                              ? 'Manage app content & information'
+                              : widget.lang == 'ZH'
+                                  ? '管理应用内容与信息'
                                   : 'Kelola konten & informasi aplikasi',
                           style: GoogleFonts.poppins(
                             color: Colors.white.withOpacity(0.8),
@@ -187,8 +272,10 @@ class AdminSettingsScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             Text(
-              lang == 'EN' ? 'Content Management'
-                      : lang == 'ZH' ? '内容管理'
+              widget.lang == 'EN'
+                  ? 'Content Management'
+                  : widget.lang == 'ZH'
+                      ? '内容管理'
                       : 'Manajemen Konten',
               style: GoogleFonts.poppins(
                 fontSize: 13,
@@ -251,8 +338,8 @@ class AdminSettingsScreen extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     menu.subtitle,
-                    style: GoogleFonts.poppins(
-                        color: Colors.black38, fontSize: 12),
+                    style:
+                        GoogleFonts.poppins(color: Colors.black38, fontSize: 12),
                   ),
                 ],
               ),

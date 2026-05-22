@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -420,7 +421,15 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   Widget _buildFormLabel(String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0, top: 16),
-      child: Text(label, style: const TextStyle(color: Color(0xFF475569), fontSize: 15, fontWeight: FontWeight.w500)),
+      child: Text(
+        label,
+        style: GoogleFonts.poppins(
+          color: const Color(0xFF1D72F3),
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
+      ),
     );
   }
 
@@ -449,18 +458,26 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     Widget imageContent;
 
     if (_pickedImageBytes != null) {
-      imageContent = Image.memory(_pickedImageBytes!, fit: BoxFit.cover, width: double.infinity);
+      imageContent =
+          Image.memory(_pickedImageBytes!, fit: BoxFit.cover, width: double.infinity);
     } else if (_pickedImageFile != null) {
-      imageContent = Image.file(_pickedImageFile!, fit: BoxFit.cover, width: double.infinity);
+      imageContent =
+          Image.file(_pickedImageFile!, fit: BoxFit.cover, width: double.infinity);
     } else if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty) {
-      imageContent = Image.network(_existingImageUrl!, fit: BoxFit.cover, width: double.infinity,
-        errorBuilder: (c, e, s) => _buildPlaceholder(getTxt('add_here')));
+      imageContent = Image.network(
+        _existingImageUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        errorBuilder: (c, e, s) => _buildPlaceholder(getTxt('add_here')),
+      );
     } else {
       imageContent = _buildPlaceholder(getTxt('add_here'));
     }
 
     return DottedBorder(
-      color: _isEditing ? const Color(0xFF1E3A8A) : Colors.grey.shade400,
+      color: _isEditing
+          ? const Color(0xFF1D72F3)
+          : Colors.grey.shade400,
       strokeWidth: 1.5,
       dashPattern: const [6, 4],
       borderType: BorderType.RRect,
@@ -469,31 +486,41 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         width: double.infinity,
         height: 180,
         decoration: BoxDecoration(
-          color: Colors.blue.withOpacity(0.05),
+          color: const Color(0xFFEFF6FF),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            ClipRRect(borderRadius: BorderRadius.circular(11), child: imageContent),
+            ClipRRect(
+                borderRadius: BorderRadius.circular(11),
+                child: imageContent),
             if (_isEditing)
               GestureDetector(
                 onTap: _pickReportImage,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(_existingImageUrl != null || _pickedImageFile != null || _pickedImageBytes != null ? 0.5 : 0),
+                    color: Colors.black.withOpacity(
+                        _existingImageUrl != null ||
+                                _pickedImageFile != null ||
+                                _pickedImageBytes != null
+                            ? 0.4
+                            : 0),
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: _existingImageUrl == null && _pickedImageFile == null && _pickedImageBytes == null
-                    ? null
-                    : _buildPlaceholder(getTxt('change_photo'), icon: Icons.edit_outlined),
+                  child: _existingImageUrl == null &&
+                          _pickedImageFile == null &&
+                          _pickedImageBytes == null
+                      ? null
+                      : _buildPlaceholder(getTxt('change_photo'),
+                          icon: Icons.edit_outlined),
                 ),
               ),
           ],
         ),
       ),
     );
-  }
+}
 
   Widget _buildPlaceholder(String text, {IconData icon = Icons.add_photo_alternate_outlined}) {
     return Center(
@@ -646,27 +673,47 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   Widget build(BuildContext context) {
     final inputDecoration = InputDecoration(
       filled: true,
-      fillColor: _isEditing ? Colors.white : Colors.grey.shade200,
+      fillColor: _isEditing ? Colors.white : Colors.grey.shade100,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1E3A8A), width: 1.5)),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide:
+              const BorderSide(color: Color(0xFF1D72F3), width: 1.5)),
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFEFF6FF),
       appBar: AppBar(
         title: Text(
-          _isEditMode ? (_isEditing ? getTxt('edit_report') : getTxt('report_detail')) : getTxt('new_report'),
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
+          _isEditMode
+              ? (_isEditing ? getTxt('edit_report') : getTxt('report_detail'))
+              : getTxt('new_report'),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1D72F3),
+            fontSize: 18,
+          ),
         ),
-        backgroundColor: Colors.transparent, elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1E3A8A)),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new,
+              color: Color(0xFF1D72F3)),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        shadowColor: Colors.black.withOpacity(0.08),
+        iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
         actions: [
           if (_isEditMode && !_isEditing)
             IconButton(
-              icon: const Icon(Icons.edit_outlined),
+              icon: const Icon(Icons.edit_outlined, color: Color(0xFF1D72F3)),
               tooltip: getTxt('edit_report'),
               onPressed: () => setState(() => _isEditing = true),
             ),
@@ -684,7 +731,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 child: AbsorbPointer(
                   absorbing: !_isEditing,
                   child: Column(
@@ -692,28 +740,35 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     children: [
                       _buildFormLabel(getTxt('photo_attachment')),
                       _buildImagePicker(),
-                      
                       _buildFormLabel(getTxt('title')),
                       TextFormField(
                         controller: _titleController,
-                        decoration: inputDecoration.copyWith(hintText: getTxt('title_hint')),
-                        validator: (val) => val == null || val.isEmpty ? getTxt('title_empty_error') : null,
+                        decoration: inputDecoration.copyWith(
+                            hintText: getTxt('title_hint')),
+                        validator: (val) => val == null || val.isEmpty
+                            ? getTxt('title_empty_error')
+                            : null,
                       ),
-                      
                       _buildFormLabel(getTxt('priority')),
                       DropdownButtonFormField<String>(
                         value: _selectedPriority,
-                        onChanged: (val) => setState(() => _selectedPriority = val),
+                        onChanged: (val) =>
+                            setState(() => _selectedPriority = val),
                         decoration: inputDecoration.copyWith(
-                          fillColor: _isEditing ? Colors.white : Colors.grey.shade200,
+                          fillColor: _isEditing
+                              ? Colors.white
+                              : Colors.grey.shade100,
                         ),
                         items: [
-                          DropdownMenuItem(value: 'Fatal', child: Text(getTxt('fatal'))),
-                          DropdownMenuItem(value: 'Normal', child: Text(getTxt('normal'))),
+                          DropdownMenuItem(
+                              value: 'Fatal', child: Text(getTxt('fatal'))),
+                          DropdownMenuItem(
+                              value: 'Normal', child: Text(getTxt('normal'))),
                         ],
-                        validator: (val) => val == null ? getTxt('priority_empty_error') : null,
+                        validator: (val) => val == null
+                            ? getTxt('priority_empty_error')
+                            : null,
                       ),
-
                       _buildFormLabel(getTxt('problem_desc')),
                       TextFormField(
                         controller: _descriptionController,
@@ -721,13 +776,18 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                         maxLines: 5,
                         minLines: 3,
                       ),
-
                       if (_isEditMode) ...[
                         const SizedBox(height: 24),
                         const Divider(),
-                        _buildInfoRow(Icons.calendar_today_outlined, getTxt('created_at'), _formatDateTime(widget.report!['created_at'])),
+                        _buildInfoRow(
+                            Icons.calendar_today_outlined,
+                            getTxt('created_at'),
+                            _formatDateTime(widget.report!['created_at'])),
                         if (widget.report!['edited_at'] != null)
-                          _buildInfoRow(Icons.edit_calendar_outlined, getTxt('edited_at'), _formatDateTime(widget.report!['edited_at'])),
+                          _buildInfoRow(
+                              Icons.edit_calendar_outlined,
+                              getTxt('edited_at'),
+                              _formatDateTime(widget.report!['edited_at'])),
                         const Divider(),
                         _buildFormLabel(getTxt('comments')),
                         _buildCommentsList(),
@@ -742,19 +802,36 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 padding: const EdgeInsets.all(20),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E3A8A),
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                    disabledBackgroundColor: Colors.grey.shade400,
+                    // ← Biru cerah
+                    backgroundColor: const Color(0xFF1D72F3),
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
+                    shadowColor:
+                        const Color(0xFF1D72F3).withOpacity(0.4),
+                    disabledBackgroundColor: Colors.grey.shade300,
                   ),
                   onPressed: _isSaving ? null : _saveReport,
                   child: _isSaving
-                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                    : Text(_isEditMode ? getTxt('update') : getTxt('submit'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 3))
+                      : Text(
+                          _isEditMode
+                              ? getTxt('update')
+                              : getTxt('submit'),
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
-            if (_isEditMode && !_isEditing)
-              _buildCommentInput(),
+            if (_isEditMode && !_isEditing) _buildCommentInput(),
           ],
         ),
       ),

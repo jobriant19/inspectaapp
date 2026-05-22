@@ -576,24 +576,6 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-  DropdownMenuItem<String> _buildDropdownItem(
-      String value, String flag, String label) {
-    return DropdownMenuItem(
-      value: value,
-      child: Row(children: [
-        Text(flag, style: const TextStyle(fontSize: 16)),
-        const SizedBox(width: 8),
-        Text(label,
-            style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87)),
-      ]),
-    );
-  }
-
   // ─── BUILD ───────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {

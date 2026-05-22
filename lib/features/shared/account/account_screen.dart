@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/jabatan_helper.dart';
@@ -48,6 +49,9 @@ class _AccountScreenState extends State<AccountScreen> {
   bool _isVisitor = false;
   int? _userJabatanId;
   bool _isVerificatorUser = false;
+  String? _cachedAppName;
+  String? _cachedAppVersion;
+  String? _cachedAppWebsite;
 
   // Kamus terjemahan
   final Map<String, Map<String, String>> _txt = {
@@ -117,8 +121,6 @@ class _AccountScreenState extends State<AccountScreen> {
     super.initState();
     _currentLang = widget.lang;
 
-    // SELALU set data awal langsung — tidak peduli apakah null atau bukan
-    // Ini memastikan kartu TIDAK pernah menampilkan skeleton saat dari HomeScreen
     _userName           = widget.initialUserName ?? '';
     _userImage          = widget.initialUserImage;
     _userLokasiSpesifik = widget.initialUserLocation ?? '...';
@@ -126,7 +128,6 @@ class _AccountScreenState extends State<AccountScreen> {
     _userJabatanId      = widget.initialUserJabatanId;
     _isVerificatorUser  = widget.initialIsVerificator ?? false;
 
-    // Tentukan jabatan dari data awal
     if (_isVisitor) {
       _userJabatan = getTxt('visitor');
     } else if (_isVerificatorUser) {
@@ -135,10 +136,21 @@ class _AccountScreenState extends State<AccountScreen> {
       _userJabatan = widget.initialUserRole ?? '...';
     }
 
-    // LANGSUNG tampil tanpa skeleton — fetch background untuk sinkronisasi
     _isLoading = false;
 
     _fetchUserDataSilent();
+    _prefetchAppInfo();
+
+    // Precache gambar About Inspecta di background
+    // sehingga saat layar About dibuka, gambar sudah ada di cache
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      precacheImage(const AssetImage('assets/images/logo1.PNG'), context)
+          .catchError((_) {});
+      precacheImage(const AssetImage('assets/images/flutter.png'), context)
+          .catchError((_) {});
+      precacheImage(const AssetImage('assets/images/supabase.png'), context)
+          .catchError((_) {});
+    });
   }
 
   Widget _buildSkeletonProfileCard() {
@@ -249,6 +261,24 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _prefetchAppInfo() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('app_info')
+          .select()
+          .single();
+      if (mounted) {
+        setState(() {
+          _cachedAppName    = response['app_name'] ?? 'Inspecta';
+          _cachedAppVersion = response['version']  ?? '-';
+          _cachedAppWebsite = response['website']  ?? '';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error prefetching app info: $e');
+    }
+  }
+
   Future<void> _showLanguagePicker() async {
     showModalBottomSheet(
       context: context,
@@ -266,7 +296,7 @@ class _AccountScreenState extends State<AccountScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(getTxt('select_lang'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+              Text(getTxt('select_lang'), style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1D72F3))),
               const SizedBox(height: 20),
               ...languages.entries.map((entry) {
                 bool isSelected = _currentLang == entry.key;
@@ -312,7 +342,7 @@ class _AccountScreenState extends State<AccountScreen> {
           icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1D72F3)),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(getTxt('title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1D72F3))),
+        title: Text(getTxt('title'), style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Color(0xFF1D72F3))),
         backgroundColor: Colors.white,
         elevation: 1,
         shadowColor: Colors.black.withOpacity(0.08),
@@ -328,52 +358,66 @@ class _AccountScreenState extends State<AccountScreen> {
                   const SizedBox(height: 30),
 
                   // --- MENU PENGATURAN ---
-                  _buildMenuTile(Icons.translate, getTxt('change_lang'), onTap: _showLanguagePicker, trailing: Text(getTxt('current_lang'), style: const TextStyle(color: Colors.grey))),
                   _buildMenuTile(
-                    Icons.info_outline, 
-                    getTxt('about'), 
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AboutInspectaScreen(lang: _currentLang),
-                        ),
-                      );
-                    }
+                    Icons.translate,
+                    getTxt('change_lang'),
+                    onTap: _showLanguagePicker,
+                    trailing: Text(
+                      getTxt('current_lang'),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey,
+                      ),
+                    ),
                   ),
                   _buildMenuTile(
-                    Icons.help_outline, 
-                    getTxt('help'), 
+                    Icons.info_outline,
+                    getTxt('about'),
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => HelpCenterScreen(lang: _currentLang),
-                        ),
-                      );
-                    }
-                  ),
-                  _buildMenuTile(
-                    Icons.shield_outlined, 
-                    getTxt('privacy'), 
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => PrivacySecurityScreen(lang: _currentLang)),
+                        _slideRoute(AboutInspectaScreen(
+                          lang: _currentLang,
+                          initialAppName:    _cachedAppName,
+                          initialAppVersion: _cachedAppVersion,
+                          initialAppWebsite: _cachedAppWebsite,
+                        )),
                       );
                     },
                   ),
-                  _buildMenuTile(Icons.campaign_outlined, getTxt('news'), onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => NewsScreen(
-                          lang: _currentLang, 
+                  _buildMenuTile(
+                    Icons.help_outline,
+                    getTxt('help'),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        _slideRoute(HelpCenterScreen(lang: _currentLang)),
+                      );
+                    },
+                  ),
+                  _buildMenuTile(
+                    Icons.shield_outlined,
+                    getTxt('privacy'),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        _slideRoute(PrivacySecurityScreen(lang: _currentLang)),
+                      );
+                    },
+                  ),
+                  _buildMenuTile(
+                    Icons.campaign_outlined,
+                    getTxt('news'),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        _slideRoute(NewsScreen(
+                          lang: _currentLang,
                           translations: _txt,
-                        ),
-                      ),
-                    );
-                  }),
+                        )),
+                      );
+                    },
+                  ),
 
                   const SizedBox(height: 40),
 
@@ -382,7 +426,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     icon: const Icon(Icons.logout, color: Colors.redAccent),
                     label: Text(
                       getTxt('logout'),
-                      style: const TextStyle(
+                      style: GoogleFonts.poppins(
                           color: Colors.redAccent,
                           fontWeight: FontWeight.bold,
                           fontSize: 16),
@@ -424,7 +468,7 @@ class _AccountScreenState extends State<AccountScreen> {
                                 const SizedBox(height: 20),
                                 Text(
                                   getTxt('logout'),
-                                  style: const TextStyle(
+                                  style: GoogleFonts.poppins(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
                                     color: Color(0xFF1E293B),
@@ -434,7 +478,7 @@ class _AccountScreenState extends State<AccountScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   getTxt('logout_desc'),
-                                  style: const TextStyle(
+                                  style: GoogleFonts.poppins(
                                     fontSize: 13,
                                     color: Color(0xFF64748B),
                                     height: 1.5,
@@ -450,7 +494,7 @@ class _AccountScreenState extends State<AccountScreen> {
                                         color: Colors.white, size: 18),
                                     label: Text(
                                       getTxt('logout'),
-                                      style: const TextStyle(
+                                      style: GoogleFonts.poppins(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 14,
                                         color: Colors.white,
@@ -513,28 +557,66 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   // Helper untuk membuat tile menu yang konsisten
-  Widget _buildMenuTile(IconData icon, String title, {VoidCallback? onTap, Widget? trailing}) {
+  Widget _buildMenuTile(IconData icon, String title,
+    {VoidCallback? onTap, Widget? trailing}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+            ),
+          ],
         ),
         child: Row(
           children: [
             Icon(icon, color: const Color(0xFF1D72F3)),
             const SizedBox(width: 15),
-            Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500))),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+            ),
             if (trailing != null) trailing,
             const SizedBox(width: 8),
             const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
           ],
         ),
       ),
+    );
+  }
+
+  // Helper navigasi dengan CurvedAnimation EaseOut
+  PageRouteBuilder _slideRoute(Widget page) {
+    return PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 350),
+      reverseTransitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (_, animation, __) => page,
+      transitionsBuilder: (_, animation, __, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+          reverseCurve: Curves.easeIn,
+        );
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        );
+      },
     );
   }
 
@@ -670,7 +752,11 @@ class _AccountScreenState extends State<AccountScreen> {
         Navigator.push(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, animation, __) => ProfileScreen(lang: _currentLang, isVerificator: _isVerificatorUser, userJabatanId: _userJabatanId,),
+            pageBuilder: (_, animation, __) => ProfileScreen(
+              lang: _currentLang,
+              isVerificator: _isVerificatorUser,
+              userJabatanId: _userJabatanId,
+            ),
             transitionsBuilder: (_, animation, __, child) {
               final slide = Tween<Offset>(
                 begin: const Offset(1.0, 0.0),
@@ -684,10 +770,15 @@ class _AccountScreenState extends State<AccountScreen> {
       },
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
+        decoration: BoxDecoration(   // ← HAPUS color: Colors.white, pindah ke dalam decoration
           color: Colors.white,
           borderRadius: BorderRadius.circular(25),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -695,16 +786,32 @@ class _AccountScreenState extends State<AccountScreen> {
               radius: 35,
               backgroundColor: Colors.grey.shade200,
               backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
-              child: _userImage == null ? const Icon(Icons.person_outline, color: Color(0xFF1D72F3), size: 35) : null,
+              child: _userImage == null
+                  ? const Icon(Icons.person_outline, color: Color(0xFF1D72F3), size: 35)
+                  : null,
             ),
             const SizedBox(width: 15),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_userName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1D72F3))),
+                  Text(
+                    _userName,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1D72F3),
+                    ),
+                  ),
                   const SizedBox(height: 5),
-                  Text(_userJabatan, style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+                  Text(
+                    _userJabatan,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
                 ],
               ),
             ),

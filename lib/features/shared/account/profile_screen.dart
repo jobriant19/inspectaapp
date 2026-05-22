@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
@@ -430,7 +431,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           title: Text(
             getTxt(_isEditMode ? 'edit_title' : 'profile_title'),
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1D72F3), fontSize: 18),
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Color(0xFF1D72F3), fontSize: 18),
           ),
           backgroundColor: Colors.white,
           elevation: 1,
@@ -452,61 +453,119 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     // Header avatar biru
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.only(top: 30, bottom: 36),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF1D72F3), Color(0xFF00C9E4)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(36),
-                          bottomRight: Radius.circular(36),
-                        ),
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(36),
+                        bottomRight: Radius.circular(36),
                       ),
-                      child: Column(
-                        children: [
-                          GestureDetector(
-                            onTap: _pickImage,
-                            child: Stack(
-                              alignment: Alignment.bottomRight,
-                              children: [
-                                Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 4),
-                                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 16, offset: const Offset(0, 6))],
-                                  ),
-                                  child: CircleAvatar(
-                                    radius: 56,
-                                    backgroundColor: const Color(0xFFBFDBFE),
-                                    backgroundImage: _imageBytes != null
-                                        ? MemoryImage(_imageBytes!) as ImageProvider
-                                        : (_imageUrl != null && _imageUrl!.isNotEmpty ? NetworkImage(_imageUrl!) : null),
-                                    child: (_imageBytes == null && (_imageUrl == null || _imageUrl!.isEmpty))
-                                        ? const Icon(Icons.person, size: 56, color: Color(0xFF1D72F3))
-                                        : null,
-                                  ),
-                                ),
-                                if (_isEditMode)
-                                  Container(
-                                    padding: const EdgeInsets.all(7),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: const Color(0xFF1D72F3), width: 2),
-                                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 8)],
-                                    ),
-                                    child: const Icon(Icons.camera_alt, color: Color(0xFF1D72F3), size: 18),
-                                  ),
-                              ],
+                      child: Container(
+                        width: double.infinity,
+                        height: 230,
+                        color: const Color(0xFF1D72F3),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.asset(
+                              'assets/images/bgadmin.png',
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                            _buildRoleBadge(),
-                        ],
+                            // Dekorasi lingkaran latar (subtle)
+                            Positioned(
+                              top: -30, right: -20,
+                              child: Container(
+                                width: 130, height: 130,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withOpacity(0.06),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: -40, left: 30,
+                              child: Container(
+                                width: 100, height: 100,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withOpacity(0.04),
+                                ),
+                              ),
+                            ),
+                            Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GestureDetector(
+                                    onTap: _pickImage,
+                                    child: Stack(
+                                      alignment: Alignment.bottomRight,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(2.5),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            gradient: const LinearGradient(
+                                              colors: [Color(0xFF93C5FD), Color(0xFF00C9E4)],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.18),
+                                                blurRadius: 16,
+                                                offset: const Offset(0, 6),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(2),
+                                            decoration: const BoxDecoration(
+                                              color: Colors.white,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: CircleAvatar(
+                                              radius: 54,
+                                              backgroundColor: const Color(0xFFBFDBFE),
+                                              backgroundImage: _imageBytes != null
+                                                  ? MemoryImage(_imageBytes!) as ImageProvider
+                                                  : (_imageUrl != null && _imageUrl!.isNotEmpty
+                                                      ? NetworkImage(_imageUrl!)
+                                                      : null),
+                                              child: (_imageBytes == null &&
+                                                      (_imageUrl == null || _imageUrl!.isEmpty))
+                                                  ? const Icon(Icons.person,
+                                                      size: 54, color: Color(0xFF1D72F3))
+                                                  : null,
+                                            ),
+                                          ),
+                                        ),
+                                        if (_isEditMode)
+                                          Container(
+                                            padding: const EdgeInsets.all(7),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                  color: const Color(0xFF1D72F3), width: 2),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                    color: Colors.black.withOpacity(0.12),
+                                                    blurRadius: 8),
+                                              ],
+                                            ),
+                                            child: const Icon(Icons.camera_alt,
+                                                color: Color(0xFF1D72F3), size: 18),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _buildRoleBadge(),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 

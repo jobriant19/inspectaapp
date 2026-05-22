@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Digunakan untuk Terms & Conditions maupun Privacy Policy
 class AdminLegalScreen extends StatefulWidget {
   final String lang;
-  final String docType;   // 'terms_conditions' atau 'privacy_policy'
+  final String docType;
   final String title;
+  // Data di-pass dari AdminSettingsScreen agar tidak ada loading
+  final List<Map<String, dynamic>>? initialDocs;
 
   const AdminLegalScreen({
     super.key,
     required this.lang,
     required this.docType,
     required this.title,
+    this.initialDocs,
   });
 
   @override
@@ -22,243 +23,353 @@ class AdminLegalScreen extends StatefulWidget {
 
 class _AdminLegalScreenState extends State<AdminLegalScreen> {
   static const _bg = Color(0xFFF8FAFC);
-  static const _primary = Color(0xFF0891B2);
 
-  // Warna AppBar menyesuaikan docType
   Color get _appBarColor => widget.docType == 'privacy_policy'
-      ? const Color(0xFF059669)   // hijau — sesuai button Privacy Policy di settings
-      : const Color(0xFF0891B2);  // biru — sesuai button Terms & Conditions di settings
+      ? const Color(0xFF059669)
+      : const Color(0xFF0891B2);
 
-  // 3 bahasa: ID, EN, ZH
+  Color get _primary => _appBarColor;
+
   final _langs = [
     {'code': 'ID', 'label': 'Indonesia', 'flag': '🇮🇩'},
-    {'code': 'EN', 'label': 'English', 'flag': '🇺🇸'},
-    {'code': 'ZH', 'label': '中文', 'flag': '🇨🇳'},
+    {'code': 'EN', 'label': 'English',   'flag': '🇺🇸'},
+    {'code': 'ZH', 'label': '中文',       'flag': '🇨🇳'},
   ];
 
-  // Data per bahasa
-  Map<String, Map<String, dynamic>?> _docs = {
-    'ID': null,
-    'EN': null,
-    'ZH': null,
+  // Map: langCode → list of sections (sorted by section_order)
+  Map<String, List<Map<String, dynamic>>> _docs = {
+    'ID': [], 'EN': [], 'ZH': [],
   };
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    // Langsung pakai data cache — tidak ada loading
+    if (widget.initialDocs != null) {
+      _applyDocs(widget.initialDocs!);
+    }
+    // Refresh diam-diam di background untuk sinkronisasi terbaru
+    _loadSilent();
   }
 
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
+  // Susun list flat → map per lang
+  void _applyDocs(List<Map<String, dynamic>> flat) {
+    final Map<String, List<Map<String, dynamic>>> grouped = {
+      'ID': [], 'EN': [], 'ZH': [],
+    };
+    for (final row in flat) {
+      final code = row['lang_code']?.toString() ?? '';
+      if (grouped.containsKey(code)) {
+        grouped[code]!.add(row);
+      }
+    }
+    // Sort per lang berdasarkan section_order
+    for (final key in grouped.keys) {
+      grouped[key]!.sort((a, b) =>
+          (a['section_order'] as int? ?? 1)
+              .compareTo(b['section_order'] as int? ?? 1));
+    }
+    if (mounted) setState(() => _docs = grouped);
+  }
+
+  Future<void> _loadSilent() async {
     try {
       final res = await Supabase.instance.client
           .from('legal_documents')
           .select()
           .eq('doc_type', widget.docType)
-          .order('lang_code');
-
-      final Map<String, Map<String, dynamic>?> docs = {
-        'ID': null,
-        'EN': null,
-        'ZH': null,
-      };
-      for (final row in List<Map<String, dynamic>>.from(res)) {
-        final code = row['lang_code']?.toString();
-        if (code != null && docs.containsKey(code)) {
-          docs[code] = row;
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _docs = docs;
-          _isLoading = false;
-        });
-      }
+          .order('lang_code')
+          .order('section_order');
+      if (mounted) _applyDocs(List<Map<String, dynamic>>.from(res));
     } catch (e) {
-      debugPrint('Error: $e');
-      if (mounted) setState(() => _isLoading = false);
+      debugPrint('AdminLegalScreen background load error: $e');
     }
   }
 
-  void _showEditDialog(String langCode, Map<String, dynamic>? existing) {
+  // ── Hitung section_order berikutnya untuk lang tertentu ─────────────────
+  int _nextOrder(String langCode) {
+    final sections = _docs[langCode] ?? [];
+    if (sections.isEmpty) return 1;
+    final maxOrder = sections
+        .map((s) => s['section_order'] as int? ?? 0)
+        .reduce((a, b) => a > b ? a : b);
+    return maxOrder + 1;
+  }
+
+  // ── Dialog tambah / edit section ─────────────────────────────────────────
+  void _showSectionDialog({
+    required String langCode,
+    Map<String, dynamic>? existing, // null = tambah baru
+  }) {
     final isEdit = existing != null;
     final langInfo = _langs.firstWhere((l) => l['code'] == langCode);
-    final titleCtrl = TextEditingController(text: existing?['title'] ?? '');
+    final titleCtrl =
+        TextEditingController(text: existing?['title'] ?? '');
     final contentCtrl =
         TextEditingController(text: existing?['content'] ?? '');
+    bool isSaving = false;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        insetPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Text(
-                    langInfo['flag']!,
-                    style: const TextStyle(fontSize: 28),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24)),
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Sticky header ──────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 16, 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
+                  child: Row(
+                    children: [
+                      Text(langInfo['flag']!,
+                          style: const TextStyle(fontSize: 24)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isEdit
+                                  ? (widget.lang == 'EN'
+                                      ? 'Edit Section'
+                                      : 'Ubah Bagian')
+                                  : (widget.lang == 'EN'
+                                      ? 'Add New Section'
+                                      : 'Tambah Bagian Baru'),
+                              style: GoogleFonts.poppins(
+                                color: const Color(0xFF1E3A8A),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                            Text(
+                              langInfo['label']!,
+                              style: GoogleFonts.poppins(
+                                  color: Colors.black38, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(Icons.close,
+                              size: 18, color: Colors.grey.shade500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── Scrollable body ────────────────────────────────────
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding:
+                        const EdgeInsets.fromLTRB(20, 16, 20, 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Label Title
                         Text(
-                          isEdit
-                              ? (widget.lang == 'EN' ? 'Edit' : 'Ubah')
-                              : (widget.lang == 'EN' ? 'Add' : 'Tambah'),
+                          widget.lang == 'EN' ? 'Title' : 'Judul',
                           style: GoogleFonts.poppins(
-                            color: Colors.black45,
-                            fontSize: 11,
+                            color: Colors.black54,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
                           ),
                         ),
+                        const SizedBox(height: 6),
+                        _buildDialogField(titleCtrl,
+                            maxLines: 1,
+                            hint: widget.lang == 'EN'
+                                ? 'Section title...'
+                                : 'Judul bagian...'),
+                        const SizedBox(height: 16),
+
+                        // Label Description
                         Text(
-                          langInfo['label']!,
+                          widget.lang == 'EN'
+                              ? 'Description'
+                              : 'Deskripsi',
                           style: GoogleFonts.poppins(
-                            color: const Color(0xFF1E3A8A),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
+                            color: Colors.black54,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
                           ),
                         ),
+                        const SizedBox(height: 6),
+                        _buildDialogField(contentCtrl,
+                            maxLines: 7,
+                            hint: widget.lang == 'EN'
+                                ? 'Section content...'
+                                : 'Isi bagian...'),
+                        const SizedBox(height: 8),
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(ctx),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
+                ),
+
+                // ── Sticky footer ──────────────────────────────────────
+                Container(
+                  padding:
+                      const EdgeInsets.fromLTRB(20, 10, 20, 18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(
+                        bottom: Radius.circular(24)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 4,
+                        offset: const Offset(0, -2),
                       ),
-                      child: Icon(Icons.close,
-                          size: 18, color: Colors.grey.shade500),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Divider(color: Colors.grey.shade100),
-              const SizedBox(height: 14),
-
-              // Title
-              _dialogLabel(widget.lang == 'EN' ? 'Title' : 'Judul'),
-              const SizedBox(height: 6),
-              _dialogField(titleCtrl, Icons.title_rounded, maxLines: 1),
-              const SizedBox(height: 14),
-
-              // Content
-              _dialogLabel(widget.lang == 'EN' ? 'Content' : 'Isi Konten'),
-              const SizedBox(height: 6),
-              _dialogField(contentCtrl, Icons.article_outlined, maxLines: 8),
-              const SizedBox(height: 20),
-
-              // Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.grey.shade300),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text(
-                        widget.lang == 'EN' ? 'Cancel' : 'Batal',
-                        style: GoogleFonts.poppins(
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        if (titleCtrl.text.trim().isEmpty ||
-                            contentCtrl.text.trim().isEmpty) {
-                          return;
-                        }
-                        Navigator.pop(ctx);
-                        await _saveDoc(
-                          langCode: langCode,
-                          existing: existing,
-                          title: titleCtrl.text.trim(),
-                          content: contentCtrl.text.trim(),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primary,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        elevation: 2,
-                      ),
-                      child: Text(
-                        widget.lang == 'EN' ? 'Save' : 'Simpan',
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                  child: isSaving
+                      ? Center(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 8),
+                            child: CircularProgressIndicator(
+                                color: _primary),
+                          ),
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                      color: Colors.grey.shade300),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 13),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(12)),
+                                ),
+                                child: Text(
+                                  widget.lang == 'EN'
+                                      ? 'Cancel'
+                                      : 'Batal',
+                                  style: GoogleFonts.poppins(
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  if (titleCtrl.text.trim().isEmpty ||
+                                      contentCtrl.text.trim().isEmpty) {
+                                    return;
+                                  }
+                                  setDlg(() => isSaving = true);
+                                  await _saveSection(
+                                    langCode: langCode,
+                                    existing: existing,
+                                    title: titleCtrl.text.trim(),
+                                    content: contentCtrl.text.trim(),
+                                  );
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _primary,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 13),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(12)),
+                                  elevation: 2,
+                                ),
+                                child: Text(
+                                  widget.lang == 'EN'
+                                      ? 'Save'
+                                      : 'Simpan',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Future<void> _saveDoc({
+  // ── Simpan section ke DB ─────────────────────────────────────────────────
+  Future<void> _saveSection({
     required String langCode,
     required Map<String, dynamic>? existing,
     required String title,
     required String content,
   }) async {
     try {
-      final payload = {
-        'doc_type': widget.docType,
-        'lang_code': langCode,
-        'title': title,
-        'content': content,
-      };
       if (existing == null) {
-        await Supabase.instance.client.from('legal_documents').insert(payload);
+        // INSERT section baru
+        final order = _nextOrder(langCode);
+        await Supabase.instance.client.from('legal_documents').insert({
+          'doc_type'     : widget.docType,
+          'lang_code'    : langCode,
+          'title'        : title,
+          'content'      : content,
+          'section_order': order,
+        });
       } else {
+        // UPDATE section yang sudah ada
         await Supabase.instance.client
             .from('legal_documents')
             .update({'title': title, 'content': content})
             .eq('id', existing['id']);
       }
       _showSnack(widget.lang == 'EN' ? 'Saved!' : 'Tersimpan!');
-      _load();
+      _loadSilent();
     } catch (e) {
       _showSnack('Error: $e', isError: true);
     }
   }
 
-  Future<void> _deleteDoc(int id, String langCode) async {
+  // ── Hapus section ────────────────────────────────────────────────────────
+  Future<void> _deleteSection(int id, String langCode) async {
     final ok = await showDialog<bool>(
           context: context,
           barrierDismissible: true,
@@ -273,27 +384,24 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 80,
-                    height: 80,
+                    width: 72,
+                    height: 72,
                     decoration: const BoxDecoration(
                       color: Color(0xFFFFEBEB),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.delete_forever_rounded,
-                      color: Color(0xFFEF4444),
-                      size: 38,
-                    ),
+                    child: const Icon(Icons.delete_forever_rounded,
+                        color: Color(0xFFEF4444), size: 34),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
                   Text(
                     widget.lang == 'EN'
-                        ? 'Delete Document?'
+                        ? 'Delete Section?'
                         : widget.lang == 'ZH'
-                            ? '删除文档？'
-                            : 'Hapus Dokumen?',
+                            ? '删除部分？'
+                            : 'Hapus Bagian?',
                     style: GoogleFonts.poppins(
-                      fontSize: 18,
+                      fontSize: 17,
                       fontWeight: FontWeight.w700,
                       color: const Color(0xFF1E293B),
                     ),
@@ -301,43 +409,43 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '${widget.lang == 'EN' ? 'Are you sure to delete' : widget.lang == 'ZH' ? '确定要删除' : 'Yakin menghapus'} "$langCode ${widget.lang == 'EN' ? 'document' : 'dokumen'}"?',
+                    widget.lang == 'EN'
+                        ? 'This section will be permanently deleted.'
+                        : widget.lang == 'ZH'
+                            ? '此部分将被永久删除。'
+                            : 'Bagian ini akan dihapus secara permanen.',
                     style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: const Color(0xFF64748B),
-                      height: 1.5,
-                    ),
+                        fontSize: 13,
+                        color: const Color(0xFF64748B),
+                        height: 1.5),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: ElevatedButton(
                       onPressed: () => Navigator.pop(context, true),
-                      icon: const Icon(Icons.delete_forever_rounded,
-                          color: Colors.white, size: 18),
-                      label: Text(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444),
+                        elevation: 0,
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(
                         widget.lang == 'EN'
                             ? 'Delete'
                             : widget.lang == 'ZH'
                                 ? '删除'
                                 : 'Hapus',
                         style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: Colors.white,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEF4444),
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
@@ -345,9 +453,10 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(
                             color: Color(0xFFE2E8F0), width: 1.5),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       child: Text(
                         widget.lang == 'EN'
@@ -356,10 +465,8 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                                 ? '取消'
                                 : 'Batal',
                         style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: const Color(0xFF64748B),
-                        ),
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
@@ -376,13 +483,15 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
           .from('legal_documents')
           .delete()
           .eq('id', id);
-      _showSnack(widget.lang == 'EN' ? 'Deleted.' : 'Dihapus.');
-      _load();
+      _showSnack(
+          widget.lang == 'EN' ? 'Section deleted.' : 'Bagian dihapus.');
+      _loadSilent();
     } catch (e) {
       _showSnack('Error: $e', isError: true);
     }
   }
 
+  // ── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -404,77 +513,73 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
             color: _appBarColor,
           ),
         ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.white.withOpacity(0.15)),
-        ),
       ),
-      body: _isLoading
-          ? _buildShimmer()
-          : RefreshIndicator(
-              onRefresh: _load,
-              color: _primary,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      body: RefreshIndicator(
+        onRefresh: _loadSilent,
+        color: _primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Info banner
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _primary.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(14),
+                  border:
+                      Border.all(color: _primary.withOpacity(0.15)),
+                ),
+                child: Row(
                   children: [
-                    // Info
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: _primary.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _primary.withOpacity(0.15)),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.info_outline,
-                              color: _primary, size: 18),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              widget.lang == 'EN'
-                                  ? 'Manage content for each language (ID, EN, ZH)'
-                                  : 'Kelola konten untuk setiap bahasa (ID, EN, ZH)',
-                              style: GoogleFonts.poppins(
-                                  color: _primary, fontSize: 12),
-                            ),
-                          ),
-                        ],
+                    Icon(Icons.info_outline,
+                        color: _primary, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.lang == 'EN'
+                            ? 'Each language can have multiple sections. Tap + to add.'
+                            : 'Setiap bahasa dapat memiliki beberapa bagian. Ketuk + untuk menambah.',
+                        style: GoogleFonts.poppins(
+                            color: _primary, fontSize: 12),
                       ),
                     ),
-                    const SizedBox(height: 20),
-
-                    // Card per bahasa
-                    ..._langs.map((langInfo) {
-                      final code = langInfo['code']!;
-                      final doc = _docs[code];
-                      return _buildLangCard(code, langInfo, doc);
-                    }),
                   ],
                 ),
               ),
-            ),
+              const SizedBox(height: 20),
+
+              // Card per bahasa
+              ..._langs.map((langInfo) {
+                final code = langInfo['code']!;
+                final sections = _docs[code] ?? [];
+                return _buildLangCard(code, langInfo, sections);
+              }),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
+  // ── Card per bahasa dengan multi-section ─────────────────────────────────
   Widget _buildLangCard(
     String code,
     Map<String, String> langInfo,
-    Map<String, dynamic>? doc,
+    List<Map<String, dynamic>> sections,
   ) {
-    final hasDoc = doc != null;
+    final hasSections = sections.isNotEmpty;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: hasDoc
-              ? _primary.withOpacity(0.15)
+          color: hasSections
+              ? _primary.withOpacity(0.18)
               : Colors.grey.shade200,
         ),
         boxShadow: [
@@ -486,11 +591,10 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header bahasa ──
+          // ── Header bahasa ──────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
             child: Row(
               children: [
                 Text(langInfo['flag']!,
@@ -509,15 +613,13 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                         ),
                       ),
                       Text(
-                        hasDoc
-                            ? (widget.lang == 'EN'
-                                ? 'Content available'
-                                : 'Konten tersedia')
+                        hasSections
+                            ? '${sections.length} ${widget.lang == 'EN' ? 'section(s)' : 'bagian'}'
                             : (widget.lang == 'EN'
-                                ? 'No content yet'
-                                : 'Belum ada konten'),
+                                ? 'No sections yet'
+                                : 'Belum ada bagian'),
                         style: GoogleFonts.poppins(
-                          color: hasDoc
+                          color: hasSections
                               ? const Color(0xFF10B981)
                               : Colors.black38,
                           fontSize: 11,
@@ -526,22 +628,22 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                     ],
                   ),
                 ),
-                // Status badge
+                // Badge status
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: hasDoc
+                    color: hasSections
                         ? const Color(0xFF10B981).withOpacity(0.10)
                         : Colors.orange.withOpacity(0.10),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    hasDoc
+                    hasSections
                         ? (widget.lang == 'EN' ? 'Set' : 'Ada')
                         : (widget.lang == 'EN' ? 'Empty' : 'Kosong'),
                     style: GoogleFonts.poppins(
-                      color: hasDoc
+                      color: hasSections
                           ? const Color(0xFF10B981)
                           : Colors.orange,
                       fontSize: 10,
@@ -549,87 +651,170 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                // Tombol Tambah Section
+                GestureDetector(
+                  onTap: () => _showSectionDialog(langCode: code),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _primary,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _primary.withOpacity(0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.add_rounded,
+                        color: Colors.white, size: 18),
+                  ),
+                ),
               ],
             ),
           ),
 
-          // ── Preview konten (jika ada) ──
-          if (hasDoc) ...[
+          // ── Daftar sections ────────────────────────────────────────
+          if (hasSections) ...[
             Divider(
                 color: Colors.grey.shade100, height: 1, thickness: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    doc['title'] ?? '',
-                    style: GoogleFonts.poppins(
-                      color: const Color(0xFF1E3A8A),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    doc['content'] ?? '',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                        color: Colors.black38, fontSize: 11),
-                  ),
-                ],
-              ),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: sections.length,
+              separatorBuilder: (_, __) => Divider(
+                  color: Colors.grey.shade100, height: 1, thickness: 1),
+              itemBuilder: (_, i) =>
+                  _buildSectionTile(sections[i], code, i + 1),
             ),
           ],
 
-          // ── Action buttons ──
-          Divider(color: Colors.grey.shade100, height: 1, thickness: 1),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: Icon(
-                      hasDoc ? Icons.edit_outlined : Icons.add_rounded,
-                      size: 15,
-                      color: _primary,
-                    ),
-                    label: Text(
-                      hasDoc
-                          ? (widget.lang == 'EN' ? 'Edit' : 'Ubah')
-                          : (widget.lang == 'EN' ? 'Add' : 'Tambah'),
-                      style: GoogleFonts.poppins(
-                          color: _primary, fontWeight: FontWeight.w600),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: _primary),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
-                    onPressed: () => _showEditDialog(code, doc),
+          // ── Kosong: prompt tambah ──────────────────────────────────
+          if (!hasSections) ...[
+            Divider(
+                color: Colors.grey.shade100, height: 1, thickness: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: GestureDetector(
+                onTap: () => _showSectionDialog(langCode: code),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: _primary.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: _primary.withOpacity(0.2),
+                        style: BorderStyle.solid),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add_circle_outline_rounded,
+                          color: _primary, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.lang == 'EN'
+                            ? 'Add first section'
+                            : 'Tambah bagian pertama',
+                        style: GoogleFonts.poppins(
+                            color: _primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ),
                 ),
-                if (hasDoc) ...[
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => _deleteDoc(doc['id'], code),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444).withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: const Color(0xFFEF4444).withOpacity(0.35)),
-                      ),
-                      child: const Icon(Icons.delete_outline_rounded,
-                          size: 18, color: Color(0xFFEF4444)),
-                    ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Tile per section ─────────────────────────────────────────────────────
+  Widget _buildSectionTile(
+      Map<String, dynamic> section, String langCode, int index) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Nomor urut section
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: _primary.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                '$index',
+                style: GoogleFonts.poppins(
+                  color: _primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Konten
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  section['title'] ?? '',
+                  style: GoogleFonts.poppins(
+                    color: const Color(0xFF1E3A8A),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
                   ),
-                ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  section['content'] ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                      color: Colors.black38, fontSize: 11),
+                ),
               ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Tombol Edit
+          GestureDetector(
+            onTap: () => _showSectionDialog(
+                langCode: langCode, existing: section),
+            child: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: _primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.edit_outlined,
+                  color: _primary, size: 15),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // Tombol Hapus
+          GestureDetector(
+            onTap: () =>
+                _deleteSection(section['id'] as int, langCode),
+            child: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline_rounded,
+                  color: Color(0xFFEF4444), size: 15),
             ),
           ),
         ],
@@ -637,18 +822,12 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     );
   }
 
-  Widget _dialogLabel(String label) => Text(
-        label,
-        style: GoogleFonts.poppins(
-          color: Colors.black54,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
-        ),
-      );
-
-  Widget _dialogField(TextEditingController ctrl, IconData icon,
-      {int maxLines = 1}) {
+  // ── Field dalam dialog ───────────────────────────────────────────────────
+  Widget _buildDialogField(
+    TextEditingController ctrl, {
+    int maxLines = 1,
+    String? hint,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
@@ -661,49 +840,41 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
         style: GoogleFonts.poppins(
             color: const Color(0xFF1E3A8A), fontSize: 13),
         decoration: InputDecoration(
-          prefixIcon: maxLines == 1
-              ? Icon(icon, color: Colors.black38, size: 18)
-              : null,
+          hintText: hint,
+          hintStyle:
+              GoogleFonts.poppins(color: Colors.black26, fontSize: 12),
           border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+          contentPadding: const EdgeInsets.symmetric(
+              vertical: 12, horizontal: 14),
         ),
       ),
     );
   }
 
-  Widget _buildShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade200,
-      highlightColor: Colors.grey.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: List.generate(
-            3,
-            (_) => Container(
-              height: 140,
-              margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
+  // ── Snackbar ─────────────────────────────────────────────────────────────
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.poppins(color: Colors.white)),
+      content: Row(
+        children: [
+          Icon(
+            isError
+                ? Icons.error_outline
+                : Icons.check_circle_outline,
+            color: Colors.white,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+              child: Text(msg,
+                  style: GoogleFonts.poppins(color: Colors.white))),
+        ],
+      ),
       backgroundColor:
           isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
       behavior: SnackBarBehavior.floating,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.all(16),
     ));
   }

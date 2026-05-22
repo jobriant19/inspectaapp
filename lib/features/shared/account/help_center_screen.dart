@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'report_detail_screen.dart';
 import 'package:intl/intl.dart';
@@ -14,7 +15,6 @@ class HelpCenterScreen extends StatefulWidget {
 class _HelpCenterScreenState extends State<HelpCenterScreen> {
   late String _currentLang;
   List<Map<String, dynamic>> _reports = [];
-  bool _isLoading = true;
 
   final Map<String, Map<String, String>> _txt = {
     'EN': {
@@ -64,15 +64,14 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   void initState() {
     super.initState();
     _currentLang = widget.lang;
+    // Fetch di background — UI sudah tampil
     _fetchReports();
   }
 
   Future<void> _fetchReports() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
     try {
       final userId = Supabase.instance.client.auth.currentUser!.id;
-      // Ambil semua field termasuk admin_reply dan replied_at
       final response = await Supabase.instance.client
           .from('help_reports')
           .select('id, title, description, priority, status, image_url, created_at, edited_at, admin_reply, replied_at, admin_reply_image')
@@ -100,14 +99,12 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       if (mounted) {
         setState(() {
           _reports = reportsWithSignedUrls;
-          _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error fetching reports: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -118,18 +115,41 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       onTap: () async {
         final result = await Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => ReportDetailScreen(lang: _currentLang)),
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 350),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            pageBuilder: (_, __, ___) =>
+                ReportDetailScreen(lang: _currentLang),
+            transitionsBuilder: (_, animation, __, child) {
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOut,
+                reverseCurve: Curves.easeIn,
+              );
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(curved),
+                child: child,
+              );
+            },
+          ),
         );
         if (result == true) _fetchReports();
       },
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E3A8A),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1D72F3), Color(0xFF00C9E4)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1E3A8A).withOpacity(0.3),
+              color: const Color(0xFF1D72F3).withOpacity(0.35),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -137,19 +157,40 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.support_agent, color: Colors.white, size: 40),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.support_agent,
+                  color: Colors.white, size: 32),
+            ),
             const SizedBox(width: 15),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(getTxt('report_issue'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  Text(
+                    getTxt('report_issue'),
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(getTxt('report_subtitle'), style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8))),
+                  Text(
+                    getTxt('report_subtitle'),
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.85)),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+            const Icon(Icons.arrow_forward_ios,
+                color: Colors.white, size: 18),
           ],
         ),
       ),
@@ -157,20 +198,30 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   }
 
   Widget _buildReportList() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF1E3A8A)));
-    }
     if (_reports.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const SizedBox(height: 50),
-            Icon(Icons.inbox_outlined, size: 80, color: Colors.grey.shade300),
+            Icon(Icons.inbox_outlined,
+                size: 80, color: Colors.grey.shade300),
             const SizedBox(height: 20),
-            Text(getTxt('empty_title'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+            Text(
+              getTxt('empty_title'),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1D72F3),
+              ),
+            ),
             const SizedBox(height: 8),
-            Text(getTxt('empty_subtitle'), style: TextStyle(fontSize: 16, color: Colors.grey.shade600), textAlign: TextAlign.center),
+            Text(
+              getTxt('empty_subtitle'),
+              style: TextStyle(
+                  fontSize: 16, color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       );
@@ -180,30 +231,36 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemBuilder: (context, index) {
-        final report = _reports[index];
-        // Cukup panggil _buildReportCard dengan data report
-        return _buildReportCard(report);
+        return _buildReportCard(_reports[index]);
       },
     );
   }
 
   Widget _buildReportCard(Map<String, dynamic> report) {
-    final signedImageUrl  = report['signed_image_url'] as String?;
-    final adminReply      = report['admin_reply'] as String?;
+    final signedImageUrl = report['signed_image_url'] as String?;
+    final adminReply = report['admin_reply'] as String?;
     final adminReplyImage = report['admin_reply_image'] as String?;
-    final repliedAt       = report['replied_at'] as String?;
-    final status          = report['status'] as String? ?? 'Dikirim';
-    final priority        = report['priority'] as String? ?? 'Normal';
+    final repliedAt = report['replied_at'] as String?;
+    final status = report['status'] as String? ?? 'Dikirim';
+    final priority = report['priority'] as String? ?? 'Normal';
 
     Color statusColor;
     switch (status) {
-      case 'Dilihat': statusColor = Colors.orange.shade400; break;
-      case 'Selesai': statusColor = Colors.green.shade500; break;
-      default:        statusColor = Colors.blue.shade400;
+      case 'Dilihat':
+        statusColor = Colors.orange.shade400;
+        break;
+      case 'Selesai':
+        statusColor = Colors.green.shade500;
+        break;
+      default:
+        statusColor = const Color(0xFF1D72F3);
     }
 
-    final statusLabel = getTxt(status == 'Dikirim' ? 'sent'
-        : status == 'Dilihat' ? 'viewed' : 'completed');
+    final statusLabel = getTxt(status == 'Dikirim'
+        ? 'sent'
+        : status == 'Dilihat'
+            ? 'viewed'
+            : 'completed');
 
     String repliedStr = '';
     if (repliedAt != null) {
@@ -215,9 +272,29 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
 
     return GestureDetector(
       onTap: () async {
-        final result = await Navigator.push(context,
-            MaterialPageRoute(builder: (context) =>
-                ReportDetailScreen(lang: _currentLang, report: report)));
+        final result = await Navigator.push(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 350),
+            reverseTransitionDuration: const Duration(milliseconds: 300),
+            pageBuilder: (_, __, ___) =>
+                ReportDetailScreen(lang: _currentLang, report: report),
+            transitionsBuilder: (_, animation, __, child) {
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOut,
+                reverseCurve: Curves.easeIn,
+              );
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).animate(curved),
+                child: child,
+              );
+            },
+          ),
+        );
         if (result == true) _fetchReports();
       },
       child: Container(
@@ -225,7 +302,12 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4))
+          ],
           border: Border(left: BorderSide(color: statusColor, width: 3)),
         ),
         child: Padding(
@@ -238,30 +320,50 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   if (signedImageUrl != null && signedImageUrl.isNotEmpty)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.network(signedImageUrl, width: 70, height: 70, fit: BoxFit.cover,
+                      child: Image.network(
+                        signedImageUrl,
+                        width: 70,
+                        height: 70,
+                        fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.image_not_supported, size: 70)),
+                            const Icon(Icons.image_not_supported, size: 70),
+                      ),
                     )
                   else
                     Container(
-                      width: 70, height: 70,
-                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: Colors.grey.shade100),
-                      child: Icon(Icons.flag_outlined, color: Colors.grey.shade400, size: 30),
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: const Color(0xFFEFF6FF),
+                      ),
+                      child: Icon(Icons.flag_outlined,
+                          color: Colors.grey.shade400, size: 30),
                     ),
                   const SizedBox(width: 15),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(report['title'] ?? '',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(
+                          report['title'] ?? '',
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF334155)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
                             _buildTag(
-                              getTxt(priority.toLowerCase() == 'fatal' ? 'fatal' : 'normal'),
-                              priority.toLowerCase() == 'fatal' ? Colors.red.shade400 : Colors.blue.shade400,
+                              getTxt(priority.toLowerCase() == 'fatal'
+                                  ? 'fatal'
+                                  : 'normal'),
+                              priority.toLowerCase() == 'fatal'
+                                  ? Colors.red.shade400
+                                  : const Color(0xFF1D72F3),
                             ),
                             const SizedBox(width: 8),
                             _buildTag(statusLabel, statusColor),
@@ -270,45 +372,54 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                  const Icon(Icons.arrow_forward_ios,
+                      size: 16, color: Colors.grey),
                 ],
               ),
-
-              // ── Balasan admin (teks + gambar) ──
               if (adminReply != null && adminReply.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: const Color(0xFFEFF6FF),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.green.shade200),
+                    border: Border.all(color: const Color(0xFF1D72F3).withOpacity(0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header balasan
                       Row(
                         children: [
-                          Icon(Icons.support_agent_rounded, size: 14, color: Colors.green.shade600),
+                          const Icon(Icons.support_agent_rounded,
+                              size: 14, color: Color(0xFF1D72F3)),
                           const SizedBox(width: 5),
                           Text(
-                            _currentLang == 'EN' ? 'Admin Reply'
-                                : _currentLang == 'ZH' ? '管理员回复' : 'Balasan Admin',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.green.shade700),
+                            _currentLang == 'EN'
+                                ? 'Admin Reply'
+                                : _currentLang == 'ZH'
+                                    ? '管理员回复'
+                                    : 'Balasan Admin',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1D72F3)),
                           ),
                           if (repliedStr.isNotEmpty) ...[
                             const Spacer(),
-                            Text(repliedStr, style: TextStyle(fontSize: 10, color: Colors.green.shade500)),
+                            Text(repliedStr,
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey.shade500)),
                           ],
                         ],
                       ),
                       const SizedBox(height: 5),
-                      // Teks balasan
-                      Text(adminReply, style: const TextStyle(fontSize: 13, color: Color(0xFF334155))),
-                      // ── Gambar balasan admin ──
-                      if (adminReplyImage != null && adminReplyImage.isNotEmpty) ...[
+                      Text(adminReply,
+                          style: const TextStyle(
+                              fontSize: 13, color: Color(0xFF334155))),
+                      if (adminReplyImage != null &&
+                          adminReplyImage.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
@@ -316,7 +427,9 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                             adminReplyImage,
                             width: double.infinity,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, size: 40),
+                            errorBuilder: (_, __, ___) => const Icon(
+                                Icons.image_not_supported,
+                                size: 40),
                           ),
                         ),
                       ],
@@ -334,36 +447,60 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   Widget _buildTag(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+      decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20)),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontSize: 12, fontWeight: FontWeight.w500)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFEFF6FF),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios),
+          icon: const Icon(Icons.arrow_back_ios_new,
+              color: Color(0xFF1D72F3)),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(getTxt('title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
-        backgroundColor: Colors.transparent, elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1E3A8A)), centerTitle: true,
+        title: Text(
+          getTxt('title'),
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF1D72F3),
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        shadowColor: Colors.black.withOpacity(0.08),
+        iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
+        centerTitle: true,
       ),
       body: RefreshIndicator(
         onRefresh: _fetchReports,
-        color: const Color(0xFF1E3A8A),
+        color: const Color(0xFF1D72F3),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildReportButton(context),
-              const SizedBox(height: 30),
-              Text(getTxt('history'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
-              const SizedBox(height: 15),
+              const SizedBox(height: 28),
+              Text(
+                getTxt('history'),
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1D72F3),
+                ),
+              ),
+              const SizedBox(height: 14),
               _buildReportList(),
             ],
           ),
