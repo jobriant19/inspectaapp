@@ -1805,7 +1805,7 @@ class _AccidentReportFormScreenState
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.back,
+          icon: const Icon(Icons.arrow_back_ios_new,
               color: Color(0xFF2563EB)),
           onPressed: () => Navigator.pop(context),
         ),
@@ -1814,7 +1814,7 @@ class _AccidentReportFormScreenState
             style: GoogleFonts.inter(
                 color: const Color(0xFF2563EB),
                 fontWeight: FontWeight.w700,
-                fontSize: 17)),
+                fontSize: 18)),
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),

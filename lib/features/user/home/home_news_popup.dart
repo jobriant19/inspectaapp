@@ -148,6 +148,14 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
     );
   }
 
+  // ── Hitung tinggi konten agar PageView tidak over-expand ──
+  double _calcContentHeight(BuildContext context) {
+    final currentItem = widget.items[_currentPage];
+    final hasImage = (currentItem['image_url'] ?? '').isNotEmpty;
+    // tinggi gambar + tinggi teks (estimasi 2 baris judul + 2 baris konten)
+    return hasImage ? 160 + 105.0 : 3 + 105.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentItem = widget.items[_currentPage];
@@ -182,7 +190,8 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
               _buildHeader(currentItem),
 
               // ── KONTEN (PageView) ───────────────────────
-              Flexible(
+              SizedBox(
+                height: _calcContentHeight(context),
                 child: PageView.builder(
                   controller: _pageController,
                   itemCount: widget.items.length,
@@ -278,6 +287,7 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
                   width: double.infinity,
                   height: 160,
                   fit: BoxFit.cover,
+                  gaplessPlayback: true,
                   errorBuilder: (_, __, ___) => Container(
                     height: 160,
                     color: primary.withOpacity(0.07),
@@ -286,17 +296,6 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
                           color: primary.withOpacity(0.25), size: 40),
                     ),
                   ),
-                  loadingBuilder: (_, child, prog) {
-                    if (prog == null) return child;
-                    return Container(
-                      height: 160,
-                      color: Colors.grey.shade100,
-                      child: Center(
-                        child: CircularProgressIndicator(
-                            color: primary, strokeWidth: 2),
-                      ),
-                    );
-                  },
                 ),
                 // Badge "Read more" di pojok kanan bawah gambar
                 Positioned(
@@ -397,7 +396,7 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
     final Color currentColor = _color(currentItem);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: Colors.grey.shade100)),
       ),

@@ -83,9 +83,9 @@ class NewsDetailScreen extends StatelessWidget {
       backgroundColor: _bgLight,
       // ── APP BAR ──────────────────────────────────────────
       appBar: AppBar(
-        backgroundColor: _primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: _primary,
+        elevation: 1,
         centerTitle: true,
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
@@ -99,16 +99,16 @@ class NewsDetailScreen extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.arrow_back_ios_new,
-                color: Colors.white, size: 15),
+                color: _updatePrimary),
           ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           _appBarTitle,
           style: GoogleFonts.poppins(
-            color: Colors.white,
+            color: _primary,
             fontWeight: FontWeight.w700,
-            fontSize: 16,
+            fontSize: 18,
           ),
         ),
         // Strip bawah AppBar sesuai warna tipe
@@ -130,16 +130,21 @@ class NewsDetailScreen extends StatelessWidget {
           children: [
             // ── GAMBAR (jika ada) ──────────────────────────
             if (imageUrl != null && imageUrl.isNotEmpty)
-              Stack(
-                children: [
-                  Image.network(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
                     imageUrl,
                     width: double.infinity,
-                    height: 230,
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
                     errorBuilder: (_, __, ___) => Container(
-                      height: 230,
-                      color: _primary.withOpacity(0.12),
+                      height: 200,
+                      decoration: BoxDecoration(
+                        color: _primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: Center(
                         child: Icon(
                           _typeIcon,
@@ -151,8 +156,11 @@ class NewsDetailScreen extends StatelessWidget {
                     loadingBuilder: (_, child, prog) {
                       if (prog == null) return child;
                       return Container(
-                        height: 230,
-                        color: _primary.withOpacity(0.08),
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: _primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         child: Center(
                           child: CircularProgressIndicator(
                               color: _primary, strokeWidth: 2),
@@ -160,36 +168,12 @@ class NewsDetailScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  // Gradient bawah gambar
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
-                      height: 60,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            _bgLight,
-                            _bgLight.withOpacity(0),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
 
             // ── KARTU KONTEN ──────────────────────────────
             Container(
-              margin: EdgeInsets.fromLTRB(
-                16,
-                imageUrl != null && imageUrl.isNotEmpty ? 0 : 16,
-                16,
-                24,
-              ),
+              margin: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),

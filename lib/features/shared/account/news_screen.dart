@@ -134,6 +134,7 @@ class _NewsScreenState extends State<NewsScreen> {
                             Tab(
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
                                     Icons.update_rounded,
@@ -143,13 +144,20 @@ class _NewsScreenState extends State<NewsScreen> {
                                         : const Color(0xFF1D72F3),
                                   ),
                                   const SizedBox(width: 5),
-                                  Text(getTxt('update_notes')),
+                                  Flexible(
+                                    child: Text(
+                                      _currentLang == 'ID' ? 'Pembaruan' : (_currentLang == 'ZH' ? '更新' : 'Update'),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                             Tab(
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
                                     Icons.build_rounded,
@@ -159,7 +167,13 @@ class _NewsScreenState extends State<NewsScreen> {
                                         : const Color(0xFFF59E0B),
                                   ),
                                   const SizedBox(width: 5),
-                                  Text(getTxt('maintenance_notices')),
+                                  Flexible(
+                                    child: Text(
+                                      _currentLang == 'ID' ? 'Pemeliharaan' : (_currentLang == 'ZH' ? '维护' : 'Maintenance'),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
