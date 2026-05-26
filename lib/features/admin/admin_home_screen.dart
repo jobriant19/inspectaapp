@@ -124,9 +124,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   int _lbTargetInspeksi = 2;
 
   List<Map<String, dynamic>> _lbUnitList = [];
-  late List<String> _lbTranslatedMonths;
-  late List<String> _lbTranslatedRoles;
-  late List<String> _lbTranslatedLocationLevels;
+  List<String> _lbTranslatedMonths = const [
+    'Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'
+  ];
+  List<String> _lbTranslatedRoles = const [
+    'Eksekutif','Profesional','Visitor'
+  ];
+  List<String> _lbTranslatedLocationLevels = const [
+    'Lokasi','Unit','Subunit','Area'
+  ];
 
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
@@ -136,7 +142,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     super.initState();
     _animCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 0),
+      value: 1.0,
     );
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
     _lbTabController = TabController(length: 4, vsync: this);
@@ -157,7 +164,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       _isLoadingStats = false; // ← langsung tampil, skip shimmer
     }
 
-    _loadLanguage().then((_) {
+    _loadLanguage().then((_) async {
+      GoogleFonts.pendingFonts([
+        GoogleFonts.poppins(),
+        GoogleFonts.sourceCodePro(),
+      ]).catchError((_) {});
+
       _fetchStats();
       _initLbLocale();
       _lbFetchUnits().then((_) {
@@ -165,7 +177,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         setState(() => _lbIsChartLoadingForTab = false);
       });
       _lbFetchTarget();
-      _animCtrl.forward();
     });
 
     _loadAdminInfo();
@@ -723,20 +734,8 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                 image: _bgImageProvider,
                 fit: BoxFit.cover,
                 gaplessPlayback: true,
-                frameBuilder: (_, child, frame, wasSynchronouslyLoaded) {
-                  // Jika sudah di-cache, tampil langsung tanpa animasi
-                  if (wasSynchronouslyLoaded || frame != null) return child;
-                  // Fallback gradient sementara menunggu decode
-                  return Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF065F46), Color(0xFF059669)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                  );
-                },
+                // ✅ Hapus frameBuilder — image sudah di-precache sebelum navigasi
+                // gaplessPlayback mencegah flash, errorBuilder sebagai fallback
                 errorBuilder: (_, __, ___) => Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -3938,10 +3937,8 @@ class _DigitalClockWidget extends StatefulWidget {
 class _DigitalClockWidgetState extends State<_DigitalClockWidget> {
   late DateTime _now;
   late Timer _timer;
-
-  static const _days   = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
-  static const _months = ['JAN','FEB','MAR','APR','MAY','JUN',
-                           'JUL','AUG','SEP','OCT','NOV','DEC'];
+  // ✅ Langsung true — font sudah di-preload di main() sebelum app jalan
+  bool _fontReady = true;
 
   @override
   void initState() {
@@ -3949,6 +3946,7 @@ class _DigitalClockWidgetState extends State<_DigitalClockWidget> {
     _now = DateTime.now();
     _timer = Timer.periodic(const Duration(seconds: 1),
         (_) { if (mounted) setState(() => _now = DateTime.now()); });
+    // ✅ Tidak perlu _trySetFontReady() lagi karena font sudah siap dari main()
   }
 
   @override
@@ -3963,7 +3961,6 @@ class _DigitalClockWidgetState extends State<_DigitalClockWidget> {
     final s    = _pad(_now.second);
     final year = _now.year.toString();
 
-    // ── Nama hari & bulan sesuai bahasa ──
     final String dayStr;
     final String monStr;
 
@@ -3986,7 +3983,6 @@ class _DigitalClockWidgetState extends State<_DigitalClockWidget> {
 
     final date = _pad(_now.day);
 
-    // Format keterangan waktu sesuai bahasa
     final String dateLabel;
     if (widget.lang == 'ID') {
       dateLabel = '$dayStr, $date $monStr $year';
@@ -3995,6 +3991,55 @@ class _DigitalClockWidgetState extends State<_DigitalClockWidget> {
     } else {
       dateLabel = '$dayStr, $date $monStr $year';
     }
+
+    // ✅ TAMBAHAN: Gunakan TextStyle biasa dulu jika font belum siap,
+    // hindari flash/loading font saat pertama render
+    final timeStyle = _fontReady
+        ? GoogleFonts.sourceCodePro(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.5,
+            shadows: [Shadow(color: Colors.black.withOpacity(0.6), blurRadius: 6)],
+          )
+        : const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.5,
+            fontFamily: 'monospace',
+          );
+
+    final secStyle = _fontReady
+        ? GoogleFonts.sourceCodePro(
+            color: const Color(0xFF6EE7B7),
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1,
+            shadows: [Shadow(color: const Color(0xFF059669).withOpacity(0.8), blurRadius: 8)],
+          )
+        : const TextStyle(
+            color: Color(0xFF6EE7B7),
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1,
+            fontFamily: 'monospace',
+          );
+
+    final dateStyle = _fontReady
+        ? GoogleFonts.poppins(
+            color: Colors.white.withOpacity(0.85),
+            fontSize: 8.5,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+            shadows: [Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)],
+          )
+        : TextStyle(
+            color: Colors.white.withOpacity(0.85),
+            fontSize: 8.5,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.3,
+          );
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -4007,86 +4052,34 @@ class _DigitalClockWidgetState extends State<_DigitalClockWidget> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // ── Kiri: Jam Analog ──
           SizedBox(
             width: 54,
             height: 54,
-            child: CustomPaint(
-              painter: _AnalogClockPainter(now: _now),
-            ),
+            child: CustomPaint(painter: _AnalogClockPainter(now: _now)),
           ),
           const SizedBox(width: 10),
-          // ── Kanan: Digital + tanggal di bawah ──
           Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // HH:MM besar + :SS lebih besar & jelas
               Row(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text(
-                    '$h:$m',
-                    style: GoogleFonts.sourceCodePro(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black.withOpacity(0.6),
-                          blurRadius: 6,
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Separator titik dua
-                  Text(
-                    ':',
-                    style: GoogleFonts.sourceCodePro(
-                      color: Colors.white.withOpacity(0.70),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  // Detik — ukuran lebih besar & warna hijau terang
-                  Text(
-                    s,
-                    style: GoogleFonts.sourceCodePro(
-                      color: const Color(0xFF6EE7B7), // hijau lebih terang
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                      shadows: [
-                        Shadow(
-                          color: const Color(0xFF059669).withOpacity(0.8),
-                          blurRadius: 8,
-                          offset: const Offset(0, 0),
-                        ),
-                      ],
-                    ),
-                  ),
+                  Text('$h:$m', style: timeStyle),
+                  Text(':', style: _fontReady
+                      ? GoogleFonts.sourceCodePro(
+                          color: Colors.white.withOpacity(0.70),
+                          fontSize: 14, fontWeight: FontWeight.w700)
+                      : TextStyle(color: Colors.white.withOpacity(0.70),
+                          fontSize: 14, fontWeight: FontWeight.w700,
+                          fontFamily: 'monospace')),
+                  Text(s, style: secStyle),
                 ],
               ),
               const SizedBox(height: 3),
-              // Keterangan waktu sesuai bahasa
-              Text(
-                dateLabel,
-                style: GoogleFonts.poppins(
-                  color: Colors.white.withOpacity(0.85),
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
-                  shadows: [
-                    Shadow(
-                      color: Colors.black.withOpacity(0.5),
-                      blurRadius: 4,
-                    ),
-                  ],
-                ),
-              ),
+              Text(dateLabel, style: dateStyle),
             ],
           ),
         ],

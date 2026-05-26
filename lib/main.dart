@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'features/in/splash_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -31,6 +32,14 @@ Future<void> main() async {
   );
 
   await initializeDateFormatting('id_ID', null);
+  try {
+    await Future.wait([
+      GoogleFonts.pendingFonts([
+        GoogleFonts.poppins(),
+        GoogleFonts.sourceCodePro(),
+      ]),
+    ]).timeout(const Duration(seconds: 5));
+  } catch (_) {}
   runApp(const InspectaApp());
 }
 

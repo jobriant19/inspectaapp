@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../admin/admin_home_screen.dart';
@@ -116,7 +117,6 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigateWhenReady() async {
-    // Jalankan fetch session & navigasi secara paralel agar hemat waktu
     final stopwatch = Stopwatch()..start();
 
     final destination = await _resolveDestination();
@@ -130,6 +130,13 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted || _navigating) return;
     _navigating = true;
+
+    // ✅ Tunggu 2 frame agar Flutter engine flush semua resource
+    //    sebelum AdminHomeScreen ditampilkan (tanpa delay terasa)
+    await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
+
+    if (!mounted) return;
     destination();
   }
 
@@ -161,6 +168,53 @@ class _SplashScreenState extends State<SplashScreen>
           context,
           _slideRoute(const LoginScreen()));
     }
+  }
+
+  Future<void> _warmupAdminFonts() async {
+    try {
+      await Future.wait([
+        GoogleFonts.pendingFonts([
+          GoogleFonts.poppins(),
+          GoogleFonts.sourceCodePro(),
+        ]),
+      ]).timeout(const Duration(seconds: 5));
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    final completer = Completer<void>();
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (_) => Positioned(
+        left: -9999,
+        top: -9999,
+        child: Opacity(
+          opacity: 0.0,
+          child: Material(
+            color: Colors.transparent,
+            child: _FontWarmupContent(
+              onRendered: () {
+                if (!completer.isCompleted) completer.complete();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(entry);
+
+    try {
+      await completer.future.timeout(const Duration(milliseconds: 500));
+    } catch (_) {}
+
+    for (int i = 0; i < 3; i++) {
+      await WidgetsBinding.instance.endOfFrame;
+    }
+
+    entry.remove();
+    await WidgetsBinding.instance.endOfFrame;
   }
 
   Future<VoidCallback> _resolveLoggedIn(Session session) async {
@@ -317,17 +371,36 @@ class _SplashScreenState extends State<SplashScreen>
                 .from('temuan')
                 .count()
                 .eq('status_temuan', 'Selesai'),
+            if (mounted)
+              precacheImage(
+                      const AssetImage('assets/images/bgadmin.png'), context)
+                  .catchError((_) {}),
           ]);
-          sTotalUsers = statsResults[0] as int;
-          sTotalLokasi = statsResults[1] as int;
+          sTotalUsers    = statsResults[0] as int;
+          sTotalLokasi   = statsResults[1] as int;
           sTotalKategori = statsResults[2] as int;
-          sTotalTemuan = statsResults[3] as int;
-          sTemuanBelum = statsResults[4] as int;
+          sTotalTemuan   = statsResults[3] as int;
+          sTemuanBelum   = statsResults[4] as int;
           sTemuanSelesai = statsResults[5] as int;
-        } catch (_) {}
+        } catch (_) {
+          if (mounted) {
+            precacheImage(
+                    const AssetImage('assets/images/bgadmin.png'), context)
+                .catchError((_) {});
+          }
+        }
+
+        if (mounted) {
+          await precacheImage(
+            const AssetImage('assets/images/bgadmin.png'), context,
+          ).catchError((_) {});
+        }
+
+        if (mounted) await _warmupAdminFonts();
+
         return () => Navigator.pushReplacement(
             context,
-            _slideRoute(AdminHomeScreen(
+            _instantRoute(AdminHomeScreen(
               initialUserName:
                   (userData['nama'] as String?) ?? metaName?.toString(),
               initialUserImage: imageToUse,
@@ -372,6 +445,13 @@ class _SplashScreenState extends State<SplashScreen>
             child: child),
         transitionDuration: const Duration(milliseconds: 350),
       );
+
+  PageRouteBuilder<T> _instantRoute<T>(Widget screen) => PageRouteBuilder<T>(
+      pageBuilder: (_, __, ___) => screen,
+      transitionsBuilder: (_, animation, __, child) => child,
+      transitionDuration: const Duration(milliseconds: 1),
+      reverseTransitionDuration: Duration.zero,
+    );
 
   @override
   void dispose() {
@@ -585,5 +665,41 @@ class _LoadingDotsState extends State<_LoadingDots>
         );
       },
     );
+  }
+}
+
+class _FontWarmupContent extends StatefulWidget {
+  final VoidCallback onRendered;
+  const _FontWarmupContent({required this.onRendered});
+
+  @override
+  State<_FontWarmupContent> createState() => _FontWarmupContentState();
+}
+
+class _FontWarmupContentState extends State<_FontWarmupContent> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => widget.onRendered());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(children: [
+      Text('w', style: GoogleFonts.poppins(fontSize: 8, fontWeight: FontWeight.w400)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 8, fontWeight: FontWeight.w500)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 8, fontWeight: FontWeight.w600)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 8, fontWeight: FontWeight.w700)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 8, fontWeight: FontWeight.w800)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 8, fontWeight: FontWeight.w900)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700)),
+      Text('w', style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w500)),
+      Text('00:00', style: GoogleFonts.sourceCodePro(fontSize: 20, fontWeight: FontWeight.w800)),
+      Text('00', style: GoogleFonts.sourceCodePro(fontSize: 15, fontWeight: FontWeight.w800)),
+      Text('00', style: GoogleFonts.sourceCodePro(fontSize: 8, fontWeight: FontWeight.w700)),
+    ]);
   }
 }

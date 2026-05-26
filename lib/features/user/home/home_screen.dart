@@ -3166,57 +3166,57 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                   // TOMBOL KAMERA
                                   GestureDetector(
                                     onTap: () {
-  String? idL, idU, idS, idA;
-  String locationName = itemName;
+                                      String? idL, idU, idS, idA;
+                                      String locationName = itemName;
 
-  if (_currentLevel == 0) { idL = itemId; }
-  else if (_currentLevel == 1) { 
-    idL = _navigationHistory[0]['id']?.toString(); 
-    idU = itemId; 
-  }
-  else if (_currentLevel == 2) { 
-    idL = _navigationHistory[0]['id']?.toString(); 
-    idU = _navigationHistory[1]['id']?.toString(); 
-    idS = itemId; 
-  }
-  else if (_currentLevel == 3) { 
-    idL = _navigationHistory[0]['id']?.toString(); 
-    idU = _navigationHistory[1]['id']?.toString(); 
-    idS = _navigationHistory[2]['id']?.toString(); 
-    idA = itemId; 
-  }
+                                      if (_currentLevel == 0) { idL = itemId; }
+                                      else if (_currentLevel == 1) { 
+                                        idL = _navigationHistory[0]['id']?.toString(); 
+                                        idU = itemId; 
+                                      }
+                                      else if (_currentLevel == 2) { 
+                                        idL = _navigationHistory[0]['id']?.toString(); 
+                                        idU = _navigationHistory[1]['id']?.toString(); 
+                                        idS = itemId; 
+                                      }
+                                      else if (_currentLevel == 3) { 
+                                        idL = _navigationHistory[0]['id']?.toString(); 
+                                        idU = _navigationHistory[1]['id']?.toString(); 
+                                        idS = _navigationHistory[2]['id']?.toString(); 
+                                        idA = itemId; 
+                                      }
 
-  if (_navigationHistory.isNotEmpty) {
-    final path = _navigationHistory.map((e) => e['name']).join(' / ');
-    locationName = '$path / $itemName';
-  }
+                                      if (_navigationHistory.isNotEmpty) {
+                                        final path = _navigationHistory.map((e) => e['name']).join(' / ');
+                                        locationName = '$path / $itemName';
+                                      }
 
-  // Simpan callback sebelum pop (context masih valid)
-  final onSaved = widget.onFindingSaved;
-  
-  // Tutup BottomSheet
-  Navigator.pop(context);
+                                      // Simpan callback sebelum pop (context masih valid)
+                                      final onSaved = widget.onFindingSaved;
+                                      
+                                      // Tutup BottomSheet
+                                      Navigator.pop(context);
 
-  // Push CameraFindingScreen menggunakan navigatorKey atau
-  // cukup panggil onFindingSaved sebagai callback langsung
-  // dari CameraFindingScreen lewat parameter
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => CameraFindingScreen(
-        lang: widget.lang,
-        isProMode: widget.isProMode,
-        isVisitorMode: widget.isVisitorMode,
-        selectedLocationName: locationName,
-        selectedLocationId: idL,
-        selectedUnitId: idU,
-        selectedSubunitId: idS,
-        selectedAreaId: idA,
-        onFindingSaved: onSaved, // TERUSKAN CALLBACK
-      ),
-    ),
-  );
-},
+                                      // Push CameraFindingScreen menggunakan navigatorKey atau
+                                      // cukup panggil onFindingSaved sebagai callback langsung
+                                      // dari CameraFindingScreen lewat parameter
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => CameraFindingScreen(
+                                            lang: widget.lang,
+                                            isProMode: widget.isProMode,
+                                            isVisitorMode: widget.isVisitorMode,
+                                            selectedLocationName: locationName,
+                                            selectedLocationId: idL,
+                                            selectedUnitId: idU,
+                                            selectedSubunitId: idS,
+                                            selectedAreaId: idA,
+                                            onFindingSaved: onSaved, // TERUSKAN CALLBACK
+                                          ),
+                                        ),
+                                      );
+                                    },
                                     child: Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
