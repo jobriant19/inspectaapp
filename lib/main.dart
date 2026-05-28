@@ -37,6 +37,7 @@ Future<void> main() async {
       GoogleFonts.pendingFonts([
         GoogleFonts.poppins(),
         GoogleFonts.sourceCodePro(),
+        GoogleFonts.inter()
       ]),
     ]).timeout(const Duration(seconds: 5));
   } catch (_) {}
