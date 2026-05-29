@@ -152,7 +152,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           .eq('id_user', user.id)
           .maybeSingle();
 
-      if (row == null || !mounted) return;
+      if (row == null || !mounted) return; 
 
       String? dbImage = row['gambar_user'];
       if (dbImage != null && dbImage.trim().isEmpty) dbImage = null;

@@ -9,7 +9,7 @@ import '../../shared/account/news_detail_screen.dart';
 
 class AdminNewsScreen extends StatefulWidget {
   final String lang;
-  final List<Map<String, dynamic>>? initialData; // ← TAMBAHAN untuk no-loading
+  final List<Map<String, dynamic>>? initialData; 
   const AdminNewsScreen({super.key, required this.lang, this.initialData});
 
   @override
@@ -29,7 +29,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
   void initState() {
     super.initState();
     if (widget.initialData != null) {
-      // ← Langsung pakai data cache, tanpa loading
       _data = widget.initialData!;
       _isLoading = false;
     } else {
@@ -79,9 +78,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     }).toList();
   }
 
-  // ─────────────────────────────────────────────
-  // UPLOAD GAMBAR KE SUPABASE STORAGE (Web-compatible)
-  // ─────────────────────────────────────────────
   Future<String?> _uploadImageBytes(Uint8List bytes, String ext) async {
     try {
       final fileName = 'news_${DateTime.now().millisecondsSinceEpoch}.$ext';
@@ -105,9 +101,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     }
   }
 
-  // ─────────────────────────────────────────────
-  // FORM DIALOG (Add / Edit)
-  // ─────────────────────────────────────────────
   void _showFormDialog({Map<String, dynamic>? item}) {
     final isEdit = item != null;
 
@@ -127,7 +120,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         ? DateTime.tryParse(item!['published_at'].toString()) ?? DateTime.now()
         : DateTime.now();
 
-    // State gambar — gunakan bytes agar kompatibel Web & Mobile
     Uint8List? pickedImageBytes;
     String? pickedImageExt;
     String? existingImageUrl = item?['image_url'];
