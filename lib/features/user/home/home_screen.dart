@@ -2194,12 +2194,28 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
 
   static const Map<String, Map<String, String>> _bsTxt = {
     'EN': {
-      'pilih_lokasi': 'Choose Finding Location', 'cari': 'Search location',
-      'semua': 'All Locations', 'unit_saya': 'My Unit', 'kosong': 'Data not found.', 'sub': 'Sub-locations',
+      'pilih_lokasi': 'Choose Finding Location',
+      'cari': 'Search location',
+      'semua': 'All Locations',
+      'unit_saya': 'My Unit',
+      'kosong': 'Data not found.',
+      'sub': 'Sub-locations',
     },
     'ID': {
-      'pilih_lokasi': 'Pilih Lokasi Temuan', 'cari': 'Cari lokasi',
-      'semua': 'Semua Lokasi', 'unit_saya': 'Unit Saya', 'kosong': 'Data tidak ditemukan.', 'sub': 'Sub-lokasi',
+      'pilih_lokasi': 'Pilih Lokasi Temuan',
+      'cari': 'Cari lokasi',
+      'semua': 'Semua Lokasi',
+      'unit_saya': 'Unit Saya',
+      'kosong': 'Data tidak ditemukan.',
+      'sub': 'Sub-lokasi',
+    },
+    'ZH': {
+      'pilih_lokasi': '选择发现位置',
+      'cari': '搜索位置',
+      'semua': '所有位置',
+      'unit_saya': '我的单位',
+      'kosong': '未找到数据。',
+      'sub': '子位置',
     },
   };
 
@@ -2404,9 +2420,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     else if (level == 2) { idL = _navHistory[0]['id']; idU = _navHistory[1]['id']; idS = itemId; }
     else if (level == 3) { idL = _navHistory[0]['id']; idU = _navHistory[1]['id']; idS = _navHistory[2]['id']; idA = itemId; }
 
-    final String locationName = _navHistory.isEmpty
-        ? itemName
-        : '${_navHistory.map((e) => e['name']).join(' / ')} / $itemName';
+    final String locationName = itemName;
 
     final onSaved = widget.onFindingSaved;
     Navigator.pop(context);

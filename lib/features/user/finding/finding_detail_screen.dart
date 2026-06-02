@@ -137,7 +137,9 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   Future<void> _pickResolutionImage() async {
     final result = await Navigator.push<XFile>(
       context,
-      MaterialPageRoute(builder: (context) => const ResolutionCameraScreen()),
+      MaterialPageRoute(
+        builder: (context) => ResolutionCameraScreen(lang: widget.lang),
+      ),
     );
     if (result != null) {
       setState(() {

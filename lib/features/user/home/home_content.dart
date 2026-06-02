@@ -323,8 +323,11 @@ class HomeContentState extends State<HomeContent> {
 
   // Refresh Findings
   void _refreshFindings() {
+    if (!mounted) return;
     final future = _buildFindingsFuture();
-    setState(() => _findingsFuture = future);
+    setState(() {
+      _findingsFuture = future;
+    });
   }
 
   @override

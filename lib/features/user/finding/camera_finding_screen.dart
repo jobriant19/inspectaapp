@@ -1,14 +1,14 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lottie/lottie.dart';
 import 'add_finding_flow_screen.dart';
 
 class CameraFindingScreen extends StatefulWidget {
   final String lang;
   final bool isProMode;
   final bool isVisitorMode;
-  
+
   final String selectedLocationName;
   final String? selectedLocationId;
   final String? selectedUnitId;
@@ -33,12 +33,35 @@ class CameraFindingScreen extends StatefulWidget {
   State<CameraFindingScreen> createState() => _CameraFindingScreenState();
 }
 
-class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsBindingObserver {
+class _CameraFindingScreenState extends State<CameraFindingScreen>
+    with WidgetsBindingObserver {
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
   bool _isCameraInitialized = false;
   final ImagePicker _picker = ImagePicker();
+
+  // ── Teks terlokalisasi ──
+  String _txt(String key) {
+    const Map<String, Map<String, String>> texts = {
+      'EN': {
+        'choose_location': 'Choose Finding Location',
+        'loading_camera': 'Loading Camera',
+        'preparing': 'Preparing lens for you...',
+      },
+      'ID': {
+        'choose_location': 'Pilih Lokasi Temuan',
+        'loading_camera': 'Memuat Kamera',
+        'preparing': 'Menyiapkan lensa untuk Anda...',
+      },
+      'ZH': {
+        'choose_location': '选择发现位置',
+        'loading_camera': '正在加载相机',
+        'preparing': '正在为您准备镜头...',
+      },
+    };
+    return texts[widget.lang]?[key] ?? texts['ID']![key]!;
+  }
 
   @override
   void initState() {
@@ -53,14 +76,11 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
     _cameraController?.dispose();
     super.dispose();
   }
-  
-  // Menangani siklus hidup aplikasi (jika app ke background)
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final CameraController? cameraController = _cameraController;
-    if (cameraController == null || !cameraController.value.isInitialized) {
-      return;
-    }
+    if (cameraController == null || !cameraController.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
       cameraController.dispose();
     } else if (state == AppLifecycleState.resumed) {
@@ -73,50 +93,38 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
       _cameras = await availableCameras();
       if (_cameras != null && _cameras!.isNotEmpty) {
         await _setCamera(_selectedCameraIndex);
-      } else {
-        debugPrint("No camera found on this device.");
       }
     } catch (e) {
-      debugPrint("Error initializing camera discovery: $e");
+      debugPrint('Error initializing camera: $e');
     }
   }
 
   Future<void> _setCamera(int index) async {
-    // Hentikan controller lama jika ada
-    if (_cameraController != null) {
-      await _cameraController!.dispose();
-    }
-    
+    if (_cameraController != null) await _cameraController!.dispose();
     _cameraController = CameraController(
       _cameras![index],
       ResolutionPreset.high,
       enableAudio: false,
     );
-
     try {
       await _cameraController!.initialize();
       if (mounted) setState(() => _isCameraInitialized = true);
     } on CameraException catch (e) {
-      debugPrint("Error setting camera: ${e.code}\n${e.description}");
-      // Tambahkan umpan balik ke user jika perlu
+      debugPrint('Error setting camera: ${e.code}\n${e.description}');
     }
   }
 
   void _switchCamera() {
     if (_cameras == null || _cameras!.length < 2) return;
-    
     setState(() {
       _isCameraInitialized = false;
       _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras!.length;
     });
-
     _setCamera(_selectedCameraIndex);
   }
 
-  // FUNGSI UTAMA UNTUK NAVIGASI
   Future<void> _navigateToForm(XFile imageXFile) async {
     if (!mounted) return;
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -124,7 +132,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
           lang: widget.lang,
           isProMode: widget.isProMode,
           isVisitorMode: widget.isVisitorMode,
-          initialImageXFile: imageXFile,  
+          initialImageXFile: imageXFile,
           preSelectedLocationName: widget.selectedLocationName,
           preSelectedLocationId: widget.selectedLocationId,
           preSelectedUnitId: widget.selectedUnitId,
@@ -135,263 +143,240 @@ class _CameraFindingScreenState extends State<CameraFindingScreen> with WidgetsB
       ),
     ).then((result) {
       if (!mounted) return;
-      if (result == true) {
-        // Teruskan sinyal sukses ke LocationBottomSheet → HomeScreen
-        Navigator.pop(context, true);
-      }
-      // Jika result == 'new', user mau buat temuan baru
-      // CameraFindingScreen sudah kembali aktif, tidak perlu action
+      if (result == true) Navigator.pop(context, true);
     });
   }
 
-  // AKSI UNTUK MENGAMBIL FOTO DARI KAMERA
   Future<void> _takePicture() async {
-    if (!_isCameraInitialized || _cameraController == null || _cameraController!.value.isTakingPicture) {
-      return;
-    }
-    
+    if (!_isCameraInitialized ||
+        _cameraController == null ||
+        _cameraController!.value.isTakingPicture) return;
     try {
-      // Ambil gambar
       final XFile picture = await _cameraController!.takePicture();
-      // Panggil fungsi navigasi
       await _navigateToForm(picture);
     } on CameraException catch (e) {
-      debugPrint("Error taking picture: ${e.code}\n${e.description}");
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: ${e.description}")));
+      debugPrint('Error taking picture: ${e.code}\n${e.description}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.description}')),
+        );
+      }
     }
   }
 
-  // AKSI UNTUK MEMILIH GAMBAR DARI GALERI
   Future<void> _pickFromGallery() async {
     try {
-      // Ambil gambar
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image == null) return; // User membatalkan pemilihan
-
-      // Panggil fungsi navigasi yang sama
+      if (image == null) return;
       await _navigateToForm(image);
     } catch (e) {
-      debugPrint("Error picking image: $e");
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error picking image: $e")));
+      debugPrint('Error picking image: $e');
     }
   }
-
-  // TIDAK ADA LAGI FUNGSI _showUploadDialog, KARENA SUDAH DIHAPUS.
 
   @override
   Widget build(BuildContext context) {
     if (!_isCameraInitialized || _cameraController == null) {
       return Scaffold(
-        backgroundColor: Colors.black,
-        body: _CameraLoadingScreen(lang: widget.lang),
+        backgroundColor: Colors.white,
+        body: _CameraLoadingScreen(
+          loadingCamera: _txt('loading_camera'),
+          preparing: _txt('preparing'),
+        ),
       );
     }
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          Center(
-            child: CameraPreview(_cameraController!),
-          ),
+          // ── Preview ──
+          CameraPreview(_cameraController!),
 
-          // Top Bar (Lokasi & Back Button)
+          // ── Top bar ──
           Positioned(
             top: 0,
             left: 0,
             right: 0,
             child: SafeArea(
-              child: Container(
-                color: Colors.black.withOpacity(0.3),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                 child: Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                      onPressed: () => Navigator.pop(context, null),
+                    // Tombol kembali — lebih besar
+                    _CameraIconButton(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onTap: () => Navigator.pop(context, null),
+                      size: 52,
                     ),
+                    const SizedBox(width: 10),
+                    // Label lokasi — di tengah, lebih besar
                     Expanded(
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.location_on, color: Colors.white, size: 18),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  widget.selectedLocationName.toUpperCase(),
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                  overflow: TextOverflow.ellipsis,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 13),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: Colors.white.withOpacity(0.25), width: 1.2),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.location_on_rounded,
+                                color: Color(0xFF00C9E4), size: 20),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                widget.selectedLocationName.toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  letterSpacing: 0.5,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 48), // Spacer untuk menyeimbangkan tombol back
+                    // Spacer agar lokasi benar-benar terpusat
+                    const SizedBox(width: 10),
+                    const SizedBox(width: 52), // mirror lebar tombol back
                   ],
                 ),
               ),
             ),
           ),
 
-          // Bottom Controls
+          // ── Bottom controls ──
           Positioned(
-            bottom: 40,
+            bottom: 0,
             left: 0,
             right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Tombol Galeri
-                GestureDetector(
-                  onTap: _pickFromGallery,
-                  child: Container(
-                    width: 50, height: 50,
-                    decoration: BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
-                    child: const Icon(Icons.photo_library, color: Colors.white),
+            child: SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.75),
+                      Colors.transparent,
+                    ],
                   ),
                 ),
-                
-                // Tombol Shutter Kamera
-                GestureDetector(
-                  onTap: _takePicture,
-                  child: Container(
-                    width: 75, height: 75,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _CameraIconButton(
+                      icon: Icons.photo_library_rounded,
+                      onTap: _pickFromGallery,
+                      size: 52,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4.0),
+                    GestureDetector(
+                      onTap: _takePicture,
                       child: Container(
-                        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                        width: 76,
+                        height: 76,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 4),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(5),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    _CameraIconButton(
+                      icon: Icons.flip_camera_ios_rounded,
+                      onTap: _switchCamera,
+                      size: 52,
+                    ),
+                  ],
                 ),
-
-                // Tombol Flip Kamera
-                GestureDetector(
-                  onTap: _switchCamera,
-                  child: Container(
-                    width: 50, height: 50,
-                    decoration: BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
-                    child: const Icon(Icons.flip_camera_ios, color: Colors.white),
-                  ),
-                ),
-              ],
+              ),
             ),
-          )
+          ),
         ],
       ),
     );
   }
 }
 
-// ============================================================
-// WIDGET: Loading kamera yang menarik
-// ============================================================
-class _CameraLoadingScreen extends StatelessWidget {
-  final String lang;
-  const _CameraLoadingScreen({this.lang = 'ID'});
+// ── Tombol ikon kamera yang konsisten ──
+class _CameraIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final double size;
 
-  String get _title {
-    switch (lang) {
-      case 'EN': return 'Loading Camera';
-      case 'ZH': return '正在加载相机';
-      default:   return 'Memuat Kamera';
-    }
-  }
-
-  String get _subtitle {
-    switch (lang) {
-      case 'EN': return 'Preparing lens for you...';
-      case 'ZH': return '正在为您准备镜头...';
-      default:   return 'Menyiapkan lensa untuk Anda...';
-    }
-  }
+  const _CameraIconButton({
+    required this.icon,
+    required this.onTap,
+    this.size = 44,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF0A0E1A),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ── Ikon kamera dalam ring ──
-            _PulsingCameraIcon(),
-            const SizedBox(height: 32),
-            // ── Teks loading ──
-            Text(
-              _title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _subtitle,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.45),
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 28),
-            // ── Progress bar tipis ──
-            SizedBox(
-              width: 120,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  minHeight: 3,
-                  backgroundColor:
-                      const Color(0xFF00C9E4).withOpacity(0.15),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFF00C9E4)),
-                ),
-              ),
-            ),
-          ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.5),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
         ),
+        child: Icon(icon, color: Colors.white, size: size * 0.45),
       ),
     );
   }
 }
 
-// ── Ikon kamera berdenyut ──
-class _PulsingCameraIcon extends StatefulWidget {
+// ── Loading screen dengan Lottie + teks biru ──
+class _CameraLoadingScreen extends StatefulWidget {
+  final String loadingCamera;
+  final String preparing;
+
+  const _CameraLoadingScreen({
+    required this.loadingCamera,
+    required this.preparing,
+  });
+
   @override
-  State<_PulsingCameraIcon> createState() => _PulsingCameraIconState();
+  State<_CameraLoadingScreen> createState() => _CameraLoadingScreenState();
 }
 
-class _PulsingCameraIconState extends State<_PulsingCameraIcon>
+class _CameraLoadingScreenState extends State<_CameraLoadingScreen>
     with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _pulse;
+  late final AnimationController _ctrl;
+  late final Animation<double> _fadeAnim;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-    _pulse = Tween<double>(begin: 0.92, end: 1.08).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+      duration: const Duration(milliseconds: 600),
+    )..forward();
+    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
   }
 
   @override
@@ -402,88 +387,75 @@ class _PulsingCameraIconState extends State<_PulsingCameraIcon>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _pulse,
-      builder: (_, __) => Transform.scale(
-        scale: _pulse.value,
-        child: Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFF00C9E4).withOpacity(0.12),
-            border: Border.all(
-              color: const Color(0xFF00C9E4).withOpacity(0.5),
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00C9E4)
-                    .withOpacity(0.2 * _pulse.value),
-                blurRadius: 24,
-                spreadRadius: 4,
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: Container(
+        color: Colors.white,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Lottie — cache agar langsung muncul
+              SizedBox(
+                width: 220,
+                height: 220,
+                child: _LottieLoader(),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                widget.loadingCamera,
+                style: const TextStyle(
+                  color: Color(0xFF0284C7),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.preparing,
+                style: const TextStyle(
+                  color: Color(0xFF38BDF8),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 140,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: const LinearProgressIndicator(
+                    minHeight: 3,
+                    backgroundColor: Color(0xFFBAE6FD),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF0284C7)),
+                  ),
+                ),
               ),
             ],
           ),
-          child: const Icon(
-            Icons.camera_alt_rounded,
-            color: Color(0xFF00C9E4),
-            size: 42,
-          ),
         ),
       ),
     );
   }
 }
 
-// ── Widget dot animasi ──
-class _AnimatedDots extends StatefulWidget {
-  @override
-  State<_AnimatedDots> createState() => _AnimatedDotsState();
-}
-
-class _AnimatedDotsState extends State<_AnimatedDots>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+class _LottieLoader extends StatelessWidget {
+  const _LottieLoader();
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) {
-            final delay = i / 3;
-            final value = ((_ctrl.value - delay) % 1.0).clamp(0.0, 1.0);
-            final opacity = value < 0.5
-                ? value * 2
-                : (1.0 - value) * 2;
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF00C9E4).withOpacity(0.3 + opacity * 0.7),
-              ),
-            );
-          }),
+    return Lottie.asset(
+      'assets/lottie/camera_loading.json',
+      fit: BoxFit.contain,
+      frameRate: FrameRate.max,
+      errorBuilder: (context, error, stackTrace) {
+        debugPrint('Lottie error: $error');
+        return const Icon(
+          Icons.camera_alt_rounded,
+          size: 90,
+          color: Color(0xFF0284C7),
         );
       },
     );
