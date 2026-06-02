@@ -571,7 +571,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                         _lbFetchAllData();
                       }
                       if (ctx.mounted) Navigator.pop(ctx);
-                    },
+                    }, 
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.symmetric(

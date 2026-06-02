@@ -54,12 +54,17 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
     }
 
     try {
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+      final startOfNextMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
+
       final data = await Supabase.instance.client
           .from('log_poin')
           .select('poin, deskripsi, tipe_aktivitas, created_at')
           .eq('id_user', userId)
-          .order('created_at', ascending: false)
-          .limit(25);
+          .gte('created_at', startOfMonth)
+          .lt('created_at', startOfNextMonth)
+          .order('created_at', ascending: false);
 
       if (mounted) {
         setState(() {

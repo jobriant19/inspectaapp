@@ -46,21 +46,17 @@ class _UserInfoCardState extends State<UserInfoCard> {
   @override
   void initState() {
     super.initState();
-    // Prioritas: initialMonthlyPoin dari login/splash → fallback ke userPoin
-    _monthlyPoin = widget.initialMonthlyPoin ?? widget.userPoin;
-    _isLoadingMonthly = false; // Langsung tampil tanpa loading
-    _fetchMonthlyPoin(); // Fetch background untuk nilai terbaru dari log_poin
+    // Gunakan initialMonthlyPoin jika ada, lalu langsung fetch terbaru
+    _monthlyPoin = widget.initialMonthlyPoin ?? 0;
+    _isLoadingMonthly = _monthlyPoin == 0; // tampilkan loading hanya jika belum ada nilai
+    _fetchMonthlyPoin();
   }
 
   @override
   void didUpdateWidget(UserInfoCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Hanya fetch ulang ketika nilai FINAL poin berubah.
-    // Karena sekarang UserInfoCard menerima _userPoin (bukan _displayedPoin),
-    // ini hanya dipanggil SEKALI saat poin benar-benar berubah di database.
-    if (oldWidget.userPoin != widget.userPoin) {
-      _fetchMonthlyPoin();
-    }
+    // Fetch ulang setiap kali widget diupdate (termasuk kembali dari explore)
+    _fetchMonthlyPoin();
   }
 
   Future<void> _fetchMonthlyPoin() async {
@@ -70,7 +66,6 @@ class _UserInfoCardState extends State<UserInfoCard> {
       if (userId == null) return;
 
       final now = DateTime.now();
-      // Query log_poin berdasarkan created_at bulan ini (timezone-aware)
       final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
       final startOfNextMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
 
@@ -87,11 +82,14 @@ class _UserInfoCardState extends State<UserInfoCard> {
       }
 
       if (mounted) {
-        setState(() => _monthlyPoin = total);
+        setState(() {
+          _monthlyPoin = total;
+          _isLoadingMonthly = false;
+        });
       }
     } catch (e) {
       debugPrint('Error fetching monthly poin: $e');
-      // Nilai tetap dari initState, tidak perlu ubah apa-apa
+      if (mounted) setState(() => _isLoadingMonthly = false);
     }
   }
 
