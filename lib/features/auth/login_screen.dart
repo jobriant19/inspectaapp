@@ -367,17 +367,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => isLoading = true);
     _saveCredentials();
 
-    String hashedPass = pass;
     try {
-      hashedPass = await _auth.hashPassword(email, pass);
-    } catch (_) {
-      if (mounted) setState(() => isLoading = false);
-      _showCustomDialog('Terjadi kesalahan enkripsi keamanan password.');
-      return;
-    }
-
-    try {
-      final AuthResponse? res = await _auth.signInWithEmail(email, hashedPass);
+      final AuthResponse? res = await _auth.signInWithEmail(email, pass);
 
       if (res == null || res.user == null) {
         _showCustomDialog(getTxt('err_wrong'));

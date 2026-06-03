@@ -719,6 +719,16 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     : 'Berita berhasil diperbarui.'),
       );
 
+      // Kirim push notif hanya saat INSERT berita baru
+      if (existing == null) {
+        _sendNewsNotification(
+          type: type,
+          titleId: titleId,
+          titleEn: titleEn,
+          titleZh: titleZh,
+        );
+      }
+
       _load();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -731,6 +741,62 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                 ? '保存文章失败。\n${e.toString()}'
                 : 'Gagal menyimpan berita.\n${e.toString()}',
       );
+    }
+  }
+
+  Future<void> _sendNewsNotification({
+    required String type,
+    required String titleId,
+    required String titleEn,
+    required String titleZh,
+  }) async {
+    try {
+      // Ambil semua FCM token user yang aktif
+      final users = await Supabase.instance.client
+          .from('User')
+          .select('fcm_token')
+          .not('fcm_token', 'is', null)
+          .neq('fcm_token', '');
+
+      if (users.isEmpty) return;
+
+      final isUpdate = type == 'update';
+      final emoji = isUpdate ? '🔔' : '🔧';
+
+      // Kirim ke semua user secara paralel (batch max 10)
+      final tokens = (users as List)
+          .map((u) => u['fcm_token']?.toString())
+          .where((t) => t != null && t.isNotEmpty)
+          .cast<String>()
+          .toList();
+
+      // Kirim per batch 10 agar tidak overload
+      const batchSize = 10;
+      for (int i = 0; i < tokens.length; i += batchSize) {
+        final batch = tokens.skip(i).take(batchSize).toList();
+        await Future.wait(batch.map((token) async {
+          try {
+            await Supabase.instance.client.functions.invoke(
+              'send-push-notification',
+              body: {
+                'token': token,
+                'title': '$emoji ${isUpdate ? 'Update' : 'Maintenance'}',
+                'body': titleId, // default kirim bahasa Indonesia
+                'data': {
+                  'route': 'news',
+                  'type': type,
+                },
+              },
+            );
+          } catch (e) {
+            debugPrint('Error sending to token $token: $e');
+          }
+        }));
+      }
+
+      debugPrint('News notification sent to ${tokens.length} users');
+    } catch (e) {
+      debugPrint('Error sending news notification: $e');
     }
   }
 

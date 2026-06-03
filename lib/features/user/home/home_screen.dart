@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -387,6 +388,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handleLoginAndFetchData() async {
     final user = _sb.auth.currentUser;
     if (user == null) return;
+
+    if (!kIsWeb) {
+      NotificationService.instance.saveFcmTokenAfterLogin();
+    }
 
     if (_pointChannel == null) _setupPointListener();
 

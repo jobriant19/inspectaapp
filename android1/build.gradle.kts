@@ -1,14 +1,3 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        // Gunakan tanda kurung dan kutip ganda untuk Kotlin DSL
-        classpath("com.google.gms:google-services:4.4.1")
-    }
-}
-
 allprojects {
     repositories {
         google()
@@ -29,4 +18,10 @@ subprojects {
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
+}
+
+buildscript {
+    dependencies {
+        classpath 'com.google.gms:google-service:4.4.2'
+    }
 }
