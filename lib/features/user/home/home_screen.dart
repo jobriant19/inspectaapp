@@ -634,6 +634,42 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<Map<String, dynamic>> _prefetchNotificationData() async {
+    final user = _sb.auth.currentUser;
+    if (user == null) return {'findings': [], 'logs': []};
+
+    final results = await Future.wait([
+      _sb
+          .from('temuan')
+          .select(
+            'id_temuan, judul_temuan, gambar_temuan, created_at, '
+            'status_temuan, poin_temuan, target_waktu_selesai, '
+            'jenis_temuan, id_lokasi, id_unit, id_subunit, id_area, '
+            'id_penanggung_jawab, is_pro, is_visitor, is_eksekutif, '
+            'lokasi(nama_lokasi), unit(nama_unit), '
+            'subunit(nama_subunit), area(nama_area)',
+          )
+          .eq('id_penanggung_jawab', user.id)
+          .order('created_at', ascending: false),
+      _sb
+          .from('log_poin')
+          .select('poin, deskripsi, tipe_aktivitas, created_at')
+          .eq('id_user', user.id)
+          .gte('created_at',
+              DateTime(DateTime.now().year, DateTime.now().month, 1)
+                  .toIso8601String())
+          .lte('created_at',
+              DateTime(DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59)
+                  .toIso8601String())
+          .order('created_at', ascending: false),
+    ]);
+
+    return {
+      'findings': List<Map<String, dynamic>>.from(results[0] as List),
+      'logs': List<Map<String, dynamic>>.from(results[1] as List),
+    };
+  }
+
   Future<void> _loadInitialVisitorStatus() async {
     try {
       final userId = _sb.auth.currentUser?.id;
@@ -1051,10 +1087,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildNotifButton() {
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
+        final prefetched = await _prefetchNotificationData();
+        if (!mounted) return;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => NotificationScreen(lang: _lang)),
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => NotificationScreen(
+              lang: _lang,
+              initialFindings: prefetched['findings'],
+              initialActivityLogs: prefetched['logs'],
+            ),
+            transitionsBuilder: (_, anim, __, child) => SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.0, -1.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: anim, curve: Curves.easeInOut)),
+              child: child,
+            ),
+            transitionDuration: const Duration(milliseconds: 300),
+          ),
         ).then((_) => _fetchNotificationCount());
       },
       child: Stack(

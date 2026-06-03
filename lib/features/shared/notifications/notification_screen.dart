@@ -8,7 +8,15 @@ import '../../user/home/finding_card.dart';
 
 class NotificationScreen extends StatefulWidget {
   final String lang;
-  const NotificationScreen({super.key, required this.lang});
+  final List<Map<String, dynamic>>? initialFindings;
+  final List<Map<String, dynamic>>? initialActivityLogs;
+
+  const NotificationScreen({
+    super.key,
+    required this.lang,
+    this.initialFindings,
+    this.initialActivityLogs,
+  });
 
   @override
   State<NotificationScreen> createState() => _NotificationScreenState();
@@ -73,134 +81,178 @@ class _NotificationScreenState extends State<NotificationScreen>
     _tabController.dispose();
     super.dispose();
   }
-  
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFF),
-      body: Column(
-        children: [
-          // ── HEADER TETAP (tidak ikut scroll) ──
-          Container(
-            color: Colors.white,
-            child: SafeArea(
-              bottom: false,
-              child: Column(
-                children: [
-                  // AppBar custom
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(Icons.arrow_back_ios_new,
-                                size: 18, color: Color(0xFF1E3A8A)),
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            _t('title'),
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF1E3A8A),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFF),
+        body: Column(
+          children: [
+            // ── HEADER TETAP ──
+            Container(
+              color: Colors.white,
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.arrow_back_ios_new,
+                                  size: 18, color: Color(0xFF1D72F3)),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 40), // balancer
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // TabBar tetap
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      isScrollable: false,
-                      tabAlignment: TabAlignment.fill,
-                      indicator: BoxDecoration(
-                        color: const Color(0xFF0EA5E9),
-                        borderRadius: BorderRadius.circular(9),
+                          Expanded(
+                            child: Text(
+                              _t('title'),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF1D72F3),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 40),
+                        ],
                       ),
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      labelColor: Colors.white,
-                      unselectedLabelColor: const Color(0xFF0EA5E9),
-                      labelStyle: GoogleFonts.poppins(
-                          fontSize: 12, fontWeight: FontWeight.w700),
-                      unselectedLabelStyle: GoogleFonts.poppins(
-                          fontSize: 12, fontWeight: FontWeight.w500),
-                      dividerColor: Colors.transparent,
-                      tabs: [
-                        Tab(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.assignment_ind_outlined, size: 15),
-                              const SizedBox(width: 5),
-                              Text(_t('tab_findings')),
-                            ],
-                          ),
-                        ),
-                        Tab(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.history_rounded, size: 15),
-                              const SizedBox(width: 5),
-                              Text(_t('tab_activity')),
-                            ],
-                          ),
-                        ),
-                      ],
                     ),
+                    const SizedBox(height: 12),
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        isScrollable: false,
+                        tabAlignment: TabAlignment.fill,
+                        indicator: BoxDecoration(
+                          color: const Color(0xFF0EA5E9),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: const Color(0xFF0EA5E9),
+                        labelStyle: GoogleFonts.poppins(
+                            fontSize: 12, fontWeight: FontWeight.w700),
+                        unselectedLabelStyle: GoogleFonts.poppins(
+                            fontSize: 12, fontWeight: FontWeight.w500),
+                        dividerColor: Colors.transparent,
+                        tabs: [
+                          Tab(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.assignment_ind_outlined,
+                                    size: 15),
+                                const SizedBox(width: 5),
+                                Text(_t('tab_findings')),
+                              ],
+                            ),
+                          ),
+                          Tab(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.history_rounded, size: 15),
+                                const SizedBox(width: 5),
+                                Text(_t('tab_activity')),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── KONTEN ──
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _AssignedFindingsTab(
+                    lang: widget.lang,
+                    initialData: widget.initialFindings,
+                    t: _t,
+                  ),
+                  _ActivityLogTab(
+                    lang: widget.lang,
+                    initialLogs: widget.initialActivityLogs,
+                    t: _t,
                   ),
                 ],
               ),
             ),
-          ),
-
-          // ── KONTEN SCROLLABLE ──
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildAssignedFindingsTab(),
-                _buildActivityLogTab(),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
 
-  // ── TAB 1: Temuan yang ditugaskan ──
-  Widget _buildAssignedFindingsTab() {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) {
-      return _buildEmpty(
-        _t('empty_findings'),
-        _t('empty_findings_sub'),
-        Icons.assignment_ind_outlined,
-      );
+// ══════════════════════════════════════════════
+// TAB 1: Assigned Findings
+// ══════════════════════════════════════════════
+class _AssignedFindingsTab extends StatefulWidget {
+  final String lang;
+  final List<Map<String, dynamic>>? initialData;
+  final String Function(String) t;
+
+  const _AssignedFindingsTab({
+    required this.lang,
+    required this.t,
+    this.initialData,
+  });
+
+  @override
+  State<_AssignedFindingsTab> createState() => _AssignedFindingsTabState();
+}
+
+class _AssignedFindingsTabState extends State<_AssignedFindingsTab>
+    with AutomaticKeepAliveClientMixin {
+  List<Map<String, dynamic>> _items = [];
+  bool _isLoading = false;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialData != null) {
+      _items = widget.initialData!;
+    } else {
+      _fetchFindings();
     }
+  }
 
-    return FutureBuilder<List<dynamic>>(
-      future: Supabase.instance.client
+  Future<void> _fetchFindings() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    setState(() => _isLoading = true);
+    try {
+      final data = await Supabase.instance.client
           .from('temuan')
           .select(
             'id_temuan, judul_temuan, gambar_temuan, created_at, '
@@ -211,108 +263,97 @@ class _NotificationScreenState extends State<NotificationScreen>
             'subunit(nama_subunit), area(nama_area)',
           )
           .eq('id_penanggung_jawab', userId)
-          .order('created_at', ascending: false),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildShimmerList();
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _buildEmpty(
-            _t('empty_findings'),
-            _t('empty_findings_sub'),
-            Icons.assignment_ind_outlined,
-          );
-        }
-
-        final items =
-            List<Map<String, dynamic>>.from(snapshot.data!);
-
-        final pendingCount = items.where((e) {
-          final s =
-              (e['status_temuan'] ?? '').toString().toLowerCase();
-          return !['selesai', 'done', 'completed', 'closed']
-              .any((x) => s.contains(x));
-        }).length;
-
-        return Column(
-          children: [
-            // Banner pending — tetap di atas, tidak scroll
-            if (pendingCount > 0)
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [
-                    const Color(0xFFDC2626).withOpacity(0.08),
-                    const Color(0xFFEF4444).withOpacity(0.05),
-                  ]),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                      color: const Color(0xFFDC2626).withOpacity(0.2)),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.pending_actions_rounded,
-                      color: Color(0xFFDC2626), size: 20),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.lang == 'ID'
-                          ? '$pendingCount temuan masih menunggu penyelesaian Anda'
-                          : '$pendingCount findings are waiting for your action',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFDC2626),
-                      ),
-                    ),
-                  ),
-                ]),
-              ),
-
-            // List scrollable
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  return FindingCard(
-                    data: item,
-                    lang: widget.lang,
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => FindingDetailScreen(
-                            initialData: item,
-                            lang: widget.lang,
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
-    );
+          .order('created_at', ascending: false);
+      if (mounted) {
+        setState(() {
+          _items = List<Map<String, dynamic>>.from(data);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching findings: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  // ── TAB 2: Activity Log ──
-  Widget _buildActivityLogTab() {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) {
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (_isLoading) return _buildShimmer();
+
+    if (_items.isEmpty) {
       return _buildEmpty(
-        _t('empty_activity'),
-        _t('empty_activity_sub'),
-        Icons.history_rounded,
+        widget.t('empty_findings'),
+        widget.t('empty_findings_sub'),
+        Icons.assignment_ind_outlined,
       );
     }
 
-    return _ActivityLogTabContent(lang: widget.lang, userId: userId, t: _t);
+    final pendingCount = _items.where((e) {
+      final s = (e['status_temuan'] ?? '').toString().toLowerCase();
+      return !['selesai', 'done', 'completed', 'closed'].any((x) => s.contains(x));
+    }).length;
+
+    return Column(
+      children: [
+        if (pendingCount > 0)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                const Color(0xFFDC2626).withOpacity(0.08),
+                const Color(0xFFEF4444).withOpacity(0.05),
+              ]),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                  color: const Color(0xFFDC2626).withOpacity(0.2)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.pending_actions_rounded,
+                  color: Color(0xFFDC2626), size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.lang == 'ID'
+                      ? '$pendingCount temuan masih menunggu penyelesaian Anda'
+                      : '$pendingCount findings are waiting for your action',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFDC2626),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            itemCount: _items.length,
+            itemBuilder: (context, index) {
+              final item = _items[index];
+              return FindingCard(
+                data: item,
+                lang: widget.lang,
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FindingDetailScreen(
+                        initialData: item,
+                        lang: widget.lang,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildEmpty(String title, String subtitle, IconData icon) {
@@ -322,22 +363,33 @@ class _NotificationScreenState extends State<NotificationScreen>
         children: [
           Container(
             width: 80, height: 80,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: const Color(0xFF00C9E4).withOpacity(0.08)),
-            child: Icon(icon, size: 36, color: const Color(0xFF00C9E4).withOpacity(0.5)),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF00C9E4).withOpacity(0.08),
+            ),
+            child: Icon(icon, size: 36,
+                color: const Color(0xFF00C9E4).withOpacity(0.5)),
           ),
           const SizedBox(height: 16),
-          Text(title, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
+          Text(title,
+              style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E3A8A))),
           const SizedBox(height: 6),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(subtitle, textAlign: TextAlign.center, style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500)),
+            child: Text(subtitle,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 12, color: Colors.grey.shade500)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildShimmerList() {
+  Widget _buildShimmer() {
     return Shimmer.fromColors(
       baseColor: Colors.grey.shade200,
       highlightColor: Colors.grey.shade100,
@@ -347,44 +399,68 @@ class _NotificationScreenState extends State<NotificationScreen>
         itemBuilder: (_, __) => Container(
           margin: const EdgeInsets.only(bottom: 12),
           height: 100,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18)),
         ),
       ),
     );
   }
 }
 
-class _ActivityLogTabContent extends StatefulWidget {
+// ══════════════════════════════════════════════
+// TAB 2: Activity Log
+// ══════════════════════════════════════════════
+class _ActivityLogTab extends StatefulWidget {
   final String lang;
-  final String userId;
+  final List<Map<String, dynamic>>? initialLogs;
   final String Function(String) t;
 
-  const _ActivityLogTabContent({
+  const _ActivityLogTab({
     required this.lang,
-    required this.userId,
     required this.t,
+    this.initialLogs,
   });
 
   @override
-  State<_ActivityLogTabContent> createState() => _ActivityLogTabContentState();
+  State<_ActivityLogTab> createState() => _ActivityLogTabState();
 }
 
-class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
-  // Filter state
+class _ActivityLogTabState extends State<_ActivityLogTab>
+    with AutomaticKeepAliveClientMixin {
   String _searchQuery = '';
-  DateTime _filterFrom = DateTime(DateTime.now().year, DateTime.now().month, 1);
-  DateTime _filterTo = DateTime(DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59);
+  DateTime _filterFrom =
+      DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime _filterTo = DateTime(
+      DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59);
   final TextEditingController _searchCtrl = TextEditingController();
 
   List<Map<String, dynamic>> _allLogs = [];
   List<Map<String, dynamic>> _filteredLogs = [];
   int _totalPoin = 0;
-  bool _isLoading = true;
+  bool _isLoading = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    _fetchLogs();
+    if (widget.initialLogs != null) {
+      _allLogs = widget.initialLogs!;
+      _computeTotal(_allLogs);
+      _filteredLogs = List.from(_allLogs);
+    } else {
+      _fetchLogs();
+    }
+  }
+
+  void _computeTotal(List<Map<String, dynamic>> logs) {
+    int total = 0;
+    for (final l in logs) {
+      total += ((l['poin'] as num?)?.toInt() ?? 0);
+    }
+    _totalPoin = total;
   }
 
   @override
@@ -394,26 +470,23 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
   }
 
   Future<void> _fetchLogs() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
     setState(() => _isLoading = true);
     try {
       final List<dynamic> logs = await Supabase.instance.client
           .from('log_poin')
           .select('poin, deskripsi, tipe_aktivitas, created_at')
-          .eq('id_user', widget.userId)
+          .eq('id_user', userId)
           .gte('created_at', _filterFrom.toIso8601String())
           .lte('created_at', _filterTo.toIso8601String())
           .order('created_at', ascending: false);
 
       final list = List<Map<String, dynamic>>.from(logs);
-      int total = 0;
-      for (final l in list) {
-        total += ((l['poin'] as num?)?.toInt() ?? 0);
-      }
-
       if (mounted) {
         setState(() {
           _allLogs = list;
-          _totalPoin = total;
+          _computeTotal(list);
           _isLoading = false;
         });
         _applySearch(_searchQuery);
@@ -442,34 +515,73 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
 
   Color _getTipeColor(String tipe, bool isPositive) {
     switch (tipe) {
-      case 'login_pertama': return const Color(0xFFEC4899);
-      case 'login_harian': return const Color(0xFF3B82F6);
-      case 'login_pertama_hari_ini': return const Color(0xFFF59E0B);
-      case 'penalti': return const Color(0xFFEF4444);
-      default: return isPositive ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+      case 'login_pertama':
+        return const Color(0xFFEC4899);
+      case 'login_harian':
+        return const Color(0xFF3B82F6);
+      case 'login_pertama_hari_ini':
+        return const Color(0xFFF59E0B);
+      case 'penalti':
+        return const Color(0xFFEF4444);
+      default:
+        return isPositive
+            ? const Color(0xFF16A34A)
+            : const Color(0xFFDC2626);
     }
   }
 
   IconData _getTipeIcon(String tipe, bool isPositive) {
     switch (tipe) {
-      case 'login_pertama': return Icons.celebration_rounded;
-      case 'login_harian': return Icons.today_rounded;
-      case 'login_pertama_hari_ini': return Icons.emoji_events_rounded;
-      case 'penalti': return Icons.warning_amber_rounded;
-      default: return isPositive ? Icons.star_rounded : Icons.remove_circle_outline_rounded;
+      case 'login_pertama':
+        return Icons.celebration_rounded;
+      case 'login_harian':
+        return Icons.today_rounded;
+      case 'login_pertama_hari_ini':
+        return Icons.emoji_events_rounded;
+      case 'penalti':
+        return Icons.warning_amber_rounded;
+      default:
+        return isPositive
+            ? Icons.star_rounded
+            : Icons.remove_circle_outline_rounded;
     }
   }
 
   String _formatDate(dynamic value) {
     if (value == null) return '-';
-    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
+    final dt =
+        value is DateTime ? value : DateTime.tryParse(value.toString());
     if (dt == null) return '-';
     final now = DateTime.now();
     final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return widget.lang == 'ZH' ? '刚刚' : widget.lang == 'EN' ? 'Just now' : 'Baru saja';
-    if (diff.inHours < 1) return widget.lang == 'ZH' ? '${diff.inMinutes}分钟前' : widget.lang == 'EN' ? '${diff.inMinutes} min ago' : '${diff.inMinutes} menit lalu';
-    if (diff.inDays < 1) return widget.lang == 'ZH' ? '${diff.inHours}小时前' : widget.lang == 'EN' ? '${diff.inHours} hr ago' : '${diff.inHours} jam lalu';
-    if (diff.inDays < 7) return widget.lang == 'ZH' ? '${diff.inDays}天前' : widget.lang == 'EN' ? '${diff.inDays} days ago' : '${diff.inDays} hari lalu';
+    if (diff.inMinutes < 1) {
+      return widget.lang == 'ZH'
+          ? '刚刚'
+          : widget.lang == 'EN'
+              ? 'Just now'
+              : 'Baru saja';
+    }
+    if (diff.inHours < 1) {
+      return widget.lang == 'ZH'
+          ? '${diff.inMinutes}分钟前'
+          : widget.lang == 'EN'
+              ? '${diff.inMinutes} min ago'
+              : '${diff.inMinutes} menit lalu';
+    }
+    if (diff.inDays < 1) {
+      return widget.lang == 'ZH'
+          ? '${diff.inHours}小时前'
+          : widget.lang == 'EN'
+              ? '${diff.inHours} hr ago'
+              : '${diff.inHours} jam lalu';
+    }
+    if (diff.inDays < 7) {
+      return widget.lang == 'ZH'
+          ? '${diff.inDays}天前'
+          : widget.lang == 'EN'
+              ? '${diff.inDays} days ago'
+              : '${diff.inDays} hari lalu';
+    }
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
   }
 
@@ -485,17 +597,20 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
 
   void _showPeriodPicker() async {
     DateTime tempFrom = _filterFrom;
-    DateTime tempTo = DateTime(_filterTo.year, _filterTo.month, _filterTo.day);
+    DateTime tempTo =
+        DateTime(_filterTo.year, _filterTo.month, _filterTo.day);
 
     final now = DateTime.now();
     final years = List.generate(3, (i) => now.year - 1 + i);
     final monthNames = {
-      'EN': ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-      'ID': ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'],
-      'ZH': ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
-    }[widget.lang] ?? ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+          'EN': ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+          'ID': ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'],
+          'ZH': ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+        }[widget.lang] ??
+        ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
 
-    Widget buildMonthYearPicker(DateTime current, ValueChanged<DateTime> onChange, StateSetter setSt) {
+    Widget buildMonthYearPicker(DateTime current,
+        ValueChanged<DateTime> onChange, StateSetter setSt) {
       return Row(children: [
         Expanded(
           flex: 3,
@@ -510,11 +625,21 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
             child: DropdownButtonHideUnderline(
               child: DropdownButton<int>(
                 value: current.month - 1,
-                icon: const Icon(Icons.keyboard_arrow_down, size: 18, color: Color(0xFF0284C7)),
-                style: const TextStyle(fontSize: 13, color: Color(0xFF0C4A6E), fontWeight: FontWeight.w600),
+                icon: const Icon(Icons.keyboard_arrow_down,
+                    size: 18, color: Color(0xFF0284C7)),
+                style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF0C4A6E),
+                    fontWeight: FontWeight.w600),
                 dropdownColor: Colors.white,
-                items: List.generate(12, (i) => DropdownMenuItem(value: i, child: Text(monthNames[i]))),
-                onChanged: (v) { if (v != null) setSt(() => onChange(DateTime(current.year, v + 1))); },
+                items: List.generate(
+                    12,
+                    (i) => DropdownMenuItem(
+                        value: i, child: Text(monthNames[i]))),
+                onChanged: (v) {
+                  if (v != null)
+                    setSt(() => onChange(DateTime(current.year, v + 1)));
+                },
               ),
             ),
           ),
@@ -533,11 +658,21 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
             child: DropdownButtonHideUnderline(
               child: DropdownButton<int>(
                 value: current.year,
-                icon: const Icon(Icons.keyboard_arrow_down, size: 18, color: Color(0xFF0284C7)),
-                style: const TextStyle(fontSize: 13, color: Color(0xFF0C4A6E), fontWeight: FontWeight.w600),
+                icon: const Icon(Icons.keyboard_arrow_down,
+                    size: 18, color: Color(0xFF0284C7)),
+                style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF0C4A6E),
+                    fontWeight: FontWeight.w600),
                 dropdownColor: Colors.white,
-                items: years.map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
-                onChanged: (v) { if (v != null) setSt(() => onChange(DateTime(v, current.month))); },
+                items: years
+                    .map((y) =>
+                        DropdownMenuItem(value: y, child: Text('$y')))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null)
+                    setSt(() => onChange(DateTime(v, current.month)));
+                },
               ),
             ),
           ),
@@ -549,59 +684,100 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE0F2FE), width: 1.5),
+              border: Border.all(
+                  color: const Color(0xFFE0F2FE), width: 1.5),
             ),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.date_range_rounded, color: Color(0xFF0284C7), size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(
-                  widget.lang == 'EN' ? 'Select Period' : widget.lang == 'ZH' ? '选择期间' : 'Pilih Periode',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0C4A6E)),
-                )),
-                IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
-              ]),
-              const SizedBox(height: 16),
-              Text(
-                widget.lang == 'EN' ? 'From' : widget.lang == 'ZH' ? '从' : 'Dari',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 6),
-              buildMonthYearPicker(tempFrom, (d) => tempFrom = d, setSt),
-              const SizedBox(height: 14),
-              Text(
-                widget.lang == 'EN' ? 'To' : widget.lang == 'ZH' ? '到' : 'Sampai',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 6),
-              buildMonthYearPicker(tempTo, (d) => tempTo = d, setSt),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _filterFrom = DateTime(tempFrom.year, tempFrom.month, 1);
-                      _filterTo = DateTime(tempTo.year, tempTo.month + 1, 0, 23, 59, 59);
-                    });
-                    Navigator.pop(ctx);
-                    _fetchLogs();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0EA5E9),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text(widget.lang == 'EN' ? 'Apply' : widget.lang == 'ZH' ? '应用' : 'Terapkan'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.date_range_rounded,
+                      color: Color(0xFF0284C7), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: Text(
+                    widget.lang == 'EN'
+                        ? 'Select Period'
+                        : widget.lang == 'ZH'
+                            ? '选择期间'
+                            : 'Pilih Periode',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Color(0xFF0C4A6E)),
+                  )),
+                  IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => Navigator.pop(ctx),
+                      padding: EdgeInsets.zero),
+                ]),
+                const SizedBox(height: 16),
+                Text(
+                  widget.lang == 'EN'
+                      ? 'From'
+                      : widget.lang == 'ZH'
+                          ? '从'
+                          : 'Dari',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w600),
                 ),
-              ),
-            ]),
+                const SizedBox(height: 6),
+                buildMonthYearPicker(
+                    tempFrom, (d) => tempFrom = d, setSt),
+                const SizedBox(height: 14),
+                Text(
+                  widget.lang == 'EN'
+                      ? 'To'
+                      : widget.lang == 'ZH'
+                          ? '到'
+                          : 'Sampai',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                buildMonthYearPicker(
+                    tempTo, (d) => tempTo = d, setSt),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _filterFrom = DateTime(
+                            tempFrom.year, tempFrom.month, 1);
+                        _filterTo = DateTime(tempTo.year,
+                            tempTo.month + 1, 0, 23, 59, 59);
+                      });
+                      Navigator.pop(ctx);
+                      _fetchLogs();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0EA5E9),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(widget.lang == 'EN'
+                        ? 'Apply'
+                        : widget.lang == 'ZH'
+                            ? '应用'
+                            : 'Terapkan'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -618,14 +794,18 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+
     final fireColor = _getFireColor(_totalPoin);
-    final periodLabel = '${_monthLabel(_filterFrom)} – ${_monthLabel(DateTime(_filterTo.year, _filterTo.month))}';
+    final periodLabel =
+        '${_monthLabel(_filterFrom)} – ${_monthLabel(DateTime(_filterTo.year, _filterTo.month))}';
 
     return Column(children: [
-      // ── Summary Card (mirip activity_log_dialog.dart) ──
+      // ── Summary Card ──
       Container(
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: [Color(0xFF1E3A8A), Color(0xFF0EA5E9)],
@@ -642,22 +822,36 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
           ],
         ),
         child: Row(children: [
-          Icon(Icons.local_fire_department_rounded, color: fireColor, size: 32),
+          Icon(Icons.local_fire_department_rounded,
+              color: fireColor, size: 32),
           const SizedBox(width: 12),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-              widget.lang == 'EN' ? 'Total Points' : widget.lang == 'ZH' ? '总积分' : 'Total Poin',
-              style: GoogleFonts.poppins(fontSize: 11, color: Colors.white70),
-            ),
-            Text(
-              _isLoading ? '...' : '$_totalPoin ${widget.lang == 'EN' ? 'Points' : widget.lang == 'ZH' ? '积分' : 'Poin'}',
-              style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white),
-            ),
-          ]),
+          Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.lang == 'EN'
+                      ? 'Total Points'
+                      : widget.lang == 'ZH'
+                          ? '总积分'
+                          : 'Total Poin',
+                  style:
+                      GoogleFonts.poppins(fontSize: 11, color: Colors.white70),
+                ),
+                Text(
+                  _isLoading
+                      ? '...'
+                      : '$_totalPoin ${widget.lang == 'EN' ? 'Points' : widget.lang == 'ZH' ? '积分' : 'Poin'}',
+                  style: GoogleFonts.poppins(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white),
+                ),
+              ]),
           const Spacer(),
           Text(
             _isLoading ? '...' : '${_filteredLogs.length} log',
-            style: GoogleFonts.poppins(fontSize: 12, color: Colors.white60),
+            style:
+                GoogleFonts.poppins(fontSize: 12, color: Colors.white60),
           ),
         ]),
       ),
@@ -666,7 +860,6 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
         child: Row(children: [
-          // Search field
           Expanded(
             child: Container(
               height: 40,
@@ -677,7 +870,8 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
                 border: Border.all(color: const Color(0xFFBAE6FD)),
               ),
               child: Row(children: [
-                const Icon(Icons.search, color: Color(0xFF0EA5E9), size: 18),
+                const Icon(Icons.search,
+                    color: Color(0xFF0EA5E9), size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
@@ -685,24 +879,32 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
                     onChanged: _applySearch,
                     style: GoogleFonts.poppins(fontSize: 12),
                     decoration: InputDecoration(
-                      hintText: widget.lang == 'EN' ? 'Search activity...' : widget.lang == 'ZH' ? '搜索活动...' : 'Cari aktivitas...',
+                      hintText: widget.lang == 'EN'
+                          ? 'Search activity...'
+                          : widget.lang == 'ZH'
+                              ? '搜索活动...'
+                              : 'Cari aktivitas...',
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: EdgeInsets.zero,
-                      hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade400),
+                      hintStyle: GoogleFonts.poppins(
+                          fontSize: 12, color: Colors.grey.shade400),
                     ),
                   ),
                 ),
                 if (_searchQuery.isNotEmpty)
                   GestureDetector(
-                    onTap: () { _searchCtrl.clear(); _applySearch(''); },
-                    child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                    onTap: () {
+                      _searchCtrl.clear();
+                      _applySearch('');
+                    },
+                    child: const Icon(Icons.close,
+                        size: 16, color: Colors.grey),
                   ),
               ]),
             ),
           ),
           const SizedBox(width: 8),
-          // Period filter button
           GestureDetector(
             onTap: _showPeriodPicker,
             child: Container(
@@ -712,59 +914,78 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
                 color: const Color(0xFF0EA5E9),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  periodLabel,
-                  style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
-                ),
-              ]),
+              child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.calendar_month_rounded,
+                        color: Colors.white, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      periodLabel,
+                      style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white),
+                    ),
+                  ]),
             ),
           ),
         ]),
       ),
 
       // ── Log List ──
-      Expanded(child: _isLoading
-          ? Shimmer.fromColors(
-              baseColor: Colors.grey.shade200,
-              highlightColor: Colors.grey.shade100,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: 5,
-                itemBuilder: (_, __) => Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  height: 70,
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+      Expanded(
+        child: _isLoading
+            ? Shimmer.fromColors(
+                baseColor: Colors.grey.shade200,
+                highlightColor: Colors.grey.shade100,
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: 5,
+                  itemBuilder: (_, __) => Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    height: 70,
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
                 ),
-              ),
-            )
-          : _filteredLogs.isEmpty
-              ? Center(child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 72, height: 72,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF00C9E4).withOpacity(0.08),
+              )
+            : _filteredLogs.isEmpty
+                ? Center(
+                    child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF00C9E4).withOpacity(0.08),
+                        ),
+                        child: Icon(Icons.history_rounded,
+                            size: 36,
+                            color: const Color(0xFF00C9E4).withOpacity(0.5)),
                       ),
-                      child: Icon(Icons.history_rounded, size: 36, color: const Color(0xFF00C9E4).withOpacity(0.5)),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      widget.t('empty_activity'),
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A)),
-                    ),
-                  ],
-                ))
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                  itemCount: _filteredLogs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) => _buildActivityLogCard(_filteredLogs[index]),
-                ),
+                      const SizedBox(height: 12),
+                      Text(
+                        widget.t('empty_activity'),
+                        style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1E3A8A)),
+                      ),
+                    ],
+                  ))
+                : ListView.separated(
+                    padding:
+                        const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                    itemCount: _filteredLogs.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (context, index) =>
+                        _buildActivityLogCard(_filteredLogs[index]),
+                  ),
       ),
     ]);
   }
@@ -784,30 +1005,55 @@ class _ActivityLogTabContentState extends State<_ActivityLogTabContent> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withOpacity(0.15)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 3))
+        ],
       ),
       child: Row(children: [
         Container(
-          width: 44, height: 44,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: color.withOpacity(0.1)),
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withOpacity(0.1)),
           child: Icon(icon, color: color, size: 22),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(desc,
-            maxLines: 2, overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: const Color(0xFF0F172A), height: 1.4),
-          ),
-          const SizedBox(height: 3),
-          Text(tanggal, style: GoogleFonts.poppins(fontSize: 10.5, color: Colors.grey.shade400)),
-        ])),
+        Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Text(
+                desc,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF0F172A),
+                    height: 1.4),
+              ),
+              const SizedBox(height: 3),
+              Text(tanggal,
+                  style: GoogleFonts.poppins(
+                      fontSize: 10.5, color: Colors.grey.shade400)),
+            ])),
         const SizedBox(width: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20)),
           child: Text(
             isPositive ? '+$poin' : '$poin',
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: color),
+            style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: color),
           ),
         ),
       ]),
