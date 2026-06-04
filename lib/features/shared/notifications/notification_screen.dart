@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/services/push_notification_service.dart';
 import '../../user/finding/finding_detail_screen.dart';
 import '../../user/home/finding_card.dart';
 
@@ -68,17 +69,100 @@ class _NotificationScreenState extends State<NotificationScreen>
     },
   };
 
+  // ── Realtime channels ──
+  RealtimeChannel? _findingsChannel;
+  RealtimeChannel? _logsChannel;
+
   String _t(String key) => _texts[widget.lang]?[key] ?? key;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _setupRealtimeListeners();
+  }
+
+  void _setupRealtimeListeners() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    // ── Listener 1: Assigned Finding baru ──
+    _findingsChannel = Supabase.instance.client
+        .channel('notif_findings_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'temuan',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id_penanggung_jawab',
+            value: userId,
+          ),
+          callback: (payload) async {
+            if (!mounted) return;
+            final newRow = payload.newRecord;
+            final judul =
+                newRow['judul_temuan']?.toString() ?? 'Temuan baru';
+
+            await PushNotificationService.instance.showLocalNotification(
+              title: widget.lang == 'EN'
+                  ? '📋 New Finding Assigned'
+                  : widget.lang == 'ZH'
+                      ? '📋 新发现已分配'
+                      : '📋 Temuan Baru Ditugaskan',
+              body: judul,
+              payload: 'findings',
+            );
+          },
+        )
+        .subscribe();
+
+    // ── Listener 2: Terima poin berbagi ──
+    _logsChannel = Supabase.instance.client
+        .channel('notif_logs_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'log_poin',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id_user',
+            value: userId,
+          ),
+          callback: (payload) async {
+            if (!mounted) return;
+            final newRow = payload.newRecord;
+            final tipe = newRow['tipe_aktivitas']?.toString() ?? '';
+            if (tipe != 'terima_poin_berbagi') return;
+
+            final poin = (newRow['poin'] as num?)?.toInt() ?? 0;
+            final deskripsi = newRow['deskripsi']?.toString() ?? '';
+
+            await PushNotificationService.instance.showLocalNotification(
+              title: widget.lang == 'EN'
+                  ? '🎁 You received shared points!'
+                  : widget.lang == 'ZH'
+                      ? '🎁 您收到了分享积分！'
+                      : '🎁 Kamu menerima poin berbagi!',
+              body: widget.lang == 'EN'
+                  ? '+$poin points: $deskripsi'
+                  : '+$poin poin: $deskripsi',
+              payload: 'activity',
+            );
+          },
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    if (_findingsChannel != null) {
+      Supabase.instance.client.removeChannel(_findingsChannel!);
+    }
+    if (_logsChannel != null) {
+      Supabase.instance.client.removeChannel(_logsChannel!);
+    }
     super.dispose();
   }
 

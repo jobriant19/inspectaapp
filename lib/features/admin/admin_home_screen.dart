@@ -401,9 +401,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       ),
       child: Row(
         children: [
-          Image.asset(
-            'assets/images/logo1.png',
+          Image(
+            image: const AssetImage('assets/images/logo1.png'),
             height: 36,
+            gaplessPlayback: true,
             errorBuilder: (_, __, ___) => Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(

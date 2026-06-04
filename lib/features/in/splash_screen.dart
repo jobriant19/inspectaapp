@@ -356,10 +356,11 @@ class _SplashScreenState extends State<SplashScreen> {
                     child: child,
                   ),
                 ),
-                child: Image.asset(
-                  'assets/images/logo1.png',
+                child: Image(
+                  image: const AssetImage('assets/images/logo1.png'),
                   width: size.width * 0.52,
                   fit: BoxFit.contain,
+                  gaplessPlayback: true,
                   errorBuilder: (_, __, ___) =>
                       const Icon(Icons.shield, color: Color(0xFF1976D2), size: 80),
                 ),

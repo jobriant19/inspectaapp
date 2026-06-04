@@ -4,11 +4,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// ── Background handler: JANGAN panggil Supabase di sini ──
-// karena Supabase belum tentu terinisialisasi saat background
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Cukup tampilkan notifikasi lokal saja, tanpa Supabase
   final plugin = FlutterLocalNotificationsPlugin();
 
   const androidSettings =
@@ -25,6 +22,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     playSound: true,
     sound: const RawResourceAndroidNotificationSound('notification_sound'),
     enableVibration: true,
+    // Large icon di kiri (menggantikan icon app default Flutter)
+    largeIcon: const DrawableResourceAndroidBitmap('logo_notif'),
   );
 
   await plugin.show(
@@ -52,10 +51,8 @@ class NotificationService {
     if (_initialized) return;
     _initialized = true;
 
-    // 1. Minta izin notifikasi
     await _fcm.requestPermission(alert: true, badge: true, sound: true);
 
-    // 2. Setup channel Android
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       _channelId,
       _channelName,
@@ -66,10 +63,10 @@ class NotificationService {
       enableVibration: true,
     );
 
-    final androidImpl = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final androidImpl = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
     await androidImpl?.createNotificationChannel(channel);
 
-    // 3. Init flutter_local_notifications
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -95,14 +92,12 @@ class NotificationService {
       },
     );
 
-    // 4. Foreground FCM options
     await _fcm.setForegroundNotificationPresentationOptions(
       alert: true,
       badge: true,
       sound: true,
     );
 
-    // 5. Foreground message handler
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       showNotification(
         title: message.notification?.title ?? 'Inspecta',
@@ -111,23 +106,15 @@ class NotificationService {
       );
     });
 
-    // 6. Tap handler saat app background
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint('Notification opened: ${message.data}');
     });
 
-    // 7. Simpan FCM token — dipanggil terpisah setelah login
-    // TIDAK dipanggil di sini karena user belum tentu login saat app start
-    // Panggil saveFcmTokenAfterLogin() dari home_screen.dart setelah login
-
-    // 8. Dengarkan refresh token
     _fcm.onTokenRefresh.listen(_onTokenRefresh);
   }
 
-  // ── Panggil ini dari home_screen.dart setelah user berhasil login ──
   Future<void> saveFcmTokenAfterLogin() async {
     try {
-      // Cek Supabase siap
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
       if (userId == null) {
@@ -190,8 +177,9 @@ class NotificationService {
       priority: Priority.high,
       playSound: true,
       sound: const RawResourceAndroidNotificationSound('notification_sound'),
-      icon: '@mipmap/ic_launcher',
-      largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+      // Hapus 'icon' agar small icon pakai meta-data FCM (monochrome ic_launcher)
+      // Large icon di kiri menampilkan logo berwarna Inspecta
+      largeIcon: const DrawableResourceAndroidBitmap('logo_notif'),
       styleInformation: BigTextStyleInformation(body),
       enableVibration: true,
     );

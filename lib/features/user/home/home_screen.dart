@@ -1067,13 +1067,15 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Image.asset(
-            'assets/images/logo1.png',
+          Image(
+            image: const AssetImage('assets/images/logo1.png'),
             height: 38,
+            gaplessPlayback: true,
             errorBuilder: (_, __, ___) => Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF00C9E4).withOpacity(0.1), shape: BoxShape.circle,
+                color: const Color(0xFF00C9E4).withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
               child: const Icon(Icons.shield, color: Color(0xFF00C9E4), size: 26),
             ),
