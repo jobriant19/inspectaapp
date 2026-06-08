@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/utils/image_picker_helper.dart';
 import '../../../core/utils/jabatan_helper.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -133,8 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _pickImage() async {
     if (!_isEditMode) return;
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+    final picked = await ImagePickerHelper.pickImageFromGallery(
       imageQuality: 70,
       maxWidth: 800,
       maxHeight: 800,

@@ -1436,8 +1436,8 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           return;
         }
 
-        final hashedPass = await _auth.hashPassword(email, pass);
-        final res = await _auth.signUpWithEmail(email, hashedPass);
+        // Daftar ke Supabase Auth dengan password asli
+        final res = await _auth.signUpWithEmail(email, pass);
 
         if (res == null || res.user == null) {
           _showSnack(_langCode == 'EN' ? 'Registration failed. Please try again.'
@@ -1445,6 +1445,8 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
               isError: true);
           return;
         }
+
+        final hashedPass = _auth.hashPassword(email, pass);
 
         await Supabase.instance.client.from('User').insert({
           'id_user': res.user!.id,

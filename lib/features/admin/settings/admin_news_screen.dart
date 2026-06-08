@@ -5,6 +5,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/services/fcm_v1_service.dart';
 import '../../shared/account/news_detail_screen.dart';
 
 class AdminNewsScreen extends StatefulWidget {
@@ -751,52 +752,51 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     required String titleZh,
   }) async {
     try {
-      // Ambil semua FCM token user yang aktif
-      final users = await Supabase.instance.client
+      // Ambil SEMUA user — tanpa filter tambahan agar tidak ada yang terlewat
+      final List<dynamic> users = await Supabase.instance.client
           .from('User')
-          .select('fcm_token')
-          .not('fcm_token', 'is', null)
-          .neq('fcm_token', '');
+          .select('id_user, fcm_token');
 
-      if (users.isEmpty) return;
+      if (users.isEmpty) {
+        debugPrint('⚠️ No users found');
+        return;
+      }
+
+      // Filter manual di Dart: hanya yang punya fcm_token tidak null dan tidak kosong
+      final tokens = users
+          .where((u) {
+            final t = u['fcm_token'];
+            return t != null && t.toString().trim().isNotEmpty;
+          })
+          .map((u) => u['fcm_token'].toString().trim())
+          .toSet() // deduplicate
+          .toList();
+
+      debugPrint('📱 Users total: ${users.length}, with FCM token: ${tokens.length}');
+
+      if (tokens.isEmpty) {
+        debugPrint('⚠️ No users with FCM token');
+        return;
+      }
 
       final isUpdate = type == 'update';
       final emoji = isUpdate ? '🔔' : '🔧';
+      final notifTitle = '$emoji ${isUpdate ? 'Update' : 'Maintenance'}';
 
-      // Kirim ke semua user secara paralel (batch max 10)
-      final tokens = (users as List)
-          .map((u) => u['fcm_token']?.toString())
-          .where((t) => t != null && t.isNotEmpty)
-          .cast<String>()
-          .toList();
-
-      // Kirim per batch 10 agar tidak overload
-      const batchSize = 10;
-      for (int i = 0; i < tokens.length; i += batchSize) {
-        final batch = tokens.skip(i).take(batchSize).toList();
-        await Future.wait(batch.map((token) async {
-          try {
-            await Supabase.instance.client.functions.invoke(
-              'send-push-notification',
-              body: {
-                'token': token,
-                'title': '$emoji ${isUpdate ? 'Update' : 'Maintenance'}',
-                'body': titleId, // default kirim bahasa Indonesia
-                'data': {
-                  'route': 'news',
-                  'type': type,
-                },
-              },
-            );
-          } catch (e) {
-            debugPrint('Error sending to token $token: $e');
-          }
-        }));
-      }
-
-      debugPrint('News notification sent to ${tokens.length} users');
+      await FcmV1Service.instance.sendToMultipleTokens(
+        fcmTokens: tokens,
+        title: notifTitle,
+        body: titleId,
+        route: 'news',
+        extraData: {
+          'type': type,
+          'title_id': titleId,
+          'title_en': titleEn,
+          'title_zh': titleZh,
+        },
+      );
     } catch (e) {
-      debugPrint('Error sending news notification: $e');
+      debugPrint('❌ Error in _sendNewsNotification: $e');
     }
   }
 

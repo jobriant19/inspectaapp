@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/location_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/utils/jabatan_helper.dart';
+import '../../admin/shared/location_gate_screen.dart';
 import '../../shared/account/account_screen.dart';
 import '../explore/explore_screen.dart';
 import '../analytics/analytics_screen.dart';
@@ -62,6 +64,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingVisitorStatus = true;
   bool _isUserDataLoading = true;
   RealtimeChannel? _pointChannel;
+  bool _isLocationVerified = false;
+  bool _isCheckingLocation = false;
 
   // User data
   String _userName = '...';
@@ -263,6 +267,44 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  Future<void> _checkLocationAccess() async {
+    // Web tidak perlu cek lokasi
+    // if (kIsWeb) {
+    //   setState(() => _isLocationVerified = true);
+    //   return;
+    // }
+
+    setState(() => _isCheckingLocation = true);
+
+    final result = await LocationService.instance.checkUserAtAtmi();
+
+    if (!mounted) return;
+
+    if (result.isAtAtmi) {
+      setState(() {
+        _isLocationVerified = true;
+        _isCheckingLocation = false;
+      });
+    } else {
+      setState(() => _isCheckingLocation = false);
+      // Tampilkan LocationGateScreen sebagai overlay
+      if (mounted) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LocationGateScreen(
+              lang: _lang,
+              onAccessGranted: () {
+                Navigator.pop(context);
+                setState(() => _isLocationVerified = true);
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   // ── Point animation ──
   void _animatePoinUpdate(int newPoin) {
     if (_isAnimatingPoin) {
@@ -332,7 +374,76 @@ class _HomeScreenState extends State<HomeScreen> {
               setState(() {
                 _initialMonthlyPoin = null;
                 _latestLogPoin = {
-                  'poin': points, 'deskripsi': description, 'tipe_aktivitas': tipe,
+                  'poin': points,
+                  'deskripsi': description,
+                  'tipe_aktivitas': tipe,
+                };
+              });
+              await _fetchUserData(silent: true);
+              return;
+            }
+
+            // ── terima_poin_berbagi ──
+            if (tipe == 'terima_poin_berbagi') {
+              await Future.delayed(const Duration(milliseconds: 800));
+              if (!mounted) return;
+
+              final notifTitle = _lang == 'EN'
+                  ? '🎁 You received shared points!'
+                  : _lang == 'ZH'
+                      ? '🎁 您收到了分享积分！'
+                      : '🎁 Kamu menerima poin berbagi!';
+
+              NotificationService.instance.showNotification(
+                title: notifTitle,
+                body: description,
+              );
+
+              _sendFcmToCurrentUser(
+                title: notifTitle,
+                body: description,
+                route: 'activity',
+              );
+
+              setState(() {
+                _initialMonthlyPoin = null;
+                _latestLogPoin = {
+                  'poin': points,
+                  'deskripsi': description,
+                  'tipe_aktivitas': tipe,
+                };
+              });
+              await _fetchUserData(silent: true);
+              return;
+            }
+
+            if (tipe == 'bonus_berbagi') {
+              await Future.delayed(const Duration(milliseconds: 800));
+              if (!mounted) return;
+
+              final notifTitle = _lang == 'EN'
+                  ? '🔥 Sharing Bonus Received!'
+                  : _lang == 'ZH'
+                      ? '🔥 分享奖励已获得！'
+                      : '🔥 Bonus Berbagi Diterima!';
+
+              NotificationService.instance.showNotification(
+                title: notifTitle,
+                body: description,
+              );
+
+              _sendFcmToCurrentUser(
+                title: notifTitle,
+                body: description,
+                route: 'activity',
+              );
+
+              setState(() {
+                _initialMonthlyPoin = null;
+                _latestLogPoin = {
+                  'poin': points,
+                  'deskripsi': description,
+                  'tipe_aktivitas': tipe,
                 };
               });
               await _fetchUserData(silent: true);
@@ -340,7 +451,9 @@ class _HomeScreenState extends State<HomeScreen> {
             }
 
             _pendingPointNotif = _PendingPointNotif(
-              points: points, description: description, tipe: tipe,
+              points: points,
+              description: description,
+              tipe: tipe,
             );
             await Future.delayed(const Duration(milliseconds: 1500));
             if (!mounted) return;
@@ -349,6 +462,37 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         )
         .subscribe();
+  }
+
+  /// Ambil fcm_token user login saat ini lalu kirim FCM push notif
+  Future<void> _sendFcmToCurrentUser({
+    required String title,
+    required String body,
+    String? route,
+  }) async {
+    try {
+      final userId = _sb.auth.currentUser?.id;
+      if (userId == null) return;
+      final userData = await _sb
+          .from('User')
+          .select('fcm_token')
+          .eq('id_user', userId)
+          .maybeSingle();
+      final fcmToken = userData?['fcm_token']?.toString();
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+        await NotificationService.sendFcmToToken(
+          fcmToken: fcmToken,
+          title: title,
+          body: body,
+          route: route,
+        );
+        debugPrint('✅ FCM sent to current user');
+      } else {
+        debugPrint('⚠️ Current user has no FCM token');
+      }
+    } catch (e) {
+      debugPrint('❌ _sendFcmToCurrentUser error: $e');
+    }
   }
 
   void _tryShowPendingNotif() async {
@@ -391,6 +535,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!kIsWeb) {
       NotificationService.instance.saveFcmTokenAfterLogin();
+    }
+
+    // ── Cek lokasi terlebih dahulu (hanya mobile) ──
+    if (!_isLocationVerified) {
+      await _checkLocationAccess();
+      if (!_isLocationVerified) return; 
     }
 
     if (_pointChannel == null) _setupPointListener();
@@ -488,9 +638,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _showLoginPointDialogAndWait(int points, String description) async {
     if (!mounted) return;
     final completer = Completer<void>();
+
+    // Update poin otomatis di background tanpa menunggu user klik
+    _fetchUserData(silent: true);
+
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true, // klik luar = tutup
       barrierColor: Colors.black.withOpacity(0.6),
       builder: (ctx) => _LoginPointDialog(
         points: points,
@@ -511,7 +665,13 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
-    await completer.future;
+
+    // Jika dialog ditutup dari luar (barrier), complete otomatis
+    await Future.any([
+      completer.future,
+      Future.delayed(const Duration(seconds: 10)),
+    ]);
+    if (!completer.isCompleted) completer.complete();
   }
 
   // ── Ekstrak logika share poin ke helper ──
@@ -564,10 +724,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _showPenaltyDialogAndWait(int points, String description) async {
     if (!mounted) return;
     final completer = Completer<void>();
+
+    // Poin langsung diupdate di background tanpa perlu tunggu user klik
+    _fetchUserData(silent: true);
+
     final t = _penaltyTexts[_lang] ?? _penaltyTexts['ID']!;
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true, // klik luar = tutup otomatis
       barrierColor: Colors.black.withOpacity(0.6),
       builder: (ctx) => _PenaltyDialog(
         absPoints: points.abs(),
@@ -579,22 +743,32 @@ class _HomeScreenState extends State<HomeScreen> {
           if (!completer.isCompleted) completer.complete();
         },
       ),
-    );
+    ).then((_) {
+      // Dipanggil ketika dialog ditutup dengan cara apapun (klik luar / tombol)
+      if (!completer.isCompleted) completer.complete();
+    });
+
     await completer.future;
   }
 
   void _showPenaltyDialog(int points, String description) {
     final t = _penaltyTexts[_lang] ?? _penaltyTexts['ID']!;
+
+    // Update poin otomatis tanpa perlu klik tombol
+    _fetchUserData(silent: true);
+
     showDialog(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: true, // klik luar = tutup
       barrierColor: Colors.black.withOpacity(0.6),
       builder: (ctx) => _PenaltyDialog(
         absPoints: points.abs(),
         description: description,
         title: t['title']!,
         okLabel: t['ok']!,
-        onDismiss: () { if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop(); },
+        onDismiss: () {
+          if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+        },
       ),
     );
   }
@@ -623,7 +797,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _fetchNotificationCount() async {
+  Future<void> _fetchNotificationCount({bool silent = false}) async {
+    if (silent && _notificationCount == 0 && _hasShownLoginDialog) return;
+
     if (!mounted) return;
     final user = _sb.auth.currentUser;
     if (user == null) return;
@@ -851,7 +1027,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _isLatestLogLoading = true;
       _latestLogPoin = null;
     });
-    await Future.wait([_fetchUserData(silent: false), _fetchNotificationCount()]);
+    await Future.wait([_fetchUserData(silent: false), _fetchNotificationCount(silent: true)]);
     if (!mounted) return;
     _homeContentKey.currentState?.refreshFindings();
     _animatePoinUpdate(_userPoin);
@@ -1000,6 +1176,29 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Build ──
   @override
   Widget build(BuildContext context) {
+    // Tampilkan loading saat cek lokasi
+    if (_isCheckingLocation) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF0F9FF),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: Color(0xFF00C9E4)),
+              const SizedBox(height: 16),
+              Text(
+                _lang == 'EN' ? 'Verifying location...'
+                    : _lang == 'ZH' ? '正在验证位置...'
+                    : 'Memverifikasi lokasi...',
+                style: GoogleFonts.poppins(
+                    fontSize: 14, color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final pages = [
       _buildHomeContent(),
       ExploreScreen(lang: _lang),
@@ -1009,13 +1208,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
-      extendBody: true,
+      extendBody: true, // agar konten tidak terpotong navbar bawaan HP
       body: Stack(
         children: [
-          // Background blobs — const-safe
           _buildBgBlob(top: -100, left: -50, size: 350, opacity: 0.25),
           _buildBgBlob(bottom: 50, right: -100, size: 400, opacity: 0.20),
           SafeArea(
+            // bottom: false agar konten bisa extend ke bawah
+            bottom: false,
             child: Column(
               children: [
                 _buildHeader(),
@@ -1095,9 +1295,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildNotifButton() {
     return GestureDetector(
       onTap: () async {
+        // Reset badge segera saat tombol diklik
+        if (mounted) {
+          setState(() => _notificationCount = 0);
+        }
+
         final prefetched = await _prefetchNotificationData();
         if (!mounted) return;
-        Navigator.push(
+
+        await Navigator.push(
           context,
           PageRouteBuilder(
             pageBuilder: (_, __, ___) => NotificationScreen(
@@ -1114,7 +1320,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             transitionDuration: const Duration(milliseconds: 300),
           ),
-        ).then((_) => _fetchNotificationCount());
+        );
+        // Tidak memanggil _fetchNotificationCount() di sini
+        // agar badge tetap 0 setelah kembali dari NotificationScreen
+        // Badge akan muncul kembali hanya saat ada assigned findings baru
+        // yang masuk via realtime listener di _setupPointListener
       },
       child: Stack(
         clipBehavior: Clip.none,
@@ -1130,18 +1340,24 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           if (_notificationCount > 0)
             Positioned(
-              top: 2, right: 2,
+              top: 2,
+              right: 2,
               child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  color: Colors.red, shape: BoxShape.circle,
+                  color: Colors.red,
+                  shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 1.5),
                 ),
                 constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                 child: Center(
                   child: Text(
                     _notificationCount > 9 ? '9+' : _notificationCount.toString(),
-                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -1211,57 +1427,70 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomNav() {
+    final double bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Container(
-      height: 100,
-      padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            height: 65,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF00C9E4).withOpacity(0.15),
-                  blurRadius: 20, offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildNavItem(Icons.home_outlined, Icons.home_rounded, 0),
-                _buildNavItem(Icons.explore_outlined, Icons.explore, 1),
-                const SizedBox(width: 50),
-                _buildNavItem(Icons.pie_chart_outline, Icons.pie_chart, 2),
-                _buildNavItem(Icons.emoji_events_outlined, Icons.emoji_events, 3),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 0,
-            child: GestureDetector(
-              onTap: _openLocationSheet,
-              child: Container(
-                height: 60, width: 60,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00C9E4),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF00C9E4).withOpacity(0.4),
-                      blurRadius: 15, offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.add, color: Colors.white, size: 32),
+      padding: EdgeInsets.only(
+        bottom: bottomPadding > 0 ? bottomPadding : 12,
+        left: 20,
+        right: 20,
+      ),
+      color: Colors.white,
+      child: SizedBox(
+        height: 100 + (bottomPadding > 0 ? bottomPadding : 0),
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              height: 65,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00C9E4).withOpacity(0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildNavItem(Icons.home_outlined, Icons.home_rounded, 0),
+                  _buildNavItem(Icons.explore_outlined, Icons.explore, 1),
+                  const SizedBox(width: 50),
+                  _buildNavItem(Icons.pie_chart_outline, Icons.pie_chart, 2),
+                  _buildNavItem(
+                      Icons.emoji_events_outlined, Icons.emoji_events, 3),
+                ],
               ),
             ),
-          ),
-        ],
+            Positioned(
+              top: 0,
+              child: GestureDetector(
+                onTap: _openLocationSheet,
+                child: Container(
+                  height: 60,
+                  width: 60,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00C9E4),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00C9E4).withOpacity(0.4),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 32),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

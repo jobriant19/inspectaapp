@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/utils/image_picker_helper.dart';
 import '../auth/login_screen.dart';
 
 // ============================================================
@@ -178,8 +179,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
   Future<void> _pickImage() async {
     if (!_isEditMode) return;
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+    final picked = await ImagePickerHelper.pickImageFromGallery(
       imageQuality: 70,
       maxWidth: 800,
       maxHeight: 800,

@@ -9,6 +9,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.59"
+  adaptive_number:
+    dependency: transitive
+    description:
+      name: adaptive_number
+      sha256: "3a567544e9b5c9c803006f51140ad544aedc79604fd4f3f2c1380003f97c1d77"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   app_links:
     dependency: transitive
     description:
@@ -49,6 +57,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.0.9"
+  argon2:
+    dependency: "direct main"
+    description:
+      name: argon2
+      sha256: ee456fa6f71392faadd9c43f4a2cc66c8d56132337fe71dc09d217d4e994102e
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
   args:
     dependency: transitive
     description:
@@ -65,6 +81,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.0"
+  bcrypt:
+    dependency: "direct main"
+    description:
+      name: bcrypt
+      sha256: "6073a700cbbc59f1d4ab27cd532755e3de5e676c4941f535f351374df849270b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.0"
   boolean_selector:
     dependency: transitive
     description:
@@ -193,14 +217,70 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.8"
+  dargon2_core:
+    dependency: transitive
+    description:
+      name: dargon2_core
+      sha256: a105fc3837782d02fff09a4aa355181c882962bf2a31c58f1905c401a6d1d6e5
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.1"
+  dargon2_flutter:
+    dependency: "direct main"
+    description:
+      name: dargon2_flutter
+      sha256: "2ec4ed0cf5d80f92758ba2b2c600f237c35849aa723563ffe4c73e02d1904c0c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.3.0"
+  dargon2_flutter_desktop:
+    dependency: transitive
+    description:
+      name: dargon2_flutter_desktop
+      sha256: ca4a064f5b8e1fa1be62e5be50599567e13b68dca26eec31cbbc0928a276e777
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.0"
+  dargon2_flutter_mobile:
+    dependency: transitive
+    description:
+      name: dargon2_flutter_mobile
+      sha256: "22b1b5229371c229cb55ca214262c6cb2189d40f7ef4ab87c1bea75bc2c582bf"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.3.0"
+  dargon2_flutter_platform_interface:
+    dependency: transitive
+    description:
+      name: dargon2_flutter_platform_interface
+      sha256: d9fa9193c7c263a57d53411ccac0339e353e5b199426d861f8649f31564eeef7
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.0"
+  dargon2_flutter_web:
+    dependency: transitive
+    description:
+      name: dargon2_flutter_web
+      sha256: c2607b07047f2937fc8ee0845b7b19fd80c26bf87f122473ee3cf307b8bc3249
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.2.0"
+  dargon2_interface:
+    dependency: transitive
+    description:
+      name: dargon2_interface
+      sha256: e352efec19afac3fba5b4c1d4833bec7825ac43bdec88f33117cd68dfccfca40
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.1"
   dart_jsonwebtoken:
     dependency: transitive
     description:
       name: dart_jsonwebtoken
-      sha256: cb79ed79baa02b4f59a597bf365873cbd83f9bb15273d63f7803802d21717c7d
+      sha256: "00a0812d2aeaeb0d30bcbc4dd3cee57971dbc0ab2216adf4f0247f37793f15ef"
       url: "https://pub.dev"
     source: hosted
-    version: "3.4.0"
+    version: "2.17.0"
   dbus:
     dependency: transitive
     description:
@@ -217,6 +297,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.0"
+  ed25519_edwards:
+    dependency: transitive
+    description:
+      name: ed25519_edwards
+      sha256: "6ce0112d131327ec6d42beede1e5dfd526069b18ad45dcf654f15074ad9276cd"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.1"
   fake_async:
     dependency: transitive
     description:
@@ -416,6 +504,54 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.5.0"
+  geolocator:
+    dependency: "direct main"
+    description:
+      name: geolocator
+      sha256: f62bcd90459e63210bbf9c35deb6a51c521f992a78de19a1fe5c11704f9530e2
+      url: "https://pub.dev"
+    source: hosted
+    version: "13.0.4"
+  geolocator_android:
+    dependency: transitive
+    description:
+      name: geolocator_android
+      sha256: fcb1760a50d7500deca37c9a666785c047139b5f9ee15aa5469fae7dbbe3170d
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.6.2"
+  geolocator_apple:
+    dependency: transitive
+    description:
+      name: geolocator_apple
+      sha256: dbdd8789d5aaf14cf69f74d4925ad1336b4433a6efdf2fce91e8955dc921bf22
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.13"
+  geolocator_platform_interface:
+    dependency: transitive
+    description:
+      name: geolocator_platform_interface
+      sha256: "30cb64f0b9adcc0fb36f628b4ebf4f731a2961a0ebd849f4b56200205056fe67"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.2.6"
+  geolocator_web:
+    dependency: transitive
+    description:
+      name: geolocator_web
+      sha256: b1ae9bdfd90f861fde8fd4f209c37b953d65e92823cb73c7dee1fa021b06f172
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.1.3"
+  geolocator_windows:
+    dependency: transitive
+    description:
+      name: geolocator_windows
+      sha256: "175435404d20278ffd220de83c2ca293b73db95eafbdc8131fe8609be1421eb6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.5"
   google_fonts:
     dependency: "direct main"
     description:
@@ -440,6 +576,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.0"
+  hex:
+    dependency: transitive
+    description:
+      name: hex
+      sha256: "4e7cd54e4b59ba026432a6be2dd9d96e4c5205725194997193bf871703b82c4a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.0"
   http:
     dependency: "direct main"
     description:
@@ -528,6 +672,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.20.2"
+  js:
+    dependency: transitive
+    description:
+      name: js
+      sha256: f2c445dce49627136094980615a031419f7f3eb393237e4ecd97ac15dea343f3
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.6.7"
   jwt_decode:
     dependency: transitive
     description:
@@ -732,10 +884,10 @@ packages:
     dependency: transitive
     description:
       name: pointycastle
-      sha256: "92aa3841d083cc4b0f4709b5c74fd6409a3e6ba833ffc7dc6a8fee096366acf5"
+      sha256: "4be0097fcf3fd3e8449e53730c631200ebc7b88016acecab2b0da2f0149222fe"
       url: "https://pub.dev"
     source: hosted
-    version: "4.0.0"
+    version: "3.9.1"
   posix:
     dependency: transitive
     description:

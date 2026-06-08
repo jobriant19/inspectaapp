@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'fcm_v1_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -22,7 +23,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     playSound: true,
     sound: const RawResourceAndroidNotificationSound('notification_sound'),
     enableVibration: true,
-    // Large icon di kiri (menggantikan icon app default Flutter)
     largeIcon: const DrawableResourceAndroidBitmap('logo_notif'),
   );
 
@@ -177,8 +177,6 @@ class NotificationService {
       priority: Priority.high,
       playSound: true,
       sound: const RawResourceAndroidNotificationSound('notification_sound'),
-      // Hapus 'icon' agar small icon pakai meta-data FCM (monochrome ic_launcher)
-      // Large icon di kiri menampilkan logo berwarna Inspecta
       largeIcon: const DrawableResourceAndroidBitmap('logo_notif'),
       styleInformation: BigTextStyleInformation(body),
       enableVibration: true,
@@ -202,5 +200,34 @@ class NotificationService {
 
   Future<String?> getToken() async {
     return await _fcm.getToken();
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // TAMBAHAN: Kirim FCM via V1 API — delegasi ke FcmV1Service
+  // Dipakai oleh: home_screen.dart, notification_screen.dart
+  // untuk push notifikasi saat app background/killed
+  // ══════════════════════════════════════════════════════════════
+
+  /// Kirim push notification ke satu FCM token via FCM V1 API
+  /// - Dipakai untuk: assigned finding, terima_poin_berbagi, bonus_berbagi
+  /// - Gratis tanpa batas via Firebase Cloud Messaging V1
+  static Future<bool> sendFcmToToken({
+    required String fcmToken,
+    required String title,
+    required String body,
+    String? route,
+    Map<String, dynamic>? extraData,
+  }) async {
+    return FcmV1Service.instance.sendToToken(
+      fcmToken: fcmToken,
+      title: title,
+      body: body,
+      route: route,
+      // Konversi Map<String, dynamic> → Map<String, String>
+      // karena FCM data payload hanya mendukung string
+      extraData: extraData?.map(
+        (k, v) => MapEntry(k, v?.toString() ?? ''),
+      ),
+    );
   }
 }

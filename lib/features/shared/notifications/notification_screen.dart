@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/services/notification_service.dart';
 import '../../../core/services/push_notification_service.dart';
 import '../../user/finding/finding_detail_screen.dart';
 import '../../user/home/finding_card.dart';
@@ -86,7 +87,22 @@ class _NotificationScreenState extends State<NotificationScreen>
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
 
-    // ── Listener 1: Assigned Finding baru ──
+    // ── Helper: ambil fcm_token user ini ──
+    Future<String?> _getFcmToken() async {
+      try {
+        final data = await Supabase.instance.client
+            .from('User')
+            .select('fcm_token')
+            .eq('id_user', userId)
+            .maybeSingle();
+        final token = data?['fcm_token']?.toString();
+        return (token != null && token.trim().isNotEmpty) ? token.trim() : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // ── Listener 1: Assigned Finding baru → push ke user PIC ──
     _findingsChannel = Supabase.instance.client
         .channel('notif_findings_$userId')
         .onPostgresChanges(
@@ -101,23 +117,37 @@ class _NotificationScreenState extends State<NotificationScreen>
           callback: (payload) async {
             if (!mounted) return;
             final newRow = payload.newRecord;
-            final judul =
-                newRow['judul_temuan']?.toString() ?? 'Temuan baru';
+            final judul = newRow['judul_temuan']?.toString() ?? 'Temuan baru';
 
+            final notifTitle = widget.lang == 'EN'
+                ? '📋 New Finding Assigned'
+                : widget.lang == 'ZH'
+                    ? '📋 新发现已分配'
+                    : '📋 Temuan Baru Ditugaskan';
+
+            // Notif lokal (app foreground)
             await PushNotificationService.instance.showLocalNotification(
-              title: widget.lang == 'EN'
-                  ? '📋 New Finding Assigned'
-                  : widget.lang == 'ZH'
-                      ? '📋 新发现已分配'
-                      : '📋 Temuan Baru Ditugaskan',
+              title: notifTitle,
               body: judul,
               payload: 'findings',
             );
+
+            // FCM push (app background/killed)
+            final fcmToken = await _getFcmToken();
+            if (fcmToken != null) {
+              await NotificationService.sendFcmToToken(
+                fcmToken: fcmToken,
+                title: notifTitle,
+                body: judul,
+                route: 'findings',
+              );
+              debugPrint('✅ FCM assigned finding sent');
+            }
           },
         )
         .subscribe();
 
-    // ── Listener 2: Terima poin berbagi ──
+    // ── Listener 2: berbagi poin (terima_poin_berbagi & bonus_berbagi) ──
     _logsChannel = Supabase.instance.client
         .channel('notif_logs_$userId')
         .onPostgresChanges(
@@ -133,22 +163,52 @@ class _NotificationScreenState extends State<NotificationScreen>
             if (!mounted) return;
             final newRow = payload.newRecord;
             final tipe = newRow['tipe_aktivitas']?.toString() ?? '';
-            if (tipe != 'terima_poin_berbagi') return;
-
             final poin = (newRow['poin'] as num?)?.toInt() ?? 0;
             final deskripsi = newRow['deskripsi']?.toString() ?? '';
 
-            await PushNotificationService.instance.showLocalNotification(
-              title: widget.lang == 'EN'
+            if (tipe != 'terima_poin_berbagi' && tipe != 'bonus_berbagi') return;
+
+            String notifTitle;
+            String notifBody;
+
+            if (tipe == 'terima_poin_berbagi') {
+              notifTitle = widget.lang == 'EN'
                   ? '🎁 You received shared points!'
                   : widget.lang == 'ZH'
                       ? '🎁 您收到了分享积分！'
-                      : '🎁 Kamu menerima poin berbagi!',
-              body: widget.lang == 'EN'
+                      : '🎁 Kamu menerima poin berbagi!';
+              notifBody = widget.lang == 'EN'
                   ? '+$poin points: $deskripsi'
-                  : '+$poin poin: $deskripsi',
+                  : '+$poin poin: $deskripsi';
+            } else {
+              notifTitle = widget.lang == 'EN'
+                  ? '🔥 Sharing Bonus Received!'
+                  : widget.lang == 'ZH'
+                      ? '🔥 分享奖励已获得！'
+                      : '🔥 Bonus Berbagi Diterima!';
+              notifBody = widget.lang == 'EN'
+                  ? '+$poin points: $deskripsi'
+                  : '+$poin poin: $deskripsi';
+            }
+
+            // Notif lokal (app foreground)
+            await PushNotificationService.instance.showLocalNotification(
+              title: notifTitle,
+              body: notifBody,
               payload: 'activity',
             );
+
+            // FCM push (app background/killed)
+            final fcmToken = await _getFcmToken();
+            if (fcmToken != null) {
+              await NotificationService.sendFcmToToken(
+                fcmToken: fcmToken,
+                title: notifTitle,
+                body: notifBody,
+                route: 'activity',
+              );
+              debugPrint('✅ FCM berbagi poin sent ($tipe)');
+            }
           },
         )
         .subscribe();

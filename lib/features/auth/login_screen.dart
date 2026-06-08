@@ -611,11 +611,10 @@ class _LoginScreenState extends State<LoginScreen> {
                               scale: v.clamp(0.0, 1.0),
                               child: Opacity(opacity: v.clamp(0.0, 1.0), child: child),
                             ),
-                            child: Image(
-                              image: const AssetImage('assets/images/logo1.png'),
+                            child: Image.asset(
+                              'assets/images/logo1.png',
                               height: size.height * 0.13,
                               fit: BoxFit.contain,
-                              gaplessPlayback: true,
                               errorBuilder: (_, __, ___) => Container(
                                 width: 80, height: 80,
                                 decoration: BoxDecoration(

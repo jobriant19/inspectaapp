@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
+import '../../../core/utils/image_picker_helper.dart';
 import 'add_finding_flow_screen.dart';
 
 class CameraFindingScreen extends StatefulWidget {
@@ -166,7 +167,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
 
   Future<void> _pickFromGallery() async {
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      final XFile? image = await ImagePickerHelper.pickImageFromGallery();
       if (image == null) return;
       await _navigateToForm(image);
     } catch (e) {

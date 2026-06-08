@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../../../core/utils/image_picker_helper.dart';
 import 'camera_finding_screen.dart';
 
 class AddFindingFlowScreen extends StatefulWidget {
@@ -182,7 +183,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
   Future<void> _pickFromGallery() async {
     try {
-      final image = await _picker.pickImage(source: ImageSource.gallery);
+      final image = await ImagePickerHelper.pickImageFromGallery();
       if (image == null) return;
       await _processImage(image);
     } catch (e) {
@@ -277,6 +278,45 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
       // 3. Insert to temuan
       await supabase.from('temuan').insert(dataToInsert);
+
+      // 4. Kirim FCM ke penanggung jawab jika bukan diri sendiri
+      if (_selectedAssignee != null) {
+        final assigneeId = _selectedAssignee!['id_user']?.toString();
+        final currentUserId = user.id;
+        if (assigneeId != null && assigneeId != currentUserId) {
+          try {
+            final assigneeData = await supabase
+                .from('User')
+                .select('fcm_token, nama')
+                .eq('id_user', assigneeId)
+                .maybeSingle();
+            final fcmToken = assigneeData?['fcm_token']?.toString();
+            if (fcmToken != null && fcmToken.trim().isNotEmpty) {
+              final notifTitle = widget.lang == 'EN'
+                  ? '📋 New Finding Assigned to You'
+                  : widget.lang == 'ZH'
+                      ? '📋 新发现已分配给您'
+                      : '📋 Temuan Baru Ditugaskan ke Anda';
+              final notifBody = _titleCtrl.text.trim();
+              await supabase.functions.invoke(
+                'send-fcm-v1',
+                body: {
+                  'token': fcmToken.trim(),
+                  'title': notifTitle,
+                  'body': notifBody,
+                  'data': {
+                    'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+                    'route': 'findings',
+                  },
+                },
+              );
+              debugPrint('✅ FCM sent to assignee: ${assigneeData?['nama']}');
+            }
+          } catch (e) {
+            debugPrint('❌ FCM assignee error: $e');
+          }
+        }
+      }
       
       if (mounted) setState(() => _isSaving = false);
 
