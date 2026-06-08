@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/utils/image_picker_helper.dart';
 import '../auth/login_screen.dart';
 
@@ -41,10 +42,26 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   bool _hasChanges = false;
   String? _initialName;
 
+  // Password change state
+  bool _showPasswordSection = false;
+  final TextEditingController _newPassCtrl = TextEditingController();
+  final TextEditingController _confirmPassCtrl = TextEditingController();
+  bool _isNewPassVisible = false;
+  bool _isConfirmPassVisible = false;
+
   // Teks UI
   final Map<String, Map<String, String>> _txt = {
     'EN': {
       'title': 'My Profile',
+      'change_password': 'Change Password',
+      'new_password': 'New Password',
+      'confirm_password': 'Confirm Password',
+      'password_hint': 'Min 6 characters',
+      'confirm_hint': 'Re-enter new password',
+      'password_mismatch': 'Passwords do not match!',
+      'password_too_short': 'Password must be at least 6 characters',
+      'password_updated': 'Password updated successfully!',
+      'password_error': 'Failed to update password',
       'edit_title': 'Edit Profile',
       'name': 'Name',
       'email': 'Email Address',
@@ -64,6 +81,15 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     },
     'ID': {
       'title': 'Profil Saya',
+      'change_password': 'Ubah Password',
+      'new_password': 'Password Baru',
+      'confirm_password': 'Konfirmasi Password',
+      'password_hint': 'Min 6 karakter',
+      'confirm_hint': 'Ulangi password baru',
+      'password_mismatch': 'Password tidak cocok!',
+      'password_too_short': 'Password minimal 6 karakter',
+      'password_updated': 'Password berhasil diperbarui!',
+      'password_error': 'Gagal memperbarui password',
       'edit_title': 'Ubah Profil',
       'name': 'Nama',
       'email': 'Alamat Email',
@@ -83,6 +109,15 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     },
     'ZH': {
       'title': '我的资料',
+      'change_password': '修改密码',
+      'new_password': '新密码',
+      'confirm_password': '确认密码',
+      'password_hint': '最少6个字符',
+      'confirm_hint': '再次输入新密码',
+      'password_mismatch': '两次密码不一致！',
+      'password_too_short': '密码至少需要6个字符',
+      'password_updated': '密码更新成功！',
+      'password_error': '更新密码失败',
       'edit_title': '编辑资料',
       'name': '姓名',
       'email': '电子邮件',
@@ -139,6 +174,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _newPassCtrl.dispose();
+    _confirmPassCtrl.dispose();
     super.dispose();
   }
 
@@ -403,6 +440,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           _isEditMode = false;
           _hasChanges = false;
           _isSaving = false;
+          _showPasswordSection = false;
+          _newPassCtrl.clear();
+          _confirmPassCtrl.clear();
         });
         _showResultDialog(isSuccess: true);
       }
@@ -414,6 +454,141 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         _showResultDialog(isSuccess: false, errorDetail: e.toString());
       }
     }
+  }
+
+  Future<void> _updatePassword() async {
+    final newPass = _newPassCtrl.text.trim();
+    final confirmPass = _confirmPassCtrl.text.trim();
+
+    if (newPass.length < 6) {
+      _showResultDialog(isSuccess: false, errorDetail: getTxt('password_too_short'));
+      return;
+    }
+    if (newPass != confirmPass) {
+      _showResultDialog(isSuccess: false, errorDetail: getTxt('password_mismatch'));
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    _showLoadingDialog();
+
+    final user = Supabase.instance.client.auth.currentUser!;
+
+    try {
+      // 1. Update di Supabase Auth via Edge Function
+      await Supabase.instance.client.functions.invoke(
+        'update-user-password',
+        body: {
+          'user_id': user.id,
+          'new_password': newPass,
+        },
+      );
+
+      // 2. Update hash di tabel User
+      final authService = AuthService();
+      final newHash = authService.hashPassword(
+        Supabase.instance.client.auth.currentUser!.email ?? '',
+        newPass,
+      );
+      await Supabase.instance.client
+          .from('User')
+          .update({'pass': newHash})
+          .eq('id_user', user.id);
+
+      if (mounted) {
+        Navigator.of(context).pop(); // tutup loading
+        setState(() {
+          _newPassCtrl.clear();
+          _confirmPassCtrl.clear();
+          _showPasswordSection = false;
+          _isSaving = false;
+        });
+        _showPasswordSuccessDialog();
+      }
+    } catch (e) {
+      debugPrint('Error updating password: $e');
+      if (mounted) {
+        Navigator.of(context).pop(); // tutup loading
+        setState(() => _isSaving = false);
+        _showResultDialog(isSuccess: false, errorDetail: e.toString());
+      }
+    }
+  }
+
+  void _showPasswordSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFDCFCE7),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lock_open_rounded,
+                  color: Color(0xFF16A34A),
+                  size: 42,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                getTxt('password_updated'),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF16A34A),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(
+                    getTxt('close'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -540,6 +715,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           _imageBytes = null;
           _imageExt = null;
           _hasChanges = false;
+          _showPasswordSection = false;
+          _newPassCtrl.clear();
+          _confirmPassCtrl.clear();
         });
       },
       child: Scaffold(
@@ -547,7 +725,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new,
-                color: Color(0xFF059669)),
+            color: Color(0xFF059669)),
             onPressed: () {
               if (_isEditMode) {
                 setState(() {
@@ -557,6 +735,9 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                   _imageBytes = null;
                   _imageExt = null;
                   _hasChanges = false;
+                  _showPasswordSection = false;
+                  _newPassCtrl.clear();
+                  _confirmPassCtrl.clear();
                 });
               } else {
                 Navigator.of(context).pop();
@@ -629,6 +810,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                           ),
                           const SizedBox(height: 24),
 
+                          // ── Section: Change Password (selalu tampil, tidak perlu edit mode) ──
+                          _buildPasswordSection(),
+
+                          const SizedBox(height: 24),
+
                           // ── Tombol simpan ──
                           if (_isEditMode)
                             SizedBox(
@@ -691,6 +877,231 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                   ],
                 ),
               ),
+      ),
+    );
+  }
+
+  Widget _buildPasswordSection() {
+    // Hanya tampil saat edit mode aktif
+    if (!_isEditMode) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Toggle header
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _showPasswordSection = !_showPasswordSection;
+              if (!_showPasswordSection) {
+                _newPassCtrl.clear();
+                _confirmPassCtrl.clear();
+              }
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: _showPasswordSection
+                  ? const Color(0xFFF0FDF4)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _showPasswordSection
+                    ? const Color(0xFF059669)
+                    : Colors.grey.shade200,
+                width: _showPasswordSection ? 1.5 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF059669).withOpacity(0.07),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _showPasswordSection
+                        ? const Color(0xFFD1FAE5)
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.lock_reset_rounded,
+                    size: 18,
+                    color: _showPasswordSection
+                        ? const Color(0xFF059669)
+                        : Colors.grey.shade500,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    getTxt('change_password'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _showPasswordSection
+                          ? const Color(0xFF059669)
+                          : Colors.black54,
+                    ),
+                  ),
+                ),
+                Icon(
+                  _showPasswordSection
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: _showPasswordSection
+                      ? const Color(0xFF059669)
+                      : Colors.grey.shade400,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Form fields (muncul jika toggle aktif)
+        if (_showPasswordSection) ...[
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              getTxt('new_password'),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF059669),
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          _buildPasswordField(
+            controller: _newPassCtrl,
+            hint: getTxt('password_hint'),
+            isVisible: _isNewPassVisible,
+            onToggle: () =>
+                setState(() => _isNewPassVisible = !_isNewPassVisible),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              getTxt('confirm_password'),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF059669),
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          _buildPasswordField(
+            controller: _confirmPassCtrl,
+            hint: getTxt('confirm_hint'),
+            isVisible: _isConfirmPassVisible,
+            onToggle: () => setState(
+                () => _isConfirmPassVisible = !_isConfirmPassVisible),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.lock_rounded,
+                  color: Colors.white, size: 18),
+              label: Text(
+                getTxt('change_password'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                elevation: 2,
+                shadowColor: const Color(0xFF059669).withOpacity(0.4),
+              ),
+              onPressed: _isSaving ? null : _updatePassword,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPasswordField({
+    required TextEditingController controller,
+    required String hint,
+    required bool isVisible,
+    required VoidCallback onToggle,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF059669),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF059669).withOpacity(0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFD1FAE5),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.lock_outline,
+                color: Color(0xFF059669), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              obscureText: !isVisible,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Color(0xFF1E293B),
+                fontWeight: FontWeight.w500,
+              ),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: TextStyle(
+                    color: Colors.grey.shade400, fontSize: 13),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: onToggle,
+            child: Icon(
+              isVisible
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: Colors.grey.shade400,
+              size: 20,
+            ),
+          ),
+        ],
       ),
     );
   }

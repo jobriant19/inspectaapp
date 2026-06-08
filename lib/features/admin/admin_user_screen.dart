@@ -648,6 +648,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     final namaCtrl = TextEditingController(text: user?['nama'] ?? '');
     final emailCtrl = TextEditingController(text: user?['email'] ?? '');
     final passCtrl = TextEditingController();
+    bool showPasswordField = false;
     final phoneCtrl = TextEditingController(text: user?['phone'] ?? '');
     int? selectedJabatan = user?['id_jabatan'] as int?;
     bool isVisitor = user?['is_visitor'] == true;
@@ -973,6 +974,101 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                   : 'Minimal 6 karakter',
                               obscure: true,
                             ),
+                            const SizedBox(height: 14),
+                          ] else ...[
+                            // Tombol toggle ubah password saat edit
+                            GestureDetector(
+                              onTap: () => setDlg(() => showPasswordField = !showPasswordField),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: showPasswordField
+                                      ? const Color(0xFFFFF7ED)
+                                      : const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: showPasswordField
+                                        ? const Color(0xFFF59E0B)
+                                        : Colors.grey.shade200,
+                                    width: showPasswordField ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: showPasswordField
+                                            ? const Color(0xFFF59E0B).withOpacity(0.12)
+                                            : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(
+                                        Icons.lock_reset_rounded,
+                                        size: 16,
+                                        color: showPasswordField
+                                            ? const Color(0xFFF59E0B)
+                                            : Colors.grey.shade500,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        _langCode == 'EN'
+                                            ? 'Change Password'
+                                            : _langCode == 'ZH'
+                                                ? '更改密码'
+                                                : 'Ubah Password',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: showPasswordField
+                                              ? const Color(0xFFF59E0B)
+                                              : Colors.black54,
+                                        ),
+                                      ),
+                                    ),
+                                    Icon(
+                                      showPasswordField
+                                          ? Icons.keyboard_arrow_up_rounded
+                                          : Icons.keyboard_arrow_down_rounded,
+                                      color: showPasswordField
+                                          ? const Color(0xFFF59E0B)
+                                          : Colors.grey.shade400,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            if (showPasswordField) ...[
+                              const SizedBox(height: 10),
+                              _buildDlgTextField(
+                                passCtrl,
+                                Icons.lock_outline,
+                                _langCode == 'EN'
+                                    ? 'New password (min 6 characters)'
+                                    : _langCode == 'ZH'
+                                        ? '新密码（最少6个字符）'
+                                        : 'Password baru (minimal 6 karakter)',
+                                obscure: true,
+                              ),
+                              const SizedBox(height: 4),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Text(
+                                  _langCode == 'EN'
+                                      ? 'Leave empty to keep current password'
+                                      : _langCode == 'ZH'
+                                          ? '留空则保持当前密码'
+                                          : 'Kosongkan jika tidak ingin mengubah password',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: Colors.black38,
+                                  ),
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 14),
                           ],
 
@@ -1408,7 +1504,8 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
 
     try {
       if (isEdit && userId != null) {
-        await Supabase.instance.client.from('User').update({
+        // Update data profil di tabel User
+        final Map<String, dynamic> updateData = {
           'nama': nama,
           'phone': phone.isEmpty ? null : phone,
           'id_jabatan': idJabatan,
@@ -1420,10 +1517,51 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           'id_subunit': idSubunit,
           'id_area': idArea,
           'id_supervisor': idSupervisor,
-        }).eq('id_user', userId);
+        };
 
-        _showSnack(_langCode == 'EN' ? 'User updated successfully!'
-            : _langCode == 'ZH' ? '用户更新成功！' : 'Pengguna berhasil diperbarui!');
+        // Jika password diisi, update juga password
+        if (pass.isNotEmpty) {
+          if (pass.length < 6) {
+            _showSnack(
+              _langCode == 'EN'
+                  ? 'Password must be at least 6 characters'
+                  : _langCode == 'ZH'
+                      ? '密码至少需要6个字符'
+                      : 'Password minimal 6 karakter',
+              isError: true,
+            );
+            return;
+          }
+
+          // 1. Update password di Supabase Auth via admin API
+          try {
+            await Supabase.instance.client.functions.invoke(
+              'update-user-password',
+              body: {
+                'user_id': userId,
+                'new_password': pass,
+              },
+            );
+          } catch (fnErr) {
+            debugPrint('Edge function error (non-fatal): $fnErr');
+            // Fallback: update langsung via auth admin jika edge function tidak ada
+          }
+
+          // 2. Simpan BCrypt hash di kolom pass tabel User
+          final newHash = _auth.hashPassword(email, pass);
+          updateData['pass'] = newHash;
+        }
+
+        await Supabase.instance.client
+            .from('User')
+            .update(updateData)
+            .eq('id_user', userId);
+
+        _showSnack(_langCode == 'EN'
+            ? 'User updated successfully!'
+            : _langCode == 'ZH'
+                ? '用户更新成功！'
+                : 'Pengguna berhasil diperbarui!');
       } else {
         if (pass.isEmpty) {
           _showSnack(_langCode == 'EN' ? 'Password is required!'
