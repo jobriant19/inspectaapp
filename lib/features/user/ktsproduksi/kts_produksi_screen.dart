@@ -1006,7 +1006,93 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
                   _buildLabel(t['kategori']!, isRequired: true),
-                  _buildTapField(icon: CupertinoIcons.folder_fill, text: _selectedSubKategori?['nama_subkategoritemuan'] ?? t['pick_kategori']!, hasValue: _selectedSubKategori != null, onTap: _showSubKategoriPicker),
+                  GestureDetector(
+                    onTap: _showSubKategoriPicker,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _selectedSubKategori != null
+                              ? const Color(0xFF1D4ED8)
+                              : const Color(0xFFBFDBFE),
+                          width: _selectedSubKategori != null ? 1.5 : 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: _selectedSubKategori != null
+                                ? const Color(0xFF1D4ED8)
+                                : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Icon(
+                            CupertinoIcons.folder_fill,
+                            size: 16,
+                            color: _selectedSubKategori != null
+                                ? Colors.white
+                                : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                // label kecil di atas
+                                widget.lang == 'ZH'
+                                    ? '类别'
+                                    : widget.lang == 'EN'
+                                        ? 'Category'
+                                        : 'Kategori KTS',
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _selectedSubKategori != null
+                                      ? const Color(0xFF1D4ED8)
+                                      : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _selectedSubKategori?['nama_subkategoritemuan'] ??
+                                    t['pick_kategori']!,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: _selectedSubKategori != null
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: _selectedSubKategori != null
+                                      ? const Color(0xFF1E293B)
+                                      : const Color(0xFFCBD5E1),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          CupertinoIcons.chevron_right,
+                          size: 16,
+                          color: _selectedSubKategori != null
+                              ? const Color(0xFF1D4ED8)
+                              : const Color(0xFFBFDBFE),
+                        ),
+                      ]),
+                    ),
+                  ),
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
@@ -2075,24 +2161,151 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
           const SizedBox(height: 16),
 
           // ── BAGIAN (gambar 3) ──
-          Text(t['bagian']!, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
+          Text(
+            t['bagian']!,
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: const Color(0xFF475569),
+            ),
+          ),
           const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFF),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _selectedBagian != null ? _kPrimary : _kBorder, width: _selectedBagian != null ? 1.5 : 1),
+              border: Border.all(
+                color: _selectedBagian != null
+                    ? const Color(0xFF1D4ED8)
+                    : const Color(0xFFBFDBFE),
+                width: _selectedBagian != null ? 1.5 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                isExpanded: true,
-                value: _selectedBagian,
-                hint: Text(t['pick_bagian']!, style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFCBD5E1))),
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-                icon: const Icon(CupertinoIcons.chevron_down, size: 14, color: _kPrimary),
-                items: _bagianList.map((b) => DropdownMenuItem<String>(value: b, child: Text(b, overflow: TextOverflow.ellipsis))).toList(),
-                onChanged: (val) => setState(() => _selectedBagian = val),
+              child: ButtonTheme(
+                alignedDropdown: true,
+                child: DropdownButton<String>(
+                  isExpanded: true,
+                  value: _selectedBagian,
+                  dropdownColor: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  menuMaxHeight: 320,
+                  hint: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(children: [
+                      const Icon(
+                        CupertinoIcons.square_grid_2x2,
+                        size: 16,
+                        color: Color(0xFFBFDBFE),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        t['pick_bagian']!,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: const Color(0xFFCBD5E1),
+                        ),
+                      ),
+                    ]),
+                  ),
+                  icon: Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(
+                      _selectedBagian != null
+                          ? CupertinoIcons.chevron_up_chevron_down
+                          : CupertinoIcons.chevron_down,
+                      size: 15,
+                      color: _selectedBagian != null
+                          ? const Color(0xFF1D4ED8)
+                          : const Color(0xFFBFDBFE),
+                    ),
+                  ),
+                  selectedItemBuilder: (context) => _bagianList.map((b) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(children: [
+                      const Icon(
+                        CupertinoIcons.square_grid_2x2_fill,
+                        size: 16,
+                        color: Color(0xFF1D4ED8),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        b,
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                    ]),
+                  )).toList(),
+                  items: _bagianList.map((b) {
+                    final isSelected = _selectedBagian == b;
+                    return DropdownMenuItem<String>(
+                      value: b,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFFEFF6FF)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF1D4ED8)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              CupertinoIcons.square_grid_2x2_fill,
+                              size: 14,
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              b,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? const Color(0xFF1D4ED8)
+                                    : const Color(0xFF1E293B),
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(
+                              CupertinoIcons.checkmark_circle_fill,
+                              size: 18,
+                              color: Color(0xFF1D4ED8),
+                            ),
+                        ]),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) => setState(() => _selectedBagian = val),
+                ),
               ),
             ),
           ),
@@ -2118,30 +2331,188 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
           const SizedBox(height: 16),
 
           // ── FAKTOR PENYEBAB (gambar 2) ──
-          Text(t['cause_factor']!, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
+          Text(
+            t['cause_factor']!, // atau t['cause_factor']!
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: const Color(0xFF475569),
+            ),
+          ),
           const SizedBox(height: 8),
           _faktors.isEmpty
               ? Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0xFFF8FAFF), borderRadius: BorderRadius.circular(12), border: const Border.fromBorderSide(BorderSide(color: _kBorder, width: 1))),
-                  child: Text(widget.lang == 'EN' ? 'Loading factors...' : 'Memuat faktor...', style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFCBD5E1))),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBFDBFE), width: 1),
+                  ),
+                  child: Row(children: [
+                    const CupertinoActivityIndicator(radius: 8),
+                    const SizedBox(width: 10),
+                    Text(
+                      widget.lang == 'EN'
+                          ? 'Loading factors...'
+                          : widget.lang == 'ZH'
+                              ? '加载中...'
+                              : 'Memuat faktor...',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: const Color(0xFFCBD5E1),
+                      ),
+                    ),
+                  ]),
                 )
               : Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFF),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _selectedFaktor != null ? _kPrimary : _kBorder, width: _selectedFaktor != null ? 1.5 : 1),
+                    border: Border.all(
+                      color: _selectedFaktor != null
+                          ? const Color(0xFF1D4ED8)
+                          : const Color(0xFFBFDBFE),
+                      width: _selectedFaktor != null ? 1.5 : 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: DropdownButtonHideUnderline(
-                    child: DropdownButton<Map<String, dynamic>>(
-                      isExpanded: true,
-                      value: _selectedFaktor,
-                      hint: Text(widget.lang == 'ZH' ? '选择原因因素（可选）' : widget.lang == 'EN' ? 'Select cause factor (optional)' : 'Pilih faktor penyebab (opsional)', style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFCBD5E1))),
-                      style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-                      icon: const Icon(CupertinoIcons.chevron_down, size: 14, color: _kPrimary),
-                      items: _faktors.map((f) => DropdownMenuItem<Map<String, dynamic>>(value: f, child: Text(f['nama_faktor'] ?? '', overflow: TextOverflow.ellipsis))).toList(),
-                      onChanged: (val) => setState(() => _selectedFaktor = val),
+                    child: ButtonTheme(
+                      alignedDropdown: true,
+                      child: DropdownButton<Map<String, dynamic>>(
+                        isExpanded: true,
+                        value: _selectedFaktor,
+                        dropdownColor: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        menuMaxHeight: 320,
+                        hint: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Row(children: [
+                            const Icon(
+                              CupertinoIcons.tag,
+                              size: 16,
+                              color: Color(0xFFBFDBFE),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              widget.lang == 'ZH'
+                                  ? '选择原因因素（可选）'
+                                  : widget.lang == 'EN'
+                                      ? 'Select cause factor (optional)'
+                                      : 'Pilih faktor penyebab (opsional)',
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                color: const Color(0xFFCBD5E1),
+                              ),
+                            ),
+                          ]),
+                        ),
+                        icon: Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Icon(
+                            _selectedFaktor != null
+                                ? CupertinoIcons.chevron_up_chevron_down
+                                : CupertinoIcons.chevron_down,
+                            size: 15,
+                            color: _selectedFaktor != null
+                                ? const Color(0xFF1D4ED8)
+                                : const Color(0xFFBFDBFE),
+                          ),
+                        ),
+                        selectedItemBuilder: (context) =>
+                            _faktors.map((f) => Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Row(children: [
+                                const Icon(
+                                  CupertinoIcons.tag_fill,
+                                  size: 16,
+                                  color: Color(0xFF1D4ED8),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    f['nama_faktor'] ?? '',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF1E293B),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ]),
+                            )).toList(),
+                        items: _faktors.map((f) {
+                          final isSelected = _selectedFaktor?['id_faktor'] ==
+                              f['id_faktor'];
+                          return DropdownMenuItem<Map<String, dynamic>>(
+                            value: f,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? const Color(0xFFEFF6FF)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(children: [
+                                Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFF1D4ED8)
+                                        : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    CupertinoIcons.tag_fill,
+                                    size: 14,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : const Color(0xFF94A3B8),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    f['nama_faktor'] ?? '',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 14,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: isSelected
+                                          ? const Color(0xFF1D4ED8)
+                                          : const Color(0xFF1E293B),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if (isSelected)
+                                  const Icon(
+                                    CupertinoIcons.checkmark_circle_fill,
+                                    size: 18,
+                                    color: Color(0xFF1D4ED8),
+                                  ),
+                              ]),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) => setState(() => _selectedFaktor = val),
+                      ),
                     ),
                   ),
                 ),
