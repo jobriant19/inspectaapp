@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/services/location_service.dart';
 import 'resolution_camera_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -469,6 +470,16 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   }
 
   Future<void> _finishFinding({bool createNewAfter = false}) async {
+    // ── Cek lokasi sebelum submit penyelesaian ──
+    final locResult =
+        await LocationService.instance.checkUserAtAtmi(forceRefresh: true);
+
+    if (!locResult.isAtAtmi) {
+      if (!mounted) return;
+      _showLocationBlockedSnackbar();
+      return;
+    }
+
     if (_resolutionImageFile == null) {
       _showErrorSnackbar(_texts['err_proof_required']!);
       return;
@@ -604,6 +615,29 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     } finally {
       if (mounted) setState(() => _isFinishing = false);
     }
+  }
+
+  void _showLocationBlockedSnackbar() {
+    if (!mounted) return;
+    final msg = widget.lang == 'EN'
+        ? 'You must be at PT ATMI Solo to submit a resolution.'
+        : widget.lang == 'ZH'
+            ? '您必须在PT ATMI Solo区域内才能提交解决方案。'
+            : 'Penyelesaian hanya dapat dilakukan di area PT ATMI Solo.';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(children: [
+          const Icon(Icons.location_off_rounded, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
+          Expanded(child: Text(msg)),
+        ]),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _showUserMentionPicker() async {

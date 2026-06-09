@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/utils/jabatan_helper.dart';
-import '../../admin/shared/location_gate_screen.dart';
 import '../../shared/account/account_screen.dart';
 import '../explore/explore_screen.dart';
 import '../analytics/analytics_screen.dart';
@@ -64,8 +63,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingVisitorStatus = true;
   bool _isUserDataLoading = true;
   RealtimeChannel? _pointChannel;
-  bool _isLocationVerified = false;
   bool _isCheckingLocation = false;
+  bool _isAtAtmi = false;
 
   // User data
   String _userName = '...';
@@ -268,41 +267,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkLocationAccess() async {
-    // Web tidak perlu cek lokasi
-    // if (kIsWeb) {
-    //   setState(() => _isLocationVerified = true);
-    //   return;
-    // }
-
-    setState(() => _isCheckingLocation = true);
+    setState(() => _isCheckingLocation = false); 
 
     final result = await LocationService.instance.checkUserAtAtmi();
 
     if (!mounted) return;
+    setState(() => _isAtAtmi = result.isAtAtmi);
 
-    if (result.isAtAtmi) {
-      setState(() {
-        _isLocationVerified = true;
-        _isCheckingLocation = false;
-      });
-    } else {
-      setState(() => _isCheckingLocation = false);
-      // Tampilkan LocationGateScreen sebagai overlay
-      if (mounted) {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => LocationGateScreen(
-              lang: _lang,
-              onAccessGranted: () {
-                Navigator.pop(context);
-                setState(() => _isLocationVerified = true);
-              },
-            ),
-          ),
-        );
-      }
-    }
+    debugPrint('📍 Background location check: isAtAtmi=$_isAtAtmi');
   }
 
   // ── Point animation ──
@@ -537,11 +509,8 @@ class _HomeScreenState extends State<HomeScreen> {
       NotificationService.instance.saveFcmTokenAfterLogin();
     }
 
-    // ── Cek lokasi terlebih dahulu (hanya mobile) ──
-    if (!_isLocationVerified) {
-      await _checkLocationAccess();
-      if (!_isLocationVerified) return; 
-    }
+    // Cek lokasi di background (tidak blokir masuk home)
+    await _checkLocationAccess();
 
     if (_pointChannel == null) _setupPointListener();
 
@@ -552,86 +521,107 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadInitialVisitorStatus(),
     ]);
 
-    if (!_hasShownLoginDialog) {
-      _hasShownLoginDialog = true;
-      await Future.delayed(const Duration(milliseconds: 800));
+    // Guard: jika sudah pernah diproses di sesi ini, skip
+    if (_hasShownLoginDialog) return;
+    _hasShownLoginDialog = true;
+
+    // ── Jika tidak di lokasi ATMI: skip semua login poin & penalti ──
+    if (!_isAtAtmi) {
+      debugPrint('📍 Not at ATMI — skipping login points/penalty.');
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
+      return;
+    }
+
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+
+    try {
+      final dynamic raw = await _sb.rpc(
+        'handle_daily_login', params: {'p_user_id': user.id},
+      );
+
+      if (!mounted || raw == null) return;
+
+      final result = raw is List
+          ? (raw.isNotEmpty
+              ? Map<String, dynamic>.from(raw.first)
+              : <String, dynamic>{})
+          : Map<String, dynamic>.from(raw);
+
+      final String status = result['status']?.toString() ?? '';
+
+      if (status == 'already_logged_in_today' || status.isEmpty) {
+        _fetchUserData(silent: true);
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
+        return;
+      }
+
+      final int dailyBonus =
+          (result['daily_bonus'] as num?)?.toInt() ?? 0;
+      final int penalty = (result['penalty'] as num?)?.toInt() ?? 0;
+      final int firstTodayBonus =
+          (result['first_today_bonus'] as num?)?.toInt() ?? 0;
+      final bool isFirstToday =
+          result['is_first_today'] as bool? ?? false;
+      final String message = result['message']?.toString() ?? '';
+
+      await Future.delayed(const Duration(milliseconds: 400));
       if (!mounted) return;
 
-      try {
-        final dynamic raw = await _sb.rpc(
-          'handle_daily_login', params: {'p_user_id': user.id},
-        );
-
-        if (!mounted || raw == null) return;
-
-        final result = raw is List
-            ? (raw.isNotEmpty ? Map<String, dynamic>.from(raw.first) : <String, dynamic>{})
-            : Map<String, dynamic>.from(raw);
-
-        final String status = result['status']?.toString() ?? '';
-
-        if (status == 'already_logged_in_today' || status.isEmpty) {
-          _fetchUserData(silent: true);
-          await Future.delayed(const Duration(milliseconds: 600));
-          if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
-          return;
-        }
-
-        final int dailyBonus = (result['daily_bonus'] as num?)?.toInt() ?? 0;
-        final int penalty = (result['penalty'] as num?)?.toInt() ?? 0;
-        final int firstTodayBonus = (result['first_today_bonus'] as num?)?.toInt() ?? 0;
-        final bool isFirstToday = result['is_first_today'] as bool? ?? false;
-        final String message = result['message']?.toString() ?? '';
-
-        await Future.delayed(const Duration(milliseconds: 400));
-        if (!mounted) return;
-
-        if (status == 'first_ever_login') {
-          await _showLoginPointDialogAndWait(dailyBonus, message);
-          _fetchUserData(silent: true);
-          return;
-        }
-
-        if (penalty > 0) {
-          final int daysAbsent = (result['days_absent'] as num?)?.toInt() ?? 0;
-          final String penaltyMsg = _lang == 'EN'
-              ? 'Penalty for not logging in $daysAbsent days: -$penalty points'
-              : _lang == 'ZH'
-                  ? '未登录$daysAbsent天的罚分：-$penalty积分'
-                  : 'Penalti tidak login $daysAbsent hari: -$penalty poin';
-          await _showPenaltyDialogAndWait(-penalty, penaltyMsg);
-          if (!mounted) return;
-          _fetchUserData(silent: true);
-        }
-
-        if (isFirstToday && firstTodayBonus > 0) {
-          await Future.delayed(const Duration(milliseconds: 300));
-          if (!mounted) return;
-          await _showLoginPointDialogAndWait(
-            firstTodayBonus, _getLoginConfig('login_pertama_hari_ini', firstTodayBonus),
-          );
-          if (!mounted) return;
-          _fetchUserData(silent: true);
-          if (dailyBonus <= 0) {
-            await Future.delayed(const Duration(milliseconds: 500));
-            if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
-          }
-        }
-
-        if (dailyBonus > 0) {
-          await Future.delayed(const Duration(milliseconds: 300));
-          if (!mounted) return;
-          await _showLoginPointDialogAndWait(
-            dailyBonus, _getLoginConfig('login_harian', dailyBonus),
-          );
-          if (!mounted) return;
-          _fetchUserData(silent: true);
-          await Future.delayed(const Duration(milliseconds: 500));
-          if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
-        }
-      } catch (e) {
-        debugPrint('Error handling daily login points: $e');
+      // ── Kasus: login pertama kali seumur hidup ──
+      if (status == 'first_ever_login') {
+        await _showLoginPointDialogAndWait(dailyBonus, message);
+        _fetchUserData(silent: true);
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
+        return;
       }
+
+      // ── Tampilkan penalti dulu jika ada ──
+      if (penalty > 0) {
+        final int daysAbsent =
+            (result['days_absent'] as num?)?.toInt() ?? 0;
+        final String penaltyMsg = _lang == 'EN'
+            ? 'Penalty for not logging in $daysAbsent days: -$penalty points'
+            : _lang == 'ZH'
+                ? '未登录$daysAbsent天的罚分：-$penalty积分'
+                : 'Penalti tidak login $daysAbsent hari: -$penalty poin';
+        await _showPenaltyDialogAndWait(-penalty, penaltyMsg);
+        if (!mounted) return;
+        _fetchUserData(silent: true);
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
+      // ── Tampilkan bonus pertama hari ini (PRIORITAS, sebelum harian) ──
+      if (isFirstToday && firstTodayBonus > 0) {
+        if (!mounted) return;
+        await _showLoginPointDialogAndWait(
+          firstTodayBonus,
+          _getLoginConfig('login_pertama_hari_ini', firstTodayBonus),
+        );
+        if (!mounted) return;
+        _fetchUserData(silent: true);
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+
+      // ── Tampilkan bonus login harian ──
+      if (dailyBonus > 0) {
+        if (!mounted) return;
+        await _showLoginPointDialogAndWait(
+          dailyBonus,
+          _getLoginConfig('login_harian', dailyBonus),
+        );
+        if (!mounted) return;
+        _fetchUserData(silent: true);
+      }
+
+      // ── Tampilkan news popup setelah semua dialog selesai ──
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
+    } catch (e) {
+      debugPrint('Error handling daily login points: $e');
     }
   }
 
@@ -1142,6 +1132,95 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Tampilkan dialog ketika user mencoba aksi yang butuh lokasi ATMI
+  /// [actionKey]: 'new_finding' | 'resolution'
+  void _showLocationBlockedDialog({required String actionKey}) {
+    final Map<String, Map<String, String>> texts = {
+      'EN': {
+        'title': 'You must be at PT ATMI Solo',
+        'new_finding':
+            'Creating a new finding is only allowed within the PT ATMI Solo area.',
+        'resolution':
+            'Submitting a resolution is only allowed within the PT ATMI Solo area.',
+        'ok': 'Understood',
+      },
+      'ID': {
+        'title': 'Harus Berada di PT ATMI Solo',
+        'new_finding':
+            'Membuat temuan baru hanya dapat dilakukan di dalam area PT ATMI Solo.',
+        'resolution':
+            'Membuat penyelesaian hanya dapat dilakukan di dalam area PT ATMI Solo.',
+        'ok': 'Mengerti',
+      },
+      'ZH': {
+        'title': '您必须在PT ATMI Solo区域内',
+        'new_finding': '只能在PT ATMI Solo区域内创建新发现。',
+        'resolution': '只能在PT ATMI Solo区域内提交解决方案。',
+        'ok': '明白',
+      },
+    };
+
+    final t = texts[_lang] ?? texts['ID']!;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.location_off_rounded,
+                    color: Colors.orange, size: 36),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                t['title']!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1E3A8A)),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                t[actionKey] ?? '',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C9E4),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(t['ok']!,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showCustomDialog({required String title, required String imagePath}) {
     showDialog(
       context: context,
@@ -1176,28 +1255,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Build ──
   @override
   Widget build(BuildContext context) {
-    // Tampilkan loading saat cek lokasi
-    if (_isCheckingLocation) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF0F9FF),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(color: Color(0xFF00C9E4)),
-              const SizedBox(height: 16),
-              Text(
-                _lang == 'EN' ? 'Verifying location...'
-                    : _lang == 'ZH' ? '正在验证位置...'
-                    : 'Memverifikasi lokasi...',
-                style: GoogleFonts.poppins(
-                    fontSize: 14, color: Colors.grey.shade600),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
 
     final pages = [
       _buildHomeContent(),
@@ -1495,7 +1552,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _openLocationSheet() {
+  void _openLocationSheet() async {
+    // ── Cek lokasi fresh sebelum buat temuan baru ──
+    final result =
+        await LocationService.instance.checkUserAtAtmi(forceRefresh: true);
+
+    if (!mounted) return;
+    setState(() => _isAtAtmi = result.isAtAtmi);
+
+    if (!result.isAtAtmi) {
+      _showLocationBlockedDialog(actionKey: 'new_finding');
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

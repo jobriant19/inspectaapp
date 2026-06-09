@@ -9,6 +9,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../../../core/services/location_service.dart';
+
 // ============================================================
 // LAYAR DAFTAR KTS PRODUKSI
 // ============================================================
@@ -122,6 +124,34 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
       debugPrint('Error fetching KTS: $e');
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<bool> _checkAtmiOrBlock() async {
+    final result = await LocationService.instance.checkUserAtAtmi(
+      forceRefresh: true,
+    );
+    if (result.isAtAtmi) return true;
+
+    if (!mounted) return false;
+    final msg = widget.lang == 'EN'
+        ? 'This action can only be done within PT ATMI Solo area.'
+        : widget.lang == 'ZH'
+            ? '此操作只能在PT ATMI Solo区域内进行。'
+            : 'Aksi ini hanya dapat dilakukan di area PT ATMI Solo.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(children: [
+          const Icon(Icons.location_off_rounded, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
+          Expanded(child: Text(msg)),
+        ]),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+    return false;
   }
 
   Future<void> _deleteReport(String id) async {
@@ -328,6 +358,9 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
   Widget _buildCreateButton() {
     return GestureDetector(
       onTap: () async {
+        // ── Cek lokasi sebelum buat KTS baru ──
+        if (!await _checkAtmiOrBlock()) return;
+
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
@@ -587,6 +620,9 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
                       color: const Color(0xFF2563EB),
                       bgColor: const Color(0xFFEFF6FF),
                       onTap: () async {
+                        // ── Cek lokasi sebelum edit ──
+                        if (!await _checkAtmiOrBlock()) return;
+
                         final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -604,7 +640,11 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
                       icon: CupertinoIcons.trash,
                       color: const Color(0xFFEF4444),
                       bgColor: const Color(0xFFFFF1F2),
-                      onTap: () => _deleteReport(r['id_temuan'].toString()),
+                      onTap: () async {
+                        // ── Cek lokasi sebelum hapus ──
+                        if (!await _checkAtmiOrBlock()) return;
+                        _deleteReport(r['id_temuan'].toString());
+                      },
                     ),
                   ],
                 ],
@@ -2282,6 +2322,33 @@ class _KtsProduksiDetailScreenState
   }
 
   Future<void> _saveResolution() async {
+    // ── Cek lokasi sebelum simpan penyelesaian ──
+    final locResult = await LocationService.instance.checkUserAtAtmi(
+      forceRefresh: true,
+    );
+    if (!locResult.isAtAtmi) {
+      if (!mounted) return;
+      final msg = widget.lang == 'EN'
+          ? 'Resolution can only be submitted within PT ATMI Solo area.'
+          : widget.lang == 'ZH'
+              ? '解决方案只能在PT ATMI Solo区域内提交。'
+              : 'Penyelesaian hanya dapat dilakukan di area PT ATMI Solo.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(children: [
+            const Icon(Icons.location_off_rounded, color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg)),
+          ]),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+    
     if (_resImageFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(t['err_photo']!),

@@ -9,6 +9,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../../../core/services/location_service.dart';
+
 // ============================================================
 // LAYAR DAFTAR LAPORAN KECELAKAAN
 // ============================================================
@@ -96,6 +98,34 @@ class _AccidentReportListScreenState
     _currentUserId = Supabase.instance.client.auth.currentUser?.id;
     _fetchReports();
     _loadCurrentUserJabatan();
+  }
+
+  Future<bool> _checkAtmiOrBlock() async {
+    final result = await LocationService.instance.checkUserAtAtmi(
+      forceRefresh: true,
+    );
+    if (result.isAtAtmi) return true;
+
+    if (!mounted) return false;
+    final msg = widget.lang == 'EN'
+        ? 'This action can only be done within PT ATMI Solo area.'
+        : widget.lang == 'ZH'
+            ? '此操作只能在PT ATMI Solo区域内进行。'
+            : 'Aksi ini hanya dapat dilakukan di area PT ATMI Solo.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(children: [
+          const Icon(Icons.location_off_rounded, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
+          Expanded(child: Text(msg)),
+        ]),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+    return false;
   }
 
   // Tambah method baru
@@ -399,6 +429,9 @@ class _AccidentReportListScreenState
         // Tombol utama Create Report (semua user)
         GestureDetector(
           onTap: () async {
+            // ── Cek lokasi sebelum buat laporan ──
+            if (!await _checkAtmiOrBlock()) return;
+
             final result = await Navigator.push(
               context,
               MaterialPageRoute(
@@ -5174,6 +5207,37 @@ class _HrdResolutionDetailScreenState
     super.dispose();
   }
 
+  Future<bool> _checkAtmiOrBlock() async {
+    final result = await LocationService.instance.checkUserAtAtmi(
+      forceRefresh: true,
+    );
+    if (result.isAtAtmi) return true;
+
+    if (!mounted) return false;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(children: [
+          const Icon(Icons.location_off_rounded, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              widget.lang == 'EN'
+                  ? 'Resolution can only be saved within PT ATMI Solo area.'
+                  : widget.lang == 'ZH'
+                      ? '解决方案只能在PT ATMI Solo区域内保存。'
+                      : 'Penyelesaian hanya dapat disimpan di area PT ATMI Solo.',
+            ),
+          ),
+        ]),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+    return false;
+  }
+
   Future<void> _loadResolution() async {
     setState(() => _isLoading = true);
     try {
@@ -5532,7 +5596,12 @@ class _HrdResolutionDetailScreenState
             ],
           ),
           child: ElevatedButton(
-            onPressed: _isSaving ? null : _saveResolution,
+            onPressed: _isSaving
+              ? null
+              : () async {
+                  if (!await _checkAtmiOrBlock()) return;
+                  _saveResolution();
+                },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,

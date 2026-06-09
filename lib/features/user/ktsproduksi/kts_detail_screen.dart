@@ -9,6 +9,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../../../core/services/location_service.dart';
+
 /// Screen detail KTS yang bisa dipanggil dari home maupun explore_screen.
 /// Tidak memiliki tombol Edit/Delete.
 class KtsDetailScreen extends StatefulWidget {
@@ -341,6 +343,33 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   }
 
   Future<void> _saveResolution() async {
+    // ── Cek lokasi sebelum simpan penyelesaian ──
+    final locResult = await LocationService.instance.checkUserAtAtmi(
+      forceRefresh: true,
+    );
+    if (!locResult.isAtAtmi) {
+      if (!mounted) return;
+      final msg = widget.lang == 'EN'
+          ? 'Resolution can only be submitted within PT ATMI Solo area.'
+          : widget.lang == 'ZH'
+              ? '解决方案只能在PT ATMI Solo区域内提交。'
+              : 'Penyelesaian hanya dapat dilakukan di area PT ATMI Solo.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(children: [
+            const Icon(Icons.location_off_rounded, color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg)),
+          ]),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+      return;
+    }
+
     if (_resImageFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_t('err_photo')),
