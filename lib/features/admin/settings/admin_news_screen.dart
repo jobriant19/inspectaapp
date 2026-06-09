@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -148,66 +149,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     );
   }
 
-  Widget _imagePlaceholder() {
-    return SizedBox(
-      height: 130,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.add_photo_alternate_outlined,
-              color: Colors.grey.shade400, size: 38),
-          const SizedBox(height: 8),
-          Text(
-            widget.lang == 'EN'
-                ? 'Tap to choose image from gallery'
-                : 'Ketuk untuk pilih gambar dari galeri',
-            textAlign: TextAlign.center,
-            style:
-                GoogleFonts.poppins(color: Colors.grey.shade500, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _typeChip(String type, String selected, ValueChanged<String> onTap) {
-    final isActive = type == selected;
-    final color =
-        type == 'update' ? const Color(0xFF6366F1) : const Color(0xFFF59E0B);
-    final icon =
-        type == 'update' ? Icons.update_rounded : Icons.build_rounded;
-    final label = type == 'update' ? 'Update' : 'Maintenance';
-
-    return GestureDetector(
-      onTap: () => onTap(type),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: isActive ? color : color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color, width: isActive ? 0 : 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon,
-                size: 14, color: isActive ? Colors.white : color),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                  color: isActive ? Colors.white : color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _saveNews({
     required Map<String, dynamic>? existing,
     required String type,
@@ -289,6 +230,8 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         );
       }
 
+      await _clearSeenNewsCache();
+
       // Reload list
       _load();
 
@@ -320,6 +263,17 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                 ? '保存新闻失败。\n${e.toString()}'
                 : 'Gagal menyimpan berita.\n${e.toString()}',
       );
+    }
+  }
+
+  // ── Hapus cache seen news agar popup muncul kembali setelah add/edit ──
+  Future<void> _clearSeenNewsCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('seen_news_ids');
+      debugPrint('🗑️ Seen news cache cleared — popup will show again');
+    } catch (e) {
+      debugPrint('Error clearing seen news cache: $e');
     }
   }
 

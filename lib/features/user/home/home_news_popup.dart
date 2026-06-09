@@ -1,9 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/account/news_detail_screen.dart';
 
 class HomeNewsPopup {
+  // ── Key SharedPreferences ──
+  static const _kSeenNewsKey = 'seen_news_ids';
+
+  // ── Ambil set ID yang sudah dilihat ──
+  static Future<Set<String>> _getSeenIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_kSeenNewsKey) ?? [];
+    return list.toSet();
+  }
+
+  // ── Tandai semua item sebagai sudah dilihat ──
+  static Future<void> _markAsSeen(List<Map<String, dynamic>> items) async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = (prefs.getStringList(_kSeenNewsKey) ?? []).toSet();
+    for (final item in items) {
+      existing.add(item['id'].toString());
+    }
+    await prefs.setStringList(_kSeenNewsKey, existing.toList());
+  }
+
+  // ── Dipanggil dari admin setelah add/edit news ──
+  // Hapus ID yang baru ditambah/diedit dari seen list
+  // agar popup muncul kembali untuk user
+  static Future<void> markNewsAsNew(dynamic newsId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final existing = (prefs.getStringList(_kSeenNewsKey) ?? []).toSet();
+    existing.remove(newsId.toString());
+    await prefs.setStringList(_kSeenNewsKey, existing.toList());
+    debugPrint('🆕 News $newsId marked as new (removed from seen list)');
+  }
+
   static Future<void> showIfNeeded(
     BuildContext context, {
     required String lang,
@@ -20,7 +52,8 @@ class HomeNewsPopup {
       final List<Map<String, dynamic>> allItems =
           List<Map<String, dynamic>>.from(res);
 
-      final List<Map<String, dynamic>> items = allItems.where((item) {
+      // ── Filter berdasarkan durasi tayang ──
+      final List<Map<String, dynamic>> activeItems = allItems.where((item) {
         try {
           final rawDate = item['published_at'];
           DateTime publishedAt;
@@ -45,10 +78,21 @@ class HomeNewsPopup {
         }
       }).toList();
 
-      debugPrint(
-          'HomeNewsPopup: total=${allItems.length}, filtered=${items.length}');
+      if (activeItems.isEmpty) return;
 
-      if (items.isEmpty) return;
+      // ── Filter hanya yang belum dilihat ──
+      final seenIds = await _getSeenIds();
+      final List<Map<String, dynamic>> unseenItems = activeItems
+          .where((item) => !seenIds.contains(item['id'].toString()))
+          .toList();
+
+      debugPrint(
+        'HomeNewsPopup: total=${allItems.length}, active=${activeItems.length}, '
+        'unseen=${unseenItems.length}',
+      );
+
+      // Jika semua sudah dilihat → tidak tampilkan popup
+      if (unseenItems.isEmpty) return;
       if (!context.mounted) return;
 
       showGeneralDialog(
@@ -68,8 +112,14 @@ class HomeNewsPopup {
             ),
           );
         },
-        pageBuilder: (ctx, _, __) =>
-            _HomeNewsPopupWidget(items: items, lang: lang),
+        pageBuilder: (ctx, _, __) => _HomeNewsPopupWidget(
+          items: unseenItems,
+          lang: lang,
+          onDismiss: () async {
+            // Tandai semua item yang ditampilkan sebagai sudah dilihat
+            await _markAsSeen(unseenItems);
+          },
+        ),
       );
     } catch (e) {
       debugPrint('HomeNewsPopup error: $e');
@@ -80,7 +130,13 @@ class HomeNewsPopup {
 class _HomeNewsPopupWidget extends StatefulWidget {
   final List<Map<String, dynamic>> items;
   final String lang;
-  const _HomeNewsPopupWidget({required this.items, required this.lang});
+  final Future<void> Function() onDismiss;
+
+  const _HomeNewsPopupWidget({
+    required this.items,
+    required this.lang,
+    required this.onDismiss,
+  });
 
   @override
   State<_HomeNewsPopupWidget> createState() => _HomeNewsPopupWidgetState();
@@ -105,7 +161,6 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
     super.dispose();
   }
 
-  // ── Helper teks 3 bahasa ──────────────────────────────
   String _t(String id, String en, String zh) {
     if (widget.lang == 'ID') return id;
     if (widget.lang == 'ZH') return zh;
@@ -137,7 +192,15 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
         : _t('Pemberitahuan', 'Notice', '通知');
   }
 
-  void _openDetail(Map<String, dynamic> item) {
+  // ── Tutup + tandai sudah dilihat ──
+  Future<void> _dismiss() async {
+    await widget.onDismiss();
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  void _openDetail(Map<String, dynamic> item) async {
+    await widget.onDismiss();
+    if (!mounted) return;
     Navigator.of(context).pop();
     Navigator.push(
       context,
@@ -147,69 +210,67 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
     );
   }
 
-  // ── Hitung tinggi konten agar PageView tidak over-expand ──
   double _calcContentHeight(BuildContext context) {
     final currentItem = widget.items[_currentPage];
     final hasImage = (currentItem['image_url'] ?? '').isNotEmpty;
-    // tinggi gambar + tinggi teks (estimasi 2 baris judul + 2 baris konten)
     return hasImage ? 160 + 105.0 : 3 + 105.0;
   }
 
   @override
   Widget build(BuildContext context) {
     final currentItem = widget.items[_currentPage];
-    // Tinggi gambar + teks + footer ≈ proporsional
     final double popupMaxH = MediaQuery.of(context).size.height * 0.62;
 
-    return Center(
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          constraints: BoxConstraints(
-            maxHeight: popupMaxH,
-            maxWidth: 420,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: _color(currentItem).withOpacity(0.20),
-                blurRadius: 36,
-                spreadRadius: 2,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── HEADER ─────────────────────────────────
-              _buildHeader(currentItem),
-
-              // ── KONTEN (PageView) ───────────────────────
-              SizedBox(
-                height: _calcContentHeight(context),
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: widget.items.length,
-                  onPageChanged: (i) => setState(() => _currentPage = i),
-                  itemBuilder: (_, index) =>
-                      _buildPageContent(widget.items[index]),
+    // Intercept barrier tap → tandai sudah dilihat
+    return WillPopScope(
+      onWillPop: () async {
+        await widget.onDismiss();
+        return true;
+      },
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            constraints: BoxConstraints(
+              maxHeight: popupMaxH,
+              maxWidth: 420,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: _color(currentItem).withOpacity(0.20),
+                  blurRadius: 36,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 12),
                 ),
-              ),
-
-              // ── FOOTER ─────────────────────────────────
-              _buildFooter(currentItem),
-            ],
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildHeader(currentItem),
+                SizedBox(
+                  height: _calcContentHeight(context),
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: widget.items.length,
+                    onPageChanged: (i) => setState(() => _currentPage = i),
+                    itemBuilder: (_, index) =>
+                        _buildPageContent(widget.items[index]),
+                  ),
+                ),
+                _buildFooter(currentItem),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // ── Header ───────────────────────────────────────────
   Widget _buildHeader(Map<String, dynamic> item) {
     final Color primary = _color(item);
     final bool isUpdate = (item['type'] ?? '') == 'update';
@@ -266,7 +327,6 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
     );
   }
 
-  // ── Konten satu halaman ───────────────────────────────
   Widget _buildPageContent(Map<String, dynamic> item) {
     final String? imageUrl = item['image_url'];
     final Color primary = _color(item);
@@ -277,7 +337,6 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gambar
           if (imageUrl != null && imageUrl.isNotEmpty)
             Stack(
               children: [
@@ -296,7 +355,6 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
                     ),
                   ),
                 ),
-                // Badge "Read more" di pojok kanan bawah gambar
                 Positioned(
                   bottom: 8,
                   right: 8,
@@ -327,10 +385,7 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
               ],
             )
           else
-            // Strip warna jika tidak ada gambar
             Container(height: 3, color: primary),
-
-          // Teks judul + konten
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Column(
@@ -360,7 +415,6 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                // "Ketuk untuk baca selengkapnya" — hanya jika tidak ada gambar
                 if (imageUrl == null || imageUrl.isEmpty)
                   Align(
                     alignment: Alignment.centerRight,
@@ -390,7 +444,6 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
     );
   }
 
-  // ── Footer: dots + tombol close ──────────────────────
   Widget _buildFooter(Map<String, dynamic> currentItem) {
     final Color currentColor = _color(currentItem);
 
@@ -402,7 +455,6 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Dots indicator (hanya jika lebih dari 1 item)
           if (widget.items.length > 1) ...[
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -431,13 +483,11 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
             ),
             const SizedBox(height: 8),
           ],
-
-          // Tombol Close
           SizedBox(
             width: double.infinity,
             height: 44,
             child: ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: _dismiss,
               style: ElevatedButton.styleFrom(
                 backgroundColor: currentColor,
                 elevation: 0,
