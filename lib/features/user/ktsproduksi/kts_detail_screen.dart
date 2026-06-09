@@ -44,6 +44,12 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   List<Map<String, dynamic>> _faktors = [];
   Map<String, dynamic>? _selectedFaktor;
 
+  static const List<String> _bagianList = [
+    'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
+    'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
+  ];
+  String? _selectedBagian;
+
   static const Map<String, Map<String, String>> _txt = {
     'ID': {
       'title': 'Detail KTS Produksi',
@@ -76,6 +82,12 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       'no_resolution': 'Belum ada penyelesaian',
       'ambil_foto': 'Ambil Foto',
       'ganti': 'Ganti',
+      'pic_label': 'Penanggung Jawab',
+      'bagian': 'Bagian',
+      'pick_bagian': 'Pilih Bagian',
+      'cause': 'Penyebab',
+      'cause_hint': 'Jelaskan penyebab...',
+      'cause_factor': 'Faktor Penyebab',
     },
     'EN': {
       'title': 'KTS Detail',
@@ -86,9 +98,9 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       'status': 'Status',
       'reported': 'Reported',
       'desc': 'Description',
-      'resolution_title': 'Resolution',
+      'resolution_title': 'Solution',
       'resolution_done': 'KTS Finished',
-      'upload_photo': 'Resolution Photo',
+      'upload_photo': 'Solution Photo',
       'tindakan': 'Action Taken',
       'tindakan_hint': 'Explain action...',
       'biaya': 'Cost (Optional)',
@@ -108,6 +120,12 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       'no_resolution': 'No resolution yet',
       'ambil_foto': 'Take Photo',
       'ganti': 'Retake',
+      'pic_label': 'Person in Charge',
+      'bagian': 'Section',
+      'pick_bagian': 'Select Section',
+      'cause': 'Cause',
+      'cause_hint': 'Describe the cause...',
+      'cause_factor': 'Cause Factor',
     },
     'ZH': {
       'title': 'KTS详情',
@@ -140,6 +158,12 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       'no_resolution': '尚无解决方案',
       'ambil_foto': '拍照',
       'ganti': '重拍',
+      'pic_label': '负责人',
+      'bagian': '部门',
+      'pick_bagian': '选择部门',
+      'cause': '原因',
+      'cause_hint': '说明原因...',
+      'cause_factor': '原因因素',
     },
   };
 
@@ -184,16 +208,14 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             gambar_temuan, status_temuan, poin_temuan,
             jumlah_item, nama_item_manual, jenis_temuan,
             created_at, id_user, id_penyelesaian,
+            id_penanggung_jawab,
             subkategoritemuan:id_subkategoritemuan_uuid(
-              id_subkategoritemuan,
-              nama_subkategoritemuan
+              id_subkategoritemuan, nama_subkategoritemuan
             ),
-            kategoritemuan:id_kategoritemuan_uuid(
-              id_kategoritemuan,
-              nama_kategoritemuan
-            ),
-            lokasi:id_lokasi(nama_lokasi)
-          ''') // HAPUS 'penyebab' dan 'id_faktor_penyebab' dari select ini
+            item_produksi:id_item(id_item, nama_item, gambar_item, kode_item),
+            lokasi:id_lokasi(nama_lokasi),
+            penanggung_jawab:id_penanggung_jawab(id_user, nama, gambar_user)
+          ''')
           .eq('id_temuan', widget.ktsId)
           .single();
 
@@ -212,13 +234,16 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       final idPenyelesaian = data['id_penyelesaian'];
       if (idPenyelesaian != null) {
         try {
-          // TAMBAHKAN select penyebab dan id_faktor_penyebab ke query penyelesaian
           penyelesaianData = await Supabase.instance.client
               .from('penyelesaian')
-              .select('id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, tanggal_selesai, poin_penyelesaian, additional_cost, id_user, penyebab, id_faktor_penyebab')
+              .select(
+                'id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, '
+                'tanggal_selesai, poin_penyelesaian, additional_cost, id_user, '
+                'penyebab, bagian, id_faktor_penyebab, '
+                'faktor_penyebab_kts:id_faktor_penyebab(id_faktor, nama_faktor)',
+              )
               .eq('id_penyelesaian', idPenyelesaian)
               .maybeSingle();
-              
           if (penyelesaianData != null && penyelesaianData['id_user'] != null) {
             final solverRes = await Supabase.instance.client
                 .from('User')
@@ -262,16 +287,14 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             gambar_temuan, status_temuan, poin_temuan,
             jumlah_item, nama_item_manual, jenis_temuan,
             created_at, id_user, id_penyelesaian,
+            id_penanggung_jawab,
             subkategoritemuan:id_subkategoritemuan_uuid(
-              id_subkategoritemuan,
-              nama_subkategoritemuan
+              id_subkategoritemuan, nama_subkategoritemuan
             ),
-            kategoritemuan:id_kategoritemuan_uuid(
-              id_kategoritemuan,
-              nama_kategoritemuan
-            ),
-            lokasi:id_lokasi(nama_lokasi)
-          ''') // HAPUS 'penyebab' dan 'id_faktor_penyebab' dari select ini
+            item_produksi:id_item(id_item, nama_item, gambar_item, kode_item),
+            lokasi:id_lokasi(nama_lokasi),
+            penanggung_jawab:id_penanggung_jawab(id_user, nama, gambar_user)
+          ''')
           .eq('id_temuan', widget.ktsId)
           .single();
 
@@ -290,13 +313,16 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       final idPenyelesaian = data['id_penyelesaian'];
       if (idPenyelesaian != null) {
         try {
-          // TAMBAHKAN select penyebab dan id_faktor_penyebab ke query penyelesaian
           penyelesaianData = await Supabase.instance.client
               .from('penyelesaian')
-              .select('id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, tanggal_selesai, poin_penyelesaian, additional_cost, id_user, penyebab, id_faktor_penyebab, faktor_penyebab_kts:id_faktor_penyebab(id_faktor, nama_faktor)')
+              .select(
+                'id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, '
+                'tanggal_selesai, poin_penyelesaian, additional_cost, id_user, '
+                'penyebab, bagian, id_faktor_penyebab, '
+                'faktor_penyebab_kts:id_faktor_penyebab(id_faktor, nama_faktor)',
+              )
               .eq('id_penyelesaian', idPenyelesaian)
               .maybeSingle();
-              
           if (penyelesaianData != null && penyelesaianData['id_user'] != null) {
             final solverRes = await Supabase.instance.client
                 .from('User')
@@ -316,14 +342,17 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             'penyelesaian': penyelesaianData,
           };
           _isLoading = false;
-          
-          // UBAH DARI data['penyebab'] MENJADI penyelesaianData?['penyebab']
           if (penyelesaianData != null) {
             if (penyelesaianData['penyebab'] != null) {
               _penyebabCtrl.text = penyelesaianData['penyebab'];
             }
+            if (penyelesaianData['bagian'] != null) {
+              _selectedBagian = penyelesaianData['bagian'];
+            }
             if (penyelesaianData['faktor_penyebab_kts'] != null) {
-              _selectedFaktor = Map<String, dynamic>.from(penyelesaianData['faktor_penyebab_kts']);
+              _selectedFaktor = Map<String, dynamic>.from(
+                penyelesaianData['faktor_penyebab_kts'],
+              );
             }
           }
         });
@@ -411,7 +440,10 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             'tanggal_selesai': DateTime.now().toIso8601String(),
             'id_user': user.id,
             'poin_penyelesaian': 10,
-            'penyebab': _penyebabCtrl.text.trim().isEmpty ? null : _penyebabCtrl.text.trim(),
+            'penyebab': _penyebabCtrl.text.trim().isEmpty
+                ? null
+                : _penyebabCtrl.text.trim(),
+            'bagian': _selectedBagian,
             'id_faktor_penyebab': _selectedFaktor?['id_faktor'],
           })
           .select('id_penyelesaian')
@@ -502,18 +534,20 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     final d = _data!;
     final status = (d['status_temuan'] ?? '').toString();
     final s = status.toLowerCase();
-    final isResolved = s == 'selesai' || s == 'closed' || s == 'teratasi' || s == 'done' || s == 'completed';
+    final isResolved =
+        s == 'selesai' || s == 'closed' || s == 'teratasi' || s == 'done' || s == 'completed';
 
-    final statusColor = isResolved ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-    final statusBg = isResolved ? const Color(0xFFDCFCE7) : const Color(0xFFFFE4E6);
-    final statusIcon = isResolved ? Icons.check_circle_rounded : Icons.pending_actions_rounded;
-    final statusText = isResolved ? _t('resolved') : _t('unresolved');
+    final statusColor = isResolved ? const Color(0xFF16A34A) : const Color(0xFF1D4ED8);
+    final statusBg    = isResolved ? const Color(0xFFDCFCE7) : const Color(0xFFEFF6FF);
+    final statusIcon  = isResolved ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.clock_solid;
+    final statusText  = isResolved ? _t('resolved') : _t('unresolved');
 
-    final itemName = d['item_produksi']?['nama_item'] ?? d['nama_item_manual'] ?? '-';
-    final itemImg = d['item_produksi']?['gambar_item'];
-    final itemKode = d['item_produksi']?['kode_item'] ?? '';
+    final itemName   = d['item_produksi']?['nama_item'] ?? d['nama_item_manual'] ?? '-';
+    final itemImg    = d['item_produksi']?['gambar_item'];
+    final itemKode   = d['item_produksi']?['kode_item'] ?? '';
     final subKategori = d['subkategoritemuan']?['nama_subkategoritemuan'] ?? '-';
-    final pelapor = d['pelapor'] as Map<String, dynamic>?;
+    final pelapor    = d['pelapor'] as Map<String, dynamic>?;
+    final picData    = d['penanggung_jawab'] as Map<String, dynamic>?;
     final penyelesaian = d['penyelesaian'] as Map<String, dynamic>?;
 
     return SingleChildScrollView(
@@ -521,7 +555,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Gambar Header
+          // Header image
           if (d['gambar_temuan'] != null) ...[
             Container(
               decoration: BoxDecoration(
@@ -537,36 +571,31 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
           ],
 
           // Badges
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF1E40AF), Color(0xFF2563EB)]),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(_t('kts_badge'),
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)]),
+                borderRadius: BorderRadius.circular(10),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: statusColor.withOpacity(0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(statusIcon, size: 12, color: statusColor),
-                    const SizedBox(width: 4),
-                    Text(statusText, style: GoogleFonts.inter(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700)),
-                  ],
-                ),
+              child: Text(_t('kts_badge'),
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: statusBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: statusColor.withOpacity(0.3)),
               ),
-            ],
-          ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(statusIcon, size: 12, color: statusColor),
+                const SizedBox(width: 4),
+                Text(statusText, style: GoogleFonts.inter(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ]),
           const SizedBox(height: 12),
           Text(d['judul_temuan'] ?? '-',
               style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: const Color(0xFF0F172A))),
@@ -577,96 +606,112 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE0E7FF), width: 1.5),
-              boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 4))],
+              border: Border.all(color: const Color(0xFFBFDBFE), width: 1.5),
+              boxShadow: [BoxShadow(color: const Color(0xFF1D4ED8).withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 4))],
             ),
-            child: Column(
-              children: [
-                // Item header
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2))],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(14),
-                          child: itemImg != null
-                              ? Image.network(itemImg, width: 60, height: 60, fit: BoxFit.cover)
-                              : _buildItemPlaceholder(),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(itemName,
-                                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: const Color(0xFF0F172A))),
-                            if (itemKode.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(6)),
-                                child: Text(itemKode,
-                                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF6366F1), fontWeight: FontWeight.w600)),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _divider(),
-                _infoRow(Icons.tag_rounded, _t('order'), d['no_order'] ?? '-'),
-                _divider(),
-                _infoRow(Icons.inventory_2_outlined, _t('qty'), '${d['jumlah_item'] ?? 0} pcs'),
-                _divider(),
-                _infoRow(Icons.folder_rounded, _t('kategori'), subKategori),
-                _divider(),
-                _infoRow(Icons.calendar_today_rounded, _t('reported'), _formatDate(d['created_at'])),
-                if (pelapor != null) ...[
-                  _divider(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        Icon(Icons.person_rounded, color: const Color(0xFF2563EB), size: 18),
-                        const SizedBox(width: 12),
-                        Text(_t('reported_by'), style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569))),
-                        const Spacer(),
-                        Row(
-                          children: [
-                            pelapor['gambar_user'] != null
-                                ? CircleAvatar(
-                                    radius: 14,
-                                    backgroundImage: NetworkImage(pelapor['gambar_user']))
-                                : Container(
-                                    width: 28, height: 28,
-                                    decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
-                                    child: const Icon(Icons.person_rounded, size: 14, color: Color(0xFF2563EB)),
-                                  ),
-                            const SizedBox(width: 8),
-                            Text(pelapor['nama'] ?? '-',
-                                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF0F172A))),
-                          ],
-                        ),
-                      ],
+            child: Column(children: [
+              // Item header
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 2))],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: itemImg != null
+                          ? Image.network(itemImg, width: 60, height: 60, fit: BoxFit.cover)
+                          : _buildItemPlaceholder(),
                     ),
                   ),
-                ],
+                  const SizedBox(width: 16),
+                  Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(itemName,
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 16, color: const Color(0xFF0F172A))),
+                      if (itemKode.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(6)),
+                          child: Text(itemKode,
+                              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF1D4ED8), fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ],
+                  )),
+                ]),
+              ),
+              _divider(),
+              _infoRow(CupertinoIcons.tag,         _t('order'),    d['no_order'] ?? '-'),
+              _divider(),
+              _infoRow(CupertinoIcons.cube_box,    _t('qty'),      '${d['jumlah_item'] ?? 0} pcs'),
+              _divider(),
+              _infoRow(CupertinoIcons.folder_fill, _t('kategori'), subKategori),
+              _divider(),
+              _infoRow(CupertinoIcons.calendar,    _t('reported'), _formatDate(d['created_at'])),
+
+              // PIC
+              if (picData != null) ...[
+                _divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(children: [
+                    const Icon(CupertinoIcons.person_fill, color: Color(0xFF1D4ED8), size: 18),
+                    const SizedBox(width: 12),
+                    Text(_t('pic_label'), style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569))),
+                    const Spacer(),
+                    Row(children: [
+                      Text(picData['nama'] ?? '-',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF0F172A))),
+                      const SizedBox(width: 8),
+                      picData['gambar_user'] != null
+                          ? CircleAvatar(radius: 14, backgroundImage: NetworkImage(picData['gambar_user']))
+                          : Container(
+                              width: 28, height: 28,
+                              decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
+                              child: const Icon(CupertinoIcons.person_fill, size: 14, color: Color(0xFF1D4ED8)),
+                            ),
+                    ]),
+                  ]),
+                ),
               ],
-            ),
+
+              // Reported by
+              if (pelapor != null) ...[
+                _divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(children: [
+                    const Icon(CupertinoIcons.person_2_fill, color: Color(0xFF1D4ED8), size: 18),
+                    const SizedBox(width: 12),
+                    Text(_t('reported_by'), style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569))),
+                    const Spacer(),
+                    Row(children: [
+                      Text(pelapor['nama'] ?? '-',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF0F172A))),
+                      const SizedBox(width: 8),
+                      pelapor['gambar_user'] != null
+                          ? CircleAvatar(radius: 14, backgroundImage: NetworkImage(pelapor['gambar_user']))
+                          : Container(
+                              width: 28, height: 28,
+                              decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
+                              child: const Icon(CupertinoIcons.person_fill, size: 14, color: Color(0xFF1D4ED8)),
+                            ),
+                    ]),
+                  ]),
+                ),
+              ],
+            ]),
           ),
           const SizedBox(height: 20),
 
           // Deskripsi
           if (d['deskripsi_temuan'] != null && d['deskripsi_temuan'].toString().isNotEmpty) ...[
-            _sectionTitle(Icons.description_rounded, _t('desc')),
+            _sectionTitle(CupertinoIcons.doc_text, _t('desc')),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
@@ -674,7 +719,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE0E7FF), width: 1.5),
+                border: Border.all(color: const Color(0xFFBFDBFE), width: 1.5),
               ),
               child: Text(d['deskripsi_temuan'],
                   style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF334155), height: 1.6)),
@@ -682,15 +727,13 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             const SizedBox(height: 20),
           ],
 
-          // Section Penyelesaian
+          // Solution section
           _sectionTitle(
-            isResolved ? Icons.verified_rounded : Icons.build_circle_rounded,
+            isResolved ? CupertinoIcons.checkmark_shield_fill : CupertinoIcons.wrench_fill,
             _t('resolution_title'),
-            color: isResolved ? const Color(0xFF16A34A) : const Color(0xFFD97706),
+            color: isResolved ? const Color(0xFF16A34A) : const Color(0xFF1D4ED8),
           ),
           const SizedBox(height: 10),
-
-          // Tampilkan hasil penyelesaian jika sudah ada, form jika belum
           if (penyelesaian != null)
             _buildResolutionResult(penyelesaian, isResolved, statusColor, statusBg)
           else
@@ -702,12 +745,21 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     );
   }
 
-  Widget _buildResolutionResult(Map<String, dynamic> p, bool isResolved, Color statusColor, Color statusBg) {
-    final solver = p['solver'] as Map<String, dynamic>?;
-    final biaya = p['additional_cost'] as num?;
-    final biayaStr = biaya != null && biaya > 0
+  Widget _buildResolutionResult(
+    Map<String, dynamic> p,
+    bool isResolved,
+    Color statusColor,
+    Color statusBg,
+  ) {
+    final solver    = p['solver'] as Map<String, dynamic>?;
+    final biaya     = p['additional_cost'] as num?;
+    final biayaStr  = biaya != null && biaya > 0
         ? NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(biaya)
         : '-';
+    final String? penyebab  = p['penyebab']?.toString();
+    final String? bagian    = p['bagian']?.toString();
+    final faktorData        = p['faktor_penyebab_kts'] as Map?;
+    final String? faktorNama = faktorData?['nama_faktor']?.toString();
 
     return Container(
       decoration: BoxDecoration(
@@ -732,22 +784,44 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(12)),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 18),
-                      const SizedBox(width: 8),
-                      Text(_t('resolution_done'),
-                          style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF16A34A))),
-                    ],
-                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(CupertinoIcons.checkmark_seal_fill, color: Color(0xFF16A34A), size: 18),
+                    const SizedBox(width: 8),
+                    Text(_t('resolution_done'),
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF16A34A))),
+                  ]),
                 ),
                 const SizedBox(height: 16),
+
+                // Bagian
+                if (bagian != null && bagian.isNotEmpty) ...[
+                  _resultRow(CupertinoIcons.square_grid_2x2_fill, _t('bagian'), bagian),
+                  const SizedBox(height: 12),
+                ],
+
+                // Penyebab
+                if (penyebab != null && penyebab.isNotEmpty) ...[
+                  Text(_t('cause'),
+                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+                  const SizedBox(height: 4),
+                  Text(penyebab,
+                      style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF0F172A), height: 1.5)),
+                  const SizedBox(height: 12),
+                ],
+
+                // Faktor penyebab
+                if (faktorNama != null && faktorNama.isNotEmpty) ...[
+                  _resultRow(CupertinoIcons.tag_fill, _t('cause_factor'), faktorNama),
+                  const SizedBox(height: 12),
+                ],
+
+                // Tindakan
                 Text(_t('tindakan'),
                     style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600, letterSpacing: 0.3)),
                 const SizedBox(height: 6),
                 Text(p['catatan_penyelesaian'] ?? '-',
                     style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF0F172A), height: 1.5)),
+
                 if (biaya != null && biaya > 0) ...[
                   const SizedBox(height: 16),
                   Container(
@@ -757,23 +831,19 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFFFED7AA)),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.monetization_on_rounded, color: Color(0xFFEA580C), size: 18),
-                        const SizedBox(width: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(_t('cost'),
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF92400E), fontWeight: FontWeight.w600)),
-                            Text(biayaStr,
-                                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFFEA580C))),
-                          ],
-                        ),
-                      ],
-                    ),
+                    child: Row(children: [
+                      const Icon(CupertinoIcons.money_dollar_circle, color: Color(0xFFEA580C), size: 18),
+                      const SizedBox(width: 8),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(_t('cost'),
+                            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF92400E), fontWeight: FontWeight.w600)),
+                        Text(biayaStr,
+                            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFFEA580C))),
+                      ]),
+                    ]),
                   ),
                 ],
+
                 if (solver != null) ...[
                   const SizedBox(height: 16),
                   Container(
@@ -781,41 +851,35 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFF),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFFDE68A)),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
                     ),
-                    child: Row(
-                      children: [
-                        solver['gambar_user'] != null
-                            ? CircleAvatar(radius: 20, backgroundImage: NetworkImage(solver['gambar_user']))
-                            : Container(
-                                width: 40, height: 40,
-                                decoration: const BoxDecoration(color: Color(0xFFFEF3C7), shape: BoxShape.circle),
-                                child: const Icon(Icons.person_rounded, size: 20, color: Color(0xFFD97706)),
-                              ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(_t('resolved_by'),
-                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                            Text(solver['nama'] ?? '-',
-                                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF0F172A))),
-                          ],
-                        ),
-                      ],
-                    ),
+                    child: Row(children: [
+                      solver['gambar_user'] != null
+                          ? CircleAvatar(radius: 20, backgroundImage: NetworkImage(solver['gambar_user']))
+                          : Container(
+                              width: 40, height: 40,
+                              decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
+                              child: const Icon(CupertinoIcons.person_fill, size: 20, color: Color(0xFF1D4ED8)),
+                            ),
+                      const SizedBox(width: 12),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(_t('resolved_by'),
+                            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+                        Text(solver['nama'] ?? '-',
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF0F172A))),
+                      ]),
+                    ]),
                   ),
                 ],
+
                 if (p['tanggal_selesai'] != null) ...[
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Icon(Icons.schedule_rounded, size: 13, color: Color(0xFF94A3B8)),
-                      const SizedBox(width: 6),
-                      Text('${_t('resolved_at')}: ${_formatDate(p['tanggal_selesai'])}',
-                          style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
-                    ],
-                  ),
+                  Row(children: [
+                    const Icon(CupertinoIcons.clock_fill, size: 13, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 6),
+                    Text('${_t('resolved_at')}: ${_formatDate(p['tanggal_selesai'])}',
+                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
+                  ]),
                 ],
               ],
             ),
@@ -825,24 +889,39 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     );
   }
 
+  Widget _resultRow(IconData icon, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(10)),
+      child: Row(children: [
+        Icon(icon, size: 14, color: const Color(0xFF1D4ED8)),
+        const SizedBox(width: 8),
+        Text('$label: ', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1D4ED8), fontWeight: FontWeight.w600)),
+        Expanded(child: Text(value,
+            style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF0F172A), fontWeight: FontWeight.w700),
+            overflow: TextOverflow.ellipsis)),
+      ]),
+    );
+  }
+
   Widget _buildResolutionForm() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
-        boxShadow: [BoxShadow(color: const Color(0xFFD97706).withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 4))],
+        border: Border.all(color: const Color(0xFFBFDBFE), width: 1.5),
+        boxShadow: [BoxShadow(color: const Color(0xFF1D4ED8).withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(_t('upload_photo'), style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
-              const Text(' *', style: TextStyle(color: Colors.redAccent)),
-            ],
-          ),
+          // Foto
+          Row(children: [
+            Text(_t('upload_photo'),
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
+            const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed)),
+          ]),
           const SizedBox(height: 8),
           _resImageFile == null
               ? GestureDetector(
@@ -853,77 +932,103 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFF),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+                      border: Border.all(color: const Color(0xFFBFDBFE), width: 1.5),
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: const BoxDecoration(color: Color(0xFFFEF3C7), shape: BoxShape.circle),
-                          child: const Icon(Icons.camera_alt_rounded, color: Color(0xFFD97706), size: 26),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(_t('ambil_foto'),
-                            style: GoogleFonts.inter(color: const Color(0xFFD97706), fontWeight: FontWeight.w600, fontSize: 14)),
-                      ],
-                    ),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
+                        child: const Icon(CupertinoIcons.camera, color: Color(0xFF1D4ED8), size: 26),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(_t('ambil_foto'),
+                          style: GoogleFonts.inter(color: const Color(0xFF1D4ED8), fontWeight: FontWeight.w600, fontSize: 14)),
+                    ]),
                   ),
                 )
-              : Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: kIsWeb
-                          ? Image.network(_resImageFile!.path, height: 200, width: double.infinity, fit: BoxFit.cover)
-                          : Image.file(File(_resImageFile!.path), height: 200, width: double.infinity, fit: BoxFit.cover),
-                    ),
-                    Positioned(
-                      right: 12, bottom: 12,
-                      child: GestureDetector(
-                        onTap: _pickResImage,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(20)),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 14),
-                              const SizedBox(width: 6),
-                              Text(_t('ganti'), style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                        ),
+              : Stack(children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: kIsWeb
+                        ? Image.network(_resImageFile!.path, height: 200, width: double.infinity, fit: BoxFit.cover)
+                        : Image.file(File(_resImageFile!.path), height: 200, width: double.infinity, fit: BoxFit.cover),
+                  ),
+                  Positioned(
+                    right: 12, bottom: 12,
+                    child: GestureDetector(
+                      onTap: _pickResImage,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(20)),
+                        child: Row(children: [
+                          const Icon(CupertinoIcons.camera_rotate, color: Colors.white, size: 14),
+                          const SizedBox(width: 6),
+                          Text(_t('ganti'), style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                        ]),
                       ),
                     ),
-                  ],
-                ),
-          // --- Penyebab ---
-          Text(
-            widget.lang == 'ZH' ? '原因' : widget.lang == 'EN' ? 'Cause' : 'Penyebab',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569)),
+                  ),
+                ]),
+          const SizedBox(height: 16),
+
+          // Bagian
+          Text(_t('bagian'),
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _selectedBagian != null ? const Color(0xFF1D4ED8) : const Color(0xFFBFDBFE),
+                width: _selectedBagian != null ? 1.5 : 1,
+              ),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: _selectedBagian,
+                dropdownColor: Colors.white,
+                hint: Text(_t('pick_bagian'),
+                    style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFCBD5E1))),
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
+                icon: const Icon(CupertinoIcons.chevron_down, size: 14, color: Color(0xFF1D4ED8)),
+                items: _bagianList
+                    .map((b) => DropdownMenuItem<String>(
+                          value: b,
+                          child: Text(b, overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (val) => setState(() => _selectedBagian = val),
+              ),
+            ),
           ),
+          const SizedBox(height: 16),
+
+          // Penyebab
+          Text(_t('cause'),
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
           const SizedBox(height: 8),
           TextFormField(
             controller: _penyebabCtrl,
             maxLines: 2,
             style: GoogleFonts.inter(fontSize: 15),
             decoration: InputDecoration(
-              hintText: widget.lang == 'ZH' ? '说明原因...' : widget.lang == 'EN' ? 'Describe the cause...' : 'Jelaskan penyebab...',
+              hintText: _t('cause_hint'),
               hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
               filled: true, fillColor: const Color(0xFFF8FAFF),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFDE68A), width: 1)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD97706), width: 1.5)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFBFDBFE), width: 1)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1D4ED8), width: 1.5)),
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
           const SizedBox(height: 16),
 
-          // --- Faktor Penyebab (dropdown) ---
-          Text(
-            widget.lang == 'ZH' ? '原因因素' : widget.lang == 'EN' ? 'Cause Factor' : 'Faktor Penyebab',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569)),
-          ),
+          // Faktor Penyebab
+          Text(_t('cause_factor'),
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
           const SizedBox(height: 8),
           _faktors.isEmpty
               ? Container(
@@ -931,7 +1036,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFF),
                     borderRadius: BorderRadius.circular(12),
-                    border: const Border.fromBorderSide(BorderSide(color: Color(0xFFFDE68A), width: 1)),
+                    border: const Border.fromBorderSide(BorderSide(color: Color(0xFFBFDBFE), width: 1)),
                   ),
                   child: Text(
                     widget.lang == 'EN' ? 'Loading factors...' : 'Memuat faktor...',
@@ -941,10 +1046,10 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               : Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFF),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _selectedFaktor != null ? const Color(0xFFD97706) : const Color(0xFFFDE68A),
+                      color: _selectedFaktor != null ? const Color(0xFF1D4ED8) : const Color(0xFFBFDBFE),
                       width: _selectedFaktor != null ? 1.5 : 1,
                     ),
                   ),
@@ -952,27 +1057,33 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                     child: DropdownButton<Map<String, dynamic>>(
                       isExpanded: true,
                       value: _selectedFaktor,
+                      dropdownColor: Colors.white,
                       hint: Text(
-                        widget.lang == 'ZH' ? '选择原因因素（可选）' : widget.lang == 'EN' ? 'Select cause factor (optional)' : 'Pilih faktor penyebab (opsional)',
+                        widget.lang == 'ZH' ? '选择原因因素（可选）'
+                            : widget.lang == 'EN' ? 'Select cause factor (optional)'
+                            : 'Pilih faktor penyebab (opsional)',
                         style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFCBD5E1)),
                       ),
                       style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-                      icon: const Icon(CupertinoIcons.chevron_down, size: 14, color: Color(0xFFD97706)),
-                      items: _faktors.map((f) => DropdownMenuItem<Map<String, dynamic>>(
-                        value: f,
-                        child: Text(f['nama_faktor'] ?? '', overflow: TextOverflow.ellipsis),
-                      )).toList(),
+                      icon: const Icon(CupertinoIcons.chevron_down, size: 14, color: Color(0xFF1D4ED8)),
+                      items: _faktors
+                          .map((f) => DropdownMenuItem<Map<String, dynamic>>(
+                                value: f,
+                                child: Text(f['nama_faktor'] ?? '', overflow: TextOverflow.ellipsis),
+                              ))
+                          .toList(),
                       onChanged: (val) => setState(() => _selectedFaktor = val),
                     ),
                   ),
                 ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Text(_t('tindakan'), style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
-              const Text(' *', style: TextStyle(color: Colors.redAccent)),
-            ],
-          ),
+
+          // Tindakan
+          Row(children: [
+            Text(_t('tindakan'),
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
+            const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed)),
+          ]),
           const SizedBox(height: 8),
           TextFormField(
             controller: _tindakanCtrl,
@@ -983,13 +1094,16 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
               filled: true, fillColor: const Color(0xFFF8FAFF),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFDE68A), width: 1)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD97706), width: 1.5)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFBFDBFE), width: 1)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1D4ED8), width: 1.5)),
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
           const SizedBox(height: 16),
-          Text(_t('biaya'), style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
+
+          // Biaya
+          Text(_t('biaya'),
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
           const SizedBox(height: 8),
           TextFormField(
             controller: _biayaCtrl,
@@ -1001,24 +1115,26 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
               filled: true, fillColor: const Color(0xFFF8FAFF),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFDE68A), width: 1)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFD97706), width: 1.5)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFBFDBFE), width: 1)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1D4ED8), width: 1.5)),
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
           const SizedBox(height: 24),
+
+          // Tombol simpan
           SizedBox(
             width: double.infinity,
             child: Container(
               decoration: BoxDecoration(
                 gradient: _isSavingResolution
                     ? null
-                    : const LinearGradient(colors: [Color(0xFFFBBF24), Color(0xFFD97706)]),
+                    : const LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)]),
                 color: _isSavingResolution ? const Color(0xFFE2E8F0) : null,
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: _isSavingResolution
                     ? null
-                    : [BoxShadow(color: const Color(0xFFFBBF24).withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))],
+                    : [BoxShadow(color: const Color(0xFF1D4ED8).withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))],
               ),
               child: ElevatedButton(
                 onPressed: _isSavingResolution ? null : _saveResolution,
@@ -1031,8 +1147,9 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: _isSavingResolution
-                    ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                    : Text(_t('save_resolution'), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
+                    ? const CupertinoActivityIndicator(color: Colors.white)
+                    : Text(_t('save_resolution'),
+                        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ),
           ),
@@ -1046,43 +1163,41 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   Widget _infoRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF2563EB), size: 18),
-          const SizedBox(width: 12),
-          Text(label, style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569))),
-          const Spacer(),
-          Expanded(
-            child: Text(value,
-                textAlign: TextAlign.right,
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF0F172A))),
-          ),
-        ],
-      ),
+      child: Row(children: [
+        Icon(icon, color: const Color(0xFF1D4ED8), size: 18),
+        const SizedBox(width: 12),
+        Text(label, style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF475569))),
+        const Spacer(),
+        Expanded(child: Text(value,
+            textAlign: TextAlign.right,
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF0F172A)))),
+      ]),
     );
   }
 
-  Widget _sectionTitle(IconData icon, String title, {Color color = const Color(0xFF2563EB)}) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, size: 16, color: color),
-        ),
-        const SizedBox(width: 10),
-        Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A))),
-      ],
-    );
+  Widget _sectionTitle(IconData icon, String title, {Color color = const Color(0xFF1D4ED8)}) {
+    return Row(children: [
+      Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, size: 16, color: color),
+      ),
+      const SizedBox(width: 10),
+      Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A))),
+    ]);
   }
 
   Widget _buildItemPlaceholder() {
     return Container(
       width: 60, height: 60,
       decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Color(0xFFEFF6FF), Color(0xFFE0E7FF)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: LinearGradient(
+          colors: [Color(0xFFEFF6FF), Color(0xFFBFDBFE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
-      child: const Icon(Icons.inventory_2_outlined, color: Color(0xFF2563EB), size: 28),
+      child: const Icon(CupertinoIcons.cube_box, color: Color(0xFF1D4ED8), size: 28),
     );
   }
 
