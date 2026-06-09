@@ -8,7 +8,7 @@ class LocationService {
 
   static const double _atmiLat = -7.5585;
   static const double _atmiLng = 110.8322;
-  static const double _radiusMeters = 20000.0;
+  static const double _radiusMeters = 500.0;
 
   // ── Cache hasil cek lokasi agar tidak berulang kali request GPS ──
   LocationCheckResult? _cachedResult;
