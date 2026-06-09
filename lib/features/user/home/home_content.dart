@@ -373,8 +373,8 @@ class HomeContentState extends State<HomeContent> {
           const SizedBox(height: 12),
           _buildNavTile(
             icon: Icons.factory_outlined,
-            iconColor: Colors.orange,
-            iconBg: Colors.orange.withOpacity(0.1),
+            iconColor: Colors.lightBlue,
+            iconBg: Colors.blue.withOpacity(0.1),
             label: _t('kts_produksi'),
             onTap: () async {
               await Navigator.push(
