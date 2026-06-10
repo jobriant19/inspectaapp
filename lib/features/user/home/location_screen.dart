@@ -68,7 +68,6 @@ class _C {
   static const star        = Color(0xFFF59E0B);
   // Shimmer colors
   static const shimmerBase = Color(0xFFE8F4FD);
-  static const shimmerHigh = Color(0xFFFFFFFF);
 }
 
 // ── Semua teks multibahasa terpusat ──────────────────────────────────────────
@@ -110,6 +109,14 @@ class _AppTexts {
       'generate_qr'               : 'Buat Kode QR',
       'qr_not_generated'          : 'Kode QR belum dibuat.',
       'qrcode'                    : 'QR Code',
+      'search_result'             : 'Hasil Pencarian',
+      'unit_empty'                : 'Unit tidak ditemukan',
+      'subunit_empty'             : 'Subunit tidak ditemukan',
+      'area_empty'                : 'Area tidak ditemukan',
+      'level_lokasi'              : 'Lokasi',
+      'level_unit'                : 'Unit',
+      'level_subunit'             : 'Subunit',
+      'level_area'                : 'Area',
     },
     'EN': {
       // Location Screen
@@ -147,6 +154,14 @@ class _AppTexts {
       'generate_qr'               : 'Generate QR Code',
       'qr_not_generated'          : 'QR Code has not been generated yet.',
       'qrcode'                    : 'QR Code',
+      'search_result'             : 'Search Results',
+      'unit_empty'                : 'Unit not found',
+      'subunit_empty'             : 'Subunit not found',
+      'area_empty'                : 'Area not found',
+      'level_lokasi'              : 'Location',
+      'level_unit'                : 'Unit',
+      'level_subunit'             : 'Subunit',
+      'level_area'                : 'Area',
     },
     'ZH': {
       // Location Screen
@@ -184,6 +199,14 @@ class _AppTexts {
       'generate_qr'               : '生成二维码',
       'qr_not_generated'          : '二维码尚未生成。',
       'qrcode'                    : '二维码',
+      'search_result'             : '搜索结果',
+      'unit_empty'                : '未找到单位',
+      'subunit_empty'             : '未找到子单位',
+      'area_empty'                : '未找到区域',
+      'level_lokasi'              : '位置',
+      'level_unit'                : '单位',
+      'level_subunit'             : '子单位',
+      'level_area'                : '区域',
     },
   };
 
@@ -243,6 +266,11 @@ class _LocationScreenState extends State<LocationScreen>
 
   Map<String, dynamic>? _suggestTemuan;
   Map<String, dynamic>? _suggestSelesai;
+
+  // ── Global search state ──
+  bool   _isGlobalSearch    = false;
+  bool   _isGlobalLoading   = false;
+  List<_LocSearchResult> _globalResults = [];
 
   // My Location IDs
   String? _myLocationLokasiId;
@@ -556,29 +584,153 @@ class _LocationScreenState extends State<LocationScreen>
   // ── Search & sort ─────────────────────────────────────────────────────────
   void _onSearch(String query) {
     _searchQuery = query.toLowerCase();
-    final tName  = _getLevelName();
-    setState(() {
-      _filteredData = _currentData.where((item) {
-        final nama = item['nama_$tName'];
-        if (nama == null) return false;
-        return nama.toString().toLowerCase().contains(_searchQuery);
-      }).toList();
-
-      _filteredData.sort((a, b) {
-        // SESUDAH: ID adalah String UUID, sort hanya by favorit & nama
-        final idA = a['id_$tName']?.toString() ?? '';
-        final idB = b['id_$tName']?.toString() ?? '';
-
-        final favA = _isFavorit(tName, idA) ? 0 : 1;
-        final favB = _isFavorit(tName, idB) ? 0 : 1;
-        if (favA != favB) return favA.compareTo(favB);
-
-        return (a['nama_$tName'] ?? '')
-            .toString()
-            .toLowerCase()
-            .compareTo((b['nama_$tName'] ?? '').toString().toLowerCase());
+    if (query.trim().isEmpty) {
+      setState(() { _isGlobalSearch = false; _globalResults = []; });
+      // tetap filter data lokal level saat ini
+      final tName = _getLevelName();
+      setState(() {
+        _filteredData = _currentData.where((item) {
+          final nama = item['nama_$tName'];
+          return nama != null && nama.toString().toLowerCase().contains(_searchQuery);
+        }).toList();
+        _filteredData.sort((a, b) {
+          final idA = a['id_$tName']?.toString() ?? '';
+          final idB = b['id_$tName']?.toString() ?? '';
+          final favA = _isFavorit(tName, idA) ? 0 : 1;
+          final favB = _isFavorit(tName, idB) ? 0 : 1;
+          if (favA != favB) return favA.compareTo(favB);
+          return (a['nama_$tName'] ?? '').toString().toLowerCase()
+              .compareTo((b['nama_$tName'] ?? '').toString().toLowerCase());
+        });
       });
-    });
+      return;
+    }
+    _performGlobalSearch(query);
+  }
+
+  // ── Helper: scope ID berdasarkan user (mode non-pro) ──
+  Map<String, String?> get _userScope => {
+    'lokasi' : _myLocationLokasiId,
+    'unit'   : _myLocationUnitId,
+    'subunit': _myLocationSubunitId,
+    'area'   : _myLocationAreaId,
+  };
+
+  String? get _userScopeType {
+    if (_myLocationAreaId   != null) return 'area';
+    if (_myLocationSubunitId!= null) return 'subunit';
+    if (_myLocationUnitId   != null) return 'unit';
+    if (_myLocationLokasiId != null) return 'lokasi';
+    return null;
+  }
+
+  Future<void> _performGlobalSearch(String query) async {
+    setState(() { _isGlobalSearch = true; _isGlobalLoading = true; _globalResults = []; });
+    try {
+      final results = <_LocSearchResult>[];
+
+      if (_hasFullAccess) {
+        final futures = await Future.wait([
+          _supabase.from('lokasi').select('id_lokasi, nama_lokasi, gambar_lokasi, is_star, id_pic')
+              .ilike('nama_lokasi', '%$query%').limit(10),
+          _supabase.from('unit').select('id_unit, nama_unit, gambar_unit, is_star, id_pic, id_lokasi, lokasi(nama_lokasi)')
+              .ilike('nama_unit', '%$query%').limit(10),
+          _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi)')
+              .ilike('nama_subunit', '%$query%').limit(10),
+          _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
+              .ilike('nama_area', '%$query%').limit(10),
+        ]);
+        for (final r in futures[0] as List) results.add(_makeLocResult(r, 'lokasi', 0));
+        for (final r in futures[1] as List) results.add(_makeLocResult(r, 'unit', 1));
+        for (final r in futures[2] as List) results.add(_makeLocResult(r, 'subunit', 2));
+        for (final r in futures[3] as List) results.add(_makeLocResult(r, 'area', 3));
+      } else {
+        // Non-pro: scope berdasarkan data user
+        final scopeType = _userScopeType;
+        final scopeId   = _userScope[scopeType];
+        if (scopeType == null || scopeId == null) {
+          if (mounted) setState(() { _globalResults = []; _isGlobalLoading = false; });
+          return;
+        }
+        switch (scopeType) {
+          case 'area':
+            final rows = await _supabase.from('area')
+                .select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
+                .eq('id_area', scopeId).ilike('nama_area', '%$query%').limit(10);
+            for (final r in rows as List) results.add(_makeLocResult(r, 'area', 3));
+            break;
+          case 'subunit':
+            final futures = await Future.wait([
+              _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi)')
+                  .eq('id_subunit', scopeId).ilike('nama_subunit', '%$query%').limit(10),
+              _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
+                  .eq('id_subunit', scopeId).ilike('nama_area', '%$query%').limit(10),
+            ]);
+            for (final r in futures[0] as List) results.add(_makeLocResult(r, 'subunit', 2));
+            for (final r in futures[1] as List) results.add(_makeLocResult(r, 'area', 3));
+            break;
+          case 'unit':
+            final futures = await Future.wait([
+              _supabase.from('unit').select('id_unit, nama_unit, gambar_unit, is_star, id_pic, id_lokasi, lokasi(nama_lokasi)')
+                  .eq('id_unit', scopeId).ilike('nama_unit', '%$query%').limit(10),
+              _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi)')
+                  .eq('id_unit', scopeId).ilike('nama_subunit', '%$query%').limit(10),
+              _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
+                  .eq('id_unit', scopeId).ilike('nama_area', '%$query%').limit(10),
+            ]);
+            for (final r in futures[0] as List) results.add(_makeLocResult(r, 'unit', 1));
+            for (final r in futures[1] as List) results.add(_makeLocResult(r, 'subunit', 2));
+            for (final r in futures[2] as List) results.add(_makeLocResult(r, 'area', 3));
+            break;
+          case 'lokasi':
+            final futures = await Future.wait([
+              _supabase.from('lokasi').select('id_lokasi, nama_lokasi, gambar_lokasi, is_star, id_pic')
+                  .eq('id_lokasi', scopeId).ilike('nama_lokasi', '%$query%').limit(10),
+              _supabase.from('unit').select('id_unit, nama_unit, gambar_unit, is_star, id_pic, id_lokasi, lokasi(nama_lokasi)')
+                  .eq('id_lokasi', scopeId).ilike('nama_unit', '%$query%').limit(10),
+              _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi)')
+                  .eq('id_lokasi', scopeId).ilike('nama_subunit', '%$query%').limit(10),
+              _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
+                  .eq('id_lokasi', scopeId).ilike('nama_area', '%$query%').limit(10),
+            ]);
+            for (final r in futures[0] as List) results.add(_makeLocResult(r, 'lokasi', 0));
+            for (final r in futures[1] as List) results.add(_makeLocResult(r, 'unit', 1));
+            for (final r in futures[2] as List) results.add(_makeLocResult(r, 'subunit', 2));
+            for (final r in futures[3] as List) results.add(_makeLocResult(r, 'area', 3));
+            break;
+        }
+      }
+
+      results.sort((a, b) {
+        final favA = _isFavorit(a.type, a.id) ? 0 : 1;
+        final favB = _isFavorit(b.type, b.id) ? 0 : 1;
+        if (favA != favB) return favA.compareTo(favB);
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+      if (mounted) setState(() { _globalResults = results; _isGlobalLoading = false; });
+    } catch (e) {
+      debugPrint('Global search error: $e');
+      if (mounted) setState(() => _isGlobalLoading = false);
+    }
+  }
+
+  _LocSearchResult _makeLocResult(Map<String, dynamic> r, String type, int level) {
+    final id   = r['id_$type']?.toString() ?? '';
+    final name = r['nama_$type']?.toString() ?? '';
+    final img  = r['gambar_$type'] as String?;
+    String? breadcrumb;
+    if (type == 'unit')    breadcrumb = r['lokasi']?['nama_lokasi']?.toString();
+    if (type == 'subunit') {
+      final p = [r['lokasi']?['nama_lokasi'], r['unit']?['nama_unit']].whereType<String>().join(' › ');
+      breadcrumb = p.isNotEmpty ? p : null;
+    }
+    if (type == 'area') {
+      final p = [r['lokasi']?['nama_lokasi'], r['unit']?['nama_unit'], r['subunit']?['nama_subunit']]
+          .whereType<String>().join(' › ');
+      breadcrumb = p.isNotEmpty ? p : null;
+    }
+    return _LocSearchResult(id: id, name: name, type: type, level: level, imgUrl: img, breadcrumb: breadcrumb, raw: r);
   }
 
   String _getLevelName([int? level]) =>
@@ -658,9 +810,121 @@ class _LocationScreenState extends State<LocationScreen>
             _buildParentCard(),
           if (!_isLoading) _buildSuggestSection(),
           if (!_isLoading && _currentLevel > 0) _buildSublokasiCount(),
-          Expanded(child: _isLoading ? _buildShimmerList() : _buildList()),
+          Expanded(
+            child: _isGlobalSearch
+                ? _buildGlobalSearchResults()
+                : _isLoading ? _buildShimmerList() : _buildList(),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildGlobalSearchResults() {
+    if (_isGlobalLoading) {
+      return const Center(child: CircularProgressIndicator(color: _C.primary));
+    }
+    if (_globalResults.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset('assets/images/team_illustration.png', width: 160, height: 160,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.search_off_rounded, size: 64, color: _C.border)),
+              const SizedBox(height: 16),
+              Text(t('tidak_ada_data'),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _C.textDark),
+                  textAlign: TextAlign.center),
+            ],
+          ),
+        ),
+      );
+    }
+
+    const levelColors = [Color(0xFF0891B2), Color(0xFF7C3AED), Color(0xFF059669), Color(0xFFD97706)];
+    const levelIcons  = [Icons.location_city_rounded, Icons.domain_rounded, Icons.grid_view_rounded, Icons.place_rounded];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          child: Text('${t('search_result')} (${_globalResults.length})',
+              style: const TextStyle(fontWeight: FontWeight.w700, color: _C.textDark, fontSize: 13)),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            itemCount: _globalResults.length,
+            itemBuilder: (_, i) {
+              final r = _globalResults[i];
+              final isFav   = _isFavorit(r.type, r.id);
+              final clr     = levelColors[r.level];
+              final ico     = levelIcons[r.level];
+              final typeLabel = t('level_${r.type}');
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: _C.card,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: isFav ? _C.star.withValues(alpha: 0.5) : _C.border, width: 1.2),
+                  boxShadow: [BoxShadow(color: _C.primary.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 3))],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 54, height: 60,
+                      decoration: BoxDecoration(
+                        color: clr.withValues(alpha: 0.1),
+                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
+                        image: r.imgUrl != null
+                            ? DecorationImage(image: NetworkImage(r.imgUrl!), fit: BoxFit.cover)
+                            : null,
+                      ),
+                      child: r.imgUrl == null ? Center(child: Icon(ico, color: clr, size: 22)) : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(r.name,
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _C.textDark),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            if (r.breadcrumb != null) ...[
+                              const SizedBox(height: 2),
+                              Text(r.breadcrumb!, style: const TextStyle(fontSize: 10, color: _C.textGrey),
+                                  overflow: TextOverflow.ellipsis),
+                            ],
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                  color: clr.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
+                              child: Text(typeLabel,
+                                  style: TextStyle(fontSize: 9, color: clr, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                          color: isFav ? _C.star : Colors.grey.shade300, size: 22),
+                      onPressed: () => _toggleFavorit(r.type, r.id),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -737,11 +1001,19 @@ class _LocationScreenState extends State<LocationScreen>
                         hintText: '${t('cari')} ${_getLevelName()}',
                         border: InputBorder.none,
                         isDense: true,
-                        hintStyle:
-                            const TextStyle(color: _C.textGrey, fontSize: 14),
+                        hintStyle: const TextStyle(color: _C.textGrey, fontSize: 14),
                       ),
                     ),
                   ),
+                  if (_isGlobalSearch)
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _isGlobalSearch  = false;
+                        _globalResults   = [];
+                        _searchQuery     = '';
+                      }),
+                      child: const Icon(Icons.close, color: _C.textGrey, size: 18),
+                    ),
                 ],
               ),
             ),
@@ -755,32 +1027,24 @@ class _LocationScreenState extends State<LocationScreen>
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
                 color: _isLokasiSaya ? _C.primary : Colors.white,
-                border: Border.all(
-                    color: _isLokasiSaya ? _C.primary : _C.border),
+                border: Border.all(color: _isLokasiSaya ? _C.primary : _C.border),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: _isLokasiSaya
-                    ? [BoxShadow(
-                        color: _C.primary.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3))]
+                    ? [BoxShadow(color: _C.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]
                     : [],
               ),
               alignment: Alignment.center,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.my_location_rounded,
-                      size: 15,
+                  Icon(Icons.my_location_rounded, size: 15,
                       color: _isLokasiSaya ? Colors.white : _C.primary),
                   const SizedBox(width: 5),
-                  Text(
-                    t('lokasi_saya'),
-                    style: TextStyle(
-                      color: _isLokasiSaya ? Colors.white : _C.primaryDark,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                    ),
-                  ),
+                  Text(t('lokasi_saya'),
+                      style: TextStyle(
+                        color: _isLokasiSaya ? Colors.white : _C.primaryDark,
+                        fontWeight: FontWeight.w700, fontSize: 12,
+                      )),
                 ],
               ),
             ),
@@ -1265,28 +1529,29 @@ class _LocationScreenState extends State<LocationScreen>
 
   // ── List ──────────────────────────────────────────────────────────────────
   Widget _buildList() {
-    if (_isLokasiSaya && _filteredData.isEmpty) {
-      return _buildMyLocationEmptyState();
-    }
+    if (_isLokasiSaya && _filteredData.isEmpty) return _buildMyLocationEmptyState();
     if (_filteredData.isEmpty) {
+      // Pesan kosong spesifik per level
+      const levelKeys = ['tidak_ada_data', 'unit_empty', 'subunit_empty', 'area_empty'];
+      final msgKey = levelKeys[_currentLevel];
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.location_off_rounded,
-                size: 56, color: Colors.grey.shade300),
-            const SizedBox(height: 12),
-            Text(
-              t('tidak_ada_data'),
-              style: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontWeight: FontWeight.w600),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset('assets/images/team_illustration.png', width: 160, height: 160,
+                  errorBuilder: (_, __, ___) =>
+                      Icon(Icons.location_off_rounded, size: 56, color: Colors.grey.shade300)),
+              const SizedBox(height: 12),
+              Text(t(msgKey),
+                  style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center),
+            ],
+          ),
         ),
       );
     }
-
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemCount: _filteredData.length,
@@ -2125,4 +2390,19 @@ class _DetailBottomSheetState extends State<_DetailBottomSheet> {
       ),
     );
   }
+}
+
+// ── Model hasil pencarian global (location_screen) ──
+class _LocSearchResult {
+  final String  id;
+  final String  name;
+  final String  type;
+  final int     level;
+  final String? imgUrl;
+  final String? breadcrumb;
+  final Map<String, dynamic> raw;
+  const _LocSearchResult({
+    required this.id, required this.name, required this.type,
+    required this.level, this.imgUrl, this.breadcrumb, required this.raw,
+  });
 }

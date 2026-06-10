@@ -357,14 +357,6 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
               onChanged: (val) {
                 setState(() => _isProMode = val);
                 widget.onProModeChanged(val);
-                _showModeSnack(
-                  context,
-                  val ? t('pro_on') : t('pro_off'),
-                  val ? const Color(0xFF16A34A) : Colors.grey.shade600,
-                  val
-                      ? Icons.workspace_premium_rounded
-                      : Icons.workspace_premium_outlined,
-                );
               },
             ),
 
@@ -386,12 +378,6 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
               onChanged: (val) {
                 setState(() => _isVisitorMode = val);
                 widget.onVisitorModeChanged(val);
-                _showModeSnack(
-                  context,
-                  val ? t('visitor_on') : t('visitor_off'),
-                  val ? const Color(0xFFF59E0B) : Colors.grey.shade600,
-                  val ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-                );
               },
             ),
 
@@ -424,34 +410,6 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showModeSnack(
-    BuildContext context,
-    String message,
-    Color color,
-    IconData icon,
-  ) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(children: [
-          Icon(icon, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Text(
-            message,
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600, color: Colors.white),
-          ),
-        ]),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
       ),
     );
   }
