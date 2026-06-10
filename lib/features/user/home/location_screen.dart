@@ -271,6 +271,7 @@ class _LocationScreenState extends State<LocationScreen>
   bool   _isGlobalSearch    = false;
   bool   _isGlobalLoading   = false;
   List<_LocSearchResult> _globalResults = [];
+  String? _activeFilter = 'lokasi';
 
   // My Location IDs
   String? _myLocationLokasiId;
@@ -507,61 +508,58 @@ class _LocationScreenState extends State<LocationScreen>
       final tName = _getLevelName();
 
       if (_currentLevel == 0) {
-        if (_isLokasiSaya && _myLocationLokasiId != null) {
-          data = await _supabase.from('lokasi').select(
-            'id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, '
-            'kategori, is_star, id_pic, User!id_pic(nama), unit(id_unit), qrcode')
-            .eq('id_lokasi', _myLocationLokasiId!);
-        } else if (!_isLokasiSaya) {
-          data = await _supabase.from('lokasi').select(
-            'id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, '
-            'kategori, is_star, id_pic, User!id_pic(nama), unit(id_unit), qrcode');
-        }
+        // Level Lokasi: ambil semua lokasi
+        data = await _supabase.from('lokasi').select(
+          'id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, '
+          'kategori, is_star, id_pic, User!id_pic(nama), unit(id_unit), qrcode');
       } else if (_currentLevel == 1) {
-        if (_isLokasiSaya && _myLocationUnitId != null) {
+        if (parentId != null) {
+          // Masuk dari tap lokasi → unit di bawah lokasi tersebut
           data = await _supabase.from('unit').select(
             'id_unit, nama_unit, gambar_unit, deskripsi_unit, '
             'kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), qrcode')
-            .eq('id_lokasi', parentId!)
-            .eq('id_unit', _myLocationUnitId!);
-        } else if (!_hasFullAccess && widget.userUnitId != null && !_isLokasiSaya) {
+            .eq('id_lokasi', parentId);
+        } else {
+          // Filter chip Unit aktif → ambil SEMUA unit
           data = await _supabase.from('unit').select(
             'id_unit, nama_unit, gambar_unit, deskripsi_unit, '
-            'kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), qrcode')
-            .eq('id_lokasi', parentId!)
-            .eq('id_unit', widget.userUnitId!);
-        } else if (!_isLokasiSaya) {
-          data = await _supabase.from('unit').select(
-            'id_unit, nama_unit, gambar_unit, deskripsi_unit, '
-            'kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), qrcode')
-            .eq('id_lokasi', parentId!);
+            'kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), '
+            'id_lokasi, lokasi(nama_lokasi), qrcode');
         }
       } else if (_currentLevel == 2) {
-        if (_isLokasiSaya && _myLocationSubunitId != null) {
+        if (parentId != null) {
+          // Masuk dari tap unit → subunit di bawah unit tersebut
           data = await _supabase.from('subunit').select(
             'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, '
             'kategori, is_star, id_pic, User!id_pic(nama), area(id_area), qrcode')
-            .eq('id_unit', parentId!)
-            .eq('id_subunit', _myLocationSubunitId!);
-        } else if (!_isLokasiSaya) {
+            .eq('id_unit', parentId);
+        } else {
+          // Filter chip Subunit aktif → ambil SEMUA subunit
           data = await _supabase.from('subunit').select(
             'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, '
-            'kategori, is_star, id_pic, User!id_pic(nama), area(id_area), qrcode')
-            .eq('id_unit', parentId!);
+            'kategori, is_star, id_pic, User!id_pic(nama), area(id_area), '
+            'id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode');
         }
       } else if (_currentLevel == 3) {
-        if (_isLokasiSaya && _myLocationAreaId != null) {
+        if (parentId != null) {
+          // Masuk dari tap subunit → area di bawah subunit tersebut
           data = await _supabase.from('area').select(
             'id_area, nama_area, gambar_area, deskripsi_area, '
             'kategori, is_star, id_pic, User!id_pic(nama), qrcode')
-            .eq('id_subunit', parentId!)
-            .eq('id_area', _myLocationAreaId!);
-        } else if (!_isLokasiSaya) {
+            .eq('id_subunit', parentId);
+        } else {
+          // Filter chip Area aktif → ambil SEMUA area
           data = await _supabase.from('area').select(
             'id_area, nama_area, gambar_area, deskripsi_area, '
-            'kategori, is_star, id_pic, User!id_pic(nama), qrcode')
-            .eq('id_subunit', parentId!);
+            'kategori, is_star, id_pic, User!id_pic(nama), '
+            'id_subunit, id_unit, id_lokasi, '
+            'subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), qrcode');
         }
+      }
+
+      // Filter mode Lokasi Saya
+      if (_isLokasiSaya) {
+        data = _filterByMyLocation(data, _currentLevel);
       }
 
       if (mounted) {
@@ -572,13 +570,27 @@ class _LocationScreenState extends State<LocationScreen>
           _onSearch(_searchQuery);
         });
         _updateSuggestItems();
-        // Pre-fetch semua aktivitas sekaligus (background)
         _prefetchAllActivities(tName, data);
       }
     } catch (e) {
       debugPrint('Error Load Location: $e');
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Filter data berdasarkan lokasi spesifik user (mode Lokasi Saya)
+  List<dynamic> _filterByMyLocation(List<dynamic> data, int level) {
+    String? filterId;
+    String idKey;
+    switch (level) {
+      case 0: filterId = _myLocationLokasiId;  idKey = 'id_lokasi';  break;
+      case 1: filterId = _myLocationUnitId;    idKey = 'id_unit';    break;
+      case 2: filterId = _myLocationSubunitId; idKey = 'id_subunit'; break;
+      case 3: filterId = _myLocationAreaId;    idKey = 'id_area';    break;
+      default: return data;
+    }
+    if (filterId == null) return [];
+    return data.where((item) => item[idKey]?.toString() == filterId).toList();
   }
 
   // ── Search & sort ─────────────────────────────────────────────────────────
@@ -629,89 +641,61 @@ class _LocationScreenState extends State<LocationScreen>
     try {
       final results = <_LocSearchResult>[];
 
-      if (_hasFullAccess) {
-        final futures = await Future.wait([
-          _supabase.from('lokasi').select('id_lokasi, nama_lokasi, gambar_lokasi, is_star, id_pic')
-              .ilike('nama_lokasi', '%$query%').limit(10),
-          _supabase.from('unit').select('id_unit, nama_unit, gambar_unit, is_star, id_pic, id_lokasi, lokasi(nama_lokasi)')
-              .ilike('nama_unit', '%$query%').limit(10),
-          _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi)')
-              .ilike('nama_subunit', '%$query%').limit(10),
-          _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
-              .ilike('nama_area', '%$query%').limit(10),
-        ]);
-        for (final r in futures[0] as List) results.add(_makeLocResult(r, 'lokasi', 0));
-        for (final r in futures[1] as List) results.add(_makeLocResult(r, 'unit', 1));
-        for (final r in futures[2] as List) results.add(_makeLocResult(r, 'subunit', 2));
-        for (final r in futures[3] as List) results.add(_makeLocResult(r, 'area', 3));
-      } else {
-        // Non-pro: scope berdasarkan data user
-        final scopeType = _userScopeType;
-        final scopeId   = _userScope[scopeType];
-        if (scopeType == null || scopeId == null) {
-          if (mounted) setState(() { _globalResults = []; _isGlobalLoading = false; });
-          return;
-        }
-        switch (scopeType) {
-          case 'area':
-            final rows = await _supabase.from('area')
-                .select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
-                .eq('id_area', scopeId).ilike('nama_area', '%$query%').limit(10);
-            for (final r in rows as List) results.add(_makeLocResult(r, 'area', 3));
-            break;
-          case 'subunit':
-            final futures = await Future.wait([
-              _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi)')
-                  .eq('id_subunit', scopeId).ilike('nama_subunit', '%$query%').limit(10),
-              _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
-                  .eq('id_subunit', scopeId).ilike('nama_area', '%$query%').limit(10),
-            ]);
-            for (final r in futures[0] as List) results.add(_makeLocResult(r, 'subunit', 2));
-            for (final r in futures[1] as List) results.add(_makeLocResult(r, 'area', 3));
-            break;
-          case 'unit':
-            final futures = await Future.wait([
-              _supabase.from('unit').select('id_unit, nama_unit, gambar_unit, is_star, id_pic, id_lokasi, lokasi(nama_lokasi)')
-                  .eq('id_unit', scopeId).ilike('nama_unit', '%$query%').limit(10),
-              _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi)')
-                  .eq('id_unit', scopeId).ilike('nama_subunit', '%$query%').limit(10),
-              _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
-                  .eq('id_unit', scopeId).ilike('nama_area', '%$query%').limit(10),
-            ]);
-            for (final r in futures[0] as List) results.add(_makeLocResult(r, 'unit', 1));
-            for (final r in futures[1] as List) results.add(_makeLocResult(r, 'subunit', 2));
-            for (final r in futures[2] as List) results.add(_makeLocResult(r, 'area', 3));
-            break;
-          case 'lokasi':
-            final futures = await Future.wait([
-              _supabase.from('lokasi').select('id_lokasi, nama_lokasi, gambar_lokasi, is_star, id_pic')
-                  .eq('id_lokasi', scopeId).ilike('nama_lokasi', '%$query%').limit(10),
-              _supabase.from('unit').select('id_unit, nama_unit, gambar_unit, is_star, id_pic, id_lokasi, lokasi(nama_lokasi)')
-                  .eq('id_lokasi', scopeId).ilike('nama_unit', '%$query%').limit(10),
-              _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi)')
-                  .eq('id_lokasi', scopeId).ilike('nama_subunit', '%$query%').limit(10),
-              _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
-                  .eq('id_lokasi', scopeId).ilike('nama_area', '%$query%').limit(10),
-            ]);
-            for (final r in futures[0] as List) results.add(_makeLocResult(r, 'lokasi', 0));
-            for (final r in futures[1] as List) results.add(_makeLocResult(r, 'unit', 1));
-            for (final r in futures[2] as List) results.add(_makeLocResult(r, 'subunit', 2));
-            for (final r in futures[3] as List) results.add(_makeLocResult(r, 'area', 3));
-            break;
-        }
-      }
+      // Selalu cari dari SEMUA tabel, tidak bergantung filter aktif
+      final futures = await Future.wait([
+        _supabase.from('lokasi').select('id_lokasi, nama_lokasi, gambar_lokasi, is_star, id_pic, unit(id_unit)')
+            .ilike('nama_lokasi', '%$query%').limit(20),
+        _supabase.from('unit').select('id_unit, nama_unit, gambar_unit, is_star, id_pic, id_lokasi, lokasi(nama_lokasi), subunit(id_subunit)')
+            .ilike('nama_unit', '%$query%').limit(20),
+        _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), area(id_area)')
+            .ilike('nama_subunit', '%$query%').limit(20),
+        _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
+            .ilike('nama_area', '%$query%').limit(20),
+      ]);
+      for (final r in futures[0] as List) results.add(_makeLocResult(r, 'lokasi', 0));
+      for (final r in futures[1] as List) results.add(_makeLocResult(r, 'unit', 1));
+      for (final r in futures[2] as List) results.add(_makeLocResult(r, 'subunit', 2));
+      for (final r in futures[3] as List) results.add(_makeLocResult(r, 'area', 3));
 
-      results.sort((a, b) {
+      // Jika mode Lokasi Saya aktif, filter berdasarkan scope user
+      // Mode pro/non-pro TIDAK membatasi hasil pencarian
+      final filtered = _isLokasiSaya
+          ? results.where((r) => _isInMyLocationScope(r)).toList()
+          : results;
+
+      filtered.sort((a, b) {
         final favA = _isFavorit(a.type, a.id) ? 0 : 1;
         final favB = _isFavorit(b.type, b.id) ? 0 : 1;
         if (favA != favB) return favA.compareTo(favB);
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
 
-      if (mounted) setState(() { _globalResults = results; _isGlobalLoading = false; });
+      if (mounted) setState(() { _globalResults = filtered; _isGlobalLoading = false; });
     } catch (e) {
       debugPrint('Global search error: $e');
       if (mounted) setState(() => _isGlobalLoading = false);
+    }
+  }
+
+  /// Cek apakah hasil search termasuk dalam lokasi user (untuk mode Lokasi Saya)
+  bool _isInMyLocationScope(_LocSearchResult r) {
+    switch (r.type) {
+      case 'lokasi':
+        return r.id == _myLocationLokasiId;
+      case 'unit':
+        return r.id == _myLocationUnitId ||
+            r.raw['id_lokasi']?.toString() == _myLocationLokasiId;
+      case 'subunit':
+        return r.id == _myLocationSubunitId ||
+            r.raw['id_unit']?.toString() == _myLocationUnitId ||
+            r.raw['id_lokasi']?.toString() == _myLocationLokasiId;
+      case 'area':
+        return r.id == _myLocationAreaId ||
+            r.raw['id_subunit']?.toString() == _myLocationSubunitId ||
+            r.raw['id_unit']?.toString() == _myLocationUnitId ||
+            r.raw['id_lokasi']?.toString() == _myLocationLokasiId;
+      default:
+        return false;
     }
   }
 
@@ -822,9 +806,12 @@ class _LocationScreenState extends State<LocationScreen>
 
   Widget _buildGlobalSearchResults() {
     if (_isGlobalLoading) {
-      return const Center(child: CircularProgressIndicator(color: _C.primary));
+      return _buildShimmerList();
     }
-    if (_globalResults.isEmpty) {
+
+    final displayed = _globalResults;
+
+    if (displayed.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -847,76 +834,218 @@ class _LocationScreenState extends State<LocationScreen>
     const levelColors = [Color(0xFF0891B2), Color(0xFF7C3AED), Color(0xFF059669), Color(0xFFD97706)];
     const levelIcons  = [Icons.location_city_rounded, Icons.domain_rounded, Icons.grid_view_rounded, Icons.place_rounded];
 
+    String subLabel(int level, Map<String, dynamic> raw) {
+      switch (level) {
+        case 0:
+          final units = raw['unit'] as List?;
+          return '${units?.length ?? 0} ${t('level_unit')}';
+        case 1:
+          final subunits = raw['subunit'] as List?;
+          return '${subunits?.length ?? 0} ${t('level_subunit')}';
+        case 2:
+          final areas = raw['area'] as List?;
+          return '${areas?.length ?? 0} ${t('level_area')}';
+        default:
+          return '';
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-          child: Text('${t('search_result')} (${_globalResults.length})',
+          child: Text('${t('search_result')} (${displayed.length})',
               style: const TextStyle(fontWeight: FontWeight.w700, color: _C.textDark, fontSize: 13)),
         ),
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            itemCount: _globalResults.length,
+            itemCount: displayed.length,
             itemBuilder: (_, i) {
-              final r = _globalResults[i];
-              final isFav   = _isFavorit(r.type, r.id);
-              final clr     = levelColors[r.level];
-              final ico     = levelIcons[r.level];
+              final r         = displayed[i];
+              final isFav     = _isFavorit(r.type, r.id);
+              final clr       = levelColors[r.level];
+              final ico       = levelIcons[r.level];
               final typeLabel = t('level_${r.type}');
+              final subCount  = subLabel(r.level, r.raw);
+
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
                   color: _C.card,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: isFav ? _C.star.withValues(alpha: 0.5) : _C.border, width: 1.2),
-                  boxShadow: [BoxShadow(color: _C.primary.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 3))],
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isFav ? _C.star.withValues(alpha: 0.5) : _C.border,
+                    width: isFav ? 1.5 : 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _C.primary.withValues(alpha: 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Container(
-                      width: 54, height: 60,
-                      decoration: BoxDecoration(
-                        color: clr.withValues(alpha: 0.1),
-                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
-                        image: r.imgUrl != null
-                            ? DecorationImage(image: NetworkImage(r.imgUrl!), fit: BoxFit.cover)
-                            : null,
-                      ),
-                      child: r.imgUrl == null ? Center(child: Icon(ico, color: clr, size: 22)) : null,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(r.name,
-                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _C.textDark),
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                            if (r.breadcrumb != null) ...[
-                              const SizedBox(height: 2),
-                              Text(r.breadcrumb!, style: const TextStyle(fontSize: 10, color: _C.textGrey),
-                                  overflow: TextOverflow.ellipsis),
-                            ],
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                  color: clr.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(6)),
-                              child: Text(typeLabel,
-                                  style: TextStyle(fontSize: 9, color: clr, fontWeight: FontWeight.bold)),
+                    // ── Baris utama dengan IntrinsicHeight agar gambar mengikuti tinggi konten ──
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Gambar memenuhi penuh tinggi konten
+                          ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(16),
                             ),
-                          ],
-                        ),
+                            child: SizedBox(
+                              width: 80,
+                              child: r.imgUrl != null
+                                  ? Image.network(r.imgUrl!, fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        color: clr.withValues(alpha: 0.1),
+                                        child: Center(child: Icon(ico, color: clr, size: 28)),
+                                      ))
+                                  : Container(
+                                      color: clr.withValues(alpha: 0.1),
+                                      child: Center(child: Icon(ico, color: clr, size: 28)),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Info teks
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Nama + tombol detail
+                                  GestureDetector(
+                                    onTap: () {
+                                      final itemData = Map<String, dynamic>.from(r.raw);
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (_) => _DetailBottomSheet(
+                                          level: r.level,
+                                          data : itemData,
+                                          lang : widget.lang,
+                                        ),
+                                      );
+                                    },
+                                    child: Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(r.name,
+                                              style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: _C.textDark),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis),
+                                        ),
+                                        const SizedBox(width: 5),
+                                        const Icon(Icons.info_outline_rounded,
+                                            size: 15, color: _C.primary),
+                                      ],
+                                    ),
+                                  ),
+                                  // Breadcrumb
+                                  if (r.breadcrumb != null) ...[
+                                    const SizedBox(height: 3),
+                                    Text(r.breadcrumb!,
+                                        style: const TextStyle(
+                                            fontSize: 10, color: _C.textGrey),
+                                        overflow: TextOverflow.ellipsis),
+                                  ],
+                                  const SizedBox(height: 5),
+                                  // Type chip
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: clr.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(typeLabel,
+                                        style: TextStyle(
+                                            fontSize: 9,
+                                            color: clr,
+                                            fontWeight: FontWeight.bold)),
+                                  ),
+                                  // Sub count
+                                  if (r.level < 3 && subCount.isNotEmpty) ...[
+                                    const SizedBox(height: 5),
+                                    Row(children: [
+                                      const Icon(Icons.account_tree_outlined,
+                                          size: 12, color: _C.textGrey),
+                                      const SizedBox(width: 4),
+                                      Text(subCount,
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: _C.textGrey,
+                                              fontWeight: FontWeight.w500)),
+                                    ]),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          // ── Tombol Star ──
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Center(
+                              child: IconButton(
+                                icon: Icon(
+                                  isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                                  color: isFav ? _C.star : Colors.grey.shade300,
+                                  size: 22,
+                                ),
+                                onPressed: () => _toggleFavorit(r.type, r.id),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    IconButton(
-                      icon: Icon(isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                          color: isFav ? _C.star : Colors.grey.shade300, size: 22),
-                      onPressed: () => _toggleFavorit(r.type, r.id),
+                    // ── Footer aktivitas ──
+                    Container(
+                      decoration: BoxDecoration(
+                        color: _C.bg,
+                        borderRadius:
+                            const BorderRadius.vertical(bottom: Radius.circular(16)),
+                        border: const Border(
+                            top: BorderSide(color: _C.border, width: 1)),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 7),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _activityChip(
+                              icon: Icons.search_rounded,
+                              color: const Color(0xFF0EA5E9),
+                              label: t('temuan_terakhir'),
+                              value: '-',
+                            ),
+                          ),
+                          Container(
+                              width: 1, height: 28, color: _C.border,
+                              margin: const EdgeInsets.symmetric(horizontal: 8)),
+                          Expanded(
+                            child: _activityChip(
+                              icon: Icons.check_circle_outline_rounded,
+                              color: const Color(0xFF10B981),
+                              label: t('selesai_terakhir'),
+                              value: '-',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -978,78 +1107,152 @@ class _LocationScreenState extends State<LocationScreen>
   Widget _buildSearchBar() {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Container(
-              height: 44,
-              decoration: BoxDecoration(
-                color: _C.bg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.border),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  const Icon(Icons.search_rounded, color: _C.primary, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      onChanged: _onSearch,
-                      decoration: InputDecoration(
-                        hintText: '${t('cari')} ${_getLevelName()}',
-                        border: InputBorder.none,
-                        isDense: true,
-                        hintStyle: const TextStyle(color: _C.textGrey, fontSize: 14),
-                      ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _C.bg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _C.border),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.search_rounded, color: _C.primary, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            onChanged: _onSearch,
+                            decoration: InputDecoration(
+                              hintText: '${t('cari')} ${_getLevelName()}',
+                              border: InputBorder.none,
+                              isDense: true,
+                              hintStyle: const TextStyle(color: _C.textGrey, fontSize: 14),
+                            ),
+                          ),
+                        ),
+                        if (_isGlobalSearch)
+                          GestureDetector(
+                            onTap: () => setState(() {
+                              _isGlobalSearch = false;
+                              _globalResults  = [];
+                              _searchQuery    = '';
+                            }),
+                            child: const Icon(Icons.close, color: _C.textGrey, size: 18),
+                          ),
+                      ],
                     ),
                   ),
-                  if (_isGlobalSearch)
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        _isGlobalSearch  = false;
-                        _globalResults   = [];
-                        _searchQuery     = '';
-                      }),
-                      child: const Icon(Icons.close, color: _C.textGrey, size: 18),
+                ),
+                const SizedBox(width: 10),
+                GestureDetector(
+                  onTap: _toggleLokasiSaya,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: _isLokasiSaya ? _C.primary : Colors.white,
+                      border: Border.all(color: _isLokasiSaya ? _C.primary : _C.border),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: _isLokasiSaya
+                          ? [BoxShadow(color: _C.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]
+                          : [],
                     ),
-                ],
-              ),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.my_location_rounded, size: 15,
+                            color: _isLokasiSaya ? Colors.white : _C.primary),
+                        const SizedBox(width: 5),
+                        Text(t('lokasi_saya'),
+                            style: TextStyle(
+                              color: _isLokasiSaya ? Colors.white : _C.primaryDark,
+                              fontWeight: FontWeight.w700, fontSize: 12,
+                            )),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: _toggleLokasiSaya,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: _isLokasiSaya ? _C.primary : Colors.white,
-                border: Border.all(color: _isLokasiSaya ? _C.primary : _C.border),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: _isLokasiSaya
-                    ? [BoxShadow(color: _C.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]
-                    : [],
-              ),
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.my_location_rounded, size: 15,
-                      color: _isLokasiSaya ? Colors.white : _C.primary),
-                  const SizedBox(width: 5),
-                  Text(t('lokasi_saya'),
-                      style: TextStyle(
-                        color: _isLokasiSaya ? Colors.white : _C.primaryDark,
-                        fontWeight: FontWeight.w700, fontSize: 12,
-                      )),
-                ],
-              ),
-            ),
-          ),
+          // ── Filter chips: Lokasi / Unit / Subunit / Area ──
+          _buildFilterChips(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    final filters = [
+      {'key': 'lokasi',  'label': t('level_lokasi')},
+      {'key': 'unit',    'label': t('level_unit')},
+      {'key': 'subunit', 'label': t('level_subunit')},
+      {'key': 'area',    'label': t('level_area')},
+    ];
+
+    const levelColors = [Color(0xFF0891B2), Color(0xFF7C3AED), Color(0xFF059669), Color(0xFFD97706)];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: List.generate(filters.length, (i) {
+          final key    = filters[i]['key']!;
+          final label  = filters[i]['label']!;
+          final active = _activeFilter == key;
+          final clr    = levelColors[i];
+
+          return Expanded(
+            child: GestureDetector(
+              onTap: () async {
+                if (active) return;
+                // Reset state navigasi dan data
+                setState(() {
+                  _activeFilter      = key;
+                  _currentLevel      = i;
+                  _navHistory        = [];
+                  _currentData       = [];
+                  _filteredData      = [];
+                  // Jangan reset _searchQuery agar pencarian tetap berjalan
+                  _isGlobalSearch    = false;
+                  _globalResults     = [];
+                  _currentParentData = null;
+                  _suggestTemuan     = null;
+                  _suggestSelesai    = null;
+                });
+                // Fetch data level yang sesuai tanpa parentId
+                await _fetchData();
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: EdgeInsets.only(right: i < filters.length - 1 ? 6 : 0),
+                height: 32,
+                decoration: BoxDecoration(
+                  color: active ? clr : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: active ? clr : _C.border, width: 1.2),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: active ? Colors.white : clr,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -1063,7 +1266,6 @@ class _LocationScreenState extends State<LocationScreen>
       period: const Duration(milliseconds: 1200),
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        // Tampilkan 5 card shimmer
         itemCount: 5,
         itemBuilder: (_, __) => _buildShimmerCard(),
       ),
@@ -1634,24 +1836,61 @@ class _LocationScreenState extends State<LocationScreen>
     final name      = item['nama_$tName']?.toString() ?? '';
     final imgUrl    = item['gambar_$tName'] as String?;
     final isFav     = _isFavorit(tName, id);
-    final childName = _currentLevel < 3
-        ? ['unit', 'subunit', 'area'][_currentLevel] : '';
-    final childCount= _currentLevel < 3
-        ? (item[childName] as List?)?.length ?? 0 : 0;
-
-    // Ambil dari cache (sudah di-prefetch)
     final cachedActivity = _activityCache['$tName:$id'];
+
+    // Label sub-lokasi dinamis
+    String subLabel() {
+      if (_currentLevel >= 3) return '';
+      switch (_currentLevel) {
+        case 0:
+          final units = item['unit'] as List?;
+          return '${units?.length ?? 0} ${t('level_unit')}';
+        case 1:
+          final subunits = item['subunit'] as List?;
+          return '${subunits?.length ?? 0} ${t('level_subunit')}';
+        case 2:
+          final areas = item['area'] as List?;
+          return '${areas?.length ?? 0} ${t('level_area')}';
+        default:
+          return '';
+      }
+    }
+
+    // Breadcrumb untuk level unit/subunit/area saat filter chip aktif (tanpa parentId)
+    String? breadcrumb;
+    if (_currentLevel == 1 && _navHistory.isEmpty) {
+      breadcrumb = item['lokasi']?['nama_lokasi']?.toString();
+    } else if (_currentLevel == 2 && _navHistory.isEmpty) {
+      final parts = [
+        item['lokasi']?['nama_lokasi'],
+        item['unit']?['nama_unit'],
+      ].whereType<String>().join(' › ');
+      breadcrumb = parts.isNotEmpty ? parts : null;
+    } else if (_currentLevel == 3 && _navHistory.isEmpty) {
+      final parts = [
+        item['lokasi']?['nama_lokasi'],
+        item['unit']?['nama_unit'],
+        item['subunit']?['nama_subunit'],
+      ].whereType<String>().join(' › ');
+      breadcrumb = parts.isNotEmpty ? parts : null;
+    }
+
+    const levelColors = [Color(0xFF0891B2), Color(0xFF7C3AED), Color(0xFF059669), Color(0xFFD97706)];
+    const levelIcons  = [Icons.location_city_rounded, Icons.domain_rounded, Icons.grid_view_rounded, Icons.place_rounded];
+    final clr = levelColors[_currentLevel];
+    final ico = levelIcons[_currentLevel];
 
     return GestureDetector(
       onTap: () {
         if (_currentLevel == 3) return;
         setState(() {
           _navHistory.add({
-            'level': _currentLevel, 'id': id, // String UUID
+            'level': _currentLevel, 'id': id,
             'name': name, 'data': item,
           });
           _currentLevel++;
           _searchQuery = '';
+          _activeFilter = ['lokasi', 'unit', 'subunit', 'area'][_currentLevel];
         });
         _fetchData(parentId: id, parentData: item);
       },
@@ -1661,8 +1900,7 @@ class _LocationScreenState extends State<LocationScreen>
           color: _C.card,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isFav
-                ? _C.star.withValues(alpha: 0.5) : _C.border,
+            color: isFav ? _C.star.withValues(alpha: 0.5) : _C.border,
             width: 1.5,
           ),
           boxShadow: [
@@ -1677,25 +1915,26 @@ class _LocationScreenState extends State<LocationScreen>
         ),
         child: Column(
           children: [
-            // Baris utama
             Row(
               children: [
-                Container(
-                  width: 80, height: 90,
-                  decoration: BoxDecoration(
-                    color: _C.primaryLight,
-                    borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(16)),
-                    image: imgUrl != null
-                        ? DecorationImage(
-                            image: NetworkImage(imgUrl), fit: BoxFit.cover)
-                        : null,
+                // Gambar selalu memenuhi penuh (coverSize = 90 px) radius hanya pojok kiri atas
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
                   ),
-                  child: imgUrl == null
-                      ? const Center(
-                          child: Icon(Icons.domain_rounded,
-                              color: _C.primary, size: 30))
-                      : null,
+                  child: SizedBox(
+                    width: 80, height: 90,
+                    child: imgUrl != null
+                        ? Image.network(imgUrl, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: clr.withValues(alpha: 0.1),
+                              child: Center(child: Icon(ico, color: clr, size: 30)),
+                            ))
+                        : Container(
+                            color: clr.withValues(alpha: 0.1),
+                            child: Center(child: Icon(ico, color: clr, size: 30)),
+                          ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1723,19 +1962,27 @@ class _LocationScreenState extends State<LocationScreen>
                             ],
                           ),
                         ),
+                        // Breadcrumb untuk unit/subunit/area tanpa parent
+                        if (breadcrumb != null) ...[
+                          const SizedBox(height: 2),
+                          Text(breadcrumb,
+                              style: const TextStyle(
+                                  fontSize: 10, color: _C.textGrey),
+                              overflow: TextOverflow.ellipsis),
+                        ],
                         const SizedBox(height: 5),
-                        if (_currentLevel < 3)
+                        // Sub-count dinamis
+                        if (_currentLevel < 3 && subLabel().isNotEmpty)
                           Row(
                             children: [
                               const Icon(Icons.account_tree_outlined,
                                   size: 13, color: _C.textGrey),
                               const SizedBox(width: 4),
-                              Text(
-                                '$childCount ${t('sublokasi')}',
-                                style: const TextStyle(
-                                    fontSize: 11, color: _C.textGrey,
-                                    fontWeight: FontWeight.w500),
-                              ),
+                              Text(subLabel(),
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: _C.textGrey,
+                                      fontWeight: FontWeight.w500)),
                             ],
                           ),
                       ],
@@ -1746,9 +1993,7 @@ class _LocationScreenState extends State<LocationScreen>
                   padding: const EdgeInsets.only(right: 4),
                   child: IconButton(
                     icon: Icon(
-                      isFav
-                          ? Icons.star_rounded
-                          : Icons.star_border_rounded,
+                      isFav ? Icons.star_rounded : Icons.star_border_rounded,
                       color: isFav ? _C.star : Colors.grey.shade300,
                       size: 26,
                     ),
@@ -1757,7 +2002,6 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
               ],
             ),
-            // ── Footer aktivitas (dari cache, tidak perlu FutureBuilder) ──
             _buildActivityFooter(cachedActivity),
           ],
         ),
