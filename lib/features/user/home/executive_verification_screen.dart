@@ -602,7 +602,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     _verificationTimer?.cancel();
     // Durasi dari config (dalam hari), untuk UI tampilkan 5 menit sebagai batas baca
     setState(() {
-      _verificationSecondsLeft = 300;
+      _verificationSecondsLeft = 120;
       _verificationExpired = false;
     });
     _verificationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
