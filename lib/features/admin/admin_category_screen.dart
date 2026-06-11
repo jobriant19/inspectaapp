@@ -17,24 +17,16 @@ class AdminCategoryScreen extends StatefulWidget {
 class _AdminCategoryScreenState extends State<AdminCategoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
-  int _selectedTab = 0;
+  int _selectedTab = 0; // 0 = 5R Finding, 1 = KTS Production
 
-  static const _bg      = Color(0xFFF8FAFC);
-  static const _primary = Color(0xFF6366F1);
-  // Warna sesuai menu Category di admin_home_screen
-  static const _katColor    = Color(0xFFF59E0B); // amber — Kategori tab
-  static const _subKatColor = Color(0xFFF59E0B); // amber — Sub-Kategori tab
-  // 0 = 5R Finding, 1 = KTS Production
+  static const _bg = Color(0xFFF8FAFC);
 
   @override
   void initState() {
     super.initState();
-    // Tab utama sekarang adalah Kategori/Sub-Kategori
     _tabCtrl = TabController(length: 2, vsync: this)
       ..addListener(() {
-        if (!_tabCtrl.indexIsChanging) {
-          setState(() {});
-        }
+        if (!_tabCtrl.indexIsChanging) setState(() {});
       });
   }
 
@@ -136,6 +128,7 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
               controller: _tabCtrl,
               children: [
                 _KategoriList(
+                  key: ValueKey('kat_$_selectedTab'),
                   lang: widget.lang,
                   isKts: _selectedTab == 1,
                   color: _selectedTab == 0
@@ -143,6 +136,7 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
                       : const Color(0xFFFBBF24),
                 ),
                 _SubkategoriList(
+                  key: ValueKey('subkat_$_selectedTab'),
                   lang: widget.lang,
                   isKts: _selectedTab == 1,
                   color: _selectedTab == 0
@@ -157,7 +151,6 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
     );
   }
 
-  // ── Filter Pills: 5R / KTS ──
   Widget _buildFilterPills() {
     return Container(
       color: Colors.white,
@@ -166,10 +159,7 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
         children: [
           Expanded(
             child: GestureDetector(
-              onTap: () => setState(() {
-                _selectedTab = 0;
-                _tabCtrl.animateTo(0);
-              }),
+              onTap: () => setState(() => _selectedTab = 0),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(vertical: 10),
@@ -214,10 +204,7 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
           const SizedBox(width: 10),
           Expanded(
             child: GestureDetector(
-              onTap: () => setState(() {
-                _selectedTab = 1;
-                _tabCtrl.animateTo(0);
-              }),
+              onTap: () => setState(() => _selectedTab = 1),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(vertical: 10),
@@ -274,6 +261,7 @@ class _KategoriList extends StatefulWidget {
   final Color color;
 
   const _KategoriList({
+    super.key,
     required this.lang,
     required this.isKts,
     required this.color,
@@ -1054,6 +1042,7 @@ class _SubkategoriList extends StatefulWidget {
   final Color color;
 
   const _SubkategoriList({
+    super.key,
     required this.lang,
     required this.isKts,
     required this.color,

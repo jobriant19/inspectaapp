@@ -120,34 +120,30 @@ class KtsFindingCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Baris judul + badge KTS + poin
+                    // Baris 1: judul
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 1.3,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    // Baris 2: badge KTS + poin (selalu cukup ruang)
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              height: 1.3,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
                         // Badge KTS
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                           decoration: BoxDecoration(
-                            color:
-                                const Color(0xFFFBBF24).withOpacity(0.15),
+                            color: const Color(0xFFFBBF24).withOpacity(0.15),
                             borderRadius: BorderRadius.circular(9),
-                            border: Border.all(
-                                color: const Color(0xFFFBBF24), width: 1.2),
+                            border: Border.all(color: const Color(0xFFFBBF24), width: 1.2),
                           ),
                           child: const Text(
                             'KTS',
@@ -158,11 +154,10 @@ class KtsFindingCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 6),
                         // Poin
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
                               colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)],
@@ -174,10 +169,8 @@ class KtsFindingCard extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                  Icons.local_fire_department_rounded,
-                                  size: 12,
-                                  color: Colors.white),
+                              const Icon(Icons.local_fire_department_rounded,
+                                  size: 12, color: Colors.white),
                               const SizedBox(width: 3),
                               Text('$poin',
                                   style: const TextStyle(

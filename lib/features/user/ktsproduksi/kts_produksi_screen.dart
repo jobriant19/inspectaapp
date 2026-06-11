@@ -575,15 +575,11 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
   final _itemSearchCtrl = TextEditingController();
 
   Map<String, dynamic>? _selectedAssignee;
-  List<Map<String, dynamic>> _faktors = [];
-  Map<String, dynamic>? _selectedFaktor;
-  final _penyebabCtrl = TextEditingController();
 
   int _qty = 1;
-  Map<String, dynamic>? _selectedSubKategori;
   XFile? _imageFile;
   String? _existingImageUrl;
-  String? _ktsKategoriId;
+  final _qtyCtrl = TextEditingController(text: '1');
 
   static const Color _kPrimary      = Color(0xFF1D4ED8);
   static const Color _kPrimaryLight = Color(0xFFEFF6FF);
@@ -596,13 +592,12 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
       'create_title': 'Buat Laporan', 'edit_title': 'Edit Laporan',
       'no_order': 'No. Order', 'no_order_hint': 'Masukkan nomor order...',
       'judul': 'Judul KTS', 'judul_hint': 'Contoh: Part tidak sesuai',
-      'kategori': 'Kategori KTS', 'pick_kategori': 'Pilih Kategori',
       'item': 'Item Produksi', 'item_hint': 'Cari item...',
       'qty': 'Jumlah', 'photo': 'Foto Bukti', 'add_photo': 'Tambah Foto',
       'desc': 'Deskripsi (Opsional)', 'desc_hint': 'Jelaskan temuan secara detail...',
       'submit': 'Simpan Laporan', 'update': 'Perbarui Laporan',
       'err_order': 'No. Order wajib diisi!', 'err_judul': 'Judul wajib diisi!',
-      'err_kategori': 'Kategori wajib dipilih!', 'err_item': 'Item produksi wajib diisi!',
+      'err_item': 'Item produksi wajib diisi!',
       'success': 'Laporan berhasil disimpan! +20 poin', 'success_edit': 'Laporan berhasil diperbarui!',
       'fail': 'Gagal menyimpan laporan', 'saving': 'Menyimpan...', 'cancel': 'Batal',
     },
@@ -610,13 +605,12 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
       'create_title': 'Create Report', 'edit_title': 'Edit Report',
       'no_order': 'Order No.', 'no_order_hint': 'Enter order number...',
       'judul': 'KTS Title', 'judul_hint': 'Example: Part mismatch',
-      'kategori': 'Category', 'pick_kategori': 'Select Category',
       'item': 'Production Item', 'item_hint': 'Search item...',
       'qty': 'Qty', 'photo': 'Evidence Photo', 'add_photo': 'Add Photo',
       'desc': 'Description (Optional)', 'desc_hint': 'Explain the finding...',
       'submit': 'Save Report', 'update': 'Update Report',
       'err_order': 'Order No. is required!', 'err_judul': 'Title is required!',
-      'err_kategori': 'Category is required!', 'err_item': 'Production item is required!',
+      'err_item': 'Production item is required!',
       'success': 'Report saved! +20 points', 'success_edit': 'Report updated!',
       'fail': 'Failed to save report', 'saving': 'Saving...', 'cancel': 'Cancel',
     },
@@ -624,13 +618,12 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
       'create_title': '创建报告', 'edit_title': '编辑报告',
       'no_order': '订单号', 'no_order_hint': '输入订单号...',
       'judul': '标题', 'judul_hint': '例如：零件不符',
-      'kategori': '类别', 'pick_kategori': '选择类别',
       'item': '生产项目', 'item_hint': '搜索项目...',
       'qty': '数量', 'photo': '证据照片', 'add_photo': '添加照片',
       'desc': '描述（可选）', 'desc_hint': '详细说明...',
       'submit': '保存报告', 'update': '更新报告',
       'err_order': '订单号为必填项！', 'err_judul': '标题为必填项！',
-      'err_kategori': '类别为必选项！', 'err_item': '生产项目为必填项！',
+      'err_item': '生产项目为必填项！',
       'success': '报告已保存！+20积分', 'success_edit': '报告已更新！',
       'fail': '保存报告失败', 'saving': '保存中...', 'cancel': '取消',
     },
@@ -640,87 +633,7 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
   void initState() {
     super.initState();
     _loadCurrentUser();
-    _loadFaktors();
     if (_isEdit) _populateData();
-  }
-
-  Future<void> _loadFaktors() async {
-    try {
-      final data = await Supabase.instance.client
-          .from('faktor_penyebab_kts')
-          .select('id_faktor, nama_faktor')
-          .eq('is_active', true)
-          .order('nama_faktor');
-      if (mounted) setState(() => _faktors = List<Map<String, dynamic>>.from(data));
-    } catch (e) {
-      debugPrint('Error load faktors: $e');
-    }
-  }
-
-  void _showSubKategoriPicker() async {
-    setState(() {});
-    try {
-      final data = await Supabase.instance.client
-          .from('subkategoritemuan')
-          .select('id_subkategoritemuan, nama_subkategoritemuan, deskripsi_subkategoritemuan, id_kategoritemuan, kategoritemuan:id_kategoritemuan(jenis_kategori)')
-          .order('nama_subkategoritemuan');
-
-      final ktsSubkategori = List<Map<String, dynamic>>.from(data).where((sub) {
-        final jenis = (sub['kategoritemuan']?['jenis_kategori'] ?? '').toString().toUpperCase();
-        return jenis == 'KTS';
-      }).toList();
-
-      if (!mounted) return;
-
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.white,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        builder: (_) => DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.5,
-          maxChildSize: 0.9,
-          builder: (_, ctrl) => Column(
-            children: [
-              Container(margin: const EdgeInsets.only(top: 12, bottom: 8), width: 40, height: 4, decoration: BoxDecoration(color: CupertinoColors.systemGrey4, borderRadius: BorderRadius.circular(2))),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Center(child: Text(t['pick_kategori']!, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: _kPrimary))),
-              ),
-              const Divider(color: CupertinoColors.systemGrey5),
-              Expanded(
-                child: ktsSubkategori.isEmpty
-                    ? Center(child: Text(widget.lang == 'EN' ? 'No sub-categories found' : 'Belum ada sub-kategori KTS', style: GoogleFonts.inter(color: CupertinoColors.systemGrey, fontSize: 14)))
-                    : ListView.builder(
-                        controller: ctrl,
-                        itemCount: ktsSubkategori.length,
-                        itemBuilder: (_, i) {
-                          final sk = Map<String, dynamic>.from(ktsSubkategori[i]);
-                          final isSelected = _selectedSubKategori?['id_subkategoritemuan'] == sk['id_subkategoritemuan'];
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                            title: Text(sk['nama_subkategoritemuan'] ?? '-', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: Colors.black87, fontSize: 15)),
-                            subtitle: sk['deskripsi_subkategoritemuan'] != null ? Text(sk['deskripsi_subkategoritemuan'], style: GoogleFonts.inter(color: CupertinoColors.systemGrey, fontSize: 13)) : null,
-                            trailing: isSelected ? const Icon(CupertinoIcons.check_mark, color: _kPrimary) : null,
-                            onTap: () {
-                              setState(() {
-                                _selectedSubKategori = sk;
-                                _ktsKategoriId = sk['id_kategoritemuan']?.toString();
-                              });
-                              Navigator.pop(context);
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      );
-    } catch (e) {
-      debugPrint('Error loading subkategori KTS: $e');
-    }
   }
 
   Future<void> _loadCurrentUser() async {
@@ -763,12 +676,8 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
     _noOrderCtrl.text = d['no_order'] ?? '';
     _judulCtrl.text = d['judul_temuan'] ?? '';
     _descCtrl.text = d['deskripsi_temuan']?.toString() ?? '';
-    _qty = d['jumlah_item'] ?? 1;
+    _qtyCtrl.text = (d['jumlah_item'] ?? 1).toString();
     _existingImageUrl = d['gambar_temuan'];
-    if (d['kategoritemuan'] != null) _ktsKategoriId = d['kategoritemuan']['id_kategoritemuan'];
-    if (d['subkategoritemuan'] != null && d['subkategoritemuan'] is Map) {
-      _selectedSubKategori = Map<String, dynamic>.from(d['subkategoritemuan']);
-    }
     _itemSearchCtrl.text = d['nama_item_manual'] ?? d['item_produksi']?['nama_item'] ?? '';
     if (d['penanggung_jawab'] != null) {
       _selectedAssignee = Map<String, dynamic>.from(d['penanggung_jawab']);
@@ -796,7 +705,7 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
     _judulCtrl.dispose();
     _descCtrl.dispose();
     _itemSearchCtrl.dispose();
-    _penyebabCtrl.dispose();
+    _qtyCtrl.dispose();
     super.dispose();
   }
 
@@ -916,7 +825,6 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
   Future<void> _submit() async {
     if (_noOrderCtrl.text.trim().isEmpty) return _showError(t['err_order']!);
     if (_judulCtrl.text.trim().isEmpty) return _showError(t['err_judul']!);
-    if (_selectedSubKategori == null) return _showError(t['err_kategori']!);
     if (_itemSearchCtrl.text.trim().isEmpty) return _showError(t['err_item']!);
 
     setState(() => _isSaving = true);
@@ -936,12 +844,12 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
       final data = {
         'no_order': _noOrderCtrl.text.trim(),
         'judul_temuan': _judulCtrl.text.trim(),
-        'id_subkategoritemuan_uuid': _selectedSubKategori!['id_subkategoritemuan'],
-        'id_kategoritemuan_uuid': _ktsKategoriId,
+        'id_subkategoritemuan_uuid': null,
+        'id_kategoritemuan_uuid': null,
         'id_item': null,
         'nama_item_manual': _itemSearchCtrl.text.trim(),
         'id_penanggung_jawab': _selectedAssignee?['id_user'],
-        'jumlah_item': _qty,
+        'jumlah_item': int.tryParse(_qtyCtrl.text.trim()) ?? 1,
         'gambar_temuan': imageUrl,
         'deskripsi_temuan': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         'jenis_temuan': 'KTS Production',
@@ -1002,97 +910,6 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
                   const SizedBox(height: 20),
                   _buildLabel(t['judul']!, isRequired: true),
                   _buildTextField(_judulCtrl, t['judul_hint']!, CupertinoIcons.text_cursor),
-                ]),
-                const SizedBox(height: 16),
-                _buildSectionCard(children: [
-                  _buildLabel(t['kategori']!, isRequired: true),
-                  GestureDetector(
-                    onTap: _showSubKategoriPicker,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _selectedSubKategori != null
-                              ? const Color(0xFF1D4ED8)
-                              : const Color(0xFFBFDBFE),
-                          width: _selectedSubKategori != null ? 1.5 : 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: _selectedSubKategori != null
-                                ? const Color(0xFF1D4ED8)
-                                : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                          child: Icon(
-                            CupertinoIcons.folder_fill,
-                            size: 16,
-                            color: _selectedSubKategori != null
-                                ? Colors.white
-                                : const Color(0xFF94A3B8),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                // label kecil di atas
-                                widget.lang == 'ZH'
-                                    ? '类别'
-                                    : widget.lang == 'EN'
-                                        ? 'Category'
-                                        : 'Kategori KTS',
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: _selectedSubKategori != null
-                                      ? const Color(0xFF1D4ED8)
-                                      : const Color(0xFF94A3B8),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _selectedSubKategori?['nama_subkategoritemuan'] ??
-                                    t['pick_kategori']!,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: _selectedSubKategori != null
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                  color: _selectedSubKategori != null
-                                      ? const Color(0xFF1E293B)
-                                      : const Color(0xFFCBD5E1),
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          CupertinoIcons.chevron_right,
-                          size: 16,
-                          color: _selectedSubKategori != null
-                              ? const Color(0xFF1D4ED8)
-                              : const Color(0xFFBFDBFE),
-                        ),
-                      ]),
-                    ),
-                  ),
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
@@ -1244,23 +1061,60 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
   Widget _buildQtyField() {
     return Container(
       height: 52,
-      decoration: BoxDecoration(color: const Color(0xFFF8FAFF), borderRadius: BorderRadius.circular(12), border: const Border.fromBorderSide(BorderSide(color: _kBorder, width: 1))),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(12),
+        border: const Border.fromBorderSide(BorderSide(color: _kBorder, width: 1)),
+      ),
       child: Row(
         children: [
-          Expanded(
-            child: InkWell(
-              onTap: () { if (_qty > 1) setState(() => _qty--); },
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), bottomLeft: Radius.circular(12)),
-              child: Center(child: Icon(CupertinoIcons.minus, size: 16, color: _qty > 1 ? _kPrimary : const Color(0xFFCBD5E1))),
+          InkWell(
+            onTap: () {
+              final current = int.tryParse(_qtyCtrl.text.trim()) ?? 1;
+              if (current > 1) {
+                _qtyCtrl.text = (current - 1).toString();
+              }
+            },
+            borderRadius: const BorderRadius.only(topLeft: Radius.circular(12), bottomLeft: Radius.circular(12)),
+            child: SizedBox(
+              width: 44,
+              height: 52,
+              child: Center(child: Icon(CupertinoIcons.minus, size: 16, color: _kPrimary)),
             ),
           ),
           Container(width: 1, height: 28, color: _kBorder),
-          Expanded(child: Center(child: Text('$_qty', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: _kPrimary)))),
-          Container(width: 1, height: 28, color: _kBorder),
           Expanded(
-            child: InkWell(
-              onTap: () => setState(() => _qty++),
-              borderRadius: const BorderRadius.only(topRight: Radius.circular(12), bottomRight: Radius.circular(12)),
+            child: TextFormField(
+              controller: _qtyCtrl,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: _kPrimary),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+                isDense: true,
+              ),
+              onChanged: (val) {
+                final parsed = int.tryParse(val);
+                if (parsed != null && parsed < 1) {
+                  _qtyCtrl.text = '1';
+                  _qtyCtrl.selection = TextSelection.fromPosition(
+                    TextPosition(offset: _qtyCtrl.text.length),
+                  );
+                }
+              },
+            ),
+          ),
+          Container(width: 1, height: 28, color: _kBorder),
+          InkWell(
+            onTap: () {
+              final current = int.tryParse(_qtyCtrl.text.trim()) ?? 1;
+              _qtyCtrl.text = (current + 1).toString();
+            },
+            borderRadius: const BorderRadius.only(topRight: Radius.circular(12), bottomRight: Radius.circular(12)),
+            child: SizedBox(
+              width: 44,
+              height: 52,
               child: const Center(child: Icon(CupertinoIcons.add, size: 16, color: _kPrimary)),
             ),
           ),
@@ -1398,8 +1252,8 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
   final _biayaCtrl    = TextEditingController();
   XFile? _resImageFile;
   final _penyebabCtrl = TextEditingController();
-  List<Map<String, dynamic>> _faktors = [];
-  Map<String, dynamic>? _selectedFaktor;
+  List<Map<String, dynamic>> _subKategoriList = [];
+  Map<String, dynamic>? _selectedSubKategori;
 
   // Bagian list (gambar 3)
   static const List<String> _bagianList = [
@@ -1511,7 +1365,7 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
   void initState() {
     super.initState();
     _currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    _loadFaktors();
+    _loadSubKategoriKtsProduksi();
     _loadData();
   }
 
@@ -1523,16 +1377,27 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
     super.dispose();
   }
 
-  Future<void> _loadFaktors() async {
+  Future<void> _loadSubKategoriKtsProduksi() async {
     try {
+      // Ambil id kategoritemuan dengan nama_kategoritemuan = 'KTS Produksi'
+      final katData = await Supabase.instance.client
+          .from('kategoritemuan')
+          .select('id_kategoritemuan')
+          .eq('nama_kategoritemuan', 'KTS Produksi')
+          .maybeSingle();
+      if (katData == null) return;
+      final String katId = katData['id_kategoritemuan'].toString();
+
       final data = await Supabase.instance.client
-          .from('faktor_penyebab_kts')
-          .select('id_faktor, nama_faktor')
-          .eq('is_active', true)
-          .order('nama_faktor');
-      if (mounted) setState(() => _faktors = List<Map<String, dynamic>>.from(data));
+          .from('subkategoritemuan')
+          .select('id_subkategoritemuan, nama_subkategoritemuan')
+          .eq('id_kategoritemuan', katId)
+          .order('nama_subkategoritemuan');
+      if (mounted) {
+        setState(() => _subKategoriList = List<Map<String, dynamic>>.from(data));
+      }
     } catch (e) {
-      debugPrint('Error load faktors: $e');
+      debugPrint('Error load subkategori KTS Produksi: $e');
     }
   }
 
@@ -1683,9 +1548,11 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
         'tanggal_selesai': DateTime.now().toIso8601String(),
         'id_user': user.id,
         'poin_penyelesaian': 10,
-        'penyebab': _penyebabCtrl.text.trim().isEmpty ? null : _penyebabCtrl.text.trim(),
+        'penyebab': _penyebabCtrl.text.trim().isEmpty
+                ? (_selectedSubKategori != null ? _selectedSubKategori!['nama_subkategoritemuan'] : null)
+                : _penyebabCtrl.text.trim(),
         'bagian': _selectedBagian,
-        'id_faktor_penyebab': _selectedFaktor?['id_faktor'],
+        'id_faktor_penyebab': _selectedSubKategori?['id_subkategoritemuan'],
       }).select('id_penyelesaian').single();
 
       final String newPenyelesaianId = insertRes['id_penyelesaian'].toString();
@@ -1882,8 +1749,6 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
                 _divider(),
                 _buildInfoRow(CupertinoIcons.cube_box, t['qty']!, '${d['jumlah_item'] ?? 0} pcs'),
                 _divider(),
-                _buildInfoRow(CupertinoIcons.folder_fill, t['kategori']!, subKategori),
-                _divider(),
                 _buildInfoRow(CupertinoIcons.calendar, t['reported']!, _formatDate(d['created_at'])),
                 // ── Person in Charge ──
                 if (picData != null) ...[
@@ -2000,8 +1865,7 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
         : '-';
     final String? penyebab = p['penyebab']?.toString();
     final String? bagian = p['bagian']?.toString();
-    final faktorData = p['faktor_penyebab_kts'] as Map?;
-    final String? faktorNama = faktorData?['nama_faktor']?.toString();
+    final String? faktorNama = p['penyebab']?.toString();
 
     return Container(
       decoration: BoxDecoration(
@@ -2035,16 +1899,9 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
                   _resultRow(CupertinoIcons.square_grid_2x2_fill, t['bagian']!, bagian),
                   const SizedBox(height: 12),
                 ],
-                // Penyebab
+                // Faktor Penyebab (nama subkategori yang disimpan di penyebab)
                 if (penyebab != null && penyebab.isNotEmpty) ...[
-                  Text(t['cause']!, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600, letterSpacing: 0.3)),
-                  const SizedBox(height: 4),
-                  Text(penyebab, style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF0F172A), height: 1.5)),
-                  const SizedBox(height: 12),
-                ],
-                // Faktor Penyebab
-                if (faktorNama != null && faktorNama.isNotEmpty) ...[
-                  _resultRow(CupertinoIcons.tag_fill, t['cause_factor']!, faktorNama),
+                  _resultRow(CupertinoIcons.tag_fill, t['cause_factor']!, penyebab),
                   const SizedBox(height: 12),
                 ],
                 // Tindakan
@@ -2330,9 +2187,9 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
           ),
           const SizedBox(height: 16),
 
-          // ── FAKTOR PENYEBAB (gambar 2) ──
+          // ── FAKTOR PENYEBAB (dari subkategoritemuan KTS Produksi) ──
           Text(
-            t['cause_factor']!, // atau t['cause_factor']!
+            t['cause_factor']!,
             style: GoogleFonts.inter(
               fontWeight: FontWeight.w600,
               fontSize: 13,
@@ -2340,12 +2197,9 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          _faktors.isEmpty
+          _subKategoriList.isEmpty
               ? Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -2356,14 +2210,11 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
                     const SizedBox(width: 10),
                     Text(
                       widget.lang == 'EN'
-                          ? 'Loading factors...'
+                          ? 'Loading...'
                           : widget.lang == 'ZH'
                               ? '加载中...'
-                              : 'Memuat faktor...',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: const Color(0xFFCBD5E1),
-                      ),
+                              : 'Memuat...',
+                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFCBD5E1)),
                     ),
                   ]),
                 )
@@ -2372,10 +2223,10 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _selectedFaktor != null
+                      color: _selectedSubKategori != null
                           ? const Color(0xFF1D4ED8)
                           : const Color(0xFFBFDBFE),
-                      width: _selectedFaktor != null ? 1.5 : 1,
+                      width: _selectedSubKategori != null ? 1.5 : 1,
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -2390,128 +2241,89 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
                       alignedDropdown: true,
                       child: DropdownButton<Map<String, dynamic>>(
                         isExpanded: true,
-                        value: _selectedFaktor,
+                        value: _selectedSubKategori,
                         dropdownColor: Colors.white,
                         borderRadius: BorderRadius.circular(14),
                         menuMaxHeight: 320,
                         hint: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Row(children: [
-                            const Icon(
-                              CupertinoIcons.tag,
-                              size: 16,
-                              color: Color(0xFFBFDBFE),
-                            ),
+                            const Icon(CupertinoIcons.tag, size: 16, color: Color(0xFFBFDBFE)),
                             const SizedBox(width: 10),
                             Text(
                               widget.lang == 'ZH'
-                                  ? '选择原因因素（可选）'
+                                  ? '选择类别（可选）'
                                   : widget.lang == 'EN'
-                                      ? 'Select cause factor (optional)'
-                                      : 'Pilih faktor penyebab (opsional)',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: const Color(0xFFCBD5E1),
-                              ),
+                                      ? 'Select category (optional)'
+                                      : 'Pilih kategori (opsional)',
+                              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFCBD5E1)),
                             ),
                           ]),
                         ),
                         icon: Padding(
                           padding: const EdgeInsets.only(right: 4),
                           child: Icon(
-                            _selectedFaktor != null
+                            _selectedSubKategori != null
                                 ? CupertinoIcons.chevron_up_chevron_down
                                 : CupertinoIcons.chevron_down,
                             size: 15,
-                            color: _selectedFaktor != null
+                            color: _selectedSubKategori != null
                                 ? const Color(0xFF1D4ED8)
                                 : const Color(0xFFBFDBFE),
                           ),
                         ),
-                        selectedItemBuilder: (context) =>
-                            _faktors.map((f) => Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
-                              child: Row(children: [
-                                const Icon(
-                                  CupertinoIcons.tag_fill,
-                                  size: 16,
-                                  color: Color(0xFF1D4ED8),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    f['nama_faktor'] ?? '',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF1E293B),
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ]),
-                            )).toList(),
-                        items: _faktors.map((f) {
-                          final isSelected = _selectedFaktor?['id_faktor'] ==
-                              f['id_faktor'];
+                        selectedItemBuilder: (context) => _subKategoriList.map((f) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Row(children: [
+                            const Icon(CupertinoIcons.tag_fill, size: 16, color: Color(0xFF1D4ED8)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                f['nama_subkategoritemuan'] ?? '',
+                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ]),
+                        )).toList(),
+                        items: _subKategoriList.map((f) {
+                          final isSelected = _selectedSubKategori?['id_subkategoritemuan'] == f['id_subkategoritemuan'];
                           return DropdownMenuItem<Map<String, dynamic>>(
                             value: f,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                               decoration: BoxDecoration(
-                                color: isSelected
-                                    ? const Color(0xFFEFF6FF)
-                                    : Colors.white,
+                                color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Row(children: [
                                 Container(
-                                  width: 32,
-                                  height: 32,
+                                  width: 32, height: 32,
                                   decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? const Color(0xFF1D4ED8)
-                                        : const Color(0xFFF1F5F9),
+                                    color: isSelected ? const Color(0xFF1D4ED8) : const Color(0xFFF1F5F9),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Icon(
-                                    CupertinoIcons.tag_fill,
-                                    size: 14,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : const Color(0xFF94A3B8),
-                                  ),
+                                  child: Icon(CupertinoIcons.tag_fill, size: 14, color: isSelected ? Colors.white : const Color(0xFF94A3B8)),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    f['nama_faktor'] ?? '',
+                                    f['nama_subkategoritemuan'] ?? '',
                                     style: GoogleFonts.inter(
                                       fontSize: 14,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                      color: isSelected
-                                          ? const Color(0xFF1D4ED8)
-                                          : const Color(0xFF1E293B),
+                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                      color: isSelected ? const Color(0xFF1D4ED8) : const Color(0xFF1E293B),
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 if (isSelected)
-                                  const Icon(
-                                    CupertinoIcons.checkmark_circle_fill,
-                                    size: 18,
-                                    color: Color(0xFF1D4ED8),
-                                  ),
+                                  const Icon(CupertinoIcons.checkmark_circle_fill, size: 18, color: Color(0xFF1D4ED8)),
                               ]),
                             ),
                           );
                         }).toList(),
-                        onChanged: (val) => setState(() => _selectedFaktor = val),
+                        onChanged: (val) => setState(() => _selectedSubKategori = val),
                       ),
                     ),
                   ),

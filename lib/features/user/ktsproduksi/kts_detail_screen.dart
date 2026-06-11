@@ -41,8 +41,8 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   final _biayaCtrl = TextEditingController();
   final _penyebabCtrl = TextEditingController();
   XFile? _resImageFile;
-  List<Map<String, dynamic>> _faktors = [];
-  Map<String, dynamic>? _selectedFaktor;
+  List<Map<String, dynamic>> _subKategoriList = [];
+  Map<String, dynamic>? _selectedSubKategori;
 
   static const List<String> _bagianList = [
     'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
@@ -173,7 +173,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   void initState() {
     super.initState();
     _currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    _loadFaktors();
+    _loadSubKategoriKtsProduksi();
     if (widget.initialData != null) {
       _data = widget.initialData;
       _isLoading = false;
@@ -184,18 +184,27 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     }
   }
 
-  Future<void> _loadFaktors() async {
+  Future<void> _loadSubKategoriKtsProduksi() async {
     try {
+      // Ambil id kategoritemuan dengan nama_kategoritemuan = 'KTS Produksi'
+      final katData = await Supabase.instance.client
+          .from('kategoritemuan')
+          .select('id_kategoritemuan')
+          .eq('nama_kategoritemuan', 'KTS Produksi')
+          .maybeSingle();
+      if (katData == null) return;
+      final String katId = katData['id_kategoritemuan'].toString();
+
       final data = await Supabase.instance.client
-          .from('faktor_penyebab_kts')
-          .select('id_faktor, nama_faktor')
-          .eq('is_active', true)
-          .order('nama_faktor');
+          .from('subkategoritemuan')
+          .select('id_subkategoritemuan, nama_subkategoritemuan')
+          .eq('id_kategoritemuan', katId)
+          .order('nama_subkategoritemuan');
       if (mounted) {
-        setState(() => _faktors = List<Map<String, dynamic>>.from(data));
+        setState(() => _subKategoriList = List<Map<String, dynamic>>.from(data));
       }
     } catch (e) {
-      debugPrint('Error load faktors: $e');
+      debugPrint('Error load subkategori KTS Produksi: $e');
     }
   }
 
@@ -239,8 +248,8 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               .select(
                 'id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, '
                 'tanggal_selesai, poin_penyelesaian, additional_cost, id_user, '
-                'penyebab, bagian, id_faktor_penyebab, '
-                'faktor_penyebab_kts:id_faktor_penyebab(id_faktor, nama_faktor)',
+                'penyebab, bagian, id_subkategoritemuan_penyebab, '
+                'faktor_penyebab_kts:id_subkategoritemuan_penyebab(id_subkategoritemuan, nama_subkategoritemuan)',
               )
               .eq('id_penyelesaian', idPenyelesaian)
               .maybeSingle();
@@ -318,8 +327,8 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               .select(
                 'id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian, '
                 'tanggal_selesai, poin_penyelesaian, additional_cost, id_user, '
-                'penyebab, bagian, id_faktor_penyebab, '
-                'faktor_penyebab_kts:id_faktor_penyebab(id_faktor, nama_faktor)',
+                'penyebab, bagian, id_subkategoritemuan_penyebab, '
+                'faktor_penyebab_kts:id_subkategoritemuan_penyebab(id_subkategoritemuan, nama_subkategoritemuan)',
               )
               .eq('id_penyelesaian', idPenyelesaian)
               .maybeSingle();
@@ -350,7 +359,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               _selectedBagian = penyelesaianData['bagian'];
             }
             if (penyelesaianData['faktor_penyebab_kts'] != null) {
-              _selectedFaktor = Map<String, dynamic>.from(
+              _selectedSubKategori = Map<String, dynamic>.from(
                 penyelesaianData['faktor_penyebab_kts'],
               );
             }
@@ -441,10 +450,10 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             'id_user': user.id,
             'poin_penyelesaian': 10,
             'penyebab': _penyebabCtrl.text.trim().isEmpty
-                ? null
+                ? (_selectedSubKategori != null ? _selectedSubKategori!['nama_subkategoritemuan'] : null)
                 : _penyebabCtrl.text.trim(),
             'bagian': _selectedBagian,
-            'id_faktor_penyebab': _selectedFaktor?['id_faktor'],
+            'id_subkategoritemuan_penyebab': null,
           })
           .select('id_penyelesaian')
           .single();
@@ -650,8 +659,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               _divider(),
               _infoRow(CupertinoIcons.cube_box,    _t('qty'),      '${d['jumlah_item'] ?? 0} pcs'),
               _divider(),
-              _infoRow(CupertinoIcons.folder_fill, _t('kategori'), subKategori),
-              _divider(),
               _infoRow(CupertinoIcons.calendar,    _t('reported'), _formatDate(d['created_at'])),
 
               // PIC
@@ -758,8 +765,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
         : '-';
     final String? penyebab  = p['penyebab']?.toString();
     final String? bagian    = p['bagian']?.toString();
-    final faktorData        = p['faktor_penyebab_kts'] as Map?;
-    final String? faktorNama = faktorData?['nama_faktor']?.toString();
+    final String? faktorNama = p['penyebab']?.toString();
 
     return Container(
       decoration: BoxDecoration(
@@ -1152,7 +1158,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          _faktors.isEmpty
+          _subKategoriList.isEmpty
               ? Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -1184,10 +1190,10 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _selectedFaktor != null
+                      color: _selectedSubKategori != null
                           ? const Color(0xFF1D4ED8)
                           : const Color(0xFFBFDBFE),
-                      width: _selectedFaktor != null ? 1.5 : 1,
+                      width: _selectedSubKategori != null ? 1.5 : 1,
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -1202,7 +1208,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                       alignedDropdown: true,
                       child: DropdownButton<Map<String, dynamic>>(
                         isExpanded: true,
-                        value: _selectedFaktor,
+                        value: _selectedSubKategori,
                         dropdownColor: Colors.white,
                         borderRadius: BorderRadius.circular(14),
                         menuMaxHeight: 320,
@@ -1231,17 +1237,17 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                         icon: Padding(
                           padding: const EdgeInsets.only(right: 4),
                           child: Icon(
-                            _selectedFaktor != null
+                            _selectedSubKategori != null
                                 ? CupertinoIcons.chevron_up_chevron_down
                                 : CupertinoIcons.chevron_down,
                             size: 15,
-                            color: _selectedFaktor != null
+                            color: _selectedSubKategori != null
                                 ? const Color(0xFF1D4ED8)
                                 : const Color(0xFFBFDBFE),
                           ),
                         ),
                         selectedItemBuilder: (context) =>
-                            _faktors.map((f) => Padding(
+                            _subKategoriList.map((f) => Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 4),
                               child: Row(children: [
                                 const Icon(
@@ -1252,7 +1258,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    f['nama_faktor'] ?? '',
+                                    f['nama_subkategoritemuan'] ?? '',
                                     style: GoogleFonts.inter(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
@@ -1263,9 +1269,9 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                                 ),
                               ]),
                             )).toList(),
-                        items: _faktors.map((f) {
-                          final isSelected = _selectedFaktor?['id_faktor'] ==
-                              f['id_faktor'];
+                        items: _subKategoriList.map((f) {
+                          final isSelected = _selectedSubKategori?['id_subkategoritemuan'] ==
+                              f['id_subkategoritemuan'];
                           return DropdownMenuItem<Map<String, dynamic>>(
                             value: f,
                             child: Container(
@@ -1300,7 +1306,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    f['nama_faktor'] ?? '',
+                                    f['nama_subkategoritemuan'] ?? '',
                                     style: GoogleFonts.inter(
                                       fontSize: 14,
                                       fontWeight: isSelected
@@ -1323,7 +1329,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                             ),
                           );
                         }).toList(),
-                        onChanged: (val) => setState(() => _selectedFaktor = val),
+                        onChanged: (val) => setState(() => _selectedSubKategori = val),
                       ),
                     ),
                   ),
