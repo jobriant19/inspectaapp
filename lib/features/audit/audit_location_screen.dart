@@ -4,6 +4,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'audit_question_manager_screen.dart';
+import 'audit_schedule_screen.dart';
 
 // ─── Colour constants ────────────────────────────────────────────────────────
 class _C {
@@ -20,12 +21,13 @@ class _C {
 }
 
 // ─── Model ───────────────────────────────────────────────────────────────────
-// Ganti class _LocationItem dengan versi berikut (tambah field idParent):
 class _LocationItem {
   final String id;
   final String name;
   final String? description;
   final String? imageUrl;
+  String? schedulePeriode;
+  String? scheduleAuditorName;
   double? latestScore;
   String? latestAuditDate;
   String? picName;
@@ -36,6 +38,8 @@ class _LocationItem {
     required this.name,
     this.description,
     this.imageUrl,
+    this.schedulePeriode,
+    this.scheduleAuditorName,
     this.latestScore,
     this.latestAuditDate,
     this.picName,
@@ -201,15 +205,48 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
         picMap[p['id_user'].toString()] = p['nama'] ?? '-';
       }
 
+      // ✅ BARU: Fetch pending schedule per item
+      final scheduleRows = ids.isNotEmpty
+          ? await _supabase
+              .from('audit_schedule')
+              .select(
+                  'id_ref, periode_mulai, periode_selesai, '
+                  'User_Auditor:User!fk_audit_schedule_auditor(nama)')
+              .eq('level_type', level)
+              .inFilter('id_ref', ids)
+              .eq('status', 'pending')
+              .order('created_at', ascending: false)
+          : <dynamic>[];
+
+      final Map<String, Map<String, dynamic>> scheduleMap = {};
+      for (final s in scheduleRows as List<dynamic>) {
+        final ref = s['id_ref'].toString();
+        if (!scheduleMap.containsKey(ref)) scheduleMap[ref] = s as Map<String, dynamic>;
+      }
+
       final items = rows.map<_LocationItem>((r) {
         final id = r[idCol].toString();
         final audit = auditMap[id];
+        final schedule = scheduleMap[id];
 
-        // ✅ BARU: tentukan parent ID berdasarkan level
         String? parentId;
         if (level == 'unit')    parentId = r['id_lokasi']?.toString();
         if (level == 'subunit') parentId = r['id_unit']?.toString();
         if (level == 'area')    parentId = r['id_subunit']?.toString();
+
+        // ✅ Format periode schedule jika ada
+        String? schedulePeriode;
+        String? scheduleAuditorName;
+        if (schedule != null) {
+          final mulai   = DateTime.tryParse(schedule['periode_mulai']?.toString() ?? '');
+          final selesai = DateTime.tryParse(schedule['periode_selesai']?.toString() ?? '');
+          if (mulai != null && selesai != null) {
+            schedulePeriode =
+                '${DateFormat('dd MMM').format(mulai)} – ${DateFormat('dd MMM yyyy').format(selesai)}';
+          }
+          final auditorData = schedule['User_Auditor'] as Map<String, dynamic>?;
+          scheduleAuditorName = auditorData?['nama']?.toString();
+        }
 
         return _LocationItem(
           id: id,
@@ -221,7 +258,9 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               : null,
           latestAuditDate: audit?['tanggal_audit']?.toString(),
           picName: r['id_pic'] != null ? picMap[r['id_pic'].toString()] : null,
-          idParent: parentId, // ✅ BARU
+          idParent: parentId,
+          schedulePeriode: schedulePeriode,
+          scheduleAuditorName: scheduleAuditorName,
         );
       }).toList();
 
@@ -276,7 +315,6 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
-                  // Thumbnail / initial
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: item.imageUrl != null && item.imageUrl!.isNotEmpty
@@ -286,7 +324,6 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                         : _buildInitial(item.name),
                   ),
                   const SizedBox(width: 12),
-                  // Name + PIC
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,10 +349,42 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                                     overflow: TextOverflow.ellipsis)),
                           ]),
                         ],
+                        // Badge periode schedule
+                        if (item.schedulePeriode != null) ...[
+                          const SizedBox(height: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _C.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color: _C.blue.withOpacity(0.35)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.event_rounded,
+                                    size: 11, color: _C.blue),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    item.schedulePeriode!,
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: _C.blue),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  // Score badge
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -349,53 +418,74 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                 ],
               ),
             ),
-            // Footer: last audit date + action buttons
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: _C.surface,
                 borderRadius:
                     const BorderRadius.vertical(bottom: Radius.circular(16)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.calendar_today_rounded,
-                      size: 12, color: _C.textSub),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      item.latestAuditDate != null
-                          ? '${_t('Last audit', 'Terakhir diaudit', '上次审计')}: ${_formatDate(item.latestAuditDate!)}'
-                          : _t('Never audited', 'Belum pernah diaudit', '从未审计'),
-                      style: GoogleFonts.poppins(
-                          fontSize: 11, color: _C.textSub),
+                  // ✅ BARU: Assign auditor info jika ada schedule
+                  if (item.scheduleAuditorName != null) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.assignment_ind_outlined,
+                            size: 12, color: _C.blue),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            '${_t('Auditor', 'Auditor', '审计员')}: ${item.scheduleAuditorName!}',
+                            style: GoogleFonts.poppins(
+                                fontSize: 11, color: _C.blue),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  // Manage questions button
-                  _SmallButton(
-                    label: _t('Questions', 'Pertanyaan', '问题'),
-                    color: _C.primary,
-                    icon: Icons.help_outline_rounded,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AuditQuestionManagerScreen(
-                          lang: widget.lang,
-                          levelType: level,
-                          idRef: item.id,
-                          locationName: item.name,
+                    const SizedBox(height: 5),
+                  ],
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_today_rounded,
+                          size: 12, color: _C.textSub),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          item.latestAuditDate != null
+                              ? '${_t('Last audit', 'Terakhir diaudit', '上次审计')}: ${_formatDate(item.latestAuditDate!)}'
+                              : _t('Never audited', 'Belum pernah diaudit', '从未审计'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 11, color: _C.textSub),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Audit button
-                  _SmallButton(
-                    label: _t('Audit', 'Audit', '审计'),
-                    color: _C.green,
-                    icon: Icons.assignment_turned_in_outlined,
-                    onTap: () => _openAuditForm(item, level),
+                      _SmallButton(
+                        label: _t('Questions', 'Pertanyaan', '问题'),
+                        color: _C.primary,
+                        icon: Icons.help_outline_rounded,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AuditQuestionManagerScreen(
+                              lang: widget.lang,
+                              levelType: level,
+                              idRef: item.id,
+                              locationName: item.name,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _SmallButton(
+                        label: _t('Audit', 'Audit', '审计'),
+                        color: _C.green,
+                        icon: Icons.assignment_turned_in_outlined,
+                        onTap: () => _openAuditForm(item, level),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -536,19 +626,19 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
       return;
     }
 
-    // ✅ BERUBAH: Buka form penjadwalan audit (audit_schedule), bukan form jawaban
-    final saved = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AuditScheduleSheet(
-        lang: widget.lang,
-        levelType: level,
-        idRef: item.id,
-        locationName: item.name,
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AuditScheduleScreen(
+          lang: widget.lang,
+          levelType: level,
+          idRef: item.id,
+          locationName: item.name,
+        ),
       ),
     );
-    if (saved == true) _fetchLevel(level);
+    // Auto-refresh setelah kembali
+    _fetchLevel(level);
   }
 
   void _showDetail(_LocationItem item, String level) {
@@ -1536,576 +1626,6 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ─── Audit Schedule Form ──────────────────────────────────────────────────────
-class _AuditScheduleSheet extends StatefulWidget {
-  final String lang;
-  final String levelType;
-  final String idRef;
-  final String locationName;
-
-  const _AuditScheduleSheet({
-    required this.lang,
-    required this.levelType,
-    required this.idRef,
-    required this.locationName,
-  });
-
-  @override
-  State<_AuditScheduleSheet> createState() => _AuditScheduleSheetState();
-}
-
-class _AuditScheduleSheetState extends State<_AuditScheduleSheet> {
-  final _supabase = Supabase.instance.client;
-
-  DateTime? _periodeAwal;
-  DateTime? _periodeAkhir;
-  Map<String, dynamic>? _selectedAuditor;
-  bool _saving = false;
-  bool _loadingAuditors = false;
-  List<Map<String, dynamic>> _auditors = [];
-  List<Map<String, dynamic>> _filteredAuditors = [];
-  final _searchCtrl = TextEditingController();
-  final _catatanCtrl = TextEditingController();
-
-  String _t(String en, String id, String zh) {
-    if (widget.lang == 'EN') return en;
-    if (widget.lang == 'ZH') return zh;
-    return id;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchAuditors();
-    _searchCtrl.addListener(() {
-      final q = _searchCtrl.text.toLowerCase();
-      setState(() {
-        _filteredAuditors = q.isEmpty
-            ? _auditors
-            : _auditors
-                .where((u) =>
-                    u['nama'].toString().toLowerCase().contains(q))
-                .toList();
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    _catatanCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _fetchAuditors() async {
-    setState(() => _loadingAuditors = true);
-    try {
-      final rows = await _supabase
-          .from('User')
-          .select('id_user, nama, gambar_user, jabatan!User_id_jabatan_fkey(nama_jabatan)')
-          .order('nama');
-      if (mounted) {
-        setState(() {
-          _auditors = List<Map<String, dynamic>>.from(rows);
-          _filteredAuditors = _auditors;
-          _loadingAuditors = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _loadingAuditors = false);
-    }
-  }
-
-  Future<void> _pickDate(bool isStart) async {
-    final now = DateTime.now();
-    final initial = isStart
-        ? (_periodeAwal ?? now)
-        : (_periodeAkhir ?? (_periodeAwal ?? now));
-    final first = isStart ? now : (_periodeAwal ?? now);
-
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: first,
-      lastDate: DateTime(now.year + 2),
-      builder: (c, child) => Theme(
-        data: ThemeData.light().copyWith(
-          colorScheme: const ColorScheme.light(primary: _C.primary),
-        ),
-        child: child!,
-      ),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isStart) {
-          _periodeAwal = picked;
-          if (_periodeAkhir != null && _periodeAkhir!.isBefore(picked)) {
-            _periodeAkhir = null;
-          }
-        } else {
-          _periodeAkhir = picked;
-        }
-      });
-    }
-  }
-
-  Future<void> _save() async {
-    if (_selectedAuditor == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_t('Please select an auditor.',
-            'Pilih auditor terlebih dahulu.', '请选择审计员。')),
-        backgroundColor: _C.red,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-      ));
-      return;
-    }
-    if (_periodeAwal == null || _periodeAkhir == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_t('Please select audit period.',
-            'Pilih periode audit terlebih dahulu.', '请选择审计期间。')),
-        backgroundColor: _C.red,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-      ));
-      return;
-    }
-
-    setState(() => _saving = true);
-    try {
-      await _supabase.from('audit_schedule').insert({
-        'level_type': widget.levelType,
-        'id_ref': widget.idRef,
-        'id_auditor': _selectedAuditor!['id_user'],
-        'periode_mulai': _periodeAwal!.toIso8601String().split('T').first,
-        'periode_selesai': _periodeAkhir!.toIso8601String().split('T').first,
-        'status': 'pending',
-        'catatan': _catatanCtrl.text.trim().isEmpty
-            ? null
-            : _catatanCtrl.text.trim(),
-      });
-
-      if (mounted) {
-        Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_t(
-              'Audit schedule saved!',
-              'Jadwal audit berhasil disimpan!',
-              '审计计划已保存！')),
-          backgroundColor: _C.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          margin: const EdgeInsets.all(16),
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: _C.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          margin: const EdgeInsets.all(16),
-        ));
-      }
-    }
-  }
-
-  String _formatDate(DateTime dt) {
-    return '${dt.day.toString().padLeft(2, '0')} '
-        '${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month - 1]} '
-        '${dt.year}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.92),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle bar
-          Container(
-            margin: const EdgeInsets.only(top: 10),
-            width: 40, height: 4,
-            decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2)),
-          ),
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _C.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.fact_check_rounded,
-                      color: _C.primary, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _t('Schedule Audit', 'Jadwalkan Audit', '安排审计'),
-                        style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: _C.textMain),
-                      ),
-                      Text(
-                        widget.locationName,
-                        style: GoogleFonts.poppins(
-                            fontSize: 11, color: _C.textSub),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 20),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Periode Audit ──
-                  Text(
-                    _t('Audit Period', 'Periode Audit', '审计期间'),
-                    style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: _C.textSub),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _DatePickerField(
-                          label: _t('Start', 'Mulai', '开始'),
-                          value: _periodeAwal != null
-                              ? _formatDate(_periodeAwal!)
-                              : null,
-                          placeholder: _t('Pick date', 'Pilih tanggal', '选择日期'),
-                          onTap: () => _pickDate(true),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Icon(Icons.arrow_forward_rounded,
-                          color: _C.textSub, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _DatePickerField(
-                          label: _t('End', 'Selesai', '结束'),
-                          value: _periodeAkhir != null
-                              ? _formatDate(_periodeAkhir!)
-                              : null,
-                          placeholder: _t('Pick date', 'Pilih tanggal', '选择日期'),
-                          onTap: () => _pickDate(false),
-                          enabled: _periodeAwal != null,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Pilih Auditor ──
-                  Text(
-                    _t('Assign Auditor', 'Pilih Auditor', '分配审计员'),
-                    style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: _C.textSub),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Selected auditor display
-                  if (_selectedAuditor != null)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 10),
-                      decoration: BoxDecoration(
-                        color: _C.primary.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _C.primary.withOpacity(0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 18,
-                            backgroundColor: _C.primaryLt,
-                            backgroundImage: _selectedAuditor!['gambar_user'] != null
-                                ? NetworkImage(_selectedAuditor!['gambar_user'])
-                                : null,
-                            child: _selectedAuditor!['gambar_user'] == null
-                                ? Text(
-                                    (_selectedAuditor!['nama'] as String)
-                                        .trim()
-                                        .split(' ')
-                                        .take(2)
-                                        .map((w) => w.isNotEmpty
-                                            ? w[0].toUpperCase()
-                                            : '')
-                                        .join(),
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: _C.primary),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _selectedAuditor!['nama'] ?? '',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: _C.textMain),
-                                ),
-                                if (_selectedAuditor!['jabatan'] != null)
-                                  Text(
-                                    _selectedAuditor!['jabatan']
-                                            ['nama_jabatan'] ??
-                                        '',
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 11, color: _C.textSub),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: () =>
-                                setState(() => _selectedAuditor = null),
-                            child: const Icon(Icons.close_rounded,
-                                size: 16, color: _C.textSub),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  // Search
-                  TextField(
-                    controller: _searchCtrl,
-                    decoration: InputDecoration(
-                      hintText: _t('Search auditor…', 'Cari auditor…', '搜索审计员…'),
-                      hintStyle:
-                          GoogleFonts.poppins(fontSize: 12, color: _C.textSub),
-                      prefixIcon: const Icon(Icons.search_rounded,
-                          color: _C.primary, size: 18),
-                      filled: true,
-                      fillColor: _C.surface,
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 8, horizontal: 16),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _C.divider)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _C.divider)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide:
-                              const BorderSide(color: _C.primary, width: 1.5)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Auditor list
-                  _loadingAuditors
-                      ? const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: CircularProgressIndicator(color: _C.primary),
-                          ),
-                        )
-                      : SizedBox(
-                          height: 200,
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            itemCount: _filteredAuditors.length,
-                            itemBuilder: (_, i) {
-                              final u = _filteredAuditors[i];
-                              final isSelected =
-                                  _selectedAuditor?['id_user'] == u['id_user'];
-                              return GestureDetector(
-                                onTap: () =>
-                                    setState(() => _selectedAuditor = u),
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 150),
-                                  margin: const EdgeInsets.only(bottom: 6),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 9),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? _C.primary.withOpacity(0.08)
-                                        : Colors.white,
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? _C.primary
-                                          : Colors.grey.shade200,
-                                      width: isSelected ? 1.5 : 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 15,
-                                        backgroundColor: _C.primaryLt,
-                                        backgroundImage:
-                                            u['gambar_user'] != null
-                                                ? NetworkImage(u['gambar_user'])
-                                                : null,
-                                        child: u['gambar_user'] == null
-                                            ? Text(
-                                                (u['nama'] as String)
-                                                    .trim()
-                                                    .split(' ')
-                                                    .take(2)
-                                                    .map((w) => w.isNotEmpty
-                                                        ? w[0].toUpperCase()
-                                                        : '')
-                                                    .join(),
-                                                style: GoogleFonts.poppins(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: _C.primary),
-                                              )
-                                            : null,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(u['nama'] ?? '',
-                                                style: GoogleFonts.poppins(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: isSelected
-                                                        ? _C.primary
-                                                        : _C.textMain)),
-                                            if (u['jabatan'] != null)
-                                              Text(
-                                                u['jabatan']['nama_jabatan'] ??
-                                                    '',
-                                                style: GoogleFonts.poppins(
-                                                    fontSize: 10,
-                                                    color: _C.textSub),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                      if (isSelected)
-                                        const Icon(
-                                            Icons.check_circle_rounded,
-                                            color: _C.primary,
-                                            size: 18),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-
-                  const SizedBox(height: 16),
-
-                  // ── Catatan ──
-                  Text(
-                    _t('Notes (optional)', 'Catatan (opsional)', '备注（可选）'),
-                    style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: _C.textSub),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _catatanCtrl,
-                    maxLines: 2,
-                    decoration: InputDecoration(
-                      hintText: _t('Add notes…', 'Tambahkan catatan…', '添加备注…'),
-                      hintStyle:
-                          GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _C.divider)),
-                      enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: _C.divider)),
-                      focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide:
-                              const BorderSide(color: _C.primary, width: 1.5)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Save Button ──
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-                20,
-                0,
-                20,
-                MediaQuery.of(context).padding.bottom + 20),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _saving ? null : _save,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _C.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                ),
-                child: _saving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
-                    : Text(
-                        _t('Save Schedule', 'Simpan Jadwal', '保存计划'),
-                        style: GoogleFonts.poppins(
-                            fontSize: 15, fontWeight: FontWeight.w700),
-                      ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
