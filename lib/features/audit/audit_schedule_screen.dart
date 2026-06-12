@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart';
 import 'audit_schedule_popup.dart';
 
-// ─── Colour constants (mirror _C dari location screen) ───────────────────────
+// ─── Colour constants ───────────────────────
 class _SC {
   static const primary   = Color(0xFF8B5CF6);
   static const primaryLt = Color(0xFFEDE9FE);
-  static const green     = Color(0xFF10B981);
   static const red       = Color(0xFFEF4444);
-  static const blue      = Color(0xFF0EA5E9);
   static const textMain  = Color(0xFF1E3A8A);
   static const textSub   = Color(0xFF64748B);
   static const divider   = Color(0xFFE2E8F0);

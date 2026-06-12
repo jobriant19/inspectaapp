@@ -41,6 +41,8 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
   int _selectedCameraIndex = 0;
   bool _isCameraInitialized = false;
   final ImagePicker _picker = ImagePicker();
+  bool _flashEnabled = false;
+  bool _flashSupported = false;
 
   // ── Teks terlokalisasi ──
   String _txt(String key) {
@@ -109,7 +111,13 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
     );
     try {
       await _cameraController!.initialize();
-      if (mounted) setState(() => _isCameraInitialized = true);
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+          _flashEnabled = false;   // ← reset flash ke off setiap ganti kamera
+        });
+      }
+      await _checkFlashSupport(); // ← cek dukungan flash setelah init
     } on CameraException catch (e) {
       debugPrint('Error setting camera: ${e.code}\n${e.description}');
     }
@@ -122,6 +130,29 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
       _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras!.length;
     });
     _setCamera(_selectedCameraIndex);
+  }
+
+  /// Cek apakah kamera aktif mendukung flash (Android only).
+  Future<void> _checkFlashSupport() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized) return;
+    try {
+      await _cameraController!.setFlashMode(FlashMode.off);
+      if (mounted) setState(() => _flashSupported = true);
+    } catch (_) {
+      if (mounted) setState(() => _flashSupported = false);
+    }
+  }
+
+  Future<void> _toggleFlash() async {
+    if (_cameraController == null ||
+        !_cameraController!.value.isInitialized ||
+        !_flashSupported) return;
+    try {
+      final next = _flashEnabled ? FlashMode.off : FlashMode.torch;
+      await _cameraController!.setFlashMode(next);
+      if (mounted) setState(() => _flashEnabled = !_flashEnabled);
+    } catch (_) {}
   }
 
   Future<void> _navigateToForm(XFile imageXFile) async {
@@ -206,14 +237,14 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                 child: Row(
                   children: [
-                    // Tombol kembali — lebih besar
+                    // Tombol kembali
                     _CameraIconButton(
                       icon: Icons.arrow_back_ios_new_rounded,
                       onTap: () => Navigator.pop(context, null),
                       size: 52,
                     ),
                     const SizedBox(width: 10),
-                    // Label lokasi — di tengah, lebih besar
+                    // Label lokasi — di tengah
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -248,9 +279,13 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
                         ),
                       ),
                     ),
-                    // Spacer agar lokasi benar-benar terpusat
                     const SizedBox(width: 10),
-                    const SizedBox(width: 52), // mirror lebar tombol back
+                    // ── Flash button (kanan lokasi) ──
+                    _FlashButton(
+                      supported: _flashSupported && _isCameraInitialized,
+                      enabled: _flashEnabled,
+                      onTap: _toggleFlash,
+                    ),
                   ],
                 ),
               ),
@@ -346,6 +381,63 @@ class _CameraIconButton extends StatelessWidget {
           border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
         ),
         child: Icon(icon, color: Colors.white, size: size * 0.45),
+      ),
+    );
+  }
+}
+
+/// Flash toggle button untuk top bar CameraFindingScreen.
+/// Hanya aktif di Android saat flash didukung kamera.
+class _FlashButton extends StatelessWidget {
+  final bool supported;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _FlashButton({
+    required this.supported,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: supported ? (enabled ? 'Flash On' : 'Flash Off') : 'Flash N/A',
+      child: GestureDetector(
+        onTap: supported ? onTap : null,
+        child: Opacity(
+          opacity: supported ? 1.0 : 0.35,
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: enabled
+                  ? Colors.yellow.withOpacity(0.20)
+                  : Colors.black.withOpacity(0.50),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: enabled
+                    ? Colors.yellow
+                    : Colors.white.withOpacity(0.2),
+                width: 1.5,
+              ),
+              boxShadow: enabled
+                  ? [
+                      BoxShadow(
+                        color: Colors.yellow.withOpacity(0.30),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              enabled ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+              color: enabled ? Colors.yellow : Colors.white,
+              size: 52 * 0.45,
+            ),
+          ),
+        ),
       ),
     );
   }

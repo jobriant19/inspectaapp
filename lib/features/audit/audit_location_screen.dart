@@ -1457,7 +1457,7 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
       final rows = await _supabase
         .from('audit_result')
         .select(
-            'id_result, nilai_audit, tanggal_audit, catatan_audit, '
+            'id_result, nilai_audit, tanggal_audit, catatan_audit, selfie_url, '
             'User_Auditor:User!fk_audit_result_auditor(nama, gambar_user)')
         .eq('level_type', widget.level)
         .eq('id_ref', widget.item.id)
@@ -1563,6 +1563,7 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
                             final auditor = auditorData?['nama']?.toString() ?? '-';
                             final date = row['tanggal_audit']?.toString() ?? '';
                             final catatan = row['catatan_audit'] as String?;
+                            final selfieUrl = row['selfie_url'] as String?;
                             final color = _scoreColor(score);
                             return Container(
                               padding: const EdgeInsets.all(14),
@@ -1607,6 +1608,25 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
                                             style: GoogleFonts.poppins(
                                                 fontSize: 11,
                                                 color: _C.textSub)),
+                                        // Tampilkan selfie bukti audit
+                                        if (selfieUrl != null && selfieUrl.isNotEmpty) ...[
+                                          const SizedBox(height: 8),
+                                          ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Image.network(
+                                              selfieUrl,
+                                              height: 100,
+                                              width: double.infinity,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => Container(
+                                                height: 60,
+                                                color: Colors.grey.shade100,
+                                                child: const Icon(Icons.broken_image_outlined,
+                                                    color: Colors.grey),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                         if (catatan != null &&
                                             catatan.isNotEmpty)
                                           Text(catatan,

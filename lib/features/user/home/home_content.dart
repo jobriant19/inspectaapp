@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../audit/audit_form_screen.dart';
+import '../../audit/audit_selfie_screen.dart';
 import '../finding/finding_detail_screen.dart';
 import '../ktsproduksi/kts_detail_screen.dart';
 import 'location_screen.dart';
@@ -763,6 +764,22 @@ class HomeContentState extends State<HomeContent> {
 
     return GestureDetector(
       onTap: () async {
+        // Step 1: Selfie dulu
+        final selfieUrl = await Navigator.push<String>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AuditSelfieScreen(
+              lang: widget.lang,
+              locationName: locationName,
+              levelType: level,
+              idRef: task['id_ref'].toString(),
+            ),
+          ),
+        );
+        // Jika user cancel selfie, batalkan navigasi ke form
+        if (selfieUrl == null || !mounted) return;
+
+        // Step 2: Buka form audit dengan selfieUrl
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -772,6 +789,7 @@ class HomeContentState extends State<HomeContent> {
               idRef: task['id_ref'].toString(),
               locationName: locationName,
               idSchedule: task['id_schedule'].toString(),
+              selfieUrl: selfieUrl,
             ),
           ),
         );

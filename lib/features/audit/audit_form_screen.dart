@@ -8,7 +8,8 @@ class AuditFormScreen extends StatefulWidget {
   final String levelType;
   final String idRef;
   final String locationName;
-  final String? idSchedule; // optional – pass if opened from a schedule
+  final String? idSchedule; 
+  final String? selfieUrl;
 
   const AuditFormScreen({
     super.key,
@@ -17,6 +18,7 @@ class AuditFormScreen extends StatefulWidget {
     required this.idRef,
     required this.locationName,
     this.idSchedule,
+    this.selfieUrl
   });
 
   @override
@@ -126,6 +128,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             'catatan_audit': _noteCtrl.text.trim().isEmpty
                 ? null
                 : _noteCtrl.text.trim(),
+            'selfie_url': widget.selfieUrl,
           })
           .select('id_result')
           .single();
@@ -261,17 +264,23 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                   fontSize: 14, fontWeight: FontWeight.w700, color: _textMain),
             ),
             Text(widget.locationName,
-                style:
-                    GoogleFonts.poppins(fontSize: 11, color: _textSub)),
+                style: GoogleFonts.poppins(fontSize: 11, color: _textSub)),
           ],
         ),
+        // Selfie dipindah ke bawah AppBar — actions dikosongkan
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: _primary))
+          ? const Center(child: CircularProgressIndicator(color: _primary))
           : Column(
               children: [
-                // Progress header
+                // ── Banner bukti selfie (hanya tampil jika selfieUrl ada) ──
+                if (widget.selfieUrl != null)
+                  _SelfieEvidenceBanner(
+                    selfieUrl: widget.selfieUrl!,
+                    lang: widget.lang,
+                  ),
+
+                // ── Progress header ──
                 Container(
                   color: Colors.white,
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -311,7 +320,8 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                   ),
                 ),
                 const Divider(height: 1),
-                // Questions list
+
+                // ── Questions list ──
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
@@ -319,14 +329,14 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (_, i) {
                       if (i == _questions.length) {
-                        // Notes field
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Divider(),
                             const SizedBox(height: 8),
                             Text(
-                              _t('Notes (optional)', 'Catatan (opsional)', '备注（可选）'),
+                              _t('Notes (optional)', 'Catatan (opsional)',
+                                  '备注（可选）'),
                               style: GoogleFonts.poppins(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -337,18 +347,20 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                               controller: _noteCtrl,
                               maxLines: 3,
                               decoration: InputDecoration(
-                                hintText: _t(
-                                    'Add notes…', 'Tambahkan catatan…', '添加备注…'),
+                                hintText: _t('Add notes…', 'Tambahkan catatan…',
+                                    '添加备注…'),
                                 hintStyle: GoogleFonts.poppins(
                                     fontSize: 13, color: Colors.grey),
                                 filled: true,
                                 fillColor: Colors.white,
                                 border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: _divider)),
+                                    borderSide:
+                                        const BorderSide(color: _divider)),
                                 enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: _divider)),
+                                    borderSide:
+                                        const BorderSide(color: _divider)),
                                 focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                     borderSide: const BorderSide(
@@ -358,7 +370,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                           ],
                         );
                       }
-
                       final q = _questions[i];
                       final id = q['id_question'].toString();
                       final answer = _answers[id];
@@ -570,6 +581,97 @@ class _QuestionCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Banner bukti selfie audit — tampil di bawah AppBar, di atas progress header.
+class _SelfieEvidenceBanner extends StatelessWidget {
+  final String selfieUrl;
+  final String lang;
+
+  const _SelfieEvidenceBanner({
+    required this.selfieUrl,
+    required this.lang,
+  });
+
+  String _t(String en, String id, String zh) {
+    if (lang == 'EN') return en;
+    if (lang == 'ZH') return zh;
+    return id;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const teal = Color(0xFF14B8A6);
+    const tealBg = Color(0xFFE6FAF8);
+
+    return Container(
+      width: double.infinity,
+      color: tealBg,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          // ── Thumbnail selfie ──
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              selfieUrl,
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: teal.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.broken_image_outlined,
+                    color: teal, size: 24),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // ── Keterangan ──
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.verified_rounded,
+                        color: teal, size: 14),
+                    const SizedBox(width: 5),
+                    Text(
+                      _t('Audit Location Proof',
+                          'Bukti Lokasi Audit', '审计位置证明'),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: teal,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _t(
+                    'Selfie captured before the audit started.',
+                    'Selfie diambil sebelum audit dimulai.',
+                    '审计开始前已拍摄自拍。',
+                  ),
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: const Color(0xFF0F766E),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
