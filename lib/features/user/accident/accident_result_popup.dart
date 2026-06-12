@@ -7,7 +7,7 @@ Future<void> showResultPopup(
   required Color iconColor,
   required Color iconBgColor,
   required String message,
-  Duration duration = const Duration(milliseconds: 1400),
+  Duration duration = const Duration(milliseconds: 400),
 }) {
   return showDialog<void>(
     context: context,
