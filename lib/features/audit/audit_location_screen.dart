@@ -28,10 +28,11 @@ class _LocationItem {
   final String? imageUrl;
   String? schedulePeriode;
   String? scheduleAuditorName;
+  String? scheduleJenisAuditName; // ✅ BARU
   double? latestScore;
   String? latestAuditDate;
   String? picName;
-  final String? idParent; // ✅ BARU: id parent (id_unit untuk subunit, id_subunit untuk area, id_lokasi untuk unit)
+  final String? idParent;
 
   _LocationItem({
     required this.id,
@@ -40,10 +41,11 @@ class _LocationItem {
     this.imageUrl,
     this.schedulePeriode,
     this.scheduleAuditorName,
+    this.scheduleJenisAuditName, // ✅ BARU
     this.latestScore,
     this.latestAuditDate,
     this.picName,
-    this.idParent, 
+    this.idParent,
   });
 }
 
@@ -210,8 +212,9 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
           ? await _supabase
               .from('audit_schedule')
               .select(
-                  'id_ref, periode_mulai, periode_selesai, '
-                  'User_Auditor:User!fk_audit_schedule_auditor(nama)')
+                  'id_ref, periode_mulai, periode_selesai, id_jenis_audit, '
+                  'User_Auditor:User!fk_audit_schedule_auditor(nama), '
+                  'JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)') // ✅ BARU
               .eq('level_type', level)
               .inFilter('id_ref', ids)
               .eq('status', 'pending')
@@ -237,6 +240,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
         // ✅ Format periode schedule jika ada
         String? schedulePeriode;
         String? scheduleAuditorName;
+        String? scheduleJenisAuditName; // ✅ BARU
         if (schedule != null) {
           final mulai   = DateTime.tryParse(schedule['periode_mulai']?.toString() ?? '');
           final selesai = DateTime.tryParse(schedule['periode_selesai']?.toString() ?? '');
@@ -246,6 +250,16 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
           }
           final auditorData = schedule['User_Auditor'] as Map<String, dynamic>?;
           scheduleAuditorName = auditorData?['nama']?.toString();
+
+          // ✅ BARU: nama jenis audit sesuai bahasa
+          final jenisData = schedule['JenisAudit'] as Map<String, dynamic>?;
+          if (jenisData != null) {
+            scheduleJenisAuditName = widget.lang == 'EN'
+                ? jenisData['nama_en']?.toString()
+                : widget.lang == 'ZH'
+                    ? jenisData['nama_zh']?.toString()
+                    : jenisData['nama_id']?.toString();
+          }
         }
 
         return _LocationItem(
@@ -261,6 +275,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
           idParent: parentId,
           schedulePeriode: schedulePeriode,
           scheduleAuditorName: scheduleAuditorName,
+          scheduleJenisAuditName: scheduleJenisAuditName, // ✅ BARU
         );
       }).toList();
 
@@ -349,6 +364,35 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                                     overflow: TextOverflow.ellipsis)),
                           ]),
                         ],
+                        // ✅ BARU: Badge jenis audit
+                        if (item.scheduleJenisAuditName != null) ...[
+                          const SizedBox(height: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: _C.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: _C.primary.withOpacity(0.35)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.fact_check_rounded, size: 11, color: _C.primary),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    item.scheduleJenisAuditName!,
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 10, fontWeight: FontWeight.w600, color: _C.primary),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
                         // Badge periode schedule
                         if (item.schedulePeriode != null) ...[
                           const SizedBox(height: 5),

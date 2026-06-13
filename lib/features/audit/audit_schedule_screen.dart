@@ -24,6 +24,7 @@ class AuditScheduleData {
   final DateTime periodeMulai;
   final DateTime periodeSelesai;
   final String? catatan;
+  final String? idJenisAudit;
 
   const AuditScheduleData({
     required this.idSchedule,
@@ -34,6 +35,7 @@ class AuditScheduleData {
     required this.periodeMulai,
     required this.periodeSelesai,
     this.catatan,
+    this.idJenisAudit,
   });
 }
 
@@ -71,6 +73,9 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
   List<Map<String, dynamic>> _filteredAuditors = [];
   AuditScheduleData?         _existingSchedule;
 
+  List<Map<String, dynamic>> _jenisAuditList = [];
+  String? _selectedJenisAuditId;
+
   // ── UI state ──
   bool _loadingInit = true; // true saat fetch awal (schedule + auditors)
   bool _saving      = false;
@@ -79,6 +84,12 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     if (widget.lang == 'EN') return en;
     if (widget.lang == 'ZH') return zh;
     return id;
+  }
+
+  String _jenisAuditLabel(Map<String, dynamic> j) {
+    if (widget.lang == 'EN') return j['nama_en']?.toString() ?? '-';
+    if (widget.lang == 'ZH') return j['nama_zh']?.toString() ?? '-';
+    return j['nama_id']?.toString() ?? '-';
   }
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -113,24 +124,26 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       final results = await Future.wait([
         _fetchExistingSchedule(),
         _fetchAuditors(),
+        _supabase.from('jenis_audit').select().order('urutan'), // ✅ BARU
       ]);
 
       final schedule = results[0] as AuditScheduleData?;
       final auditors = results[1] as List<Map<String, dynamic>>;
+      final jenisAudit = List<Map<String, dynamic>>.from(results[2] as List); // ✅ BARU
 
       if (!mounted) return;
       setState(() {
         _auditors         = auditors;
         _filteredAuditors = auditors;
         _existingSchedule = schedule;
+        _jenisAuditList   = jenisAudit; // ✅ BARU
 
-        // ✅ Pre-fill form jika ada schedule existing
         if (schedule != null) {
           _periodeAwal  = schedule.periodeMulai;
           _periodeAkhir = schedule.periodeSelesai;
           _catatanCtrl.text = schedule.catatan ?? '';
+          _selectedJenisAuditId = schedule.idJenisAudit; // ✅ BARU
 
-          // Cari auditor di list
           final match = auditors.firstWhere(
             (u) => u['id_user']?.toString() == schedule.idAuditor,
             orElse: () => {
@@ -157,7 +170,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     final rows = await _supabase
         .from('audit_schedule')
         .select(
-            'id_schedule, id_auditor, periode_mulai, periode_selesai, catatan, '
+            'id_schedule, id_auditor, periode_mulai, periode_selesai, catatan, id_jenis_audit, '
             'User_Auditor:User!fk_audit_schedule_auditor(nama, gambar_user, jabatan!User_id_jabatan_fkey(nama_jabatan))')
         .eq('level_type', widget.levelType)
         .eq('id_ref', widget.idRef)
@@ -179,6 +192,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       periodeMulai:   DateTime.parse(r['periode_mulai'].toString()),
       periodeSelesai: DateTime.parse(r['periode_selesai'].toString()),
       catatan:        r['catatan']?.toString(),
+      idJenisAudit:   r['id_jenis_audit']?.toString(), // ✅ BARU
     );
   }
 
@@ -221,6 +235,11 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
 
   // ─── Save / Update ───────────────────────────────────────────────────────
   Future<void> _save() async {
+    if (_selectedJenisAuditId == null) { // ✅ BARU
+      _showError(_t('Please select audit type.',
+          'Pilih jenis audit terlebih dahulu.', '请选择审计类型。'));
+      return;
+    }
     if (_selectedAuditor == null) {
       _showError(_t('Please select an auditor.',
           'Pilih auditor terlebih dahulu.', '请选择审计员。'));
@@ -238,6 +257,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
         'level_type':      widget.levelType,
         'id_ref':          widget.idRef,
         'id_auditor':      _selectedAuditor!['id_user'],
+        'id_jenis_audit':  _selectedJenisAuditId, // ✅ BARU
         'periode_mulai':   _periodeAwal!.toIso8601String().split('T').first,
         'periode_selesai': _periodeAkhir!.toIso8601String().split('T').first,
         'status':          'pending',
@@ -335,6 +355,48 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // ── Jenis Audit ──────────────────────────────
+                        Text(
+                          _t('Audit Type', 'Jenis Audit', '审计类型'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _SC.textSub),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _jenisAuditList.map((j) {
+                            final id = j['id_jenis_audit'].toString();
+                            final isSelected = _selectedJenisAuditId == id;
+                            return GestureDetector(
+                              onTap: () => setState(() => _selectedJenisAuditId = id),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? _SC.primary : Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: isSelected ? _SC.primary : Colors.grey.shade300,
+                                    width: isSelected ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  _jenisAuditLabel(j),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                    color: isSelected ? Colors.white : _SC.textSub,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 20),
+
                         // ── Periode Audit ──────────────────────────────
                         Text(
                           _t('Audit Period', 'Periode Audit', '审计期间'),
