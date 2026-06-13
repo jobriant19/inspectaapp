@@ -77,17 +77,24 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     super.initState();
     _setupTranslations();
     _imageXFile = widget.initialImageXFile;
-    if (widget.preSelectedLocationId != null) {
+    // ── Pre-fill lokasi dari CameraFindingScreen ──
+    if (widget.preSelectedLocationName != null &&
+        widget.preSelectedLocationName!.trim().isNotEmpty) {
       _selectedLocation = {
-        'id_lokasi': widget.preSelectedLocationId,
-        'id_unit': widget.preSelectedUnitId,
-        'id_subunit': widget.preSelectedSubunitId,
-        'id_area': widget.preSelectedAreaId,
-        'nama': widget.preSelectedLocationName,
+        if (widget.preSelectedLocationId != null)
+          'id_lokasi': widget.preSelectedLocationId,
+        if (widget.preSelectedUnitId != null)
+          'id_unit': widget.preSelectedUnitId,
+        if (widget.preSelectedSubunitId != null)
+          'id_subunit': widget.preSelectedSubunitId,
+        if (widget.preSelectedAreaId != null)
+          'id_area': widget.preSelectedAreaId,
+        'nama': widget.preSelectedLocationName!.trim(),
       };
     }
     _initCamera();
     _loadCurrentUserProfile();
+    _refreshLocationBreadcrumb();
   }
 
   /// Load current user profile (for default PIC and location filtering)
@@ -118,6 +125,56 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     } catch (e) {
       debugPrint("Error loading user profile: $e");
       if (mounted) setState(() => _isLoadingUserProfile = false);
+    }
+  }
+
+  /// Bangun nama lokasi lengkap (Lokasi / Unit / Subunit / Area)
+  /// berdasarkan ID yang sudah dipilih sebelumnya di CameraFindingScreen.
+  Future<void> _refreshLocationBreadcrumb() async {
+    final idLokasi  = _selectedLocation?['id_lokasi']?.toString();
+    final idUnit    = _selectedLocation?['id_unit']?.toString();
+    final idSubunit = _selectedLocation?['id_subunit']?.toString();
+    final idArea    = _selectedLocation?['id_area']?.toString();
+
+    if (idLokasi == null && idUnit == null && idSubunit == null && idArea == null) {
+      return;
+    }
+
+    try {
+      final supabase = Supabase.instance.client;
+      final parts = <String>[];
+
+      if (idLokasi != null) {
+        final d = await supabase.from('lokasi')
+            .select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
+        if (d?['nama_lokasi'] != null) parts.add(d!['nama_lokasi'].toString());
+      }
+      if (idUnit != null) {
+        final d = await supabase.from('unit')
+            .select('nama_unit').eq('id_unit', idUnit).maybeSingle();
+        if (d?['nama_unit'] != null) parts.add(d!['nama_unit'].toString());
+      }
+      if (idSubunit != null) {
+        final d = await supabase.from('subunit')
+            .select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
+        if (d?['nama_subunit'] != null) parts.add(d!['nama_subunit'].toString());
+      }
+      if (idArea != null) {
+        final d = await supabase.from('area')
+            .select('nama_area').eq('id_area', idArea).maybeSingle();
+        if (d?['nama_area'] != null) parts.add(d!['nama_area'].toString());
+      }
+
+      if (mounted && parts.isNotEmpty) {
+        setState(() {
+          _selectedLocation = {
+            ...(_selectedLocation ?? {}),
+            'nama': parts.join(' / '),
+          };
+        });
+      }
+    } catch (e) {
+      debugPrint('Error building location breadcrumb: $e');
     }
   }
 
@@ -489,9 +546,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   // Picker Methods
   // ================================================
   void _showLocationPicker() async {
-    // HAPUS guard: if (_currentUserProfile == null) return;
-    // Izinkan picker terbuka meskipun profil belum selesai dimuat
-
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
@@ -499,22 +553,28 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       builder: (ctx) => FullLocationPickerBottomSheet(
         lang: widget.lang,
         isProMode: widget.isProMode,
-        // Gunakan data profil jika ada, fallback ke null (tampilkan semua)
         userRole: _currentUserProfile?['jabatan']?['nama_jabatan'] ?? 'Staff',
-        userUnitId: _currentUserProfile?['id_unit']?.toString(),
         userLokasiId: _currentUserProfile?['id_lokasi']?.toString(),
+        userUnitId: _currentUserProfile?['id_unit']?.toString(),
         userSubunitId: _currentUserProfile?['id_subunit']?.toString(),
         userAreaId: _currentUserProfile?['id_area']?.toString(),
+        // ── Teruskan pre-selection ──
+        preSelectedLokasiId: _selectedLocation?['id_lokasi']?.toString(),
+        preSelectedUnitId: _selectedLocation?['id_unit']?.toString(),
+        preSelectedSubunitId: _selectedLocation?['id_subunit']?.toString(),
+        preSelectedAreaId: _selectedLocation?['id_area']?.toString(),
       ),
     );
 
     if (result != null) {
       setState(() => _selectedLocation = result);
-      // Reset PIC saat lokasi berubah agar PIC diperbarui sesuai lokasi baru
       if (_selectedAssignee != null &&
           _selectedAssignee!['id_user'] != _currentUserProfile?['id_user']) {
         setState(() => _selectedAssignee = null);
       }
+      // result dari FullLocationPickerBottomSheet sudah berisi 'nama' (join dari _selectItem)
+      // tapi belum mengandung level di atasnya, jadi refresh breadcrumb penuh:
+      await _refreshLocationBreadcrumb();
     }
   }
 
@@ -626,13 +686,14 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
             top: MediaQuery.of(context).padding.top + 10,
             left: 10,
             child: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 26),
+              icon: const Icon(Icons.arrow_back_ios,
+                  color: Colors.white, size: 26),
               onPressed: () {
-                // If we have an image already, go back to form
-                // If not, pop to wherever we came from
-                if (widget.initialImageXFile.path.isNotEmpty) {
+                if (_imageXFile != null) {
+                  // Ada foto sebelumnya → kembali ke form
                   setState(() => _imageXFile = widget.initialImageXFile);
                 } else {
+                  // Belum ada foto → pop keluar dari screen ini
                   Navigator.pop(context);
                 }
               },
@@ -687,161 +748,141 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   }
 
   Widget _buildFormUI() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        shadowColor: Colors.black12,
-        surfaceTintColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E3A8A)),
-          onPressed: () {
-            // Back from form -> go to CameraFindingScreen with location
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => CameraFindingScreen(
-                  lang: widget.lang,
-                  isProMode: widget.isProMode,
-                  isVisitorMode: widget.isVisitorMode,
-                  selectedLocationName: _selectedLocation?['nama'] ??
-                      widget.preSelectedLocationName ??
-                      '',
-                  selectedLocationId:
-                      _selectedLocation?['id_lokasi'] ??
-                          widget.preSelectedLocationId,
-                  selectedUnitId:
-                      _selectedLocation?['id_unit'] ?? widget.preSelectedUnitId,
-                  selectedSubunitId:
-                      _selectedLocation?['id_subunit'] ??
-                          widget.preSelectedSubunitId,
-                  selectedAreaId:
-                      _selectedLocation?['id_area'] ?? widget.preSelectedAreaId,
-                ),
-              ),
-            );
-          },
-        ),
-        title: Text(
-          _texts['title']!,
-          style: const TextStyle(
-              color: Color(0xFF1E3A8A),
-              fontWeight: FontWeight.bold,
-              fontSize: 18),
-        ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: Colors.grey.shade200, height: 1),
-        ),
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: const TextScaler.linear(1.0),
       ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Location Card
-                _buildSectionTitle(_texts['location']!),
-                _buildPickerCard(
-                  icon: Icons.location_on_outlined,
-                  text: _selectedLocation?['nama'] ?? _texts['select_location']!,
-                  onTap: _showLocationPicker,
-                  hasValue: _selectedLocation != null,
-                ),
-                const SizedBox(height: 20),
-
-                // Image Section
-                if (_imageXFile != null) ...[
-                  _buildSectionTitle(_texts['photo']!),
-                  _buildImageCard(),
-                  const SizedBox(height: 20),
-                ],
-
-                // Visitor Fields - shown right after photo if user is visitor
-                if (_isVisitorUser) ...[
-                  _buildVisitorSection(),
-                  const SizedBox(height: 20),
-                ],
-
-                // Title
-                _buildSectionTitle(_texts['form_title']!, isRequired: true),
-                _buildTextField(
-                  controller: _titleCtrl,
-                  hint: _texts['form_title_hint']!,
-                  icon: Icons.title_outlined,
-                ),
-                const SizedBox(height: 20),
-
-                // Notes
-                _buildSectionTitle(_texts['notes']!),
-                _buildTextField(
-                  controller: _notesCtrl,
-                  hint: _texts['notes_hint']!,
-                  icon: Icons.notes_outlined,
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 20),
-
-                // Category
-                _buildSectionTitle(_texts['category']!, isRequired: true),
-                _buildPickerCard(
-                  icon: Icons.category_outlined,
-                  text: _selectedCategory?['nama'] ?? _texts['select_category']!,
-                  onTap: _showCategoryPicker,
-                  hasValue: _selectedCategory != null,
-                ),
-                const SizedBox(height: 20),
-
-                // Due Date
-                _buildSectionTitle(_texts['due_date']!, isOptional: true),
-                _buildPickerCard(
-                  icon: Icons.calendar_today_outlined,
-                  text: _selectedDueDate != null
-                      ? DateFormat('EEE, d MMM yyyy').format(_selectedDueDate!)
-                      : _texts['select_date']!,
-                  onTap: _showDueDatePicker,
-                  hasValue: _selectedDueDate != null,
-                ),
-                const SizedBox(height: 20),
-
-                // Assignee - ALWAYS VISIBLE (not just Pro mode)
-                _buildSectionTitle(_texts['assignee']!, isOptional: true),
-                _buildPickerCard(
-                  icon: Icons.person_outline,
-                  text: _selectedAssignee?['nama'] ?? _texts['select_assignee']!,
-                  onTap: _showAssigneePicker,
-                  hasValue: _selectedAssignee != null,
-                ),
-                const SizedBox(height: 20),
-
-                // Pro Mode fields
-                if (widget.isProMode) ...[
-                  _buildProModeDivider(),
-                  const SizedBox(height: 16),
-                  _buildSectionTitle(_texts['escalation']!, isOptional: true),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F7FA),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          shadowColor: Colors.black12,
+          surfaceTintColor: Colors.white,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1E3A8A)),
+            onPressed: () => Navigator.pop(context, null),
+          ),
+          title: Text(
+            _texts['title']!,
+            style: const TextStyle(
+                color: Color(0xFF1E3A8A),
+                fontWeight: FontWeight.bold,
+                fontSize: 18),
+          ),
+          centerTitle: true,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(1),
+            child: Container(color: Colors.grey.shade200, height: 1),
+          ),
+        ),
+        body: Stack(
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Location Card
+                  _buildSectionTitle(_texts['location']!),
                   _buildPickerCard(
-                    icon: Icons.escalator_warning_outlined,
-                    text: _selectedEscalation ?? _texts['select_level']!,
-                    onTap: _showEscalationPicker,
-                    hasValue: _selectedEscalation != null,
+                    icon: Icons.location_on_outlined,
+                    text: _selectedLocation?['nama'] ?? _texts['select_location']!,
+                    onTap: _showLocationPicker,
+                    hasValue: _selectedLocation != null,
                   ),
                   const SizedBox(height: 20),
-                ],
 
-                // Action Buttons
-                // Action Buttons — selalu tampil, loading pakai overlay
-            _buildActionButtons(),
-            const SizedBox(height: 40),
-          ],
+                  // Image Section
+                  if (_imageXFile != null) ...[
+                    _buildSectionTitle(_texts['photo']!),
+                    _buildImageCard(),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Visitor Fields - shown right after photo if user is visitor
+                  if (_isVisitorUser) ...[
+                    _buildVisitorSection(),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Title
+                  _buildSectionTitle(_texts['form_title']!, isRequired: true),
+                  _buildTextField(
+                    controller: _titleCtrl,
+                    hint: _texts['form_title_hint']!,
+                    icon: Icons.title_outlined,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Notes
+                  _buildSectionTitle(_texts['notes']!),
+                  _buildTextField(
+                    controller: _notesCtrl,
+                    hint: _texts['notes_hint']!,
+                    icon: Icons.notes_outlined,
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Category
+                  _buildSectionTitle(_texts['category']!, isRequired: true),
+                  _buildPickerCard(
+                    icon: Icons.category_outlined,
+                    text: _selectedCategory?['nama'] ?? _texts['select_category']!,
+                    onTap: _showCategoryPicker,
+                    hasValue: _selectedCategory != null,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Due Date
+                  _buildSectionTitle(_texts['due_date']!, isOptional: true),
+                  _buildPickerCard(
+                    icon: Icons.calendar_today_outlined,
+                    text: _selectedDueDate != null
+                        ? DateFormat('EEE, d MMM yyyy').format(_selectedDueDate!)
+                        : _texts['select_date']!,
+                    onTap: _showDueDatePicker,
+                    hasValue: _selectedDueDate != null,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Assignee - ALWAYS VISIBLE (not just Pro mode)
+                  _buildSectionTitle(_texts['assignee']!, isOptional: true),
+                  _buildPickerCard(
+                    icon: Icons.person_outline,
+                    text: _selectedAssignee?['nama'] ?? _texts['select_assignee']!,
+                    onTap: _showAssigneePicker,
+                    hasValue: _selectedAssignee != null,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Pro Mode fields
+                  if (widget.isProMode) ...[
+                    _buildProModeDivider(),
+                    const SizedBox(height: 16),
+                    _buildSectionTitle(_texts['escalation']!, isOptional: true),
+                    _buildPickerCard(
+                      icon: Icons.escalator_warning_outlined,
+                      text: _selectedEscalation ?? _texts['select_level']!,
+                      onTap: _showEscalationPicker,
+                      hasValue: _selectedEscalation != null,
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Action Buttons
+                  // Action Buttons — selalu tampil, loading pakai overlay
+              _buildActionButtons(),
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
-      ),
-          // ── Loading Overlay ──
+            // ── Loading Overlay ──
           if (_isSaving) _buildBeamLoadingOverlay(),
         ],
       ),
+    ),
     );
   }
 
@@ -991,38 +1032,14 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                 ),
               ),
             ),
-            // Retake button - navigates to CameraFindingScreen WITH location
+            // Retake button — kembali ke kamera internal, tidak push CameraFindingScreen baru
             Positioned(
               bottom: 10,
               right: 10,
               child: GestureDetector(
-                onTap: () {
-                  // Navigate to CameraFindingScreen with preserved location
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CameraFindingScreen(
-                        lang: widget.lang,
-                        isProMode: widget.isProMode,
-                        isVisitorMode: widget.isVisitorMode,
-                        selectedLocationName: _selectedLocation?['nama'] ??
-                            widget.preSelectedLocationName ??
-                            '',
-                        selectedLocationId: _selectedLocation?['id_lokasi'] ??
-                            widget.preSelectedLocationId,
-                        selectedUnitId: _selectedLocation?['id_unit'] ??
-                            widget.preSelectedUnitId,
-                        selectedSubunitId: _selectedLocation?['id_subunit'] ??
-                            widget.preSelectedSubunitId,
-                        selectedAreaId: _selectedLocation?['id_area'] ??
-                            widget.preSelectedAreaId,
-                      ),
-                    ),
-                  );
-                },
+                onTap: () => Navigator.pop(context, null),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.7),
                     borderRadius: BorderRadius.circular(20),
@@ -1032,8 +1049,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.camera_alt,
-                          color: Colors.white, size: 15),
+                      const Icon(Icons.camera_alt, color: Colors.white, size: 15),
                       const SizedBox(width: 6),
                       Text(
                         _texts['retake']!,
@@ -2683,25 +2699,39 @@ class EscalationPickerBottomSheet extends StatelessWidget {
 
 // ==================================================================
 // BOTTOM SHEET: FULL LOCATION PICKER
+// - 4 tab independen: Lokasi / Unit / Sub-Unit / Area
+// - Klik tab → load data level tersebut (lazy load)
+// - Search global: mencari di semua level sekaligus
+// - Aturan pro/non-pro tetap berlaku
 // ==================================================================
 class FullLocationPickerBottomSheet extends StatefulWidget {
   final String lang;
   final bool isProMode;
   final String userRole;
-  final String? userUnitId;
   final String? userLokasiId;
+  final String? userUnitId;
   final String? userSubunitId;
   final String? userAreaId;
+
+  // Pre-selection dari form (bisa dari CameraFindingScreen)
+  final String? preSelectedLokasiId;
+  final String? preSelectedUnitId;
+  final String? preSelectedSubunitId;
+  final String? preSelectedAreaId;
 
   const FullLocationPickerBottomSheet({
     super.key,
     required this.lang,
     required this.isProMode,
     required this.userRole,
-    this.userUnitId,
     this.userLokasiId,
+    this.userUnitId,
     this.userSubunitId,
     this.userAreaId,
+    this.preSelectedLokasiId,
+    this.preSelectedUnitId,
+    this.preSelectedSubunitId,
+    this.preSelectedAreaId,
   });
 
   @override
@@ -2710,341 +2740,560 @@ class FullLocationPickerBottomSheet extends StatefulWidget {
 }
 
 class _FullLocationPickerBottomSheetState
-    extends State<FullLocationPickerBottomSheet> {
-  int _currentLevel = 0;
-  bool _isLoading = true;
-  List<dynamic> _currentData = [];
-  List<dynamic> _filteredData = [];
-  final TextEditingController _searchController = TextEditingController();
+    extends State<FullLocationPickerBottomSheet>
+    with SingleTickerProviderStateMixin {
 
-  final List<Map<String, dynamic>> _navHistory = [];
+  late TabController _tabCtrl;
+  final _searchCtrl = TextEditingController();
 
-  // Pro mode OR Eksekutif = full access
-  bool get _hasFullAccess =>
+  // ── Data mentah per level (null = belum pernah di-load) ──
+  List<Map<String, dynamic>>? _lokasiData;
+  List<Map<String, dynamic>>? _unitData;
+  List<Map<String, dynamic>>? _subunitData;
+  List<Map<String, dynamic>>? _areaData;
+
+  // ── Hasil search global (null = belum search) ──
+  List<_SearchResult>? _searchResults;
+
+  bool _isSearching = false;
+
+  // ── Loading state per level ──
+  final _loading = {0: false, 1: false, 2: false, 3: false};
+
+  bool get _isProAccess =>
       widget.isProMode || widget.userRole == 'Eksekutif';
 
-  late Map<String, String> texts;
+  // ── Helper teks ──
+  String _t(String id, String en, String zh) {
+    if (widget.lang == 'EN') return en;
+    if (widget.lang == 'ZH') return zh;
+    return id;
+  }
+
+  static const _tabIcons = [
+    Icons.location_city_rounded,
+    Icons.business_rounded,
+    Icons.layers_outlined,
+    Icons.place_rounded,
+  ];
 
   @override
   void initState() {
     super.initState();
-    _setupTranslations();
-    _searchController.addListener(_onSearchChanged);
-    _fetchData();
+    _tabCtrl = TabController(length: 4, vsync: this)
+      ..addListener(_onTabChanged);
+    _searchCtrl.addListener(_onSearchChanged);
+    // Load tab pertama langsung
+    _loadTabData(0);
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _tabCtrl.removeListener(_onTabChanged);
+    _tabCtrl.dispose();
+    _searchCtrl.removeListener(_onSearchChanged);
+    _searchCtrl.dispose();
     super.dispose();
   }
 
-  void _setupTranslations() {
-    final Map<String, Map<String, String>> data = {
-      'EN': {
-        'title_lokasi': 'LOCATION',
-        'title_unit': 'UNIT',
-        'title_subunit': 'SUB-UNIT',
-        'title_area': 'AREA',
-        'search_lokasi': 'Search location...',
-        'search_unit': 'Search unit...',
-        'search_subunit': 'Search sub-unit...',
-        'search_area': 'Search area...',
-        'select': 'Select',
-        'sublokasi': 'Sub-locations',
-        'empty': 'No data found',
-        'my_location': 'My Location',
-      },
-      'ID': {
-        'title_lokasi': 'LOKASI',
-        'title_unit': 'UNIT',
-        'title_subunit': 'SUB-UNIT',
-        'title_area': 'AREA',
-        'search_lokasi': 'Cari lokasi...',
-        'search_unit': 'Cari unit...',
-        'search_subunit': 'Cari sub-unit...',
-        'search_area': 'Cari area...',
-        'select': 'Pilih',
-        'sublokasi': 'Sublokasi',
-        'empty': 'Data tidak ditemukan',
-        'my_location': 'Lokasi Saya',
-      },
-      'ZH': {
-        'title_lokasi': '地点',
-        'title_unit': '单位',
-        'title_subunit': '子单位',
-        'title_area': '区域',
-        'search_lokasi': '搜索地点...',
-        'search_unit': '搜索单位...',
-        'search_subunit': '搜索子单位...',
-        'search_area': '搜索区域...',
-        'select': '选择',
-        'sublokasi': '子位置',
-        'empty': '未找到数据',
-        'my_location': '我的位置',
-      },
-    };
-    texts = data[widget.lang] ?? data['ID']!;
+  void _onTabChanged() {
+    if (_tabCtrl.indexIsChanging) return;
+    _loadTabData(_tabCtrl.index);
   }
 
-  String _getLevelName([int? level]) =>
-      ['lokasi', 'unit', 'subunit', 'area'][level ?? _currentLevel];
+  // ── Load data saat tab diklik, skip jika sudah pernah load ──
+  Future<void> _loadTabData(int tabIndex) async {
+    if (_getDataForTab(tabIndex) != null) return;
 
-  String _getLevelTitle([int? level]) {
-    final l = level ?? _currentLevel;
-    return texts[['title_lokasi', 'title_unit', 'title_subunit', 'title_area'][l]] ?? '';
-  }
+    setState(() => _loading[tabIndex] = true);
 
-  String _getSearchHint() {
-    return texts[['search_lokasi', 'search_unit', 'search_subunit', 'search_area'][_currentLevel]] ?? '';
-  }
-
-  Future<void> _fetchData({String? parentId}) async {
-    setState(() => _isLoading = true);
-    _searchController.clear();
     try {
       final supabase = Supabase.instance.client;
-      List<dynamic> data = [];
+      List<dynamic> raw = [];
 
-      if (_currentLevel == 0) {
-        if (_hasFullAccess) {
-          // Pro/Executive: show ALL locations
-          data = await supabase
-              .from('lokasi')
-              .select('id_lokasi, nama_lokasi')
-              .order('nama_lokasi');
-        } else {
-          // Regular user: only their location
-          if (widget.userLokasiId != null) {
-            data = await supabase
+      switch (tabIndex) {
+        case 0: // Lokasi
+          if (_isProAccess) {
+            raw = await supabase
+                .from('lokasi')
+                .select('id_lokasi, nama_lokasi')
+                .order('nama_lokasi');
+          } else if (widget.userLokasiId != null) {
+            // Non-pro: hanya lokasi milik user
+            raw = await supabase
                 .from('lokasi')
                 .select('id_lokasi, nama_lokasi')
                 .eq('id_lokasi', widget.userLokasiId!);
           }
-        }
-      } else if (_currentLevel == 1) {
-        if (_hasFullAccess) {
-          data = await supabase
-              .from('unit')
-              .select('id_unit, nama_unit, id_lokasi')
-              .eq('id_lokasi', parentId!)
-              .order('nama_unit');
-        } else {
-          // Regular: only their unit
-          if (widget.userUnitId != null) {
-            data = await supabase
+          break;
+
+        case 1: // Unit
+          if (_isProAccess) {
+            raw = await supabase
                 .from('unit')
                 .select('id_unit, nama_unit, id_lokasi')
-                .eq('id_lokasi', parentId!)
-                .eq('id_unit', widget.userUnitId!);
+                .order('nama_unit');
+          } else if (widget.userLokasiId != null) {
+            // Non-pro: hanya unit di lokasi user
+            // Jika user punya unit spesifik, tampilkan hanya itu
+            if (widget.userUnitId != null) {
+              raw = await supabase
+                  .from('unit')
+                  .select('id_unit, nama_unit, id_lokasi')
+                  .eq('id_lokasi', widget.userLokasiId!)
+                  .eq('id_unit', widget.userUnitId!)
+                  .order('nama_unit');
+            } else {
+              raw = await supabase
+                  .from('unit')
+                  .select('id_unit, nama_unit, id_lokasi')
+                  .eq('id_lokasi', widget.userLokasiId!)
+                  .order('nama_unit');
+            }
           }
-        }
-      } else if (_currentLevel == 2) {
-        if (_hasFullAccess) {
-          data = await supabase
-              .from('subunit')
-              .select('id_subunit, nama_subunit, id_unit')
-              .eq('id_unit', parentId!)
-              .order('nama_subunit');
-        } else {
-          if (widget.userSubunitId != null) {
-            data = await supabase
+          break;
+
+        case 2: // Subunit
+          if (_isProAccess) {
+            raw = await supabase
                 .from('subunit')
-                .select('id_subunit, nama_subunit, id_unit')
-                .eq('id_unit', parentId!)
-                .eq('id_subunit', widget.userSubunitId!);
-          } else {
-            data = await supabase
-                .from('subunit')
-                .select('id_subunit, nama_subunit, id_unit')
-                .eq('id_unit', parentId!)
+                .select('id_subunit, nama_subunit, id_unit, id_lokasi')
                 .order('nama_subunit');
+          } else if (widget.userLokasiId != null) {
+            // Non-pro: filter by lokasi, unit, dan subunit user
+            var q = supabase
+                .from('subunit')
+                .select('id_subunit, nama_subunit, id_unit, id_lokasi')
+                .eq('id_lokasi', widget.userLokasiId!);
+            if (widget.userUnitId != null) {
+              q = q.eq('id_unit', widget.userUnitId!);
+            }
+            if (widget.userSubunitId != null) {
+              q = q.eq('id_subunit', widget.userSubunitId!);
+            }
+            raw = await q.order('nama_subunit');
           }
-        }
-      } else if (_currentLevel == 3) {
-        if (_hasFullAccess) {
-          data = await supabase
-              .from('area')
-              .select('id_area, nama_area, id_subunit')
-              .eq('id_subunit', parentId!)
-              .order('nama_area');
-        } else {
-          if (widget.userAreaId != null) {
-            data = await supabase
+          break;
+
+        case 3: // Area
+          if (_isProAccess) {
+            raw = await supabase
                 .from('area')
-                .select('id_area, nama_area, id_subunit')
-                .eq('id_subunit', parentId!)
-                .eq('id_area', widget.userAreaId!);
-          } else {
-            data = await supabase
-                .from('area')
-                .select('id_area, nama_area, id_subunit')
-                .eq('id_subunit', parentId!)
+                .select('id_area, nama_area, id_subunit, id_unit, id_lokasi')
                 .order('nama_area');
+          } else if (widget.userLokasiId != null) {
+            // Non-pro: filter by lokasi, unit, subunit, dan area user
+            var q = supabase
+                .from('area')
+                .select('id_area, nama_area, id_subunit, id_unit, id_lokasi')
+                .eq('id_lokasi', widget.userLokasiId!);
+            if (widget.userUnitId != null) {
+              q = q.eq('id_unit', widget.userUnitId!);
+            }
+            if (widget.userSubunitId != null) {
+              q = q.eq('id_subunit', widget.userSubunitId!);
+            }
+            if (widget.userAreaId != null) {
+              q = q.eq('id_area', widget.userAreaId!);
+            }
+            raw = await q.order('nama_area');
           }
-        }
+          break;
       }
 
-      if (mounted) {
-        setState(() {
-          _currentData = data;
-          _filteredData = data;
-          _isLoading = false;
-        });
-      }
+      if (!mounted) return;
+      final list = List<Map<String, dynamic>>.from(raw);
+      setState(() {
+        switch (tabIndex) {
+          case 0: _lokasiData  = list; break;
+          case 1: _unitData    = list; break;
+          case 2: _subunitData = list; break;
+          case 3: _areaData    = list; break;
+        }
+        _loading[tabIndex] = false;
+      });
     } catch (e) {
-      debugPrint("Error loading location picker: $e");
-      if (mounted) setState(() => _isLoading = false);
+      debugPrint('Error load tab $tabIndex: $e');
+      if (mounted) setState(() => _loading[tabIndex] = false);
     }
   }
 
-  void _onSearchChanged() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      _filteredData = _currentData.where((item) {
-        final name =
-            item['nama_${_getLevelName()}']?.toString().toLowerCase() ?? '';
-        return name.contains(query);
-      }).toList();
-    });
+  List<Map<String, dynamic>>? _getDataForTab(int index) {
+    return [_lokasiData, _unitData, _subunitData, _areaData][index];
   }
 
-  void _goBack() {
-    if (_navHistory.isEmpty) {
-      Navigator.pop(context);
+  // ── Search global — cari di semua level ──
+  Future<void> _onSearchChanged() async {
+    final q = _searchCtrl.text.trim();
+    if (q.isEmpty) {
+      setState(() { _searchResults = null; _isSearching = false; });
       return;
     }
-    final prev = _navHistory.removeLast();
-    setState(() => _currentLevel--);
-    _fetchData(parentId: _navHistory.isEmpty ? null : _navHistory.last['id'] as String?);
-  }
 
-  void _navigateDeeper(Map<String, dynamic> item) {
-    if (_currentLevel >= 3) return;
-    final tName = _getLevelName();
-    _navHistory.add({
-      'level': _currentLevel,
-      'id': item['id_$tName']?.toString(),
-      'name': item['nama_$tName'],
-    });
-    setState(() => _currentLevel++);
-    _fetchData(parentId: item['id_${_getLevelName(_currentLevel - 1)}']?.toString());
-  }
+    setState(() => _isSearching = true);
 
-  void _selectItem(Map<String, dynamic> item) {
-    final tName = _getLevelName();
-    final Map<String, dynamic> result = {};
-
-    // Build ID hierarchy from navigation history
-    for (final h in _navHistory) {
-      result['id_${_getLevelName(h['level'])}'] = h['id'];
+    // Pastikan semua level sudah di-load
+    for (int i = 0; i < 4; i++) {
+      await _loadTabData(i);
     }
-    result['id_$tName'] = item['id_$tName'];
 
-    // Build display name (full path)
-    final parts = _navHistory.map((h) => h['name'] as String).toList();
-    parts.add(item['nama_$tName']);
+    final qLow = q.toLowerCase();
+    final results = <_SearchResult>[];
+
+    void addFromList(
+      List<Map<String, dynamic>>? data,
+      int tabIndex,
+      String idKey,
+      String nameKey,
+      String levelLabel,
+    ) {
+      if (data == null) return;
+      for (final item in data) {
+        final name = (item[nameKey] ?? '').toString();
+        if (name.toLowerCase().contains(qLow)) {
+          results.add(_SearchResult(
+            tabIndex: tabIndex,
+            id: item[idKey]?.toString() ?? '',
+            name: name,
+            levelLabel: levelLabel,
+            raw: item,
+          ));
+        }
+      }
+    }
+
+    addFromList(_lokasiData,  0, 'id_lokasi',  'nama_lokasi',  _t('Lokasi',   'Location', '地点'));
+    addFromList(_unitData,    1, 'id_unit',    'nama_unit',    'Unit');
+    addFromList(_subunitData, 2, 'id_subunit', 'nama_subunit', 'Sub-Unit');
+    addFromList(_areaData,    3, 'id_area',    'nama_area',    'Area');
+
+    if (mounted) setState(() { _searchResults = results; _isSearching = false; });
+  }
+
+  // ── Pilih item dan kembalikan result map ──
+  void _selectItem({
+    required int tabIndex,
+    required Map<String, dynamic> raw,
+  }) {
+    final Map<String, dynamic> result = {};
+    final parts = <String>[];
+
+    switch (tabIndex) {
+      case 0:
+        result['id_lokasi'] = raw['id_lokasi'];
+        parts.add(raw['nama_lokasi'] ?? '');
+        break;
+      case 1:
+        result['id_lokasi'] = raw['id_lokasi'];
+        result['id_unit']   = raw['id_unit'];
+        parts.add(raw['nama_unit'] ?? '');
+        break;
+      case 2:
+        result['id_lokasi']  = raw['id_lokasi'];
+        result['id_unit']    = raw['id_unit'];
+        result['id_subunit'] = raw['id_subunit'];
+        parts.add(raw['nama_subunit'] ?? '');
+        break;
+      case 3:
+        result['id_lokasi']  = raw['id_lokasi'];
+        result['id_unit']    = raw['id_unit'];
+        result['id_subunit'] = raw['id_subunit'];
+        result['id_area']    = raw['id_area'];
+        parts.add(raw['nama_area'] ?? '');
+        break;
+    }
+
     result['nama'] = parts.join(' / ');
-
     Navigator.pop(context, result);
   }
 
-  Widget _buildShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade200,
-      highlightColor: Colors.white,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: 5,
-        itemBuilder: (_, __) => Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          height: 64,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+  // ── Build satu baris item ──
+  Widget _buildItem({
+    required int tabIndex,
+    required Map<String, dynamic> raw,
+    required String displayName,
+    required bool isSelected,
+    String? subtitle,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? const Color(0xFF00C9E4).withOpacity(0.05)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isSelected
+              ? const Color(0xFF00C9E4).withOpacity(0.45)
+              : Colors.grey.shade200,
+          width: isSelected ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 4, offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _selectItem(tabIndex: tabIndex, raw: raw),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF00C9E4).withOpacity(0.12)
+                        : const Color(0xFF1E3A8A).withOpacity(0.07),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    _tabIcons[tabIndex],
+                    color: isSelected
+                        ? const Color(0xFF00C9E4)
+                        : const Color(0xFF1E3A8A),
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isSelected
+                              ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected
+                              ? const Color(0xFF00C9E4)
+                              : const Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      if (subtitle != null)
+                        Text(subtitle,
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500)),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _selectItem(tabIndex: tabIndex, raw: raw),
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFFE0F7FA),
+                    foregroundColor: const Color(0xFF0891B2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18)),
+                  ),
+                  child: Text(
+                    _t('Pilih', 'Select', '选择'),
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // Level indicator breadcrumb
-  Widget _buildBreadcrumb() {
-    final levels = [
-      texts['title_lokasi']!,
-      texts['title_unit']!,
-      texts['title_subunit']!,
-      texts['title_area']!,
-    ];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: List.generate(4, (i) {
-          final isActive = i == _currentLevel;
-          final isPast = i < _currentLevel;
-          return Row(
+  // ── Konten search results ──
+  Widget _buildSearchResults() {
+    if (_isSearching) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.only(top: 48),
+          child: CircularProgressIndicator(
+              color: Color(0xFF00C9E4), strokeWidth: 2),
+        ),
+      );
+    }
+
+    final results = _searchResults ?? [];
+    if (results.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              GestureDetector(
-                onTap: isPast
-                    ? () {
-                        // Navigate back to that level
-                        final stepsBack = _currentLevel - i;
-                        for (int s = 0; s < stepsBack; s++) {
-                          if (_navHistory.isNotEmpty) _navHistory.removeLast();
-                        }
-                        setState(() => _currentLevel = i);
-                        _fetchData(
-                            parentId: _navHistory.isEmpty
-                                ? null
-                                : _navHistory.last['id'] as String?);
-                      }
-                    : null,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? const Color(0xFF1E3A8A)
-                        : isPast
-                            ? const Color(0xFF1E3A8A).withOpacity(0.1)
-                            : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    levels[i],
-                    style: TextStyle(
-                      color: isActive
-                          ? Colors.white
-                          : isPast
-                              ? const Color(0xFF1E3A8A)
-                              : Colors.grey.shade400,
-                      fontSize: 11,
-                      fontWeight: isActive
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                  ),
+              Icon(Icons.search_off_rounded,
+                  size: 44, color: Colors.grey.shade300),
+              const SizedBox(height: 10),
+              Text(
+                _t('Tidak ada hasil', 'No results found', '没有结果'),
+                style: TextStyle(color: Colors.grey.shade500),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final labels = [
+      _t('Lokasi', 'Location', '地点'),
+      'Unit', 'Sub-Unit', 'Area',
+    ];
+
+    // Kelompokkan per level
+    final grouped = <int, List<_SearchResult>>{};
+    for (final r in results) {
+      grouped.putIfAbsent(r.tabIndex, () => []).add(r);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        for (final entry in grouped.entries) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, top: 4),
+            child: Row(children: [
+              Icon(_tabIcons[entry.key],
+                  size: 13, color: const Color(0xFF00C9E4)),
+              const SizedBox(width: 6),
+              Text(
+                labels[entry.key],
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E3A8A),
                 ),
               ),
-              if (i < 3)
-                Icon(Icons.chevron_right,
-                    size: 16,
-                    color: i < _currentLevel
-                        ? const Color(0xFF1E3A8A)
-                        : Colors.grey.shade300),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E3A8A).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${entry.value.length}',
+                  style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E3A8A)),
+                ),
+              ),
+            ]),
+          ),
+          for (final r in entry.value)
+            _buildItem(
+              tabIndex: r.tabIndex,
+              raw: r.raw,
+              displayName: r.name,
+              isSelected: false,
+            ),
+        ],
+      ],
+    );
+  }
+
+  // ── Konten per tab ──
+  Widget _buildTabContent(int tabIndex) {
+    final isLoading = _loading[tabIndex] == true;
+    final data = _getDataForTab(tabIndex);
+
+    if (isLoading || data == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.only(top: 48),
+          child: CircularProgressIndicator(
+              color: Color(0xFF00C9E4), strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (data.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.location_off_rounded,
+                  size: 44, color: Colors.grey.shade300),
+              const SizedBox(height: 10),
+              Text(
+                _t('Data tidak tersedia', 'No data available', '没有数据'),
+                style: TextStyle(color: Colors.grey.shade500),
+              ),
             ],
-          );
-        }),
+          ),
+        ),
+      );
+    }
+
+    // Key & name per tab
+    final keys = [
+      ('id_lokasi', 'nama_lokasi'),
+      ('id_unit',   'nama_unit'),
+      ('id_subunit','nama_subunit'),
+      ('id_area',   'nama_area'),
+    ];
+    final preSelected = [
+      widget.preSelectedLokasiId,
+      widget.preSelectedUnitId,
+      widget.preSelectedSubunitId,
+      widget.preSelectedAreaId,
+    ];
+    final (idKey, nameKey) = keys[tabIndex];
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      itemCount: data.length,
+      itemBuilder: (_, i) {
+        final item = data[i];
+        final id   = item[idKey]?.toString() ?? '';
+        final name = item[nameKey]?.toString() ?? '';
+        return _buildItem(
+          tabIndex: tabIndex,
+          raw: item,
+          displayName: name,
+          isSelected: id == preSelected[tabIndex],
+        );
+      },
+    );
+  }
+
+  // ── Tab label dengan dot indicator jika ada pre-selection ──
+  Widget _buildTabLabel(String label, String? preSelectedId) {
+    return Tab(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w700)),
+          if (preSelectedId != null) ...[
+            const SizedBox(width: 4),
+            Container(
+              width: 6, height: 6,
+              decoration: const BoxDecoration(
+                  color: Color(0xFF00C9E4), shape: BoxShape.circle),
+            ),
+          ],
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLastLevel = _currentLevel == 3;
-    final itemCount = _filteredData.length;
+    final isSearchActive = _searchCtrl.text.trim().isNotEmpty;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.9,
@@ -3054,269 +3303,168 @@ class _FullLocationPickerBottomSheetState
       ),
       child: Column(
         children: [
-          // Handle bar
+          // ── Handle ──
           Container(
             margin: const EdgeInsets.only(top: 10),
-            width: 40,
-            height: 4,
+            width: 40, height: 4,
             decoration: BoxDecoration(
               color: Colors.grey.shade300,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
 
-          // App Bar Row
+          // ── Header ──
           Container(
             color: Colors.white,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
             child: Row(
               children: [
                 IconButton(
-                  icon: Icon(
-                    _navHistory.isEmpty ? Icons.close : Icons.arrow_back_ios,
-                    color: const Color(0xFF1E3A8A),
-                    size: 20,
-                  ),
-                  onPressed: _goBack,
+                  icon: const Icon(Icons.close,
+                      color: Color(0xFF1E3A8A), size: 20),
+                  onPressed: () => Navigator.pop(context),
                 ),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _navHistory.isEmpty
-                            ? _getLevelTitle()
-                            : _navHistory.last['name'],
+                        _t('PILIH LOKASI', 'SELECT LOCATION', '选择地点'),
                         style: const TextStyle(
                           color: Color(0xFF1E3A8A),
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontSize: 15,
                         ),
                       ),
-                      if (!_hasFullAccess)
+                      if (!_isProAccess)
                         Text(
-                          texts['my_location']!,
+                          _t('Lokasi Saya', 'My Location', '我的位置'),
                           style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.orange.shade600,
-                          ),
+                              fontSize: 11,
+                              color: Colors.orange.shade600),
                         ),
                     ],
                   ),
                 ),
-                // Item count badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E3A8A).withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(20),
+                // Badge jumlah item di tab aktif
+                if (!isSearchActive)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E3A8A).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_getDataForTab(_tabCtrl.index)?.length ?? 0}',
+                      style: const TextStyle(
+                          color: Color(0xFF1E3A8A),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13),
+                    ),
                   ),
-                  child: Text(
-                    '$itemCount',
-                    style: const TextStyle(
-                        color: Color(0xFF1E3A8A),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13),
-                  ),
-                ),
               ],
             ),
           ),
 
-          // Breadcrumb navigation
+          // ── 4 Tab (selalu tampil) ──
           Container(
             color: Colors.white,
-            child: _buildBreadcrumb(),
+            child: TabBar(
+              controller: _tabCtrl,
+              isScrollable: false,
+              indicatorColor: const Color(0xFF00C9E4),
+              indicatorWeight: 2.5,
+              labelColor: const Color(0xFF00C9E4),
+              unselectedLabelColor: Colors.grey.shade500,
+              tabs: [
+                _buildTabLabel(
+                    _t('Lokasi', 'Location', '地点'),
+                    widget.preSelectedLokasiId),
+                _buildTabLabel('Unit', widget.preSelectedUnitId),
+                _buildTabLabel('Sub-Unit', widget.preSelectedSubunitId),
+                _buildTabLabel('Area', widget.preSelectedAreaId),
+              ],
+            ),
           ),
 
-          // Divider
-          Container(
-              height: 1, color: Colors.grey.shade200),
+          Divider(color: Colors.grey.shade200, height: 1),
 
-          // Search Bar
+          // ── Search bar global ──
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: TextField(
-              controller: _searchController,
+              controller: _searchCtrl,
               decoration: InputDecoration(
-                hintText: _getSearchHint(),
-                hintStyle:
-                    TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                hintText: _t(
+                  'Cari lokasi, unit, sub-unit, area...',
+                  'Search location, unit, sub-unit, area...',
+                  '搜索地点、单位、子单位、区域...',
+                ),
+                hintStyle: TextStyle(
+                    color: Colors.grey.shade400, fontSize: 13),
                 prefixIcon: const Icon(Icons.search,
                     color: Color(0xFF1E3A8A), size: 20),
+                suffixIcon: isSearchActive
+                    ? IconButton(
+                        icon: Icon(Icons.clear,
+                            color: Colors.grey.shade400, size: 18),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                        },
+                      )
+                    : null,
                 filled: true,
                 fillColor: Colors.grey.shade50,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
-                ),
+                    borderRadius: BorderRadius.circular(28),
+                    borderSide: BorderSide(color: Colors.grey.shade200)),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
-                ),
+                    borderRadius: BorderRadius.circular(28),
+                    borderSide: BorderSide(color: Colors.grey.shade200)),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: const BorderSide(
-                      color: Color(0xFF00C9E4), width: 1.5),
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+                    borderRadius: BorderRadius.circular(28),
+                    borderSide: const BorderSide(
+                        color: Color(0xFF00C9E4), width: 1.5)),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
               ),
             ),
           ),
 
-          // List
-          Expanded(
-            child: _isLoading
-                ? _buildShimmer()
-                : _filteredData.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.location_off,
-                                size: 48,
-                                color: Colors.grey.shade300),
-                            const SizedBox(height: 8),
-                            Text(
-                              texts['empty']!,
-                              style: TextStyle(
-                                  color: Colors.grey.shade400,
-                                  fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                        itemCount: _filteredData.length,
-                        itemBuilder: (context, index) {
-                          final item = _filteredData[index];
-                          final tName = _getLevelName();
-                          final name = item['nama_$tName'] ?? '';
+          Divider(color: Colors.grey.shade100, height: 1),
 
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: Colors.grey.shade200),
-                              boxShadow: [
-                                BoxShadow(
-                                  color:
-                                      Colors.black.withOpacity(0.04),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Material(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(14),
-                              child: InkWell(
-                                onTap: isLastLevel
-                                    ? () => _selectItem(item)
-                                    : () => _navigateDeeper(item),
-                                borderRadius: BorderRadius.circular(14),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 14),
-                                  child: Row(
-                                    children: [
-                                      // Level icon
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF1E3A8A)
-                                              .withOpacity(0.08),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        child: Icon(
-                                          [
-                                            Icons.location_city,
-                                            Icons.business,
-                                            Icons.layers_outlined,
-                                            Icons.place,
-                                          ][_currentLevel],
-                                          color: const Color(0xFF1E3A8A),
-                                          size: 18,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 14),
-                                      Expanded(
-                                        child: Text(
-                                          name,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 15,
-                                            color: Color(0xFF1A1A2E),
-                                          ),
-                                        ),
-                                      ),
-                                      // Select button
-                                      TextButton(
-                                        onPressed: () => _selectItem(item),
-                                        style: TextButton.styleFrom(
-                                          backgroundColor:
-                                              const Color(0xFFE0F7FA),
-                                          foregroundColor:
-                                              const Color(0xFF0891B2),
-                                          padding:
-                                              const EdgeInsets.symmetric(
-                                                  horizontal: 14,
-                                                  vertical: 6),
-                                          minimumSize: Size.zero,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          texts['select']!,
-                                          style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600),
-                                        ),
-                                      ),
-                                      // Drill down arrow (if not last level)
-                                      if (!isLastLevel) ...[
-                                        const SizedBox(width: 4),
-                                        GestureDetector(
-                                          onTap: () =>
-                                              _navigateDeeper(item),
-                                          child: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey.shade100,
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                      8),
-                                            ),
-                                            child: Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.grey.shade500,
-                                              size: 18,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+          // ── Konten: search results ATAU tab view ──
+          Expanded(
+            child: isSearchActive
+                ? _buildSearchResults()
+                : TabBarView(
+                    controller: _tabCtrl,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: List.generate(4, _buildTabContent),
+                  ),
           ),
         ],
       ),
     );
   }
+}
+
+// ── Model ringan untuk hasil search global ──
+class _SearchResult {
+  final int tabIndex;
+  final String id;
+  final String name;
+  final String levelLabel;
+  final Map<String, dynamic> raw;
+
+  const _SearchResult({
+    required this.tabIndex,
+    required this.id,
+    required this.name,
+    required this.levelLabel,
+    required this.raw,
+  });
 }
