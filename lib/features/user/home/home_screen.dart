@@ -1627,6 +1627,7 @@ class _HomeScreenState extends State<HomeScreen> {
       isProMode: _isProMode,
       isVisitorMode: _isVisitorMode,
       isUserDataLoading: _isUserDataLoading,
+      isAtAtmi: _isAtAtmi,
       userName: _userName,
       userRole: _userRole,
       userLocationName: _userLocationName,

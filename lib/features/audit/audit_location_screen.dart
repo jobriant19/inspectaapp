@@ -105,6 +105,11 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
     'lokasi': null, 'unit': null, 'subunit': null, 'area': null,
   };
 
+  // ✅ BARU: cek apakah level memiliki schedule (untuk filter audit status)
+  final _hasSchedule = <String, bool>{
+    'lokasi': false, 'unit': false, 'subunit': false, 'area': false,
+  };
+
   // ✅ BARU: cache data lokasi/unit/subunit untuk dropdown filter
   List<Map<String, dynamic>> _allLokasi   = [];
   List<Map<String, dynamic>> _allUnit     = [];
@@ -226,6 +231,8 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
         final ref = s['id_ref'].toString();
         if (!scheduleMap.containsKey(ref)) scheduleMap[ref] = s as Map<String, dynamic>;
       }
+
+      _hasSchedule[level] = scheduleRows.isNotEmpty;
 
       final items = rows.map<_LocationItem>((r) {
         final id = r[idCol].toString();
@@ -907,31 +914,33 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                             const Divider(),
                             const SizedBox(height: 8),
 
-                            // ── Filter Status Audit ──
-                            Text(_t('Audit Status', 'Status Audit', '审计状态'),
-                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub)),
-                            const SizedBox(height: 8),
-                            Wrap(spacing: 8, runSpacing: 8, children: [
-                              _FilterChipItem(
-                                label: _t('All', 'Semua', '全部'),
-                                isSelected: selectedAuditStatus == null,
-                                color: _C.primary,
-                                onTap: () => setInner(() => selectedAuditStatus = null),
-                              ),
-                              _FilterChipItem(
-                                label: _t('Audited', 'Sudah Diaudit', '已审计'),
-                                isSelected: selectedAuditStatus == 'audited',
-                                color: _C.green,
-                                onTap: () => setInner(() => selectedAuditStatus = 'audited'),
-                              ),
-                              _FilterChipItem(
-                                label: _t('Not Audited', 'Belum Diaudit', '未审计'),
-                                isSelected: selectedAuditStatus == 'not_audited',
-                                color: _C.amber,
-                                onTap: () => setInner(() => selectedAuditStatus = 'not_audited'),
-                              ),
-                            ]),
-                            const SizedBox(height: 16),
+                            // ✅ BARU: Filter Status Audit hanya tampil jika ada schedule
+                            if (_hasSchedule[level] == true) ...[
+                              Text(_t('Audit Status', 'Status Audit', '审计状态'),
+                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub)),
+                              const SizedBox(height: 8),
+                              Wrap(spacing: 8, runSpacing: 8, children: [
+                                _FilterChipItem(
+                                  label: _t('All', 'Semua', '全部'),
+                                  isSelected: selectedAuditStatus == null,
+                                  color: _C.primary,
+                                  onTap: () => setInner(() => selectedAuditStatus = null),
+                                ),
+                                _FilterChipItem(
+                                  label: _t('Audited', 'Sudah Diaudit', '已审计'),
+                                  isSelected: selectedAuditStatus == 'audited',
+                                  color: _C.green,
+                                  onTap: () => setInner(() => selectedAuditStatus = 'audited'),
+                                ),
+                                _FilterChipItem(
+                                  label: _t('Not Audited', 'Belum Diaudit', '未审计'),
+                                  isSelected: selectedAuditStatus == 'not_audited',
+                                  color: _C.amber,
+                                  onTap: () => setInner(() => selectedAuditStatus = 'not_audited'),
+                                ),
+                              ]),
+                              const SizedBox(height: 16),
+                            ],
 
                             // ── Filter Range Nilai Audit ──
                             Text(_t('Score Range', 'Rentang Nilai', '分数范围'),

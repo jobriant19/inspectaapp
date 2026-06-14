@@ -33,6 +33,7 @@ class HomeContent extends StatefulWidget {
   final bool isProMode;
   final bool isVisitorMode;
   final bool isUserDataLoading;
+  final bool isAtAtmi;
   final String userName;
   final String userRole;
   final String userLocationName;
@@ -61,6 +62,7 @@ class HomeContent extends StatefulWidget {
     required this.isProMode,
     required this.isVisitorMode,
     required this.isUserDataLoading,
+    required this.isAtAtmi,
     required this.userName,
     required this.userRole,
     required this.userLocationName,
@@ -281,7 +283,9 @@ class HomeContentState extends State<HomeContent> {
       final today = DateTime.now().toIso8601String().split('T').first;
       final rows = await _sb
           .from('audit_schedule')
-          .select('id_schedule, level_type, id_ref, periode_mulai, periode_selesai, status')
+          .select(
+              'id_schedule, level_type, id_ref, periode_mulai, periode_selesai, status, '
+              'id_jenis_audit, JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)') // ✅ BARU
           .eq('id_auditor', userId)
           .inFilter('status', ['pending', 'in_progress'])
           .lte('periode_mulai', today)
@@ -312,9 +316,22 @@ class HomeContentState extends State<HomeContent> {
         } catch (_) {}
       }));
 
-      return List<Map<String, dynamic>>.from(rows).map((row) => {
-        ...row,
-        'location_name': nameMap[row['id_ref'].toString()] ?? row['id_ref'].toString(),
+      return List<Map<String, dynamic>>.from(rows).map((row) {
+        // ✅ BARU: label jenis audit sesuai bahasa
+        String? jenisLabel;
+        final jenisData = row['JenisAudit'] as Map<String, dynamic>?;
+        if (jenisData != null) {
+          jenisLabel = widget.lang == 'EN'
+              ? jenisData['nama_en']?.toString()
+              : widget.lang == 'ZH'
+                  ? jenisData['nama_zh']?.toString()
+                  : jenisData['nama_id']?.toString();
+        }
+        return {
+          ...row,
+          'location_name': nameMap[row['id_ref'].toString()] ?? row['id_ref'].toString(),
+          'jenis_audit_label': jenisLabel, // ✅ BARU
+        };
       }).toList();
     } catch (e) {
       debugPrint('Pending audits error: $e');
@@ -731,7 +748,11 @@ class HomeContentState extends State<HomeContent> {
   }
 
   // Pending Audit Section
+  // Pending Audit Section
   Widget _buildPendingAuditSection() {
+    // ✅ BARU: sembunyikan jika tidak berada di PT ATMI Solo
+    if (!widget.isAtAtmi) return const SizedBox.shrink();
+
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _pendingAuditsFuture,
       builder: (context, snapshot) {
@@ -793,7 +814,11 @@ class HomeContentState extends State<HomeContent> {
             ),
           ),
         );
-        setState(() => _pendingAuditsFuture = _fetchPendingAudits());
+        if (mounted) {
+          setState(() {
+            _pendingAuditsFuture = _fetchPendingAudits();
+          });
+        }
       },
       child: Container(
         width: double.infinity,
@@ -822,6 +847,22 @@ class HomeContentState extends State<HomeContent> {
                   Text(locationName,
                       style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
+                  // ✅ BARU: Badge jenis audit
+                  if (task['jenis_audit_label'] != null) ...[
+                    const SizedBox(height: 3),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        task['jenis_audit_label'].toString(),
+                        style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
                   Text('$levelLabel  •  $from → $to',
                       style: GoogleFonts.poppins(fontSize: 11, color: Colors.white70)),
                 ],
