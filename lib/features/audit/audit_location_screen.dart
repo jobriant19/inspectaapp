@@ -470,7 +470,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
               decoration: BoxDecoration(
                 color: _C.surface,
                 borderRadius:
@@ -740,27 +740,21 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          // ── State filter hierarki ──
           String? selectedLokasiId  = current?.idLokasi;
           String? selectedUnitId    = current?.idUnit;
           String? selectedSubunitId = current?.idSubunit;
-
-          // ── State filter audit ──
           String? selectedAuditStatus = current?.auditStatus;
           double? selectedMinScore    = current?.minScore;
           double? selectedMaxScore    = current?.maxScore;
 
-          // Filter unit berdasarkan lokasi
           List<Map<String, dynamic>> filteredUnit = selectedLokasiId == null
               ? _allUnit
               : _allUnit.where((u) => u['id_lokasi']?.toString() == selectedLokasiId).toList();
 
-          // Filter subunit berdasarkan unit (BUKAN lokasi)
           List<Map<String, dynamic>> filteredSubunit = selectedUnitId == null
               ? _allSubunit
               : _allSubunit.where((s) => s['id_unit']?.toString() == selectedUnitId).toList();
 
-          // Opsi range nilai audit
           final scoreRanges = [
             {'label': _t('All Scores', 'Semua Nilai', '所有分数'), 'min': null, 'max': null},
             {'label': '≥ 80% (${_t('Good', 'Baik', '良好')})', 'min': 80.0, 'max': null},
@@ -807,7 +801,6 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                     child: StatefulBuilder(
                       builder: (ctx2, setInner) {
-                        // Recompute filtered list setiap rebuild inner
                         filteredUnit = selectedLokasiId == null
                             ? _allUnit
                             : _allUnit.where((u) => u['id_lokasi']?.toString() == selectedLokasiId).toList();
@@ -818,41 +811,39 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // ── Filter Lokasi (untuk semua level) ──
-                            if (level == 'lokasi' || level == 'unit' || level == 'subunit' || level == 'area') ...[
-                              Text(_t('Location', 'Lokasi', '位置'),
-                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub)),
-                              const SizedBox(height: 8),
-                              Wrap(spacing: 8, runSpacing: 8, children: [
-                                _FilterChipItem(
-                                  label: _t('All', 'Semua', '全部'),
-                                  isSelected: selectedLokasiId == null,
+                            // ── Filter Lokasi ──
+                            Text(_t('Location', 'Lokasi', '位置'),
+                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub)),
+                            const SizedBox(height: 8),
+                            Wrap(spacing: 8, runSpacing: 8, children: [
+                              _FilterChipItem(
+                                label: _t('All', 'Semua', '全部'),
+                                isSelected: selectedLokasiId == null,
+                                color: _C.primary,
+                                onTap: () => setInner(() {
+                                  selectedLokasiId  = null;
+                                  selectedUnitId    = null;
+                                  selectedSubunitId = null;
+                                }),
+                              ),
+                              ..._allLokasi.map((lok) {
+                                final id   = lok['id_lokasi']?.toString() ?? '';
+                                final nama = lok['nama_lokasi']?.toString() ?? '';
+                                return _FilterChipItem(
+                                  label: nama,
+                                  isSelected: selectedLokasiId == id,
                                   color: _C.primary,
                                   onTap: () => setInner(() {
-                                    selectedLokasiId  = null;
+                                    selectedLokasiId  = id;
                                     selectedUnitId    = null;
                                     selectedSubunitId = null;
                                   }),
-                                ),
-                                ..._allLokasi.map((lok) {
-                                  final id   = lok['id_lokasi']?.toString() ?? '';
-                                  final nama = lok['nama_lokasi']?.toString() ?? '';
-                                  return _FilterChipItem(
-                                    label: nama,
-                                    isSelected: selectedLokasiId == id,
-                                    color: _C.primary,
-                                    onTap: () => setInner(() {
-                                      selectedLokasiId  = id;
-                                      selectedUnitId    = null;
-                                      selectedSubunitId = null;
-                                    }),
-                                  );
-                                }),
-                              ]),
-                              const SizedBox(height: 16),
-                            ],
+                                );
+                              }),
+                            ]),
+                            const SizedBox(height: 16),
 
-                            // ── Filter Unit (untuk subunit & area, dan jika lokasi dipilih untuk unit) ──
+                            // ── Filter Unit ──
                             if ((level == 'subunit' || level == 'area') ||
                                 (level == 'unit' && selectedLokasiId != null)) ...[
                               Text(_t('Unit', 'Unit', '单元'),
@@ -885,8 +876,11 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                               const SizedBox(height: 16),
                             ],
 
-                            // ── Filter Subunit (untuk area saja, berdasarkan unit yang dipilih) ──
-                            if (level == 'area' && selectedUnitId != null) ...[
+                            // ── Filter Sub-Unit (untuk subunit tab & area tab) ──
+                            // subunit tab: tampil jika lokasi dipilih (filter berdasarkan unit yg ada di lokasi itu)
+                            // area tab: tampil selalu, filter berdasarkan unit jika dipilih
+                            if ((level == 'subunit' && selectedLokasiId != null) ||
+                                level == 'area') ...[
                               Text(_t('Sub-Unit', 'Sub-Unit', '子单元'),
                                   style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub)),
                               const SizedBox(height: 8),
@@ -914,7 +908,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                             const Divider(),
                             const SizedBox(height: 8),
 
-                            // ✅ BARU: Filter Status Audit hanya tampil jika ada schedule
+                            // ── Filter Status Audit ──
                             if (_hasSchedule[level] == true) ...[
                               Text(_t('Audit Status', 'Status Audit', '审计状态'),
                                   style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub)),
@@ -942,7 +936,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                               const SizedBox(height: 16),
                             ],
 
-                            // ── Filter Range Nilai Audit ──
+                            // ── Filter Range Nilai ──
                             Text(_t('Score Range', 'Rentang Nilai', '分数范围'),
                                 style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub)),
                             const SizedBox(height: 8),
@@ -992,15 +986,15 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                               selectedMaxScore != null;
                           _filterHierarchy[level] = hasFilter
                               ? _HierarchyFilter(
-                                  idLokasi:      selectedLokasiId,
-                                  namaLokasi:    lokasiNama,
-                                  idUnit:        selectedUnitId,
-                                  namaUnit:      unitNama,
-                                  idSubunit:     selectedSubunitId,
-                                  namaSubunit:   subunitNama,
-                                  auditStatus:   selectedAuditStatus,
-                                  minScore:      selectedMinScore,
-                                  maxScore:      selectedMaxScore,
+                                  idLokasi:    selectedLokasiId,
+                                  namaLokasi:  lokasiNama,
+                                  idUnit:      selectedUnitId,
+                                  namaUnit:    unitNama,
+                                  idSubunit:   selectedSubunitId,
+                                  namaSubunit: subunitNama,
+                                  auditStatus: selectedAuditStatus,
+                                  minScore:    selectedMinScore,
+                                  maxScore:    selectedMaxScore,
                                 )
                               : null;
                         });
@@ -1135,6 +1129,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               Expanded(
                 child: TextField(
                   onChanged: (v) => setState(() => _search[level] = v),
+                  style: GoogleFonts.poppins(fontSize: 14, color: _C.textMain),
                   decoration: InputDecoration(
                     hintText: _t('Search…', 'Cari…', '搜索…'),
                     hintStyle: GoogleFonts.poppins(
