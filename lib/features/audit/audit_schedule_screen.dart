@@ -25,6 +25,7 @@ class AuditScheduleData {
   final DateTime periodeSelesai;
   final String? catatan;
   final String? idJenisAudit;
+  final String? notifTime;
 
   const AuditScheduleData({
     required this.idSchedule,
@@ -36,6 +37,7 @@ class AuditScheduleData {
     required this.periodeSelesai,
     this.catatan,
     this.idJenisAudit,
+    this.notifTime,
   });
 }
 
@@ -79,6 +81,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
   // ── UI state ──
   bool _loadingInit = true; // true saat fetch awal (schedule + auditors)
   bool _saving      = false;
+  TimeOfDay _notifTime = const TimeOfDay(hour: 9, minute: 0);
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -144,6 +147,17 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
           _catatanCtrl.text = schedule.catatan ?? '';
           _selectedJenisAuditId = schedule.idJenisAudit; // ✅ BARU
 
+          // ✅ BARU: restore notif_time dari schedule yang sudah ada
+          if (schedule.notifTime != null) {
+            final parts = schedule.notifTime!.split(':');
+            if (parts.length >= 2) {
+              _notifTime = TimeOfDay(
+                hour:   int.tryParse(parts[0]) ?? 9,
+                minute: int.tryParse(parts[1]) ?? 0,
+              );
+            }
+          }
+
           final match = auditors.firstWhere(
             (u) => u['id_user']?.toString() == schedule.idAuditor,
             orElse: () => {
@@ -170,7 +184,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     final rows = await _supabase
         .from('audit_schedule')
         .select(
-            'id_schedule, id_auditor, periode_mulai, periode_selesai, catatan, id_jenis_audit, '
+            'id_schedule, id_auditor, periode_mulai, periode_selesai, catatan, id_jenis_audit, notif_time, '
             'User_Auditor:User!fk_audit_schedule_auditor(nama, gambar_user, jabatan!User_id_jabatan_fkey(nama_jabatan))')
         .eq('level_type', widget.levelType)
         .eq('id_ref', widget.idRef)
@@ -193,6 +207,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       periodeSelesai: DateTime.parse(r['periode_selesai'].toString()),
       catatan:        r['catatan']?.toString(),
       idJenisAudit:   r['id_jenis_audit']?.toString(), // ✅ BARU
+      notifTime:      r['notif_time']?.toString(), // ✅ BARU
     );
   }
 
@@ -233,6 +248,24 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     }
   }
 
+  // ─── Time picker notifikasi ───────────────────────────────────────────────
+  Future<void> _pickNotifTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _notifTime,
+      builder: (c, child) => Theme(
+        data: ThemeData.light().copyWith(
+          colorScheme: const ColorScheme.light(primary: _SC.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _notifTime = picked);
+  }
+
+  String _fmtTime(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} WIB';
+
   // ─── Save / Update ───────────────────────────────────────────────────────
   Future<void> _save() async {
     if (_selectedJenisAuditId == null) { // ✅ BARU
@@ -253,14 +286,18 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
 
     setState(() => _saving = true);
     try {
+      final notifTimeStr =
+          '${_notifTime.hour.toString().padLeft(2, '0')}:${_notifTime.minute.toString().padLeft(2, '0')}';
+
       final payload = {
         'level_type':      widget.levelType,
         'id_ref':          widget.idRef,
         'id_auditor':      _selectedAuditor!['id_user'],
-        'id_jenis_audit':  _selectedJenisAuditId, // ✅ BARU
+        'id_jenis_audit':  _selectedJenisAuditId,
         'periode_mulai':   _periodeAwal!.toIso8601String().split('T').first,
         'periode_selesai': _periodeAkhir!.toIso8601String().split('T').first,
         'status':          'pending',
+        'notif_time':      notifTimeStr, // ✅ BARU
         'catatan': _catatanCtrl.text.trim().isEmpty
             ? null
             : _catatanCtrl.text.trim(),
@@ -513,6 +550,66 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                           ),
                         ),
                         const SizedBox(height: 16),
+
+                        // ── Waktu Notifikasi ───────────────────────────────
+                        Text(
+                          _t('Reminder Time', 'Waktu Pengingat', '提醒时间'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: _SC.textSub),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _t(
+                            'Daily reminder for auditor for 7 days if audit not yet submitted.',
+                            'Pengingat harian ke auditor selama 7 hari jika audit belum disubmit.',
+                            '若未提交审计，将每天提醒审计员，持续7天。',
+                          ),
+                          style: GoogleFonts.poppins(
+                              fontSize: 10.5, color: Colors.grey.shade500),
+                        ),
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: _pickNotifTime,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 13),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: _SC.primary.withOpacity(0.5),
+                                  width: 1.5),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                    Icons.notifications_active_rounded,
+                                    color: _SC.primary,
+                                    size: 18),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _fmtTime(_notifTime),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: _SC.textMain),
+                                  ),
+                                ),
+                                Text(
+                                  _t('Change', 'Ubah', '更改'),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: _SC.primary,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
 
                         // ── Notes ──────────────────────────────────────
                         Text(
