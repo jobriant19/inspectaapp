@@ -811,6 +811,7 @@ class HomeContentState extends State<HomeContent> {
               locationName: locationName,
               idSchedule: task['id_schedule'].toString(),
               selfieUrl: selfieUrl,
+              idJenisAudit: task['id_jenis_audit']?.toString(),
             ),
           ),
         );

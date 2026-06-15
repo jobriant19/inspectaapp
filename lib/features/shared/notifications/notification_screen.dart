@@ -31,46 +31,42 @@ class _NotificationScreenState extends State<NotificationScreen>
   static const Map<String, Map<String, String>> _texts = {
     'EN': {
       'title': 'Notifications',
-      'tab_findings': 'Assigned Findings',
-      'tab_activity': 'Activity Log',
+      'tab_findings': 'Findings',
+      'tab_activity': 'Activity',
+      'tab_audit': 'Audit',
       'empty_findings': 'No assigned findings',
       'empty_findings_sub': 'Findings assigned to you will appear here.',
       'empty_activity': 'No activity yet',
       'empty_activity_sub': 'Your point history will appear here.',
-      'status_done': 'Completed',
-      'status_pending': 'Pending',
-      'points': 'Points',
-      'total_points': 'Total Points',
+      'empty_audit': 'No audit notifications',
+      'empty_audit_sub': 'Audit results for your locations will appear here.',
     },
     'ID': {
       'title': 'Notifikasi',
-      'tab_findings': 'Temuan Ditugaskan',
-      'tab_activity': 'Log Aktivitas',
+      'tab_findings': 'Temuan',
+      'tab_activity': 'Aktivitas',
+      'tab_audit': 'Audit',
       'empty_findings': 'Tidak ada temuan ditugaskan',
       'empty_findings_sub': 'Temuan yang ditugaskan ke Anda akan muncul di sini.',
       'empty_activity': 'Belum ada aktivitas',
       'empty_activity_sub': 'Riwayat poin Anda akan muncul di sini.',
-      'status_done': 'Selesai',
-      'status_pending': 'Belum Selesai',
-      'points': 'Poin',
-      'total_points': 'Total Poin',
+      'empty_audit': 'Belum ada notif audit',
+      'empty_audit_sub': 'Hasil audit untuk lokasi Anda akan muncul di sini.',
     },
     'ZH': {
       'title': '通知',
-      'tab_findings': '已分配发现',
-      'tab_activity': '活动日志',
+      'tab_findings': '发现',
+      'tab_activity': '活动',
+      'tab_audit': '审计',
       'empty_findings': '没有分配的发现',
       'empty_findings_sub': '分配给您的发现将显示在此处。',
       'empty_activity': '暂无活动',
       'empty_activity_sub': '您的积分历史将显示在此处。',
-      'status_done': '完成',
-      'status_pending': '待处理',
-      'points': '积分',
-      'total_points': '总积分',
+      'empty_audit': '暂无审计通知',
+      'empty_audit_sub': '您管理位置的审计结果将显示在此处。',
     },
   };
 
-  // ── Realtime channels ──
   RealtimeChannel? _findingsChannel;
   RealtimeChannel? _logsChannel;
 
@@ -79,7 +75,7 @@ class _NotificationScreenState extends State<NotificationScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _setupRealtimeListeners();
   }
 
@@ -87,8 +83,7 @@ class _NotificationScreenState extends State<NotificationScreen>
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
 
-    // ── Helper: ambil fcm_token user ini ──
-    Future<String?> _getFcmToken() async {
+    Future<String?> getFcmToken() async {
       try {
         final data = await Supabase.instance.client
             .from('User')
@@ -97,12 +92,9 @@ class _NotificationScreenState extends State<NotificationScreen>
             .maybeSingle();
         final token = data?['fcm_token']?.toString();
         return (token != null && token.trim().isNotEmpty) ? token.trim() : null;
-      } catch (_) {
-        return null;
-      }
+      } catch (_) { return null; }
     }
 
-    // ── Listener 1: Assigned Finding baru → push ke user PIC ──
     _findingsChannel = Supabase.instance.client
         .channel('notif_findings_$userId')
         .onPostgresChanges(
@@ -118,36 +110,20 @@ class _NotificationScreenState extends State<NotificationScreen>
             if (!mounted) return;
             final newRow = payload.newRecord;
             final judul = newRow['judul_temuan']?.toString() ?? 'Temuan baru';
-
             final notifTitle = widget.lang == 'EN'
                 ? '📋 New Finding Assigned'
-                : widget.lang == 'ZH'
-                    ? '📋 新发现已分配'
-                    : '📋 Temuan Baru Ditugaskan';
-
-            // Notif lokal (app foreground)
+                : widget.lang == 'ZH' ? '📋 新发现已分配' : '📋 Temuan Baru Ditugaskan';
             await PushNotificationService.instance.showLocalNotification(
-              title: notifTitle,
-              body: judul,
-              payload: 'findings',
-            );
-
-            // FCM push (app background/killed)
-            final fcmToken = await _getFcmToken();
+                title: notifTitle, body: judul, payload: 'findings');
+            final fcmToken = await getFcmToken();
             if (fcmToken != null) {
               await NotificationService.sendFcmToToken(
-                fcmToken: fcmToken,
-                title: notifTitle,
-                body: judul,
-                route: 'findings',
-              );
-              debugPrint('✅ FCM assigned finding sent');
+                  fcmToken: fcmToken, title: notifTitle, body: judul, route: 'findings');
             }
           },
         )
         .subscribe();
 
-    // ── Listener 2: berbagi poin (terima_poin_berbagi & bonus_berbagi) ──
     _logsChannel = Supabase.instance.client
         .channel('notif_logs_$userId')
         .onPostgresChanges(
@@ -165,49 +141,25 @@ class _NotificationScreenState extends State<NotificationScreen>
             final tipe = newRow['tipe_aktivitas']?.toString() ?? '';
             final poin = (newRow['poin'] as num?)?.toInt() ?? 0;
             final deskripsi = newRow['deskripsi']?.toString() ?? '';
-
             if (tipe != 'terima_poin_berbagi' && tipe != 'bonus_berbagi') return;
 
             String notifTitle;
             String notifBody;
-
             if (tipe == 'terima_poin_berbagi') {
-              notifTitle = widget.lang == 'EN'
-                  ? '🎁 You received shared points!'
-                  : widget.lang == 'ZH'
-                      ? '🎁 您收到了分享积分！'
-                      : '🎁 Kamu menerima poin berbagi!';
-              notifBody = widget.lang == 'EN'
-                  ? '+$poin points: $deskripsi'
-                  : '+$poin poin: $deskripsi';
+              notifTitle = widget.lang == 'EN' ? '🎁 You received shared points!'
+                  : widget.lang == 'ZH' ? '🎁 您收到了分享积分！' : '🎁 Kamu menerima poin berbagi!';
+              notifBody = '+$poin ${widget.lang == 'EN' ? 'points' : 'poin'}: $deskripsi';
             } else {
-              notifTitle = widget.lang == 'EN'
-                  ? '🔥 Sharing Bonus Received!'
-                  : widget.lang == 'ZH'
-                      ? '🔥 分享奖励已获得！'
-                      : '🔥 Bonus Berbagi Diterima!';
-              notifBody = widget.lang == 'EN'
-                  ? '+$poin points: $deskripsi'
-                  : '+$poin poin: $deskripsi';
+              notifTitle = widget.lang == 'EN' ? '🔥 Sharing Bonus Received!'
+                  : widget.lang == 'ZH' ? '🔥 分享奖励已获得！' : '🔥 Bonus Berbagi Diterima!';
+              notifBody = '+$poin ${widget.lang == 'EN' ? 'points' : 'poin'}: $deskripsi';
             }
-
-            // Notif lokal (app foreground)
             await PushNotificationService.instance.showLocalNotification(
-              title: notifTitle,
-              body: notifBody,
-              payload: 'activity',
-            );
-
-            // FCM push (app background/killed)
-            final fcmToken = await _getFcmToken();
+                title: notifTitle, body: notifBody, payload: 'activity');
+            final fcmToken = await getFcmToken();
             if (fcmToken != null) {
               await NotificationService.sendFcmToToken(
-                fcmToken: fcmToken,
-                title: notifTitle,
-                body: notifBody,
-                route: 'activity',
-              );
-              debugPrint('✅ FCM berbagi poin sent ($tipe)');
+                  fcmToken: fcmToken, title: notifTitle, body: notifBody, route: 'activity');
             }
           },
         )
@@ -217,12 +169,8 @@ class _NotificationScreenState extends State<NotificationScreen>
   @override
   void dispose() {
     _tabController.dispose();
-    if (_findingsChannel != null) {
-      Supabase.instance.client.removeChannel(_findingsChannel!);
-    }
-    if (_logsChannel != null) {
-      Supabase.instance.client.removeChannel(_logsChannel!);
-    }
+    if (_findingsChannel != null) Supabase.instance.client.removeChannel(_findingsChannel!);
+    if (_logsChannel != null) Supabase.instance.client.removeChannel(_logsChannel!);
     super.dispose();
   }
 
@@ -238,7 +186,7 @@ class _NotificationScreenState extends State<NotificationScreen>
         backgroundColor: const Color(0xFFF8FAFF),
         body: Column(
           children: [
-            // ── HEADER TETAP ──
+            // ── HEADER ──
             Container(
               color: Colors.white,
               child: SafeArea(
@@ -277,6 +225,7 @@ class _NotificationScreenState extends State<NotificationScreen>
                       ),
                     ),
                     const SizedBox(height: 12),
+                    // ── 3 Tab dalam satu baris rapi ──
                     Container(
                       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                       padding: const EdgeInsets.all(3),
@@ -296,29 +245,44 @@ class _NotificationScreenState extends State<NotificationScreen>
                         labelColor: Colors.white,
                         unselectedLabelColor: const Color(0xFF0EA5E9),
                         labelStyle: GoogleFonts.poppins(
-                            fontSize: 12, fontWeight: FontWeight.w700),
+                            fontSize: 11, fontWeight: FontWeight.w700),
                         unselectedLabelStyle: GoogleFonts.poppins(
-                            fontSize: 12, fontWeight: FontWeight.w500),
+                            fontSize: 11, fontWeight: FontWeight.w500),
                         dividerColor: Colors.transparent,
                         tabs: [
                           Tab(
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.assignment_ind_outlined,
-                                    size: 15),
-                                const SizedBox(width: 5),
-                                Text(_t('tab_findings')),
+                                const Icon(Icons.assignment_ind_outlined, size: 13),
+                                const SizedBox(width: 4),
+                                Flexible(child: Text(_t('tab_findings'),
+                                    overflow: TextOverflow.ellipsis, maxLines: 1)),
                               ],
                             ),
                           ),
                           Tab(
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.history_rounded, size: 15),
-                                const SizedBox(width: 5),
-                                Text(_t('tab_activity')),
+                                const Icon(Icons.history_rounded, size: 13),
+                                const SizedBox(width: 4),
+                                Flexible(child: Text(_t('tab_activity'),
+                                    overflow: TextOverflow.ellipsis, maxLines: 1)),
+                              ],
+                            ),
+                          ),
+                          Tab(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.fact_check_outlined, size: 13),
+                                const SizedBox(width: 4),
+                                Flexible(child: Text(_t('tab_audit'),
+                                    overflow: TextOverflow.ellipsis, maxLines: 1)),
                               ],
                             ),
                           ),
@@ -345,6 +309,7 @@ class _NotificationScreenState extends State<NotificationScreen>
                     initialLogs: widget.initialActivityLogs,
                     t: _t,
                   ),
+                  _AuditNotifTab(lang: widget.lang, t: _t),
                 ],
               ),
             ),
@@ -356,18 +321,699 @@ class _NotificationScreenState extends State<NotificationScreen>
 }
 
 // ══════════════════════════════════════════════
-// TAB 1: Assigned Findings
+// TAB AUDIT NOTIF
+// ══════════════════════════════════════════════
+class _AuditNotifTab extends StatefulWidget {
+  final String lang;
+  final String Function(String) t;
+
+  const _AuditNotifTab({required this.lang, required this.t});
+
+  @override
+  State<_AuditNotifTab> createState() => _AuditNotifTabState();
+}
+
+class _AuditNotifTabState extends State<_AuditNotifTab>
+    with AutomaticKeepAliveClientMixin {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _items = [];
+  bool _isLoading = false;
+
+  // Apakah user ini adalah PIC dari lokasi/unit/subunit/area
+  // Jika ya → tampilkan hasil audit dari area yang dia PIC-i
+  // Jika tidak → tampilkan audit yang dia lakukan (sebagai auditor)
+  bool _isPic = false;
+  String? _userId;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _userId = _supabase.auth.currentUser?.id;
+    _fetchAuditNotifs();
+  }
+
+  String _t(String en, String id, String zh) {
+    if (widget.lang == 'EN') return en;
+    if (widget.lang == 'ZH') return zh;
+    return id;
+  }
+
+  Future<void> _fetchAuditNotifs() async {
+    if (_userId == null) return;
+    setState(() => _isLoading = true);
+    try {
+      // Fetch semua level dimana user ini adalah PIC
+      final results = await Future.wait([
+        _supabase.from('lokasi').select('id_lokasi').eq('id_pic', _userId!),
+        _supabase.from('unit').select('id_unit').eq('id_pic', _userId!),
+        _supabase.from('subunit').select('id_subunit').eq('id_pic', _userId!),
+        _supabase.from('area').select('id_area').eq('id_pic', _userId!),
+      ]);
+
+      final List<Map<String, dynamic>> picRefs = [];
+      for (final row in results[0] as List) picRefs.add({'level': 'lokasi', 'id': row['id_lokasi'].toString()});
+      for (final row in results[1] as List) picRefs.add({'level': 'unit', 'id': row['id_unit'].toString()});
+      for (final row in results[2] as List) picRefs.add({'level': 'subunit', 'id': row['id_subunit'].toString()});
+      for (final row in results[3] as List) picRefs.add({'level': 'area', 'id': row['id_area'].toString()});
+
+      _isPic = picRefs.isNotEmpty;
+
+      List<Map<String, dynamic>> auditItems = [];
+
+      if (_isPic) {
+        // Fetch audit_result untuk setiap ref yang PIC-i user ini
+        for (final ref in picRefs) {
+          final rows = await _supabase
+              .from('audit_result')
+              .select(
+                'id_result, level_type, id_ref, tanggal_audit, nilai_audit, '
+                'catatan_audit, selfie_url, created_at, '
+                'Auditor:User!fk_audit_result_auditor(nama, gambar_user)',
+              )
+              .eq('level_type', ref['level']!)
+              .eq('id_ref', ref['id']!)
+              .order('created_at', ascending: false)
+              .limit(20);
+
+          for (final row in rows as List) {
+            final r = Map<String, dynamic>.from(row as Map);
+            r['_is_pic_view'] = true; // saya sebagai PIC melihat hasil audit
+            r['_level'] = ref['level'];
+            auditItems.add(r);
+          }
+        }
+      } else {
+        // Fetch audit_result yang user ini lakukan sebagai auditor
+        final rows = await _supabase
+            .from('audit_result')
+            .select(
+              'id_result, level_type, id_ref, tanggal_audit, nilai_audit, '
+              'catatan_audit, selfie_url, created_at',
+            )
+            .eq('id_auditor', _userId!)
+            .order('created_at', ascending: false)
+            .limit(50);
+        for (final row in rows as List) {
+          final r = Map<String, dynamic>.from(row as Map);
+          r['_is_pic_view'] = false;
+          auditItems.add(r);
+        }
+      }
+
+      // Sort by created_at desc
+      auditItems.sort((a, b) {
+        final aTime = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
+        final bTime = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
+        return bTime.compareTo(aTime);
+      });
+
+      // Fetch nama lokasi per id_ref
+      for (final item in auditItems) {
+        final levelType = item['level_type']?.toString() ?? item['_level']?.toString() ?? '';
+        final idRef = item['id_ref']?.toString() ?? '';
+        if (levelType.isEmpty || idRef.isEmpty) continue;
+        try {
+          final nameCol = 'nama_$levelType';
+          final idCol = 'id_$levelType';
+          final nameRow = await _supabase
+              .from(levelType)
+              .select('$nameCol, id_pic')
+              .eq(idCol, idRef)
+              .maybeSingle();
+          item['_location_name'] = nameRow?[nameCol]?.toString() ?? '-';
+        } catch (_) {
+          item['_location_name'] = '-';
+        }
+      }
+
+      // Fetch jawaban No untuk setiap result (untuk tampilkan reply thread)
+      for (final item in auditItems) {
+        final idResult = item['id_result']?.toString() ?? '';
+        if (idResult.isEmpty) continue;
+        try {
+          final answers = await _supabase
+              .from('audit_answer')
+              .select(
+                'id_answer, jawaban, catatan, gambar_jawaban, '
+                'Question:audit_question(pertanyaan, pertanyaan_en, pertanyaan_zh), '
+                'Replies:audit_answer_reply(id_reply, catatan_reply, gambar_reply, is_confirmed, created_at, '
+                'PIC:User!fk_reply_pic(nama, gambar_user))',
+              )
+              .eq('id_result', idResult)
+              .eq('jawaban', false);
+          item['_no_answers'] = List<Map<String, dynamic>>.from(answers);
+        } catch (_) {
+          item['_no_answers'] = [];
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _items = auditItems;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetch audit notifs: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Color _scoreColor(double? score) {
+    if (score == null) return const Color(0xFF64748B);
+    if (score >= 80) return const Color(0xFF10B981);
+    if (score >= 60) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  String _formatDate(dynamic value) {
+    if (value == null) return '-';
+    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
+    if (dt == null) return '-';
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays < 1) return _t('Today', 'Hari ini', '今天');
+    if (diff.inDays < 7) return '${diff.inDays} ${_t('days ago', 'hari lalu', '天前')}';
+    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+  }
+
+  String _questionText(Map<String, dynamic> q) {
+    final qData = q['Question'] as Map<String, dynamic>?;
+    if (qData == null) return '-';
+    if (widget.lang == 'EN') return qData['pertanyaan_en']?.toString() ?? qData['pertanyaan']?.toString() ?? '-';
+    if (widget.lang == 'ZH') return qData['pertanyaan_zh']?.toString() ?? qData['pertanyaan']?.toString() ?? '-';
+    return qData['pertanyaan']?.toString() ?? '-';
+  }
+
+  Future<void> _showReplyDialog(Map<String, dynamic> answer, String idResult) async {
+    final noteCtrl = TextEditingController();
+    String? photoUrl;
+    bool submitting = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _t('Reply to Finding', 'Balas Temuan', '回复发现'),
+                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1E3A8A)),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _questionText(answer),
+                  style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF64748B)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 14),
+                // Upload foto bukti perbaikan
+                GestureDetector(
+                  onTap: () async {
+                    // Gunakan AuditEvidenceCameraScreen atau image picker sesuai kebutuhan
+                    // Di sini menggunakan placeholder — sambungkan ke camera screen Anda
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.35)),
+                    ),
+                    child: photoUrl == null
+                        ? Column(children: [
+                            const Icon(Icons.add_a_photo_rounded,
+                                color: Color(0xFF6366F1), size: 22),
+                            const SizedBox(height: 4),
+                            Text(_t('Upload Evidence Photo', 'Upload Foto Bukti Perbaikan', '上传修复证据照片'),
+                                style: GoogleFonts.poppins(fontSize: 12,
+                                    fontWeight: FontWeight.w600, color: const Color(0xFF6366F1))),
+                          ])
+                        : ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(photoUrl, height: 120, fit: BoxFit.cover),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 3,
+                  style: GoogleFonts.poppins(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: _t('Describe the corrective action taken…',
+                        'Jelaskan tindakan perbaikan yang dilakukan…', '描述已采取的纠正措施…'),
+                    hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: submitting ? null : () async {
+                      if (noteCtrl.text.trim().isEmpty) return;
+                      setSt(() => submitting = true);
+                      try {
+                        await _supabase.from('audit_answer_reply').insert({
+                          'id_answer': answer['id_answer'],
+                          'id_pic': _userId,
+                          'catatan_reply': noteCtrl.text.trim(),
+                          'gambar_reply': photoUrl,
+                          'is_confirmed': false,
+                        });
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        _fetchAuditNotifs();
+                      } catch (e) {
+                        setSt(() => submitting = false);
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: const Color(0xFFEF4444),
+                          ));
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6366F1),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: submitting
+                        ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : Text(_t('Send Reply', 'Kirim Balasan', '发送回复'),
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmReply(String idReply) async {
+    try {
+      await _supabase
+          .from('audit_answer_reply')
+          .update({'is_confirmed': true})
+          .eq('id_reply', idReply);
+      _fetchAuditNotifs();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+        ));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_isLoading) {
+      return Shimmer.fromColors(
+        baseColor: Colors.grey.shade200,
+        highlightColor: Colors.grey.shade100,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: 4,
+          itemBuilder: (_, __) => Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            height: 120,
+            decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+      );
+    }
+
+    if (_items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80, height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF6366F1).withOpacity(0.08),
+              ),
+              child: Icon(Icons.fact_check_outlined,
+                  size: 36, color: const Color(0xFF6366F1).withOpacity(0.5)),
+            ),
+            const SizedBox(height: 16),
+            Text(widget.t('empty_audit'),
+                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1E3A8A))),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(widget.t('empty_audit_sub'),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _fetchAuditNotifs,
+      color: const Color(0xFF6366F1),
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) => _buildAuditCard(_items[index]),
+      ),
+    );
+  }
+
+  Widget _buildAuditCard(Map<String, dynamic> item) {
+    final score = double.tryParse(item['nilai_audit']?.toString() ?? '');
+    final scoreColor = _scoreColor(score);
+    final isPicView = item['_is_pic_view'] == true;
+    final locationName = item['_location_name']?.toString() ?? '-';
+    final levelType = item['level_type']?.toString() ?? '';
+    final date = _formatDate(item['tanggal_audit']);
+    final auditorData = item['Auditor'] as Map<String, dynamic>?;
+    final auditorName = auditorData?['nama']?.toString() ?? '-';
+    final noAnswers = (item['_no_answers'] as List<Map<String, dynamic>>?) ?? [];
+    final idResult = item['id_result']?.toString() ?? '';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scoreColor.withOpacity(0.25), width: 1.2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04),
+              blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        children: [
+          // ── Header ──
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(
+                    color: scoreColor.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      score != null ? '${score.toStringAsFixed(0)}%' : '-',
+                      style: GoogleFonts.poppins(
+                          fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            levelType.toUpperCase(),
+                            style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700,
+                                color: const Color(0xFF6366F1)),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            locationName,
+                            style: GoogleFonts.poppins(fontSize: 13,
+                                fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A)),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 3),
+                      Text(
+                        isPicView
+                            ? '${_t('Audited by', 'Diaudit oleh', '审计员')}: $auditorName'
+                            : '${_t('You audited', 'Anda mengaudit', '您审计了')}: $locationName',
+                        style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF64748B)),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        date,
+                        style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey.shade400),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Jawaban No + Thread Reply ──
+          if (noAnswers.isNotEmpty) ...[
+            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, size: 13, color: Color(0xFFEF4444)),
+                const SizedBox(width: 5),
+                Text(
+                  '${noAnswers.length} ${_t('finding(s) need action', 'temuan perlu tindakan', '个发现需要处理')}',
+                  style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600,
+                      color: const Color(0xFFEF4444)),
+                ),
+              ]),
+            ),
+            ...noAnswers.map((ans) => _buildAnswerThread(ans, isPicView, idResult)),
+            const SizedBox(height: 10),
+          ] else
+            const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnswerThread(Map<String, dynamic> ans, bool isPicView, String idResult) {
+    final replies = (ans['Replies'] as List?)
+        ?.map((r) => Map<String, dynamic>.from(r as Map))
+        .toList() ?? [];
+    final hasReply = replies.isNotEmpty;
+    final latestReply = hasReply ? replies.last : null;
+    final isConfirmed = latestReply?['is_confirmed'] == true;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Pertanyaan
+          Text(
+            _questionText(ans),
+            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600,
+                color: const Color(0xFF1E3A8A)),
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+          ),
+          // Catatan auditor
+          if ((ans['catatan']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              ans['catatan'].toString(),
+              style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF64748B)),
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          // Foto bukti auditor
+          if ((ans['gambar_jawaban']?.toString() ?? '').isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                ans['gambar_jawaban'].toString(),
+                height: 100, width: double.infinity, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+          ],
+
+          // ── Replies dari PIC ──
+          if (hasReply) ...[
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            ...replies.map((reply) {
+              final picData = reply['PIC'] as Map<String, dynamic>?;
+              final picName = picData?['nama']?.toString() ?? '-';
+              final confirmed = reply['is_confirmed'] == true;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: confirmed
+                      ? const Color(0xFF10B981).withOpacity(0.07)
+                      : const Color(0xFF6366F1).withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: confirmed
+                        ? const Color(0xFF10B981).withOpacity(0.3)
+                        : const Color(0xFF6366F1).withOpacity(0.2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Icon(
+                        confirmed ? Icons.verified_rounded : Icons.reply_rounded,
+                        size: 13,
+                        color: confirmed ? const Color(0xFF10B981) : const Color(0xFF6366F1),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          '$picName ${confirmed ? '✓ ${_t('Confirmed', 'Dikonfirmasi', '已确认')}' : ''}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11, fontWeight: FontWeight.w600,
+                            color: confirmed ? const Color(0xFF10B981) : const Color(0xFF6366F1),
+                          ),
+                        ),
+                      ),
+                    ]),
+                    if ((reply['catatan_reply']?.toString() ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        reply['catatan_reply'].toString(),
+                        style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF1E3A8A)),
+                      ),
+                    ],
+                    if ((reply['gambar_reply']?.toString() ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          reply['gambar_reply'].toString(),
+                          height: 80, width: double.infinity, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                    // Tombol konfirmasi (hanya untuk auditor yang melihat, reply belum confirmed)
+                    if (!isPicView && !confirmed) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _confirmReply(reply['id_reply'].toString()),
+                          icon: const Icon(Icons.check_circle_outline_rounded, size: 14),
+                          label: Text(_t('Confirm Fixed', 'Konfirmasi Sudah Diperbaiki', '确认已修复'),
+                              style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF10B981),
+                            side: const BorderSide(color: Color(0xFF10B981)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+          ],
+
+          // ── Tombol Reply (hanya untuk PIC, jika belum ada reply atau belum confirmed) ──
+          if (isPicView && (!hasReply || (latestReply != null && !isConfirmed))) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _showReplyDialog(ans, idResult),
+                icon: const Icon(Icons.reply_rounded, size: 14),
+                label: Text(
+                  hasReply
+                      ? _t('Update Reply', 'Perbarui Balasan', '更新回复')
+                      : _t('Reply', 'Balas', '回复'),
+                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════
+// TAB 1 & 2 — tidak berubah dari kode asli
 // ══════════════════════════════════════════════
 class _AssignedFindingsTab extends StatefulWidget {
   final String lang;
   final List<Map<String, dynamic>>? initialData;
   final String Function(String) t;
 
-  const _AssignedFindingsTab({
-    required this.lang,
-    required this.t,
-    this.initialData,
-  });
+  const _AssignedFindingsTab({required this.lang, required this.t, this.initialData});
 
   @override
   State<_AssignedFindingsTab> createState() => _AssignedFindingsTabState();
@@ -423,9 +1069,7 @@ class _AssignedFindingsTabState extends State<_AssignedFindingsTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-
     if (_isLoading) return _buildShimmer();
-
     if (_items.isEmpty) {
       return _buildEmpty(
         widget.t('empty_findings'),
@@ -451,23 +1095,18 @@ class _AssignedFindingsTabState extends State<_AssignedFindingsTab>
                 const Color(0xFFEF4444).withOpacity(0.05),
               ]),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: const Color(0xFFDC2626).withOpacity(0.2)),
+              border: Border.all(color: const Color(0xFFDC2626).withOpacity(0.2)),
             ),
             child: Row(children: [
-              const Icon(Icons.pending_actions_rounded,
-                  color: Color(0xFFDC2626), size: 20),
+              const Icon(Icons.pending_actions_rounded, color: Color(0xFFDC2626), size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   widget.lang == 'ID'
                       ? '$pendingCount temuan masih menunggu penyelesaian Anda'
                       : '$pendingCount findings are waiting for your action',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFFDC2626),
-                  ),
+                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600,
+                      color: const Color(0xFFDC2626)),
                 ),
               ),
             ]),
@@ -485,10 +1124,7 @@ class _AssignedFindingsTabState extends State<_AssignedFindingsTab>
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => FindingDetailScreen(
-                        initialData: item,
-                        lang: widget.lang,
-                      ),
+                      builder: (_) => FindingDetailScreen(initialData: item, lang: widget.lang),
                     ),
                   );
                 },
@@ -511,22 +1147,18 @@ class _AssignedFindingsTabState extends State<_AssignedFindingsTab>
               shape: BoxShape.circle,
               color: const Color(0xFF00C9E4).withOpacity(0.08),
             ),
-            child: Icon(icon, size: 36,
-                color: const Color(0xFF00C9E4).withOpacity(0.5)),
+            child: Icon(icon, size: 36, color: const Color(0xFF00C9E4).withOpacity(0.5)),
           ),
           const SizedBox(height: 16),
           Text(title,
-              style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
+              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700,
                   color: const Color(0xFF1E3A8A))),
           const SizedBox(height: 6),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(subtitle,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                    fontSize: 12, color: Colors.grey.shade500)),
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500)),
           ),
         ],
       ),
@@ -543,9 +1175,7 @@ class _AssignedFindingsTabState extends State<_AssignedFindingsTab>
         itemBuilder: (_, __) => Container(
           margin: const EdgeInsets.only(bottom: 12),
           height: 100,
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
         ),
       ),
     );

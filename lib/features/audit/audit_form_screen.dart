@@ -3,9 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'audit_evidence_camera_screen.dart';
 
-/// Screen that an auditor uses to answer questions and submit an audit.
-/// Flow: Yes -> auto next question. No -> wajib upload foto bukti + catatan
-/// sebelum bisa lanjut ke pertanyaan berikutnya.
+/// AuditFormScreen — pertanyaan dikelompokkan per tema sesuai jenis audit,
+/// muncul satu per satu saat dijawab, scroll vertikal, submit fixed di bawah.
 class AuditFormScreen extends StatefulWidget {
   final String lang;
   final String levelType;
@@ -13,6 +12,7 @@ class AuditFormScreen extends StatefulWidget {
   final String locationName;
   final String? idSchedule;
   final String? selfieUrl;
+  final String? idJenisAudit; // ← BARU: filter per jenis audit
 
   const AuditFormScreen({
     super.key,
@@ -22,6 +22,7 @@ class AuditFormScreen extends StatefulWidget {
     required this.locationName,
     this.idSchedule,
     this.selfieUrl,
+    this.idJenisAudit,
   });
 
   @override
@@ -30,24 +31,30 @@ class AuditFormScreen extends StatefulWidget {
 
 class _AuditFormScreenState extends State<AuditFormScreen> {
   final _supabase = Supabase.instance.client;
-  final _pageCtrl = PageController();
+  final _scrollCtrl = ScrollController();
 
+  // Data
+  List<Map<String, dynamic>> _temas = [];
   List<Map<String, dynamic>> _questions = [];
-  final Map<String, bool?> _answers = {};       // id_question → true/false/null
-  final Map<String, String> _evidenceUrls = {}; // id_question → image url (untuk jawaban No)
-  final Map<String, TextEditingController> _noteCtrls = {}; // id_question → catatan (untuk jawaban No)
-  final _finalNoteCtrl = TextEditingController(); // catatan akhir/umum
+  final Map<String, bool?> _answers = {};
+  final Map<String, String> _evidenceUrls = {};
+  final Map<String, TextEditingController> _noteCtrls = {};
+  final _finalNoteCtrl = TextEditingController();
 
   bool _loading = true;
   bool _submitting = false;
-  int _currentPage = 0;
 
-  static const _primary = Color(0xFF6366F1);
-  static const _green   = Color(0xFF10B981);
-  static const _red     = Color(0xFFEF4444);
-  static const _textMain = Color(0xFF1E3A8A);
-  static const _textSub  = Color(0xFF64748B);
-  static const _divider  = Color(0xFFE2E8F0);
+  // Keys untuk scroll otomatis ke pertanyaan berikutnya
+  final Map<String, GlobalKey> _questionKeys = {};
+
+  static const _primary   = Color(0xFF6366F1);
+  static const _green     = Color(0xFF10B981);
+  static const _red       = Color(0xFFEF4444);
+  static const _amber     = Color(0xFFF59E0B);
+  static const _textMain  = Color(0xFF1E3A8A);
+  static const _textSub   = Color(0xFF64748B);
+  static const _divider   = Color(0xFFE2E8F0);
+  static const _surface   = Color(0xFFF8FAFC);
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -58,35 +65,51 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchQuestions();
+    _fetchData();
   }
 
   @override
   void dispose() {
-    _pageCtrl.dispose();
+    _scrollCtrl.dispose();
     _finalNoteCtrl.dispose();
-    for (final c in _noteCtrls.values) {
-      c.dispose();
-    }
+    for (final c in _noteCtrls.values) c.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchQuestions() async {
+  Future<void> _fetchData() async {
     try {
-      final rows = await _supabase
+      // Fetch tema sesuai jenis audit
+      final temaQuery = _supabase.from('audit_tema').select();
+      if (widget.idJenisAudit != null) {
+        final temaRows = await temaQuery
+            .eq('id_jenis_audit', widget.idJenisAudit!)
+            .order('urutan');
+        _temas = List<Map<String, dynamic>>.from(temaRows);
+      } else {
+        final temaRows = await temaQuery.order('urutan');
+        _temas = List<Map<String, dynamic>>.from(temaRows);
+      }
+
+      // Fetch pertanyaan sesuai jenis audit
+      var qQuery = _supabase
           .from('audit_question')
           .select()
           .eq('level_type', widget.levelType)
           .eq('id_ref', widget.idRef)
-          .eq('is_active', true)
-          .order('urutan');
+          .eq('is_active', true);
+      if (widget.idJenisAudit != null) {
+        qQuery = qQuery.eq('id_jenis_audit', widget.idJenisAudit!);
+      }
+      final qRows = await qQuery.order('urutan');
+
       if (mounted) {
         setState(() {
-          _questions = List<Map<String, dynamic>>.from(rows);
+          _questions = List<Map<String, dynamic>>.from(qRows);
           for (final q in _questions) {
             final id = q['id_question'].toString();
             _answers[id] = null;
             _noteCtrls[id] = TextEditingController();
+            _questionKeys[id] = GlobalKey();
           }
           _loading = false;
         });
@@ -102,10 +125,36 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     return q['pertanyaan']?.toString() ?? '';
   }
 
-  // ── Total halaman = jumlah pertanyaan + 1 (halaman ringkasan/catatan akhir) ──
-  int get _totalPages => _questions.length + 1;
+  String _temaLabel(Map<String, dynamic> t) {
+    if (widget.lang == 'EN') return t['nama_tema_en']?.toString() ?? '-';
+    if (widget.lang == 'ZH') return t['nama_tema_zh']?.toString() ?? '-';
+    return t['nama_tema_id']?.toString() ?? '-';
+  }
 
-  // ── Skor akhir = rata-rata skor per tema, lalu rata-rata antar tema ──
+  // ── Pertanyaan yang sudah "visible" (pertanyaan pertama per tema selalu visible,
+  //    pertanyaan berikutnya visible setelah pertanyaan sebelumnya dijawab) ──
+  bool _isVisible(List<Map<String, dynamic>> temaQuestions, int index) {
+    if (index == 0) return true;
+    final prevId = temaQuestions[index - 1]['id_question'].toString();
+    return _isQuestionComplete(prevId);
+  }
+
+  bool _isQuestionComplete(String id) {
+    final ans = _answers[id];
+    if (ans == null) return false;
+    if (ans == false) {
+      return (_evidenceUrls[id] ?? '').isNotEmpty &&
+          (_noteCtrls[id]?.text.trim() ?? '').isNotEmpty;
+    }
+    return true;
+  }
+
+  bool get _allAnswered =>
+      _questions.isNotEmpty &&
+      _questions.every((q) => _isQuestionComplete(q['id_question'].toString()));
+
+  int get _answeredCount => _questions.where((q) => _isQuestionComplete(q['id_question'].toString())).length;
+
   double get _score {
     if (_questions.isEmpty) return 0;
     final Map<String, List<bool>> groups = {};
@@ -124,59 +173,46 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     return groupScores.reduce((a, b) => a + b) / groupScores.length;
   }
 
-  int get _answeredCount => _answers.values.where((v) => v != null).length;
-
-  // ── Apakah jawaban untuk pertanyaan ini sudah lengkap (termasuk bukti jika No) ──
-  bool _isQuestionComplete(String id) {
-    final ans = _answers[id];
-    if (ans == null) return false;
-    if (ans == false) {
-      final hasImage = (_evidenceUrls[id] ?? '').isNotEmpty;
-      final hasNote = (_noteCtrls[id]?.text.trim() ?? '').isNotEmpty;
-      return hasImage && hasNote;
-    }
-    return true;
-  }
-
-  bool get _allAnswered =>
-      _questions.isNotEmpty &&
-      _questions.every((q) => _isQuestionComplete(q['id_question'].toString()));
-
-  // ── Handler pilih Yes ──
-  void _onYes(String id) {
-    setState(() => _answers[id] = true);
-    _goNextAuto();
-  }
-
-  // ── Handler pilih No ──
-  void _onNo(String id) {
-    setState(() => _answers[id] = false);
-    // tidak auto-next, user harus isi bukti + catatan dulu
-  }
-
-  // ── Pindah otomatis ke halaman berikutnya (delay singkat agar UI terlihat) ──
-  void _goNextAuto() {
-    Future.delayed(const Duration(milliseconds: 250), () {
+  void _onAnswer(String id, bool value) {
+    setState(() => _answers[id] = value);
+    // Scroll ke next setelah delay singkat agar widget sudah ter-render
+    Future.delayed(const Duration(milliseconds: 350), () {
       if (!mounted) return;
-      if (_currentPage < _totalPages - 1) {
-        _pageCtrl.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-      }
+      _scrollToNext(id);
     });
   }
 
-  void _goNext() {
-    if (_currentPage < _totalPages - 1) {
-      _pageCtrl.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+  void _scrollToNext(String answeredId) {
+    final idx = _questions.indexWhere(
+      (q) => q['id_question'].toString() == answeredId,
+    );
+    if (idx < 0) return;
+
+    // Cari pertanyaan berikutnya yang belum complete
+    for (int i = idx + 1; i < _questions.length; i++) {
+      final nextId = _questions[i]['id_question'].toString();
+      final key = _questionKeys[nextId];
+      if (key?.currentContext != null) {
+        Scrollable.ensureVisible(
+          key!.currentContext!,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeInOut,
+          // alignment 0.0 = posisi target di paling atas viewport
+          alignment: 0.0,
+        );
+        return;
+      }
     }
+
+    // Jika tidak ada pertanyaan berikutnya (semua sudah dijawab),
+    // scroll ke bawah agar tombol Submit terlihat
+    _scrollCtrl.animateTo(
+      _scrollCtrl.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeInOut,
+    );
   }
 
-  void _goPrev() {
-    if (_currentPage > 0) {
-      _pageCtrl.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-    }
-  }
-
-  // ── Buka kamera bukti foto untuk jawaban "No" ──
   Future<void> _captureEvidence(String id, String questionText) async {
     final url = await Navigator.push<String>(
       context,
@@ -196,9 +232,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     if (!_allAnswered) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(_t(
-            'Please complete all questions (including evidence for "No" answers).',
-            'Lengkapi semua pertanyaan (termasuk bukti untuk jawaban "Tidak").',
-            '请完成所有问题（包括"否"答案的证据）。')),
+            'Please complete all questions.',
+            'Lengkapi semua pertanyaan.',
+            '请完成所有问题。')),
         backgroundColor: _red,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -212,7 +248,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       final userId = _supabase.auth.currentUser!.id;
       final score  = double.parse(_score.toStringAsFixed(2));
 
-      // 1. Insert audit_result
       final resultRow = await _supabase
           .from('audit_result')
           .insert({
@@ -232,7 +267,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
       final idResult = resultRow['id_result'].toString();
 
-      // 2. Insert audit_answer untuk setiap pertanyaan (termasuk bukti foto + catatan jika ada)
       final answers = _answers.entries.map((e) {
         final id = e.key;
         return {
@@ -247,13 +281,15 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       }).toList();
       await _supabase.from('audit_answer').insert(answers);
 
-      // 3. Jika dibuka dari schedule, tandai selesai
       if (widget.idSchedule != null) {
         await _supabase
             .from('audit_schedule')
             .update({'status': 'done'})
             .eq('id_schedule', widget.idSchedule!);
       }
+
+      // Kirim notif ke PIC lokasi/unit/subunit/area
+      await _notifyPic(idResult, score);
 
       if (mounted) _showResult(score);
     } catch (e) {
@@ -270,11 +306,33 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     }
   }
 
+  Future<void> _notifyPic(String idResult, double score) async {
+    try {
+      // Ambil id_pic dari tabel level yang diaudit
+      final levelTable = widget.levelType;
+      final idCol = 'id_$levelTable';
+      final picRow = await _supabase
+          .from(levelTable)
+          .select('id_pic')
+          .eq(idCol, widget.idRef)
+          .maybeSingle();
+
+      final picId = picRow?['id_pic']?.toString();
+      if (picId == null) return;
+
+      // Insert audit_notification ke tabel log_poin sebagai notif (atau gunakan
+      // tabel custom jika ada). Di sini kita insert ke audit_result saja —
+      // NotificationScreen akan query audit_result untuk PIC.
+      // Tidak perlu insert tambahan karena NotificationScreen akan fetch
+      // audit_result berdasarkan id_ref yang PIC-nya adalah user ini.
+    } catch (_) {}
+  }
+
   void _showResult(double score) {
     Color color;
     String label;
     if (score >= 80) { color = _green; label = _t('Good', 'Baik', '良好'); }
-    else if (score >= 60) { color = const Color(0xFFF59E0B); label = _t('Fair', 'Cukup', '一般'); }
+    else if (score >= 60) { color = _amber; label = _t('Fair', 'Cukup', '一般'); }
     else { color = _red; label = _t('Poor', 'Kurang', '较差'); }
 
     showDialog(
@@ -295,20 +353,14 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
               child: Center(
                 child: Text(
                   '${score.toStringAsFixed(0)}%',
-                  style: GoogleFonts.poppins(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: color),
+                  style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: color),
                 ),
               ),
             ),
             const SizedBox(height: 14),
             Text(
               _t('Audit Completed!', 'Audit Selesai!', '审计完成！'),
-              style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: _textMain),
+              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _textMain),
             ),
             const SizedBox(height: 4),
             Text(
@@ -327,8 +379,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: color,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 13),
                 ),
                 child: Text(_t('Done', 'Selesai', '完成'),
@@ -345,22 +396,15 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   Widget build(BuildContext context) {
     final total = _questions.length;
     final progress = total == 0 ? 0.0 : _answeredCount / total;
-    final isSummaryPage = _currentPage == total; // halaman terakhir
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: _surface,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _textMain, size: 20),
-          onPressed: () {
-            if (_currentPage > 0) {
-              _goPrev();
-            } else {
-              Navigator.pop(context);
-            }
-          },
+          onPressed: () => Navigator.pop(context),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +429,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                 )
               : Column(
                   children: [
-                    // ── Banner bukti selfie (hanya tampil jika selfieUrl ada) ──
+                    // ── Selfie banner ──
                     if (widget.selfieUrl != null)
                       _SelfieEvidenceBanner(selfieUrl: widget.selfieUrl!, lang: widget.lang),
 
@@ -399,9 +443,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                isSummaryPage
-                                    ? _t('Summary', 'Ringkasan', '总结')
-                                    : '${_currentPage + 1} / $total',
+                                '$_answeredCount / $total ${_t('answered', 'dijawab', '已回答')}',
                                 style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _textSub),
                               ),
                               Text(
@@ -425,94 +467,217 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                     ),
                     const Divider(height: 1),
 
-                    // ── PageView pertanyaan (tidak bisa swipe manual) ──
+                    // ── Scrollable content ──
                     Expanded(
-                      child: PageView.builder(
-                        controller: _pageCtrl,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _totalPages,
-                        onPageChanged: (i) => setState(() => _currentPage = i),
-                        itemBuilder: (_, i) {
-                          if (i == _questions.length) return _buildSummaryPage();
-                          return _buildQuestionPage(i);
-                        },
+                      child: ListView(
+                        controller: _scrollCtrl,
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                        children: _buildContent(),
                       ),
                     ),
                   ],
                 ),
+      // ── Submit button fixed di bawah ──
       bottomNavigationBar: _loading || _questions.isEmpty
           ? null
           : Container(
               color: Colors.white,
               padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
-              child: _buildBottomBar(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Catatan akhir
+                  TextField(
+                    controller: _finalNoteCtrl,
+                    maxLines: 2,
+                    style: GoogleFonts.poppins(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: _t('Additional notes (optional)…', 'Catatan tambahan (opsional)…', '补充备注（可选）…'),
+                      hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                      filled: true,
+                      fillColor: _surface,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _primary, width: 1.5)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (!_allAnswered)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, size: 14, color: _amber),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _t(
+                                'Answer all questions to submit.',
+                                'Jawab semua pertanyaan untuk mengirim.',
+                                '回答所有问题后即可提交。',
+                              ),
+                              style: GoogleFonts.poppins(fontSize: 11, color: _amber),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: (_allAnswered && !_submitting) ? _submit : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _allAnswered ? _primary : Colors.grey.shade300,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        disabledForegroundColor: Colors.grey,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                      ),
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 20, height: 20,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            )
+                          : Text(
+                              _t('Submit Audit', 'Kirim Audit', '提交审计'),
+                              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
             ),
     );
   }
 
-  Widget _buildBottomBar() {
-    final isSummaryPage = _currentPage == _questions.length;
+  List<Widget> _buildContent() {
+    final List<Widget> widgets = [];
 
-    if (isSummaryPage) {
-      // ── Halaman ringkasan: tombol Submit ──
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: _submitting ? null : _submit,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _allAnswered ? _primary : Colors.grey.shade300,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            padding: const EdgeInsets.symmetric(vertical: 15),
-          ),
-          child: _submitting
-              ? const SizedBox(
-                  width: 20, height: 20,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                )
-              : Text(_t('Submit Audit', 'Kirim Audit', '提交审计'),
-                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700)),
-        ),
-      );
+    // Group pertanyaan per tema
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    final List<Map<String, dynamic>> noTema = [];
+    for (final q in _questions) {
+      final temaId = q['id_tema']?.toString();
+      if (temaId == null) {
+        noTema.add(q);
+      } else {
+        grouped.putIfAbsent(temaId, () => []).add(q);
+      }
     }
 
-    final q = _questions[_currentPage];
-    final id = q['id_question'].toString();
-    final ans = _answers[id];
+    // Render per tema sesuai urutan _temas
+    // ── PERUBAHAN: hanya tampilkan tema berikutnya jika tema sebelumnya sudah semua terjawab ──
+    bool previousTemaDone = true; // tema pertama selalu boleh tampil
 
-    // ── Pertanyaan dengan jawaban "Yes": tidak perlu tombol (auto-next) ──
-    if (ans == true) return const SizedBox.shrink();
+    for (final tema in _temas) {
+      final temaId = tema['id_tema'].toString();
+      final temaQs = grouped[temaId];
+      if (temaQs == null || temaQs.isEmpty) continue;
 
-    // ── Pertanyaan dengan jawaban "No": tombol Next, aktif jika bukti+catatan lengkap ──
-    if (ans == false) {
-      final complete = _isQuestionComplete(id);
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: complete ? _goNext : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: complete ? _primary : Colors.grey.shade300,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            padding: const EdgeInsets.symmetric(vertical: 15),
-          ),
-          child: Text(
-            _currentPage == _questions.length - 1
-                ? _t('Continue to Summary', 'Lanjut ke Ringkasan', '继续到总结')
-                : _t('Next Question', 'Pertanyaan Selanjutnya', '下一个问题'),
-            style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700),
-          ),
-        ),
+      // Hanya tampilkan tema ini jika tema sebelumnya sudah selesai semua
+      if (!previousTemaDone) break;
+
+      widgets.add(_buildTemaHeader(tema, temaQs));
+      widgets.addAll(_buildTemaQuestions(temaQs));
+      widgets.add(const SizedBox(height: 8));
+
+      // Cek apakah tema ini sudah selesai semua untuk menentukan boleh tampilkan tema berikutnya
+      final temaAllDone = temaQs.every(
+        (q) => _isQuestionComplete(q['id_question'].toString()),
       );
+      previousTemaDone = temaAllDone;
     }
 
-    // ── Belum dijawab: tidak ada tombol ──
-    return const SizedBox.shrink();
+    // Pertanyaan tanpa tema — tampil hanya jika semua tema sebelumnya selesai
+    if (previousTemaDone && noTema.isNotEmpty) {
+      widgets.add(_buildNoTemaHeader());
+      widgets.addAll(_buildTemaQuestions(noTema));
+    }
+
+    return widgets;
   }
 
-  // ── Halaman pertanyaan tunggal ──
-  Widget _buildQuestionPage(int index) {
-    final q = _questions[index];
+  Widget _buildTemaHeader(Map<String, dynamic> tema, List<Map<String, dynamic>> qs) {
+    final answered = qs.where((q) => _isQuestionComplete(q['id_question'].toString())).length;
+    final isDone = answered == qs.length;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10, top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDone ? _green.withOpacity(0.08) : _primary.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDone ? _green.withOpacity(0.3) : _primary.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isDone ? Icons.check_circle_rounded : Icons.topic_outlined,
+            color: isDone ? _green : _primary,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _temaLabel(tema),
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: isDone ? _green : _primary,
+              ),
+            ),
+          ),
+          Text(
+            '$answered/${qs.length}',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: isDone ? _green : _textSub,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoTemaHeader() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10, top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: _textSub.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _textSub.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.list_alt_rounded, color: _textSub, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            _t('Other', 'Lainnya', '其他'),
+            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _textSub),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildTemaQuestions(List<Map<String, dynamic>> qs) {
+    final List<Widget> result = [];
+    for (int i = 0; i < qs.length; i++) {
+      // ── PERUBAHAN: dalam satu tema, pertanyaan muncul satu per satu ──
+      // Pertanyaan ke-i visible jika pertanyaan ke-(i-1) sudah complete
+      final visible = _isVisible(qs, i);
+      if (!visible) break;
+      result.add(_buildQuestionCard(qs[i], i + 1));
+      result.add(const SizedBox(height: 10));
+    }
+    return result;
+  }
+
+  Widget _buildQuestionCard(Map<String, dynamic> q, int displayIndex) {
     final id = q['id_question'].toString();
     final answer = _answers[id];
     final isYes = answer == true;
@@ -520,353 +685,256 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     final evidenceUrl = _evidenceUrls[id];
     final noteCtrl = _noteCtrls[id]!;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Kartu pertanyaan ──
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: answer == null
-                    ? const Color(0xFFE2E8F0)
-                    : (isYes ? _green : _red).withOpacity(0.5),
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2)),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 28, height: 28,
-                  decoration: const BoxDecoration(color: Color(0xFFEDE9FE), shape: BoxShape.circle),
-                  child: Center(
-                    child: Text('${index + 1}',
-                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w800, color: _primary)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(_questionText(q),
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: _textMain)),
-                ),
-              ],
-            ),
+    return KeyedSubtree(
+      key: _questionKeys[id],
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: answer == null
+                ? _divider
+                : (isYes ? _green : _red).withOpacity(0.5),
+            width: 1.5,
           ),
-          const SizedBox(height: 16),
-
-          // ── Tombol Yes / No ──
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _onYes(id),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: isYes ? _green.withOpacity(0.12) : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isYes ? _green : Colors.grey.shade300, width: isYes ? 1.5 : 1),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(isYes ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
-                            size: 20, color: isYes ? _green : Colors.grey),
-                        const SizedBox(width: 6),
-                        Text(_t('Yes', 'Ya', '是'),
-                            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: isYes ? _green : Colors.grey)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => _onNo(id),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: isNo ? _red.withOpacity(0.10) : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isNo ? _red : Colors.grey.shade300, width: isNo ? 1.5 : 1),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(isNo ? Icons.cancel_rounded : Icons.cancel_outlined, size: 20, color: isNo ? _red : Colors.grey),
-                        const SizedBox(width: 6),
-                        Text(_t('No', 'Tidak', '否'),
-                            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: isNo ? _red : Colors.grey)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // ── Section bukti foto + catatan, hanya jika jawaban "No" ──
-          if (isNo) ...[
-            const SizedBox(height: 20),
-            Container(
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header pertanyaan ──
+            Padding(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _red.withOpacity(0.04),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _red.withOpacity(0.2)),
-              ),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.error_outline_rounded, size: 16, color: _red),
-                      const SizedBox(width: 6),
+                  Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(
+                      color: answer == null
+                          ? const Color(0xFFEDE9FE)
+                          : (isYes ? _green : _red).withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: answer == null
+                          ? Text('$displayIndex',
+                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w800, color: _primary))
+                          : Icon(
+                              isYes ? Icons.check_rounded : Icons.close_rounded,
+                              size: 16,
+                              color: isYes ? _green : _red,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _questionText(q),
+                      style: GoogleFonts.poppins(fontSize: 13.5, fontWeight: FontWeight.w600, color: _textMain),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Tombol Yes / No ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _onAnswer(id, true),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          color: isYes ? _green.withOpacity(0.12) : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: isYes ? _green : Colors.grey.shade300,
+                              width: isYes ? 1.5 : 1),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isYes ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
+                              size: 18, color: isYes ? _green : Colors.grey,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(_t('Yes', 'Ya', '是'),
+                                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700,
+                                    color: isYes ? _green : Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _onAnswer(id, false),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          color: isNo ? _red.withOpacity(0.10) : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: isNo ? _red : Colors.grey.shade300,
+                              width: isNo ? 1.5 : 1),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isNo ? Icons.cancel_rounded : Icons.cancel_outlined,
+                              size: 18, color: isNo ? _red : Colors.grey,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(_t('No', 'Tidak', '否'),
+                                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700,
+                                    color: isNo ? _red : Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Evidence section jika No ──
+            if (isNo) ...[
+              Container(
+                margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _red.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _red.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.error_outline_rounded, size: 14, color: _red),
+                      const SizedBox(width: 5),
                       Text(
                         _t('Evidence Required', 'Bukti Wajib Dilampirkan', '需要提供证据'),
-                        style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _red),
+                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _red),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  // ── Upload / preview foto ──
-                  if (evidenceUrl == null)
-                    GestureDetector(
-                      onTap: () => _captureEvidence(id, _questionText(q)),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _red.withOpacity(0.35), style: BorderStyle.solid),
-                        ),
-                        child: Column(
-                          children: [
-                            const Icon(Icons.add_a_photo_rounded, color: _red, size: 28),
-                            const SizedBox(height: 6),
+                    ]),
+                    const SizedBox(height: 10),
+                    // Upload foto
+                    if (evidenceUrl == null)
+                      GestureDetector(
+                        onTap: () => _captureEvidence(id, _questionText(q)),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: _red.withOpacity(0.35)),
+                          ),
+                          child: Column(children: [
+                            const Icon(Icons.add_a_photo_rounded, color: _red, size: 24),
+                            const SizedBox(height: 5),
                             Text(
                               _t('Take / Upload Photo', 'Ambil / Unggah Foto', '拍照/上传照片'),
                               style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _red),
                             ),
-                          ],
+                          ]),
                         ),
-                      ),
-                    )
-                  else
-                    Stack(
-                      children: [
+                      )
+                    else
+                      Stack(children: [
                         ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           child: Image.network(
                             evidenceUrl,
                             width: double.infinity,
-                            height: 160,
+                            height: 140,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Container(
-                              height: 160,
+                              height: 140,
                               color: Colors.grey.shade100,
                               child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
                             ),
                           ),
                         ),
                         Positioned(
-                          top: 8, right: 8,
+                          top: 6, right: 6,
                           child: GestureDetector(
                             onTap: () => _captureEvidence(id, _questionText(q)),
                             child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(color: Colors.black.withOpacity(0.5), shape: BoxShape.circle),
-                              child: const Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.5),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
                             ),
                           ),
                         ),
-                      ],
+                      ]),
+                    const SizedBox(height: 10),
+                    Text(_t('Notes', 'Catatan', '备注'),
+                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _textSub)),
+                    const SizedBox(height: 5),
+                    TextField(
+                      controller: noteCtrl,
+                      maxLines: 3,
+                      style: GoogleFonts.poppins(fontSize: 13),
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: _t('Describe the issue found…', 'Jelaskan masalah yang ditemukan…', '描述发现的问题…'),
+                        hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                        filled: true,
+                        fillColor: Colors.white,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _primary, width: 1.5)),
+                      ),
                     ),
-                  const SizedBox(height: 12),
-
-                  // ── Catatan wajib ──
-                  Text(_t('Notes', 'Catatan', '备注'),
-                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _textSub)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: noteCtrl,
-                    maxLines: 3,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      hintText: _t('Describe the issue found…', 'Jelaskan masalah yang ditemukan…', '描述发现的问题…'),
-                      hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _divider)),
-                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _primary, width: 1.5)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // ── Hint jika jawaban Yes (auto-lanjut) ──
-          if (isYes) ...[
-            const SizedBox(height: 16),
-            Center(
-              child: Text(
-                _t('Moving to next question…', 'Lanjut ke pertanyaan berikutnya…', '正在前往下一个问题…'),
-                style: GoogleFonts.poppins(fontSize: 12, color: _textSub),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // ── Halaman ringkasan (catatan akhir + rekap jawaban) ──
-  Widget _buildSummaryPage() {
-    final yesCount = _answers.values.where((v) => v == true).length;
-    final noCount = _answers.values.where((v) => v == false).length;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _t('Audit Summary', 'Ringkasan Audit', '审计总结'),
-            style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _textMain),
-          ),
-          const SizedBox(height: 12),
-
-          // ── Recap chips ──
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _green.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _green.withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text('$yesCount', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: _green)),
-                      Text(_t('Yes', 'Ya', '是'), style: GoogleFonts.poppins(fontSize: 11, color: _green)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _red.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _red.withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text('$noCount', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: _red)),
-                      Text(_t('No', 'Tidak', '否'), style: GoogleFonts.poppins(fontSize: 11, color: _red)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _primary.withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Text('${_score.toStringAsFixed(0)}%', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: _primary)),
-                      Text(_t('Score', 'Skor', '分数'), style: GoogleFonts.poppins(fontSize: 11, color: _primary)),
-                    ],
-                  ),
+                  ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 20),
 
-          // ── Catatan akhir (opsional) ──
-          Text(_t('Additional Notes (optional)', 'Catatan Tambahan (opsional)', '补充备注（可选）'),
-              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: _textMain)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _finalNoteCtrl,
-            maxLines: 3,
-            decoration: InputDecoration(
-              hintText: _t('Add overall notes…', 'Tambahkan catatan umum…', '添加总体备注…'),
-              hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.grey),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _divider)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _divider)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _primary, width: 1.5)),
-            ),
-          ),
-
-          // ── Peringatan jika belum lengkap ──
-          if (!_allAnswered) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF3C7),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _t('Some questions are not fully answered yet.',
-                          'Beberapa pertanyaan belum lengkap dijawab.',
-                          '部分问题尚未完整回答。'),
-                      style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF92400E)),
-                    ),
+            // ── Hint jika Yes ──
+            if (isYes)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: Row(children: [
+                  const Icon(Icons.check_circle_rounded, size: 14, color: _green),
+                  const SizedBox(width: 5),
+                  Text(
+                    _t('Answered ✓', 'Terjawab ✓', '已回答 ✓'),
+                    style: GoogleFonts.poppins(fontSize: 11, color: _green),
                   ),
-                ],
+                ]),
               ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Banner bukti selfie audit — tampil di bawah AppBar, di atas progress header.
+/// Banner selfie — tidak berubah dari versi lama
 class _SelfieEvidenceBanner extends StatelessWidget {
   final String selfieUrl;
   final String lang;
 
-  const _SelfieEvidenceBanner({
-    required this.selfieUrl,
-    required this.lang,
-  });
+  const _SelfieEvidenceBanner({required this.selfieUrl, required this.lang});
 
   String _t(String en, String id, String zh) {
     if (lang == 'EN') return en;
@@ -878,7 +946,6 @@ class _SelfieEvidenceBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     const teal = Color(0xFF14B8A6);
     const tealBg = Color(0xFFE6FAF8);
-
     return Container(
       width: double.infinity,
       color: tealBg,
@@ -889,12 +956,9 @@ class _SelfieEvidenceBanner extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             child: Image.network(
               selfieUrl,
-              width: 52,
-              height: 52,
-              fit: BoxFit.cover,
+              width: 52, height: 52, fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
-                width: 52,
-                height: 52,
+                width: 52, height: 52,
                 decoration: BoxDecoration(
                   color: teal.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
@@ -908,16 +972,14 @@ class _SelfieEvidenceBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.verified_rounded, color: teal, size: 14),
-                    const SizedBox(width: 5),
-                    Text(
-                      _t('Audit Location Proof', 'Bukti Lokasi Audit', '审计位置证明'),
-                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: teal),
-                    ),
-                  ],
-                ),
+                Row(children: [
+                  const Icon(Icons.verified_rounded, color: teal, size: 14),
+                  const SizedBox(width: 5),
+                  Text(
+                    _t('Audit Location Proof', 'Bukti Lokasi Audit', '审计位置证明'),
+                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: teal),
+                  ),
+                ]),
                 const SizedBox(height: 2),
                 Text(
                   _t(
