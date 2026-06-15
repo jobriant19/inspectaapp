@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lottie/lottie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuditEvidenceCameraScreen extends StatefulWidget {
@@ -25,7 +26,6 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
 
-  // ── Gunakan enum status agar tidak ada gap antara flag ──
   _CamStatus _status = _CamStatus.loading;
 
   bool _flashEnabled = false;
@@ -50,7 +50,6 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // Set status dulu sebelum dispose agar build() tidak sempat render CameraPreview
     _status = _CamStatus.loading;
     _cameraController?.dispose();
     _cameraController = null;
@@ -80,15 +79,12 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
     }
   }
 
-  // ── Teardown tanpa rebuild CameraPreview ──
   Future<void> _tearDownCamera() async {
-    // Tandai tidak ready SEBELUM dispose — ini kunci mencegah error di web
     if (mounted) {
       setState(() => _status = _CamStatus.loading);
     } else {
       _status = _CamStatus.loading;
     }
-    // Tunggu satu frame agar Flutter selesai rebuild tanpa CameraPreview
     await Future.delayed(Duration.zero);
     final old = _cameraController;
     _cameraController = null;
@@ -203,8 +199,8 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
 
   Future<void> _pickFromGallery() async {
     try {
-      final XFile? image =
-          await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      final XFile? image = await _picker.pickImage(
+          source: ImageSource.gallery, imageQuality: 85);
       if (image == null) return;
       await _uploadAndReturn(image);
     } catch (e) {
@@ -212,78 +208,152 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
     }
   }
 
+  // ── Loading screen bergaya audit_selfie_screen ──
+  Widget _buildLoadingScreen() {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 220,
+              height: 220,
+              child: Lottie.asset(
+                'assets/lottie/camera_loading.json',
+                fit: BoxFit.contain,
+                frameRate: FrameRate.max,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.camera_alt_rounded,
+                  size: 90,
+                  color: Color(0xFF6366F1),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _t('Loading Camera', 'Memuat Kamera', '正在加载相机'),
+              style: const TextStyle(
+                color: Color(0xFF6366F1),
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _t(
+                'Preparing camera for evidence photo…',
+                'Menyiapkan kamera untuk foto bukti…',
+                '正在准备证据拍摄相机…',
+              ),
+              style: const TextStyle(
+                color: Color(0xFF818CF8),
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 140,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: const LinearProgressIndicator(
+                  minHeight: 3,
+                  backgroundColor: Color(0xFFE0E7FF),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Error screen ──
+  Widget _buildErrorScreen() {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Color(0xFF1E3A8A), size: 20),
+          onPressed: () => Navigator.pop(context, null),
+        ),
+        title: Text(
+          _t('Evidence Photo', 'Foto Bukti', '证据照片'),
+          style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1E3A8A)),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.videocam_off_rounded,
+                  size: 56, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                _t(
+                  'Camera not available.\nYou can still upload from gallery.',
+                  'Kamera tidak tersedia.\nAnda tetap bisa unggah dari galeri.',
+                  '摄像头不可用，\n您仍可从相册上传。',
+                ),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 13, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _pickFromGallery,
+                icon: const Icon(Icons.photo_library_rounded),
+                label: Text(_t('Open Gallery', 'Buka Galeri', '打开相册')),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // ── Jika kamera belum/tidak ready, tampilkan loading/error ──
-    if (_status != _CamStatus.ready || _cameraController == null) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: Color(0xFF1E3A8A), size: 20),
-            onPressed: () => Navigator.pop(context, null),
-          ),
-          title: Text(
-            _t('Evidence Photo', 'Foto Bukti', '证据照片'),
-            style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF1E3A8A)),
-          ),
-        ),
-        body: Center(
-          child: _status == _CamStatus.error
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.videocam_off_rounded,
-                        size: 48, color: Colors.grey),
-                    const SizedBox(height: 12),
-                    Text(
-                      _t('Camera not available.\nPlease use gallery.',
-                          'Kamera tidak tersedia.\nGunakan galeri.',
-                          '摄像头不可用，请使用相册。'),
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                          fontSize: 13, color: Colors.grey.shade600),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton.icon(
-                      onPressed: _pickFromGallery,
-                      icon: const Icon(Icons.photo_library_rounded),
-                      label: Text(_t(
-                          'Open Gallery', 'Buka Galeri', '打开相册')),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ],
-                )
-              : const CircularProgressIndicator(color: Color(0xFF6366F1)),
-        ),
-      );
+    // ── Loading ──
+    if (_status == _CamStatus.loading) return _buildLoadingScreen();
+
+    // ── Error ──
+    if (_status == _CamStatus.error || _cameraController == null) {
+      return _buildErrorScreen();
     }
 
-    // ── Kamera siap ── render preview dengan aman ──
+    // ── Kamera siap ──
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ── CameraPreview hanya dirender saat status == ready ──
           CameraPreview(_cameraController!),
 
           // ── Top bar ──
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
+            top: 0, left: 0, right: 0,
             child: SafeArea(
               bottom: false,
               child: Padding(
@@ -313,8 +383,8 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
                             const SizedBox(width: 8),
                             Flexible(
                               child: Text(
-                                _t('AUDIT EVIDENCE PHOTO', 'FOTO BUKTI AUDIT',
-                                    '审计证据照片'),
+                                _t('AUDIT EVIDENCE PHOTO',
+                                    'FOTO BUKTI AUDIT', '审计证据照片'),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,
@@ -346,14 +416,12 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
 
           // ── Subtitle pertanyaan ──
           Positioned(
-            top: 90,
-            left: 16,
-            right: 16,
+            top: 90, left: 16, right: 16,
             child: SafeArea(
               bottom: false,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.5),
                   borderRadius: BorderRadius.circular(12),
@@ -371,9 +439,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
 
           // ── Bottom controls ──
           Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
+            bottom: 0, left: 0, right: 0,
             child: SafeArea(
               top: false,
               child: Container(
@@ -398,8 +464,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
                     GestureDetector(
                       onTap: _takePicture,
                       child: Container(
-                        width: 76,
-                        height: 76,
+                        width: 76, height: 76,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border:
@@ -432,10 +497,21 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const CircularProgressIndicator(color: Colors.white),
-                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: 160,
+                      height: 160,
+                      child: Lottie.asset(
+                        'assets/lottie/uploading.json',
+                        fit: BoxFit.contain,
+                        frameRate: FrameRate.max,
+                        errorBuilder: (_, __, ___) => const CircularProgressIndicator(
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      _t('Uploading...', 'Mengunggah...', '上传中...'),
+                      _t('Uploading…', 'Mengunggah…', '上传中…'),
                       style: GoogleFonts.poppins(
                           color: Colors.white, fontSize: 13),
                     ),
@@ -449,7 +525,6 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
   }
 }
 
-// ── Status enum agar tidak ada gap antar flag boolean ──
 enum _CamStatus { loading, ready, error }
 
 class _IconBtn extends StatelessWidget {
@@ -466,16 +541,16 @@ class _IconBtn extends StatelessWidget {
       child: Opacity(
         opacity: onTap == null ? 0.35 : 1.0,
         child: Container(
-          width: 52,
-          height: 52,
+          width: 52, height: 52,
           decoration: BoxDecoration(
             color: highlight
                 ? Colors.yellow.withOpacity(0.2)
                 : Colors.black.withOpacity(0.5),
             shape: BoxShape.circle,
             border: Border.all(
-              color:
-                  highlight ? Colors.yellow : Colors.white.withOpacity(0.2),
+              color: highlight
+                  ? Colors.yellow
+                  : Colors.white.withOpacity(0.2),
               width: highlight ? 1.5 : 1,
             ),
           ),
