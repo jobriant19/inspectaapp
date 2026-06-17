@@ -10,8 +10,8 @@ import '../../user/home/finding_card.dart';
 
 class NotificationScreen extends StatefulWidget {
   final String lang;
-  final List<Map<String, dynamic>>? initialFindings;
-  final List<Map<String, dynamic>>? initialActivityLogs;
+  final List<dynamic>? initialFindings;
+  final List<dynamic>? initialActivityLogs;
 
   const NotificationScreen({
     super.key,
@@ -301,15 +301,19 @@ class _NotificationScreenState extends State<NotificationScreen>
                 children: [
                   _AssignedFindingsTab(
                     lang: widget.lang,
-                    initialData: widget.initialFindings,
+                    initialData: widget.initialFindings != null
+                        ? List<Map<String, dynamic>>.from(widget.initialFindings!)
+                        : null,
                     t: _t,
                   ),
                   _ActivityLogTab(
                     lang: widget.lang,
-                    initialLogs: widget.initialActivityLogs,
+                    initialLogs: widget.initialActivityLogs != null
+                        ? List<Map<String, dynamic>>.from(widget.initialActivityLogs!)
+                        : null,
                     t: _t,
                   ),
-                  _AuditNotifTab(lang: widget.lang, t: _t),
+                  _AuditNotifRedirectTab(lang: widget.lang, t: _t),
                 ],
               ),
             ),
@@ -1000,6 +1004,892 @@ class _AuditNotifTabState extends State<_AuditNotifTab>
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════
+// TAB AUDIT — inline, as auditor + as PIC, warna biru
+// ══════════════════════════════════════════════
+class _AuditNotifRedirectTab extends StatefulWidget {
+  final String lang;
+  final String Function(String) t;
+
+  const _AuditNotifRedirectTab({required this.lang, required this.t});
+
+  @override
+  State<_AuditNotifRedirectTab> createState() => _AuditNotifRedirectTabState();
+}
+
+class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
+    with AutomaticKeepAliveClientMixin {
+  final _supabase = Supabase.instance.client;
+
+  List<Map<String, dynamic>> _allItems = [];
+  List<Map<String, dynamic>> _filtered = [];
+  bool _isLoading = true;
+
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  DateTime _filterFrom = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime _filterTo = DateTime(DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59);
+
+  static const _blue = Color(0xFF1D4ED8);
+  static const _blueLt = Color(0xFFEFF6FF);
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  String _t(String id, String en, String zh) {
+    if (widget.lang == 'EN') return en;
+    if (widget.lang == 'ZH') return zh;
+    return id;
+  }
+
+  Future<void> _fetch() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+    setState(() => _isLoading = true);
+    try {
+      // ── 1. Fetch sebagai AUDITOR ──────────────────────────────────────
+      final auditorRows = await _supabase
+          .from('audit_result')
+          .select(
+            'id_result, level_type, id_ref, tanggal_audit, nilai_audit, '
+            'nilai_final, is_finalized, catatan_audit, created_at',
+          )
+          .eq('id_auditor', userId)
+          .gte('created_at', _filterFrom.toIso8601String())
+          .lte('created_at', _filterTo.toIso8601String())
+          .order('created_at', ascending: false)
+          .limit(100);
+
+      final List<Map<String, dynamic>> items = [];
+      for (final row in auditorRows as List) {
+        final r = Map<String, dynamic>.from(row as Map);
+        r['_role'] = 'auditor';
+        items.add(r);
+      }
+
+      // ── 2. Fetch sebagai PIC ──────────────────────────────────────────
+      final picLevels = await Future.wait([
+        _supabase.from('lokasi').select('id_lokasi').eq('id_pic', userId),
+        _supabase.from('unit').select('id_unit').eq('id_pic', userId),
+        _supabase.from('subunit').select('id_subunit').eq('id_pic', userId),
+        _supabase.from('area').select('id_area').eq('id_pic', userId),
+      ]);
+
+      final List<Map<String, String>> picRefs = [];
+      for (final r in picLevels[0] as List) picRefs.add({'level': 'lokasi', 'id': r['id_lokasi'].toString()});
+      for (final r in picLevels[1] as List) picRefs.add({'level': 'unit', 'id': r['id_unit'].toString()});
+      for (final r in picLevels[2] as List) picRefs.add({'level': 'subunit', 'id': r['id_subunit'].toString()});
+      for (final r in picLevels[3] as List) picRefs.add({'level': 'area', 'id': r['id_area'].toString()});
+
+      for (final ref in picRefs) {
+        final picRows = await _supabase
+            .from('audit_result')
+            .select(
+              'id_result, level_type, id_ref, tanggal_audit, nilai_audit, '
+              'nilai_final, is_finalized, catatan_audit, created_at, '
+              'Auditor:User!fk_audit_result_auditor(nama)',
+            )
+            .eq('level_type', ref['level']!)
+            .eq('id_ref', ref['id']!)
+            .gte('created_at', _filterFrom.toIso8601String())
+            .lte('created_at', _filterTo.toIso8601String())
+            .order('created_at', ascending: false)
+            .limit(30);
+
+        for (final row in picRows as List) {
+          final r = Map<String, dynamic>.from(row as Map);
+          r['_role'] = 'pic';
+          r['_level'] = ref['level'];
+          // Hindari duplikat jika user adalah auditor sekaligus PIC lokasi sendiri
+          final alreadyExists = items.any((i) => i['id_result'] == r['id_result']);
+          if (!alreadyExists) items.add(r);
+        }
+      }
+
+      // Sort by created_at desc
+      items.sort((a, b) {
+        final at = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
+        final bt = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
+        return bt.compareTo(at);
+      });
+
+      // ── 3. Enrich setiap item ─────────────────────────────────────────
+      for (final item in items) {
+        final levelType = item['level_type']?.toString() ?? item['_level']?.toString() ?? '';
+        final idRef = item['id_ref']?.toString() ?? '';
+        final idResult = item['id_result']?.toString() ?? '';
+        final role = item['_role']?.toString() ?? 'auditor';
+
+        // Nama lokasi
+        if (levelType.isNotEmpty && idRef.isNotEmpty) {
+          try {
+            final nameCol = 'nama_$levelType';
+            final idCol = 'id_$levelType';
+            final nameRow = await _supabase
+                .from(levelType)
+                .select(nameCol)
+                .eq(idCol, idRef)
+                .maybeSingle();
+            item['_location_name'] = nameRow?[nameCol]?.toString() ?? '-';
+          } catch (_) {
+            item['_location_name'] = '-';
+          }
+        } else {
+          item['_location_name'] = '-';
+        }
+
+        final locName = item['_location_name']?.toString() ?? '';
+
+        // Poin dari log_poin (hanya untuk auditor)
+        if (role == 'auditor') {
+          try {
+            final logs = await _supabase
+                .from('log_poin')
+                .select('poin, deskripsi, tipe_aktivitas, created_at')
+                .eq('id_user', userId)
+                .eq('tipe_aktivitas', 'audit_submit')
+                .gte('created_at', item['created_at']?.toString() ?? '')
+                .order('created_at', ascending: false)
+                .limit(5);
+
+            final filtered = (logs as List).where((l) {
+              final desc = l['deskripsi']?.toString() ?? '';
+              return desc.contains(locName);
+            }).toList();
+
+            item['_poin_logs'] = List<Map<String, dynamic>>.from(filtered);
+          } catch (_) {
+            item['_poin_logs'] = <Map<String, dynamic>>[];
+          }
+        } else {
+          // Poin bonus yang diterima PIC dari log_poin
+          try {
+            final logs = await _supabase
+                .from('log_poin')
+                .select('poin, deskripsi, tipe_aktivitas, created_at')
+                .eq('id_user', userId)
+                .inFilter('tipe_aktivitas', ['audit_bonus_tema', 'audit_bonus_full'])
+                .gte('created_at', item['created_at']?.toString() ?? '')
+                .order('created_at', ascending: false)
+                .limit(10);
+
+            final filtered = (logs as List).where((l) {
+              final desc = l['deskripsi']?.toString() ?? '';
+              return desc.contains(locName);
+            }).toList();
+
+            item['_poin_logs'] = List<Map<String, dynamic>>.from(filtered);
+          } catch (_) {
+            item['_poin_logs'] = <Map<String, dynamic>>[];
+          }
+        }
+
+        // Jawaban + tema untuk detail (auditor dan PIC)
+        try {
+          final answers = await _supabase
+              .from('audit_answer')
+              .select(
+                'id_answer, jawaban, catatan, gambar_jawaban, '
+                'Question:audit_question('
+                  'pertanyaan, pertanyaan_en, pertanyaan_zh, '
+                  'Tema:audit_tema(nama_tema_id, nama_tema_en, nama_tema_zh)'
+                ')',
+              )
+              .eq('id_result', idResult);
+          item['_answers'] = List<Map<String, dynamic>>.from(answers as List);
+        } catch (_) {
+          item['_answers'] = <Map<String, dynamic>>[];
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _allItems = items;
+          _isLoading = false;
+        });
+        _applyFilter(_searchQuery);
+      }
+    } catch (e) {
+      debugPrint('_AuditNotifRedirectTab fetch error: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _applyFilter(String query) {
+    setState(() {
+      _searchQuery = query;
+      final q = query.toLowerCase().trim();
+      if (q.isEmpty) {
+        _filtered = List.from(_allItems);
+      } else {
+        _filtered = _allItems.where((item) {
+          final loc = (item['_location_name'] ?? '').toString().toLowerCase();
+          final level = (item['level_type'] ?? '').toString().toLowerCase();
+          final score = (item['nilai_audit'] ?? '').toString();
+          return loc.contains(q) || level.contains(q) || score.contains(q);
+        }).toList();
+      }
+    });
+  }
+
+  String _formatDate(dynamic v) {
+    if (v == null) return '-';
+    final dt = v is DateTime ? v : DateTime.tryParse(v.toString());
+    if (dt == null) return '-';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inDays < 1) return _t('Hari ini', 'Today', '今天');
+    if (diff.inDays < 7) return '${diff.inDays} ${_t('hari lalu', 'days ago', '天前')}';
+    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+  }
+
+  String _monthLabel(DateTime dt) {
+    final months = {
+      'EN': ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+      'ID': ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'],
+      'ZH': ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+    };
+    final m = months[widget.lang] ?? months['ID']!;
+    return '${m[dt.month - 1]} ${dt.year}';
+  }
+
+  Color _scoreColor(double? s) {
+    if (s == null) return const Color(0xFF64748B);
+    if (s >= 80) return const Color(0xFF10B981);
+    if (s >= 60) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  Future<void> _showPeriodPicker() async {
+    DateTime tempFrom = _filterFrom;
+    DateTime tempTo = DateTime(_filterTo.year, _filterTo.month, _filterTo.day);
+    final now = DateTime.now();
+    final years = List.generate(3, (i) => now.year - 1 + i);
+    final monthNames = {
+      'EN': ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+      'ID': ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'],
+      'ZH': ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+    }[widget.lang] ?? ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+
+    Widget buildPicker(DateTime current, ValueChanged<DateTime> onChange, StateSetter setSt) {
+      return Row(children: [
+        Expanded(
+          flex: 3,
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: _blueLt,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _blue.withOpacity(0.3)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: current.month - 1,
+                icon: Icon(Icons.keyboard_arrow_down, size: 18, color: _blue),
+                style: TextStyle(fontSize: 13, color: _blue, fontWeight: FontWeight.w600),
+                dropdownColor: Colors.white,
+                items: List.generate(12, (i) => DropdownMenuItem(value: i, child: Text(monthNames[i]))),
+                onChanged: (v) {
+                  if (v != null) setSt(() => onChange(DateTime(current.year, v + 1)));
+                },
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 2,
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: _blueLt,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _blue.withOpacity(0.3)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: current.year,
+                icon: Icon(Icons.keyboard_arrow_down, size: 18, color: _blue),
+                style: TextStyle(fontSize: 13, color: _blue, fontWeight: FontWeight.w600),
+                dropdownColor: Colors.white,
+                items: years.map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
+                onChanged: (v) {
+                  if (v != null) setSt(() => onChange(DateTime(v, current.month)));
+                },
+              ),
+            ),
+          ),
+        ),
+      ]);
+    }
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _blue.withOpacity(0.2), width: 1.5),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(Icons.date_range_rounded, color: _blue, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _t('Pilih Periode', 'Select Period', '选择期间'),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _blue),
+                    ),
+                  ),
+                  IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                ]),
+                const SizedBox(height: 16),
+                Text(_t('Dari', 'From', '从'), style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                buildPicker(tempFrom, (d) => tempFrom = d, setSt),
+                const SizedBox(height: 14),
+                Text(_t('Sampai', 'To', '到'), style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                buildPicker(tempTo, (d) => tempTo = d, setSt),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _filterFrom = DateTime(tempFrom.year, tempFrom.month, 1);
+                        _filterTo = DateTime(tempTo.year, tempTo.month + 1, 0, 23, 59, 59);
+                      });
+                      Navigator.pop(ctx);
+                      _fetch();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _blue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(_t('Terapkan', 'Apply', '应用')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final periodLabel = '${_monthLabel(_filterFrom)} – ${_monthLabel(DateTime(_filterTo.year, _filterTo.month))}';
+
+    return Column(
+      children: [
+        // ── Filter bar ──
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          child: Row(children: [
+            Expanded(
+              child: Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _blue.withOpacity(0.25)),
+                ),
+                child: Row(children: [
+                  Icon(Icons.search, color: _blue, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      onChanged: _applyFilter,
+                      style: GoogleFonts.poppins(fontSize: 12),
+                      decoration: InputDecoration(
+                        hintText: _t('Cari lokasi audit…', 'Search audit location…', '搜索审计位置…'),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                        hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade400),
+                      ),
+                    ),
+                  ),
+                  if (_searchQuery.isNotEmpty)
+                    GestureDetector(
+                      onTap: () { _searchCtrl.clear(); _applyFilter(''); },
+                      child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                    ),
+                ]),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _showPeriodPicker,
+              child: Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: _blue,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 16),
+                  const SizedBox(width: 6),
+                  Text(periodLabel,
+                      style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white)),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+
+        // ── Content ──
+        Expanded(
+          child: _isLoading
+              ? Shimmer.fromColors(
+                  baseColor: Colors.grey.shade200,
+                  highlightColor: Colors.grey.shade100,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: 4,
+                    itemBuilder: (_, __) => Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      height: 110,
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                )
+              : _filtered.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 80, height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _blue.withOpacity(0.08),
+                            ),
+                            child: Icon(Icons.fact_check_outlined, size: 36, color: _blue.withOpacity(0.4)),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(widget.t('empty_audit'),
+                              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1E3A8A))),
+                          const SizedBox(height: 6),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 40),
+                            child: Text(widget.t('empty_audit_sub'),
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500)),
+                          ),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _fetch,
+                      color: _blue,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        itemCount: _filtered.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (_, i) => _buildCard(_filtered[i]),
+                      ),
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCard(Map<String, dynamic> item) {
+    final score = double.tryParse(item['nilai_audit']?.toString() ?? '');
+    final scoreFinal = double.tryParse(item['nilai_final']?.toString() ?? '');
+    final isFinalized = item['is_finalized'] == true;
+    final displayScore = isFinalized ? scoreFinal : score;
+    final scoreColor = _scoreColor(displayScore);
+    final locationName = item['_location_name']?.toString() ?? '-';
+    final levelType = item['level_type']?.toString() ?? '';
+    final date = _formatDate(item['tanggal_audit']);
+    final poinLogs = (item['_poin_logs'] as List<Map<String, dynamic>>?) ?? [];
+    final answers = (item['_answers'] as List<Map<String, dynamic>>?) ?? [];
+    final role = item['_role']?.toString() ?? 'auditor';
+    final isPic = role == 'pic';
+    final auditorData = item['Auditor'] as Map<String, dynamic>?;
+    final auditorName = auditorData?['nama']?.toString() ?? '';
+
+    // Kelompokkan jawaban per tema (hanya auditor)
+    final Map<String, List<Map<String, dynamic>>> byTema = {};
+    for (final ans in answers) {
+      final q = ans['Question'] as Map<String, dynamic>?;
+      final tema = q?['Tema'] as Map<String, dynamic>?;
+      String temaKey;
+      if (widget.lang == 'EN') {
+        temaKey = tema?['nama_tema_en']?.toString() ?? _t('Lainnya', 'Other', '其他');
+      } else if (widget.lang == 'ZH') {
+        temaKey = tema?['nama_tema_zh']?.toString() ?? _t('Lainnya', 'Other', '其他');
+      } else {
+        temaKey = tema?['nama_tema_id']?.toString() ?? _t('Lainnya', 'Other', '其他');
+      }
+      byTema.putIfAbsent(temaKey, () => []).add(ans);
+    }
+
+    int totalPoin = 0;
+    for (final l in poinLogs) {
+      totalPoin += ((l['poin'] as num?)?.toInt() ?? 0);
+    }
+
+    final expanded = ValueNotifier<bool>(false);
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: expanded,
+      builder: (_, isExpanded, __) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: scoreColor.withOpacity(0.25), width: 1.2),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3)),
+          ],
+        ),
+        child: Column(
+          children: [
+            // ── Header ──
+            GestureDetector(
+              onTap: () => expanded.value = !isExpanded,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(children: [
+                  Container(
+                    width: 54, height: 54,
+                    decoration: BoxDecoration(color: scoreColor.withOpacity(0.12), shape: BoxShape.circle),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
+                            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: scoreColor),
+                          ),
+                          if (isFinalized)
+                            Text(_t('Final', 'Final', '最终'),
+                                style: GoogleFonts.poppins(fontSize: 8, color: scoreColor)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          // Badge role
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isPic
+                                  ? const Color(0xFF10B981).withOpacity(0.12)
+                                  : _blue.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              isPic ? _t('PIC', 'PIC', 'PIC') : _t('Auditor', 'Auditor', '审计员'),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 9, fontWeight: FontWeight.w700,
+                                  color: isPic ? const Color(0xFF10B981) : _blue),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _blue.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(levelType.toUpperCase(),
+                                style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: _blue)),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(locationName,
+                                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF1E3A8A)),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                        ]),
+                        const SizedBox(height: 3),
+                        Row(children: [
+                          Text(date, style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey.shade400)),
+                          if (isPic && auditorName.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '· ${_t('oleh', 'by', '由')} $auditorName',
+                                style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey.shade500),
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                          if (totalPoin != 0) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: totalPoin > 0
+                                    ? const Color(0xFF10B981).withOpacity(0.12)
+                                    : const Color(0xFFEF4444).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                totalPoin > 0 ? '+$totalPoin poin' : '$totalPoin poin',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 10, fontWeight: FontWeight.w700,
+                                    color: totalPoin > 0
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFFEF4444)),
+                              ),
+                            ),
+                          ],
+                        ]),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    color: _blue, size: 22,
+                  ),
+                ]),
+              ),
+            ),
+
+            // ── Detail expand ──
+            if (isExpanded) ...[
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+              // Poin log
+              if (poinLogs.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      const Color(0xFF10B981).withOpacity(0.08),
+                      _blue.withOpacity(0.05),
+                    ]),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.emoji_events_rounded, color: Color(0xFF10B981), size: 15),
+                        const SizedBox(width: 6),
+                        Text(
+                          isPic
+                              ? _t('Bonus Poin Diterima', 'Bonus Points Received', '已收到奖励积分')
+                              : _t('Poin Diperoleh', 'Points Earned', '获得积分'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700,
+                              color: const Color(0xFF10B981)),
+                        ),
+                      ]),
+                      const SizedBox(height: 8),
+                      ...poinLogs.map((log) {
+                        final p = (log['poin'] as num?)?.toInt() ?? 0;
+                        final isPos = p >= 0;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Row(children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isPos
+                                    ? const Color(0xFF10B981).withOpacity(0.12)
+                                    : const Color(0xFFEF4444).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(isPos ? '+$p' : '$p',
+                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w800,
+                                      color: isPos ? const Color(0xFF10B981) : const Color(0xFFEF4444))),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(log['deskripsi']?.toString() ?? '',
+                                  style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF1E3A8A)),
+                                  maxLines: 2, overflow: TextOverflow.ellipsis),
+                            ),
+                          ]),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+
+              // Detail jawaban per tema (hanya auditor)
+              if (byTema.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                  child: Row(children: [
+                    Icon(Icons.list_alt_rounded, size: 14, color: _blue),
+                    const SizedBox(width: 6),
+                    Text(_t('Detail Jawaban', 'Answer Details', '回答详情'),
+                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _blue)),
+                  ]),
+                ),
+                ...byTema.entries.map((entry) {
+                  final temaName = entry.key;
+                  final temaAnswers = entry.value;
+                  final yesCount = temaAnswers.where((a) => a['jawaban'] == true).length;
+                  final total = temaAnswers.length;
+                  final is100 = yesCount == total;
+
+                  return Container(
+                    margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                    decoration: BoxDecoration(
+                      color: is100
+                          ? const Color(0xFF10B981).withOpacity(0.04)
+                          : const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: is100
+                            ? const Color(0xFF10B981).withOpacity(0.25)
+                            : const Color(0xFFEF4444).withOpacity(0.2),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                          child: Row(children: [
+                            Icon(
+                              is100 ? Icons.check_circle_rounded : Icons.topic_outlined,
+                              size: 14,
+                              color: is100 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(temaName,
+                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700,
+                                      color: is100 ? const Color(0xFF10B981) : const Color(0xFF1E3A8A))),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: is100
+                                    ? const Color(0xFF10B981).withOpacity(0.15)
+                                    : const Color(0xFFEF4444).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text('$yesCount/$total',
+                                  style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700,
+                                      color: is100 ? const Color(0xFF10B981) : const Color(0xFFEF4444))),
+                            ),
+                          ]),
+                        ),
+                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                        ...temaAnswers.asMap().entries.map((e) {
+                          final idx = e.key;
+                          final ans = e.value;
+                          final isYes = ans['jawaban'] == true;
+                          final q = ans['Question'] as Map<String, dynamic>?;
+                          String pertanyaan;
+                          if (widget.lang == 'EN') {
+                            pertanyaan = q?['pertanyaan_en']?.toString() ?? q?['pertanyaan']?.toString() ?? '-';
+                          } else if (widget.lang == 'ZH') {
+                            pertanyaan = q?['pertanyaan_zh']?.toString() ?? q?['pertanyaan']?.toString() ?? '-';
+                          } else {
+                            pertanyaan = q?['pertanyaan']?.toString() ?? '-';
+                          }
+                          final catatan = ans['catatan']?.toString() ?? '';
+                          final isLast = idx == temaAnswers.length - 1;
+
+                          return Container(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                            decoration: BoxDecoration(
+                              border: isLast ? null : const Border(
+                                bottom: BorderSide(color: Color(0xFFF1F5F9)),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 22, height: 22,
+                                  decoration: BoxDecoration(
+                                    color: isYes
+                                        ? const Color(0xFF10B981).withOpacity(0.12)
+                                        : const Color(0xFFEF4444).withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    isYes ? Icons.check_rounded : Icons.close_rounded,
+                                    size: 13,
+                                    color: isYes ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(pertanyaan,
+                                          style: GoogleFonts.poppins(fontSize: 11.5,
+                                              fontWeight: FontWeight.w500,
+                                              color: const Color(0xFF1E3A8A))),
+                                      if (catatan.isNotEmpty) ...[
+                                        const SizedBox(height: 3),
+                                        Text(catatan,
+                                            style: GoogleFonts.poppins(fontSize: 10.5,
+                                                color: const Color(0xFF64748B),
+                                                fontStyle: FontStyle.italic),
+                                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+
+              const SizedBox(height: 14),
+            ],
+          ],
+        ),
       ),
     );
   }

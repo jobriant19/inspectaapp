@@ -12,7 +12,7 @@ class AuditFormScreen extends StatefulWidget {
   final String locationName;
   final String? idSchedule;
   final String? selfieUrl;
-  final String? idJenisAudit; // ← BARU: filter per jenis audit
+  final String? idJenisAudit;
 
   const AuditFormScreen({
     super.key,
@@ -175,42 +175,70 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
   void _onAnswer(String id, bool value) {
     setState(() => _answers[id] = value);
-    // Scroll ke next setelah delay singkat agar widget sudah ter-render
-    Future.delayed(const Duration(milliseconds: 350), () {
+    // Tunggu frame selesai render baru scroll, hindari konflik rebuild
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _scrollToNext(id);
+      Future.delayed(const Duration(milliseconds: 120), () {
+        if (!mounted) return;
+        _scrollToNext(id);
+      });
     });
   }
 
   void _scrollToNext(String answeredId) {
+    if (!mounted) return;
+
     final idx = _questions.indexWhere(
       (q) => q['id_question'].toString() == answeredId,
     );
     if (idx < 0) return;
 
-    // Cari pertanyaan berikutnya yang belum complete
+    // Cari pertanyaan atau tema header berikutnya yang sudah ter-render
     for (int i = idx + 1; i < _questions.length; i++) {
       final nextId = _questions[i]['id_question'].toString();
       final key = _questionKeys[nextId];
-      if (key?.currentContext != null) {
-        Scrollable.ensureVisible(
-          key!.currentContext!,
-          duration: const Duration(milliseconds: 450),
-          curve: Curves.easeInOut,
-          // alignment 0.0 = posisi target di paling atas viewport
-          alignment: 0.0,
+      final ctx = key?.currentContext;
+      if (ctx == null) continue;
+
+      // Pastikan context masih valid dan widget masih mounted
+      final ro = ctx.findRenderObject();
+      if (ro == null || !ro.attached) continue;
+
+      // Gunakan manual scroll ke offset RenderObject agar lebih stabil
+      // dibanding Scrollable.ensureVisible yang bisa arah terbalik
+      final renderBox = ro as RenderBox?;
+      if (renderBox == null) continue;
+
+      try {
+        final offset = renderBox.localToGlobal(Offset.zero, ancestor: _scrollCtrl.position.context.storageContext.findRenderObject());
+        final currentScroll = _scrollCtrl.offset;
+        final targetScroll = currentScroll + offset.dy - 80; // 80px padding atas
+
+        _scrollCtrl.animateTo(
+          targetScroll.clamp(0.0, _scrollCtrl.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
         );
-        return;
+      } catch (_) {
+        // Fallback ke ensureVisible jika localToGlobal gagal
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+          alignment: 0.1,
+        );
       }
+      return;
     }
 
-    // Jika tidak ada pertanyaan berikutnya (semua sudah dijawab),
-    // scroll ke bawah agar tombol Submit terlihat
-    _scrollCtrl.animateTo(
-      _scrollCtrl.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 450),
-      curve: Curves.easeInOut,
-    );
+    // Semua sudah dijawab → scroll ke bawah untuk tombol Submit
+    if (_scrollCtrl.hasClients) {
+      _scrollCtrl.animateTo(
+        _scrollCtrl.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   Future<void> _captureEvidence(String id, String questionText) async {
@@ -231,10 +259,8 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   Future<void> _submit() async {
     if (!_allAnswered) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_t(
-            'Please complete all questions.',
-            'Lengkapi semua pertanyaan.',
-            '请完成所有问题。')),
+        content: Text(_t('Please complete all questions.',
+            'Lengkapi semua pertanyaan.', '请完成所有问题。')),
         backgroundColor: _red,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -246,8 +272,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     setState(() => _submitting = true);
     try {
       final userId = _supabase.auth.currentUser!.id;
-      final score  = double.parse(_score.toStringAsFixed(2));
+      final score = double.parse(_score.toStringAsFixed(2));
 
+      // 1. Insert audit_result
       final resultRow = await _supabase
           .from('audit_result')
           .insert({
@@ -261,12 +288,14 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                 ? null
                 : _finalNoteCtrl.text.trim(),
             'selfie_url': widget.selfieUrl,
+            'is_finalized': false,
           })
           .select('id_result')
           .single();
 
       final idResult = resultRow['id_result'].toString();
 
+      // 2. Insert semua jawaban
       final answers = _answers.entries.map((e) {
         final id = e.key;
         return {
@@ -281,6 +310,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       }).toList();
       await _supabase.from('audit_answer').insert(answers);
 
+      // 3. Update status schedule
       if (widget.idSchedule != null) {
         await _supabase
             .from('audit_schedule')
@@ -288,8 +318,14 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             .eq('id_schedule', widget.idSchedule!);
       }
 
-      // Kirim notif ke PIC lokasi/unit/subunit/area
+      // 4. Beri poin AUDIT_SUBMIT ke auditor
+      await _grantAuditSubmitPoin(userId: userId, score: score);
+
+      // 5. Kirim notif ke PIC lokasi yang diaudit
       await _notifyPic(idResult, score);
+
+      // 6. Beri bonus poin (ke PIC) jika ada tema/keseluruhan yang 100%
+      await _grantBonusPoin(userId: userId, idResult: idResult);
 
       if (mounted) _showResult(score);
     } catch (e) {
@@ -308,32 +344,215 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
   Future<void> _notifyPic(String idResult, double score) async {
     try {
-      // Ambil id_pic dari tabel level yang diaudit
-      final levelTable = widget.levelType;
-      final idCol = 'id_$levelTable';
-      final picRow = await _supabase
-          .from(levelTable)
-          .select('id_pic')
+      // Ambil id_pic dari level yang diaudit
+      final nameCol = 'nama_${widget.levelType}';
+      final idCol = 'id_${widget.levelType}';
+      final levelRow = await _supabase
+          .from(widget.levelType)
+          .select('id_pic, $nameCol')
           .eq(idCol, widget.idRef)
           .maybeSingle();
 
-      final picId = picRow?['id_pic']?.toString();
+      final picId = levelRow?['id_pic']?.toString();
       if (picId == null) return;
 
-      // Insert audit_notification ke tabel log_poin sebagai notif (atau gunakan
-      // tabel custom jika ada). Di sini kita insert ke audit_result saja —
-      // NotificationScreen akan query audit_result untuk PIC.
-      // Tidak perlu insert tambahan karena NotificationScreen akan fetch
-      // audit_result berdasarkan id_ref yang PIC-nya adalah user ini.
-    } catch (_) {}
+      // Ambil FCM token PIC
+      final picData = await _supabase
+          .from('User')
+          .select('fcm_token, nama')
+          .eq('id_user', picId)
+          .maybeSingle();
+
+      final fcmToken = picData?['fcm_token']?.toString();
+      if (fcmToken == null || fcmToken.trim().isEmpty) return;
+
+      final notifTitle = _t(
+        'Hasil Audit Masuk',
+        'Audit Result Received',
+        '收到审计结果',
+      );
+      final notifBody =
+          '${widget.locationName} — ${score.toStringAsFixed(0)}%';
+
+      await _supabase.functions.invoke(
+        'send-fcm-v1',
+        body: {
+          'token': fcmToken.trim(),
+          'title': notifTitle,
+          'body': notifBody,
+          'data': {
+            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+            'route': 'audit_notif',
+          },
+        },
+      );
+    } catch (e) {
+      debugPrint('_notifyPic error: $e');
+    }
+  }
+
+  /// Beri poin dasar AUDIT_SUBMIT ke auditor yang mengisi audit.
+  Future<void> _grantAuditSubmitPoin({
+    required String userId,
+    required double score,
+  }) async {
+    try {
+      final cfgRow = await _supabase
+          .from('konfigurasi_poin')
+          .select('poin, deskripsi_template')
+          .eq('kode', 'AUDIT_SUBMIT')
+          .eq('is_aktif', true)
+          .maybeSingle();
+
+      if (cfgRow == null) return;
+
+      final deskripsi = (cfgRow['deskripsi_template'] as String)
+          .replaceAll('{lokasi}', widget.locationName)
+          .replaceAll('{nilai}', score.toStringAsFixed(0));
+
+      await _supabase.from('log_poin').insert({
+        'id_user':        userId,
+        'poin':           cfgRow['poin'] as int,
+        'deskripsi':      deskripsi,
+        'tipe_aktivitas': 'audit_submit',
+      });
+    } catch (e) {
+      debugPrint('Error granting audit submit poin: $e');
+    }
+  }
+
+  /// Beri bonus poin per tema (100%) dan full (semua 100%) ke PIC lokasi yang diaudit.
+  /// Auditor hanya mendapat poin dasar dari log aktivitas audit (ditangani di tempat lain).
+  Future<List<Map<String, dynamic>>> _grantBonusPoin({
+    required String userId,   // userId di sini adalah auditor — tidak dipakai untuk bonus
+    required String idResult,
+  }) async {
+    final List<Map<String, dynamic>> granted = [];
+    try {
+      final cfgRows = await _supabase
+          .from('konfigurasi_poin')
+          .select('kode, poin, deskripsi_template')
+          .inFilter('kode', ['AUDIT_BONUS_TEMA', 'AUDIT_BONUS_FULL'])
+          .eq('is_aktif', true);
+
+      final Map<String, Map<String, dynamic>> cfg = {};
+      for (final row in cfgRows as List) {
+        cfg[row['kode'].toString()] = row as Map<String, dynamic>;
+      }
+      if (cfg.isEmpty) return granted;
+
+      // ── Ambil id_pic dari lokasi yang diaudit ──────────────────────────
+      final levelType = widget.levelType;
+      final idRef     = widget.idRef;
+      final nameCol   = 'nama_$levelType';
+      final idCol     = 'id_$levelType';
+
+      final levelRow = await _supabase
+          .from(levelType)
+          .select('id_pic, $nameCol')
+          .eq(idCol, idRef)
+          .maybeSingle();
+
+      final picId = levelRow?['id_pic']?.toString();
+      if (picId == null) return granted; // tidak ada PIC → skip
+
+      // ── Hitung skor per tema ───────────────────────────────────────────
+      final Map<String, List<bool>> temaAnswers = {};
+      for (final q in _questions) {
+        final id  = q['id_question'].toString();
+        final ans = _answers[id];
+        if (ans == null) continue;
+        final temaId = q['id_tema']?.toString() ?? 'no_tema';
+        temaAnswers.putIfAbsent(temaId, () => []).add(ans);
+      }
+
+      // Map temaId → nama tema
+      final Map<String, String> temaNames = {};
+      for (final t in _temas) {
+        final id = t['id_tema'].toString();
+        String name;
+        if (widget.lang == 'EN') {
+          name = t['nama_tema_en']?.toString() ?? '-';
+        } else if (widget.lang == 'ZH') {
+          name = t['nama_tema_zh']?.toString() ?? '-';
+        } else {
+          name = t['nama_tema_id']?.toString() ?? '-';
+        }
+        temaNames[id] = name;
+      }
+
+      bool allTema100 = temaAnswers.isNotEmpty;
+      final List<Map<String, dynamic>> logEntries = [];
+
+      for (final entry in temaAnswers.entries) {
+        final temaId = entry.key;
+        final answers = entry.value;
+        final allYes  = answers.every((a) => a == true);
+
+        if (!allYes) {
+          allTema100 = false;
+          continue;
+        }
+
+        final temaCfg = cfg['AUDIT_BONUS_TEMA'];
+        if (temaCfg != null) {
+          final temaLabel = temaNames[temaId] ?? temaId;
+          final deskripsi = (temaCfg['deskripsi_template'] as String)
+              .replaceAll('{tema}', temaLabel)
+              .replaceAll('{lokasi}', widget.locationName);
+
+          // Bonus ke PIC, bukan auditor
+          logEntries.add({
+            'id_user':         picId,
+            'poin':            temaCfg['poin'] as int,
+            'deskripsi':       deskripsi,
+            'tipe_aktivitas':  'audit_bonus_tema',
+          });
+          granted.add({'poin': temaCfg['poin'] as int, 'deskripsi': deskripsi});
+        }
+      }
+
+      if (allTema100 && cfg.containsKey('AUDIT_BONUS_FULL')) {
+        final fullCfg   = cfg['AUDIT_BONUS_FULL']!;
+        final deskripsi = (fullCfg['deskripsi_template'] as String)
+            .replaceAll('{lokasi}', widget.locationName)
+            .replaceAll('{tema}', '');
+
+        // Bonus ke PIC, bukan auditor
+        logEntries.add({
+          'id_user':         picId,
+          'poin':            fullCfg['poin'] as int,
+          'deskripsi':       deskripsi,
+          'tipe_aktivitas':  'audit_bonus_full',
+        });
+        granted.add({'poin': fullCfg['poin'] as int, 'deskripsi': deskripsi});
+      }
+
+      if (logEntries.isNotEmpty) {
+        await _supabase.from('log_poin').insert(logEntries);
+      }
+    } catch (e) {
+      debugPrint('Error granting bonus poin: $e');
+    }
+    return granted;
   }
 
   void _showResult(double score) {
     Color color;
     String label;
-    if (score >= 80) { color = _green; label = _t('Good', 'Baik', '良好'); }
-    else if (score >= 60) { color = _amber; label = _t('Fair', 'Cukup', '一般'); }
-    else { color = _red; label = _t('Poor', 'Kurang', '较差'); }
+    if (score >= 80) {
+      color = _green;
+      label = _t('Good', 'Baik', '良好');
+    } else if (score >= 60) {
+      color = _amber;
+      label = _t('Fair', 'Cukup', '一般');
+    } else {
+      color = _red;
+      label = _t('Poor', 'Kurang', '较差');
+    }
+
+    // Apakah ada jawaban No (belum 100%)
+    final hasNoAnswer = _answers.values.any((v) => v == false);
 
     showDialog(
       context: context,
@@ -341,52 +560,97 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         contentPadding: const EdgeInsets.all(24),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  '${score.toStringAsFixed(0)}%',
-                  style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800, color: color),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80, height: 80,
+                decoration: BoxDecoration(
+                    color: color.withOpacity(0.12), shape: BoxShape.circle),
+                child: Center(
+                  child: Text(
+                    '${score.toStringAsFixed(0)}%',
+                    style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: color),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              _t('Audit Completed!', 'Audit Selesai!', '审计完成！'),
-              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _textMain),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${widget.locationName} — $label',
-              style: GoogleFonts.poppins(fontSize: 13, color: _textSub),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: color,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                ),
-                child: Text(_t('Done', 'Selesai', '完成'),
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 14),
+              Text(
+                _t('Audit Selesai!', 'Audit Completed!', '审计完成！'),
+                style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: _textMain),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                '${widget.locationName} — $label',
+                style: GoogleFonts.poppins(fontSize: 13, color: _textSub),
+                textAlign: TextAlign.center,
+              ),
+
+              // ── Info jika ada jawaban No: poin menunggu perbaikan ──
+              if (hasNoAnswer) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _amber.withOpacity(0.07),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _amber.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline_rounded,
+                          size: 15, color: Color(0xFFF59E0B)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _t(
+                            'Masih ada temuan yang belum selesai. '
+                            'Poin keseluruhan akan ditampilkan setelah PIC membalas '
+                            'dan Anda mengkonfirmasi semua perbaikan.',
+                            'Some findings are pending. Overall points will be '
+                            'shown after PIC replies and you confirm all fixes.',
+                            '存在待处理发现。PIC回复并您确认所有修复后将显示总积分。',
+                          ),
+                          style: GoogleFonts.poppins(
+                              fontSize: 11, color: _amber),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: color,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                  ),
+                  child: Text(_t('Selesai', 'Done', '完成'),
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
