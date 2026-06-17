@@ -5,6 +5,7 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/push_notification_service.dart';
+import '../../audit/audit_evidence_camera_screen.dart';
 import '../../user/finding/finding_detail_screen.dart';
 import '../../user/home/finding_card.dart';
 
@@ -1181,19 +1182,43 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
           }
         } else {
           // Poin bonus yang diterima PIC dari log_poin
+          // Include audit_bonus_tema, audit_bonus_full, audit_bonus_pic
+          // Tidak pakai filter created_at agar bonus tema/full yang dikirim
+          // bersamaan saat audit submit tetap terbaca
           try {
+            final auditDate = item['tanggal_audit']?.toString() ?? '';
+            final createdAt = item['created_at']?.toString() ?? '';
+
+            // Ambil semua log bonus PIC tanpa batasan waktu,
+            // filter berdasarkan nama lokasi di deskripsi
             final logs = await _supabase
                 .from('log_poin')
                 .select('poin, deskripsi, tipe_aktivitas, created_at')
                 .eq('id_user', userId)
-                .inFilter('tipe_aktivitas', ['audit_bonus_tema', 'audit_bonus_full'])
-                .gte('created_at', item['created_at']?.toString() ?? '')
+                .inFilter('tipe_aktivitas', [
+                  'audit_bonus_tema',
+                  'audit_bonus_full',
+                  'audit_bonus_pic',
+                ])
                 .order('created_at', ascending: false)
-                .limit(10);
+                .limit(200);
 
+            // Filter: deskripsi mengandung nama lokasi
+            // Dan created_at tidak lebih dari 1 hari sebelum audit
+            final auditDt = DateTime.tryParse(createdAt);
             final filtered = (logs as List).where((l) {
               final desc = l['deskripsi']?.toString() ?? '';
-              return desc.contains(locName);
+              if (!desc.contains(locName)) return false;
+              // Pastikan log ini sekitar waktu audit (±2 hari)
+              if (auditDt != null) {
+                final logDt = DateTime.tryParse(
+                    l['created_at']?.toString() ?? '');
+                if (logDt != null) {
+                  final diff = logDt.difference(auditDt).inDays.abs();
+                  return diff <= 2;
+                }
+              }
+              return true;
             }).toList();
 
             item['_poin_logs'] = List<Map<String, dynamic>>.from(filtered);
@@ -1202,7 +1227,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
           }
         }
 
-        // Jawaban + tema untuk detail (auditor dan PIC)
+        // Jawaban + tema + replies untuk detail (auditor dan PIC)
         try {
           final answers = await _supabase
               .from('audit_answer')
@@ -1211,6 +1236,11 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                 'Question:audit_question('
                   'pertanyaan, pertanyaan_en, pertanyaan_zh, '
                   'Tema:audit_tema(nama_tema_id, nama_tema_en, nama_tema_zh)'
+                '), '
+                'Replies:audit_answer_reply('
+                  'id_reply, catatan_reply, gambar_reply, '
+                  'is_confirmed, confirmed_at, created_at, '
+                  'PIC:User!fk_reply_pic(nama, gambar_user)'
                 ')',
               )
               .eq('id_result', idResult);
@@ -1544,8 +1574,1195 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
     final isPic = role == 'pic';
     final auditorData = item['Auditor'] as Map<String, dynamic>?;
     final auditorName = auditorData?['nama']?.toString() ?? '';
+    final idResult = item['id_result']?.toString() ?? '';
+    final userId = _supabase.auth.currentUser?.id ?? '';
 
-    // Kelompokkan jawaban per tema (hanya auditor)
+    // Cek apakah ada jawaban No yang belum semua confirmed
+    final noAnswers = answers.where((a) => a['jawaban'] == false).toList();
+    final allNoConfirmed = noAnswers.isNotEmpty &&
+        noAnswers.every((a) {
+          final replies = (a['Replies'] as List?) ?? [];
+          return replies.any((r) => r['is_confirmed'] == true);
+        });
+
+    // Hitung nilai efektif: jika semua No sudah confirmed, nilai = 100
+    final effectiveScore = (noAnswers.isNotEmpty && allNoConfirmed)
+        ? 100.0
+        : displayScore;
+    final effectiveScoreColor = _scoreColor(
+        noAnswers.isNotEmpty && allNoConfirmed ? 100.0 : displayScore);
+
+    // Nilai ditampilkan hanya jika semua No sudah confirmed (atau tidak ada No)
+    final showScore = noAnswers.isEmpty || allNoConfirmed;
+
+    int totalPoin = 0;
+    for (final l in poinLogs) {
+      totalPoin += ((l['poin'] as num?)?.toInt() ?? 0);
+    }
+
+    final expanded = ValueNotifier<bool>(false);
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: expanded,
+      builder: (_, isExpanded, __) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: showScore
+                ? scoreColor.withOpacity(0.25)
+                : const Color(0xFFF59E0B).withOpacity(0.4),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3)),
+          ],
+        ),
+        child: Column(
+          children: [
+            // ── Header ──
+            GestureDetector(
+              onTap: () => expanded.value = !isExpanded,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(children: [
+                  // Score circle
+                  Container(
+                    width: 54, height: 54,
+                    decoration: BoxDecoration(
+                      color: showScore
+                          ? effectiveScoreColor.withOpacity(0.12)
+                          : const Color(0xFFF59E0B).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: showScore
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  effectiveScore != null
+                                      ? '${effectiveScore.toStringAsFixed(0)}%'
+                                      : '-',
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                      color: effectiveScoreColor),
+                                ),
+                                if (isFinalized || allNoConfirmed)
+                                  Text(_t('Final', 'Final', '最终'),
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 8, color: effectiveScoreColor)),
+                              ],
+                            ),
+                          )
+                        : Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.pending_actions_rounded,
+                                    size: 20, color: Color(0xFFF59E0B)),
+                                Text(
+                                  _t('Proses', 'WIP', '进行中'),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFFF59E0B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isPic
+                                  ? const Color(0xFF10B981).withOpacity(0.12)
+                                  : _blue.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              isPic ? _t('PIC', 'PIC', 'PIC') : _t('Auditor', 'Auditor', '审计员'),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: isPic
+                                      ? const Color(0xFF10B981)
+                                      : _blue),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _blue.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(levelType.toUpperCase(),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w700,
+                                    color: _blue)),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(locationName,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF1E3A8A)),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                        ]),
+                        const SizedBox(height: 3),
+                        Row(children: [
+                          Text(date,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 10, color: Colors.grey.shade400)),
+                          if (isPic && auditorName.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '· ${_t('oleh', 'by', '由')} $auditorName',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 10, color: Colors.grey.shade500),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                          // Badge poin hanya jika sudah show score
+                          if (totalPoin != 0 && showScore) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: totalPoin > 0
+                                    ? const Color(0xFF10B981).withOpacity(0.12)
+                                    : const Color(0xFFEF4444).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                totalPoin > 0
+                                    ? '+$totalPoin poin'
+                                    : '$totalPoin poin',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: totalPoin > 0
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFFEF4444)),
+                              ),
+                            ),
+                          ],
+                          // Badge perlu perbaikan jika belum semua confirmed
+                          if (!showScore) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: const Color(0xFFF59E0B)
+                                        .withOpacity(0.4)),
+                              ),
+                              child: Text(
+                                _t('Perlu Perbaikan', 'Needs Fix', '需要修复'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFFF59E0B)),
+                              ),
+                            ),
+                          ],
+                        ]),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: _blue,
+                    size: 22,
+                  ),
+                ]),
+              ),
+            ),
+
+            // ── Detail expand ──
+            if (isExpanded) ...[
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+              // Poin log (hanya jika showScore)
+              if (poinLogs.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      const Color(0xFF10B981).withOpacity(0.08),
+                      _blue.withOpacity(0.05),
+                    ]),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: const Color(0xFF10B981).withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.emoji_events_rounded,
+                            color: Color(0xFF10B981), size: 15),
+                        const SizedBox(width: 6),
+                        Text(
+                          isPic
+                              ? _t('Bonus Poin PIC', 'PIC Bonus Points', 'PIC奖励积分')
+                              : _t('Poin Diperoleh', 'Points Earned', '获得积分'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF10B981)),
+                        ),
+                      ]),
+                      const SizedBox(height: 8),
+                      ...poinLogs.map((log) {
+                        final p = (log['poin'] as num?)?.toInt() ?? 0;
+                        final isPos = p >= 0;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Row(children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isPos
+                                    ? const Color(0xFF10B981).withOpacity(0.12)
+                                    : const Color(0xFFEF4444).withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(isPos ? '+$p' : '$p',
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: isPos
+                                          ? const Color(0xFF10B981)
+                                          : const Color(0xFFEF4444))),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(log['deskripsi']?.toString() ?? '',
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11,
+                                      color: const Color(0xFF1E3A8A)),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                          ]),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+
+              // ── Pertanyaan No — reply + konfirmasi ──
+              if (noAnswers.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                  child: Row(children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        size: 14, color: Color(0xFFEF4444)),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${noAnswers.length} ${_t('pertanyaan perlu perbaikan', 'questions need fix', '个问题需要修复')}',
+                      style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFEF4444)),
+                    ),
+                  ]),
+                ),
+                ...noAnswers.map((ans) =>
+                    _buildAnswerThreadFull(ans, idResult, isPic, userId)),
+              ],
+
+              // Detail jawaban semua (per tema) — untuk konteks
+              if (answers.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                  child: Row(children: [
+                    Icon(Icons.list_alt_rounded, size: 14, color: _blue),
+                    const SizedBox(width: 6),
+                    Text(
+                      _t('Ringkasan Jawaban', 'Answer Summary', '回答摘要'),
+                      style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _blue),
+                    ),
+                  ]),
+                ),
+                _buildAnswerSummary(answers),
+              ],
+
+              const SizedBox(height: 14),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Thread reply lengkap untuk pertanyaan No:
+  /// - PIC bisa reply (gambar + notes)
+  /// - Auditor bisa reply (gambar opsional + notes) + konfirmasi Yes
+  Widget _buildAnswerThreadFull(
+      Map<String, dynamic> ans,
+      String idResult,
+      bool isPic,
+      String userId) {
+    final q = ans['Question'] as Map<String, dynamic>?;
+    final replies = (ans['Replies'] as List?)
+            ?.map((r) => Map<String, dynamic>.from(r as Map))
+            .toList() ??
+        [];
+    final gambar = ans['gambar_jawaban']?.toString() ?? '';
+    final catatan = ans['catatan']?.toString() ?? '';
+    final allConfirmed =
+        replies.isNotEmpty && replies.every((r) => r['is_confirmed'] == true);
+
+    String questionText;
+    if (widget.lang == 'EN') {
+      questionText = q?['pertanyaan_en']?.toString() ??
+          q?['pertanyaan']?.toString() ??
+          '-';
+    } else if (widget.lang == 'ZH') {
+      questionText = q?['pertanyaan_zh']?.toString() ??
+          q?['pertanyaan']?.toString() ??
+          '-';
+    } else {
+      questionText = q?['pertanyaan']?.toString() ?? '-';
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: allConfirmed
+            ? const Color(0xFF10B981).withOpacity(0.05)
+            : const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: allConfirmed
+              ? const Color(0xFF10B981).withOpacity(0.3)
+              : const Color(0xFFEF4444).withOpacity(0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Pertanyaan
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 20, height: 20,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close_rounded,
+                    size: 12, color: Color(0xFFEF4444)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(questionText,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E3A8A))),
+              ),
+            ],
+          ),
+
+          // Evidence auditor
+          if (gambar.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(gambar,
+                  height: 120, width: double.infinity, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+            ),
+          ],
+          if (catatan.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(catatan,
+                  style: GoogleFonts.poppins(
+                      fontSize: 11, color: const Color(0xFF64748B))),
+            ),
+          ],
+
+          // Replies
+          if (replies.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            const SizedBox(height: 8),
+            ...replies.map((reply) {
+              final picData = reply['PIC'] as Map<String, dynamic>?;
+              final picName = picData?['nama']?.toString() ?? '-';
+              final confirmed = reply['is_confirmed'] == true;
+              final replyGambar = reply['gambar_reply']?.toString() ?? '';
+              final replyCatatan = reply['catatan_reply']?.toString() ?? '';
+              final idReply = reply['id_reply']?.toString() ?? '';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: confirmed
+                      ? const Color(0xFF10B981).withOpacity(0.07)
+                      : const Color(0xFF6366F1).withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: confirmed
+                        ? const Color(0xFF10B981).withOpacity(0.3)
+                        : const Color(0xFF6366F1).withOpacity(0.2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Icon(
+                        confirmed
+                            ? Icons.verified_rounded
+                            : Icons.reply_rounded,
+                        size: 13,
+                        color: confirmed
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFF6366F1),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          confirmed
+                              ? '$picName ✓ ${_t('Dikonfirmasi', 'Confirmed', '已确认')}'
+                              : picName,
+                          style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: confirmed
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFF6366F1)),
+                        ),
+                      ),
+                    ]),
+                    if (replyCatatan.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(replyCatatan,
+                          style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: const Color(0xFF1E3A8A))),
+                    ],
+                    if (replyGambar.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(replyGambar,
+                            height: 100,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const SizedBox.shrink()),
+                      ),
+                    ],
+
+                    // Tombol balas + konfirmasi (hanya auditor, reply belum confirmed)
+                    if (!isPic && !confirmed) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _showAuditorReplySheet(
+                              idReply, ans['id_answer'].toString(), idResult, userId),
+                          icon: const Icon(Icons.rate_review_rounded, size: 14),
+                          label: Text(
+                            _t('Balas & Konfirmasi', 'Reply & Confirm', '回复并确认'),
+                            style: GoogleFonts.poppins(
+                                fontSize: 11, fontWeight: FontWeight.w600),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+          ],
+
+          // Tombol Reply: PIC (jika belum confirmed) atau Auditor (bisa reply balik)
+          if (!allConfirmed) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () =>
+                    _showReplyBottomSheet(ans, idResult, isPic, userId),
+                icon: const Icon(Icons.reply_rounded, size: 14),
+                label: Text(
+                  isPic
+                      ? (replies.isEmpty
+                          ? _t('Balas', 'Reply', '回复')
+                          : _t('Perbarui Balasan', 'Update Reply', '更新回复'))
+                      : _t('Tambah Catatan', 'Add Note', '添加备注'),
+                  style: GoogleFonts.poppins(
+                      fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF6366F1),
+                  side: const BorderSide(color: Color(0xFF6366F1)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Bottom sheet reply — PIC: gambar+notes wajib; Auditor: gambar opsional+notes
+  Future<void> _showReplyBottomSheet(
+      Map<String, dynamic> ans,
+      String idResult,
+      bool isPic,
+      String userId) async {
+    final noteCtrl = TextEditingController();
+    String? photoUrl;
+    bool submitting = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  isPic
+                      ? _t('Balas Temuan', 'Reply Finding', '回复发现')
+                      : _t('Tambah Catatan', 'Add Note', '添加备注'),
+                  style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1E3A8A)),
+                ),
+                const SizedBox(height: 14),
+
+                // Upload foto (wajib untuk PIC, opsional untuk auditor)
+                GestureDetector(
+                  onTap: () async {
+                    // Navigasi ke camera screen untuk ambil foto
+                    final url = await Navigator.push<String>(
+                      ctx,
+                      MaterialPageRoute(
+                        builder: (_) => AuditEvidenceCameraScreen(
+                          lang: widget.lang,
+                          questionText: '',
+                        ),
+                      ),
+                    );
+                    if (url != null) setSt(() => photoUrl = url);
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: const Color(0xFF6366F1).withOpacity(0.35)),
+                    ),
+                    child: photoUrl == null
+                        ? Padding(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 14),
+                            child: Column(children: [
+                              const Icon(Icons.add_a_photo_rounded,
+                                  color: Color(0xFF6366F1), size: 22),
+                              const SizedBox(height: 4),
+                              Text(
+                                isPic
+                                    ? _t('Upload Foto Bukti Perbaikan',
+                                        'Upload Fix Evidence Photo',
+                                        '上传修复证据照片')
+                                    : _t('Upload Foto (opsional)',
+                                        'Upload Photo (optional)',
+                                        '上传照片（可选）'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF6366F1)),
+                              ),
+                            ]),
+                          )
+                        : Stack(children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(photoUrl!,
+                                  height: 140,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover),
+                            ),
+                            Positioned(
+                              top: 6, right: 6,
+                              child: GestureDetector(
+                                onTap: () => setSt(() => photoUrl = null),
+                                child: Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.5),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close_rounded,
+                                      color: Colors.white, size: 14),
+                                ),
+                              ),
+                            ),
+                          ]),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Notes
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 3,
+                  style: GoogleFonts.poppins(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: isPic
+                        ? _t(
+                            'Jelaskan tindakan perbaikan…',
+                            'Describe corrective action…',
+                            '描述纠正措施…')
+                        : _t('Tambahkan catatan…', 'Add a note…', '添加备注…'),
+                    hintStyle: GoogleFonts.poppins(
+                        fontSize: 12, color: Colors.grey),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: Color(0xFFE2E8F0))),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: Color(0xFFE2E8F0))),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF6366F1), width: 1.5)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: submitting
+                        ? null
+                        : () async {
+                            if (noteCtrl.text.trim().isEmpty) return;
+                            // PIC: foto wajib
+                            if (isPic && photoUrl == null) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                content: Text(_t(
+                                    'Upload foto bukti perbaikan terlebih dahulu.',
+                                    'Please upload fix evidence photo.',
+                                    '请先上传修复证据照片。')),
+                                backgroundColor: const Color(0xFFEF4444),
+                              ));
+                              return;
+                            }
+                            setSt(() => submitting = true);
+                            try {
+                              await _supabase
+                                  .from('audit_answer_reply')
+                                  .insert({
+                                'id_answer': ans['id_answer'],
+                                'id_pic': userId,
+                                'catatan_reply': noteCtrl.text.trim(),
+                                'gambar_reply': photoUrl,
+                                'is_confirmed': false,
+                              });
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              _fetch();
+                            } catch (e) {
+                              setSt(() => submitting = false);
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(content: Text('Error: $e')));
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6366F1),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: submitting
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : Text(
+                            _t('Kirim', 'Send', '发送'),
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Bottom sheet untuk auditor membalas balasan PIC + konfirmasi sekaligus
+  Future<void> _showAuditorReplySheet(
+      String idReply,
+      String idAnswer,
+      String idResult,
+      String userId) async {
+    final noteCtrl = TextEditingController();
+    String? photoUrl;
+    bool submitting = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Header
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.check_circle_outline_rounded,
+                        color: Color(0xFF10B981), size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _t('Balas & Konfirmasi', 'Reply & Confirm', '回复并确认'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1E3A8A)),
+                        ),
+                        Text(
+                          _t(
+                            'Tambahkan catatan balasan lalu konfirmasi perbaikan.',
+                            'Add a reply note then confirm the fix.',
+                            '添加回复备注并确认修复。',
+                          ),
+                          style: GoogleFonts.poppins(
+                              fontSize: 11, color: const Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+
+                // Upload foto (opsional untuk auditor)
+                GestureDetector(
+                  onTap: () async {
+                    final url = await Navigator.push<String>(
+                      ctx,
+                      MaterialPageRoute(
+                        builder: (_) => AuditEvidenceCameraScreen(
+                          lang: widget.lang,
+                          questionText: '',
+                        ),
+                      ),
+                    );
+                    if (url != null) setSt(() => photoUrl = url);
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: const Color(0xFF10B981).withOpacity(0.4)),
+                    ),
+                    child: photoUrl == null
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            child: Column(children: [
+                              const Icon(Icons.add_a_photo_rounded,
+                                  color: Color(0xFF10B981), size: 22),
+                              const SizedBox(height: 4),
+                              Text(
+                                _t('Upload Foto (opsional)',
+                                    'Upload Photo (optional)', '上传照片（可选）'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF10B981)),
+                              ),
+                            ]),
+                          )
+                        : Stack(children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(photoUrl!,
+                                  height: 140,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover),
+                            ),
+                            Positioned(
+                              top: 6, right: 6,
+                              child: GestureDetector(
+                                onTap: () => setSt(() => photoUrl = null),
+                                child: Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.5),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close_rounded,
+                                      color: Colors.white, size: 14),
+                                ),
+                              ),
+                            ),
+                          ]),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Notes (wajib)
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 3,
+                  style: GoogleFonts.poppins(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: _t(
+                      'Catatan konfirmasi (wajib)…',
+                      'Confirmation note (required)…',
+                      '确认备注（必填）…',
+                    ),
+                    hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF10B981), width: 1.5)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Info badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFF10B981).withOpacity(0.25)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.info_outline_rounded,
+                        size: 14, color: Color(0xFF10B981)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _t(
+                          'Setelah dikirim, perbaikan akan dikonfirmasi dan poin akan dihitung.',
+                          'After sending, the fix will be confirmed and points will be calculated.',
+                          '发送后，修复将被确认并计算积分。',
+                        ),
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, color: const Color(0xFF10B981)),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: submitting
+                        ? null
+                        : () async {
+                            if (noteCtrl.text.trim().isEmpty) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                content: Text(_t(
+                                    'Catatan wajib diisi.',
+                                    'Note is required.',
+                                    '备注为必填项。')),
+                                backgroundColor: const Color(0xFFEF4444),
+                              ));
+                              return;
+                            }
+                            setSt(() => submitting = true);
+                            try {
+                              // 1. Simpan catatan auditor ke audit_answer_reply sebagai catatan tambahan
+                              //    (opsional — hanya jika ada catatan/foto dari auditor)
+                              if (noteCtrl.text.trim().isNotEmpty) {
+                                await _supabase.from('audit_answer_reply').insert({
+                                  'id_answer': idAnswer,
+                                  'id_pic': userId,    // auditor menggunakan field id_pic sebagai pengirim
+                                  'catatan_reply': noteCtrl.text.trim(),
+                                  'gambar_reply': photoUrl,
+                                  'is_confirmed': true, // langsung confirmed karena ini dari auditor
+                                });
+                              }
+                              // 2. Update reply PIC menjadi confirmed
+                              await _supabase
+                                  .from('audit_answer_reply')
+                                  .update({
+                                    'is_confirmed': true,
+                                    'confirmed_at': DateTime.now().toIso8601String(),
+                                  })
+                                  .eq('id_reply', idReply);
+
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              // Panggil _confirmReply untuk logika bonus PIC
+                              await _confirmReply(idReply, idAnswer, idResult);
+                            } catch (e) {
+                              setSt(() => submitting = false);
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')));
+                              }
+                            }
+                          },
+                    icon: submitting
+                        ? const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.check_circle_rounded, size: 16),
+                    label: Text(
+                      submitting
+                          ? ''
+                          : _t('Kirim & Konfirmasi', 'Send & Confirm', '发送并确认'),
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Konfirmasi reply Yes dari auditor + beri bonus AUDIT_BONUS_PIC ke PIC
+  /// jika semua jawaban No sudah confirmed
+  Future<void> _confirmReply(
+      String idReply, String idAnswer, String idResult) async {
+    try {
+      await _supabase
+          .from('audit_answer_reply')
+          .update({'is_confirmed': true, 'confirmed_at': DateTime.now().toIso8601String()})
+          .eq('id_reply', idReply);
+
+      // Cek apakah semua jawaban No sudah confirmed
+      final resultRow = await _supabase
+          .from('audit_result')
+          .select('is_finalized, level_type, id_ref, id_auditor')
+          .eq('id_result', idResult)
+          .maybeSingle();
+
+      if (resultRow == null || resultRow['is_finalized'] == true) {
+        _fetch();
+        return;
+      }
+
+      final allAnswers = await _supabase
+          .from('audit_answer')
+          .select(
+              'id_answer, jawaban, '
+              'Replies:audit_answer_reply(is_confirmed)')
+          .eq('id_result', idResult);
+
+      final noAnswers = (allAnswers as List)
+          .where((a) => a['jawaban'] == false)
+          .toList();
+
+      final allConfirmed = noAnswers.isNotEmpty &&
+          noAnswers.every((a) {
+            final replies = (a['Replies'] as List?) ?? [];
+            return replies.any((r) => r['is_confirmed'] == true);
+          });
+
+      if (!allConfirmed) {
+        _fetch();
+        return;
+      }
+
+      // Semua No sudah confirmed → beri bonus AUDIT_BONUS_PIC ke PIC
+      final levelType = resultRow['level_type'].toString();
+      final idRef = resultRow['id_ref'].toString();
+      final nameCol = 'nama_$levelType';
+      final idCol = 'id_$levelType';
+
+      final locRow = await _supabase
+          .from(levelType)
+          .select('id_pic, $nameCol')
+          .eq(idCol, idRef)
+          .maybeSingle();
+
+      final picId = locRow?['id_pic']?.toString();
+      final lokasiName = locRow?[nameCol]?.toString() ?? '-';
+
+      if (picId != null) {
+        final cfgRow = await _supabase
+            .from('konfigurasi_poin')
+            .select('poin, deskripsi_template')
+            .eq('kode', 'AUDIT_BONUS_PIC')
+            .eq('is_aktif', true)
+            .maybeSingle();
+
+        if (cfgRow != null) {
+          final deskripsi = (cfgRow['deskripsi_template'] as String)
+              .replaceAll('{lokasi}', lokasiName);
+
+          await _supabase.from('log_poin').insert({
+            'id_user': picId,
+            'poin': cfgRow['poin'] as int,
+            'deskripsi': deskripsi,
+            'tipe_aktivitas': 'audit_bonus_pic',
+          });
+        }
+      }
+
+      // Tandai result as finalized
+      await _supabase
+          .from('audit_result')
+          .update({'is_finalized': true})
+          .eq('id_result', idResult);
+
+      _fetch();
+    } catch (e) {
+      debugPrint('_confirmReply error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: const Color(0xFFEF4444)),
+        );
+      }
+    }
+  }
+
+  /// Ringkasan jawaban semua (yes dan no) dalam format compact
+  Widget _buildAnswerSummary(List<Map<String, dynamic>> answers) {
     final Map<String, List<Map<String, dynamic>>> byTema = {};
     for (final ans in answers) {
       final q = ans['Question'] as Map<String, dynamic>?;
@@ -1561,336 +2778,47 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
       byTema.putIfAbsent(temaKey, () => []).add(ans);
     }
 
-    int totalPoin = 0;
-    for (final l in poinLogs) {
-      totalPoin += ((l['poin'] as num?)?.toInt() ?? 0);
-    }
+    return Column(
+      children: byTema.entries.map((entry) {
+        final temaName = entry.key;
+        final temaAnswers = entry.value;
+        final yes = temaAnswers.where((a) => a['jawaban'] == true).length;
+        final total = temaAnswers.length;
+        final is100 = yes == total;
+        Color temaColor = is100 ? const Color(0xFF10B981) : const Color(0xFFEF4444);
 
-    final expanded = ValueNotifier<bool>(false);
-
-    return ValueListenableBuilder<bool>(
-      valueListenable: expanded,
-      builder: (_, isExpanded, __) => Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: scoreColor.withOpacity(0.25), width: 1.2),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3)),
-          ],
-        ),
-        child: Column(
-          children: [
-            // ── Header ──
-            GestureDetector(
-              onTap: () => expanded.value = !isExpanded,
-              child: Padding(
-                padding: const EdgeInsets.all(14),
+        return Container(
+          margin: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+          decoration: BoxDecoration(
+            color: is100
+                ? const Color(0xFF10B981).withOpacity(0.04)
+                : const Color(0xFFFFF7ED),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: temaColor.withOpacity(0.2)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(children: [
-                  Container(
-                    width: 54, height: 54,
-                    decoration: BoxDecoration(color: scoreColor.withOpacity(0.12), shape: BoxShape.circle),
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
-                            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w800, color: scoreColor),
-                          ),
-                          if (isFinalized)
-                            Text(_t('Final', 'Final', '最终'),
-                                style: GoogleFonts.poppins(fontSize: 8, color: scoreColor)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          // Badge role
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isPic
-                                  ? const Color(0xFF10B981).withOpacity(0.12)
-                                  : _blue.withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              isPic ? _t('PIC', 'PIC', 'PIC') : _t('Auditor', 'Auditor', '审计员'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 9, fontWeight: FontWeight.w700,
-                                  color: isPic ? const Color(0xFF10B981) : _blue),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: _blue.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(levelType.toUpperCase(),
-                                style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: _blue)),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(locationName,
-                                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF1E3A8A)),
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
-                          ),
-                        ]),
-                        const SizedBox(height: 3),
-                        Row(children: [
-                          Text(date, style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey.shade400)),
-                          if (isPic && auditorName.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '· ${_t('oleh', 'by', '由')} $auditorName',
-                                style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey.shade500),
-                                maxLines: 1, overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                          if (totalPoin != 0) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: totalPoin > 0
-                                    ? const Color(0xFF10B981).withOpacity(0.12)
-                                    : const Color(0xFFEF4444).withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                totalPoin > 0 ? '+$totalPoin poin' : '$totalPoin poin',
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10, fontWeight: FontWeight.w700,
-                                    color: totalPoin > 0
-                                        ? const Color(0xFF10B981)
-                                        : const Color(0xFFEF4444)),
-                              ),
-                            ),
-                          ],
-                        ]),
-                      ],
-                    ),
-                  ),
                   Icon(
-                    isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                    color: _blue, size: 22,
+                      is100 ? Icons.check_circle_rounded : Icons.topic_outlined,
+                      size: 13, color: temaColor),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(temaName,
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, fontWeight: FontWeight.w700, color: temaColor)),
                   ),
+                  Text('$yes/$total',
+                      style: GoogleFonts.poppins(
+                          fontSize: 11, fontWeight: FontWeight.w700, color: temaColor)),
                 ]),
               ),
-            ),
-
-            // ── Detail expand ──
-            if (isExpanded) ...[
-              const Divider(height: 1, color: Color(0xFFF1F5F9)),
-
-              // Poin log
-              if (poinLogs.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-                      const Color(0xFF10B981).withOpacity(0.08),
-                      _blue.withOpacity(0.05),
-                    ]),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        const Icon(Icons.emoji_events_rounded, color: Color(0xFF10B981), size: 15),
-                        const SizedBox(width: 6),
-                        Text(
-                          isPic
-                              ? _t('Bonus Poin Diterima', 'Bonus Points Received', '已收到奖励积分')
-                              : _t('Poin Diperoleh', 'Points Earned', '获得积分'),
-                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700,
-                              color: const Color(0xFF10B981)),
-                        ),
-                      ]),
-                      const SizedBox(height: 8),
-                      ...poinLogs.map((log) {
-                        final p = (log['poin'] as num?)?.toInt() ?? 0;
-                        final isPos = p >= 0;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 5),
-                          child: Row(children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: isPos
-                                    ? const Color(0xFF10B981).withOpacity(0.12)
-                                    : const Color(0xFFEF4444).withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(isPos ? '+$p' : '$p',
-                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w800,
-                                      color: isPos ? const Color(0xFF10B981) : const Color(0xFFEF4444))),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(log['deskripsi']?.toString() ?? '',
-                                  style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF1E3A8A)),
-                                  maxLines: 2, overflow: TextOverflow.ellipsis),
-                            ),
-                          ]),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-
-              // Detail jawaban per tema (hanya auditor)
-              if (byTema.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-                  child: Row(children: [
-                    Icon(Icons.list_alt_rounded, size: 14, color: _blue),
-                    const SizedBox(width: 6),
-                    Text(_t('Detail Jawaban', 'Answer Details', '回答详情'),
-                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _blue)),
-                  ]),
-                ),
-                ...byTema.entries.map((entry) {
-                  final temaName = entry.key;
-                  final temaAnswers = entry.value;
-                  final yesCount = temaAnswers.where((a) => a['jawaban'] == true).length;
-                  final total = temaAnswers.length;
-                  final is100 = yesCount == total;
-
-                  return Container(
-                    margin: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-                    decoration: BoxDecoration(
-                      color: is100
-                          ? const Color(0xFF10B981).withOpacity(0.04)
-                          : const Color(0xFFFFF7ED),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: is100
-                            ? const Color(0xFF10B981).withOpacity(0.25)
-                            : const Color(0xFFEF4444).withOpacity(0.2),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-                          child: Row(children: [
-                            Icon(
-                              is100 ? Icons.check_circle_rounded : Icons.topic_outlined,
-                              size: 14,
-                              color: is100 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(temaName,
-                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700,
-                                      color: is100 ? const Color(0xFF10B981) : const Color(0xFF1E3A8A))),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: is100
-                                    ? const Color(0xFF10B981).withOpacity(0.15)
-                                    : const Color(0xFFEF4444).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text('$yesCount/$total',
-                                  style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700,
-                                      color: is100 ? const Color(0xFF10B981) : const Color(0xFFEF4444))),
-                            ),
-                          ]),
-                        ),
-                        const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                        ...temaAnswers.asMap().entries.map((e) {
-                          final idx = e.key;
-                          final ans = e.value;
-                          final isYes = ans['jawaban'] == true;
-                          final q = ans['Question'] as Map<String, dynamic>?;
-                          String pertanyaan;
-                          if (widget.lang == 'EN') {
-                            pertanyaan = q?['pertanyaan_en']?.toString() ?? q?['pertanyaan']?.toString() ?? '-';
-                          } else if (widget.lang == 'ZH') {
-                            pertanyaan = q?['pertanyaan_zh']?.toString() ?? q?['pertanyaan']?.toString() ?? '-';
-                          } else {
-                            pertanyaan = q?['pertanyaan']?.toString() ?? '-';
-                          }
-                          final catatan = ans['catatan']?.toString() ?? '';
-                          final isLast = idx == temaAnswers.length - 1;
-
-                          return Container(
-                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                            decoration: BoxDecoration(
-                              border: isLast ? null : const Border(
-                                bottom: BorderSide(color: Color(0xFFF1F5F9)),
-                              ),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 22, height: 22,
-                                  decoration: BoxDecoration(
-                                    color: isYes
-                                        ? const Color(0xFF10B981).withOpacity(0.12)
-                                        : const Color(0xFFEF4444).withOpacity(0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    isYes ? Icons.check_rounded : Icons.close_rounded,
-                                    size: 13,
-                                    color: isYes ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(pertanyaan,
-                                          style: GoogleFonts.poppins(fontSize: 11.5,
-                                              fontWeight: FontWeight.w500,
-                                              color: const Color(0xFF1E3A8A))),
-                                      if (catatan.isNotEmpty) ...[
-                                        const SizedBox(height: 3),
-                                        Text(catatan,
-                                            style: GoogleFonts.poppins(fontSize: 10.5,
-                                                color: const Color(0xFF64748B),
-                                                fontStyle: FontStyle.italic),
-                                            maxLines: 2, overflow: TextOverflow.ellipsis),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-
-              const SizedBox(height: 14),
             ],
-          ],
-        ),
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

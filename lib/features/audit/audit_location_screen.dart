@@ -4,6 +4,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'audit_question_manager_screen.dart';
+import 'audit_result_detail_screen.dart';
 import 'audit_schedule_screen.dart';
 
 // ─── Colour constants ────────────────────────────────────────────────────────
@@ -219,7 +220,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               .select(
                   'id_ref, periode_mulai, periode_selesai, id_jenis_audit, '
                   'User_Auditor:User!fk_audit_schedule_auditor(nama), '
-                  'JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)') // ✅ BARU
+                  'JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)')
               .eq('level_type', level)
               .inFilter('id_ref', ids)
               .eq('status', 'pending')
@@ -1500,28 +1501,34 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
     _fetchHistory();
   }
 
-  Future<void> _fetchHistory() async {
-    try {
-      final rows = await _supabase
-        .from('audit_result')
-        .select(
-            'id_result, nilai_audit, tanggal_audit, catatan_audit, selfie_url, '
-            'User_Auditor:User!fk_audit_result_auditor(nama, gambar_user)')
-        .eq('level_type', widget.level)
-        .eq('id_ref', widget.item.id)
-        .order('tanggal_audit', ascending: false)
-        .limit(20);
-      if (mounted) setState(() { _history = List<Map<String, dynamic>>.from(rows); _loading = false; });
-    } catch (e) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
   Color _scoreColor(double? score) {
     if (score == null) return _C.textSub;
     if (score >= 80) return _C.green;
     if (score >= 60) return _C.amber;
     return _C.red;
+  }
+
+  Future<void> _fetchHistory() async {
+    try {
+      final rows = await _supabase
+          .from('audit_result')
+          .select(
+              'id_result, nilai_audit, nilai_final, is_finalized, '
+              'tanggal_audit, catatan_audit, selfie_url, created_at, '
+              'Auditor:User!fk_audit_result_auditor(nama, gambar_user)')
+          .eq('level_type', widget.level)
+          .eq('id_ref', widget.item.id)
+          .order('tanggal_audit', ascending: false)
+          .limit(20);
+      if (mounted) {
+        setState(() {
+          _history = List<Map<String, dynamic>>.from(rows);
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -1580,7 +1587,7 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                    _t('Audit History', 'Riwayat Audit', '审计历史'),
+                    _t('Riwayat Audit', 'Audit History', '审计历史'),
                     style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -1594,7 +1601,7 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
                   : _history.isEmpty
                       ? Center(
                           child: Text(
-                              _t('No audit history', 'Belum ada riwayat audit', '无审计历史'),
+                              _t('Belum ada riwayat audit', 'No audit history', '无审计历史'),
                               style: GoogleFonts.poppins(
                                   fontSize: 13, color: _C.textSub)))
                       : ListView.separated(
@@ -1607,86 +1614,126 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
                             final row = _history[i];
                             final score = double.tryParse(
                                 row['nilai_audit']?.toString() ?? '');
-                            final auditorData = row['User_Auditor'] as Map<String, dynamic>?;
-                            final auditor = auditorData?['nama']?.toString() ?? '-';
-                            final date = row['tanggal_audit']?.toString() ?? '';
-                            final catatan = row['catatan_audit'] as String?;
-                            final selfieUrl = row['selfie_url'] as String?;
-                            final color = _scoreColor(score);
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: color.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                    color: color.withOpacity(0.3)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 48, height: 48,
-                                    decoration: BoxDecoration(
-                                      color: color.withOpacity(0.12),
-                                      shape: BoxShape.circle,
+                            final scoreFinal = double.tryParse(
+                                row['nilai_final']?.toString() ?? '');
+                            final isFinalized = row['is_finalized'] == true;
+                            final displayScore =
+                                isFinalized ? scoreFinal : score;
+                            final auditorData = row['Auditor']
+                                as Map<String, dynamic>?;
+                            final auditor =
+                                auditorData?['nama']?.toString() ?? '-';
+                            final date =
+                                row['tanggal_audit']?.toString() ?? '';
+                            final color = _scoreColor(displayScore);
+                            final idResult =
+                                row['id_result']?.toString() ?? '';
+
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.pop(context); // tutup bottom sheet
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AuditResultDetailScreen(
+                                      lang: widget.lang,
+                                      idResult: idResult,
+                                      locationName: widget.item.name,
+                                      levelType: widget.level,
                                     ),
-                                    child: Center(
-                                      child: Text(
-                                        score != null
-                                            ? '${score.toStringAsFixed(0)}%'
-                                            : '-',
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
-                                            color: color),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: color.withOpacity(0.3)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 52, height: 52,
+                                      decoration: BoxDecoration(
+                                        color: color.withOpacity(0.12),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              displayScore != null
+                                                  ? '${displayScore.toStringAsFixed(0)}%'
+                                                  : '-',
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: color),
+                                            ),
+                                            if (isFinalized)
+                                              Text(
+                                                _t('Final', 'Final', '最终'),
+                                                style: GoogleFonts.poppins(
+                                                    fontSize: 8,
+                                                    color: color),
+                                              ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(auditor,
-                                            style: GoogleFonts.poppins(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: _C.textMain)),
-                                        Text(date,
-                                            style: GoogleFonts.poppins(
-                                                fontSize: 11,
-                                                color: _C.textSub)),
-                                        // Tampilkan selfie bukti audit
-                                        if (selfieUrl != null && selfieUrl.isNotEmpty) ...[
-                                          const SizedBox(height: 8),
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(8),
-                                            child: Image.network(
-                                              selfieUrl,
-                                              height: 100,
-                                              width: double.infinity,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => Container(
-                                                height: 60,
-                                                color: Colors.grey.shade100,
-                                                child: const Icon(Icons.broken_image_outlined,
-                                                    color: Colors.grey),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                        if (catatan != null &&
-                                            catatan.isNotEmpty)
-                                          Text(catatan,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(auditor,
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: _C.textMain)),
+                                          Text(date,
                                               style: GoogleFonts.poppins(
                                                   fontSize: 11,
-                                                  color: _C.textSub),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis),
-                                      ],
+                                                  color: _C.textSub)),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                    // Tombol lihat detail
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: _C.primary.withOpacity(0.1),
+                                        borderRadius:
+                                            BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color: _C.primary.withOpacity(0.3)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                              Icons.open_in_new_rounded,
+                                              size: 12,
+                                              color: _C.primary),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _t('Detail', 'Detail', '详情'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: _C.primary),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             );
                           },

@@ -422,13 +422,17 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   }
 
   /// Beri bonus poin per tema (100%) dan full (semua 100%) ke PIC lokasi yang diaudit.
-  /// Auditor hanya mendapat poin dasar dari log aktivitas audit (ditangani di tempat lain).
+  /// HANYA diberikan jika SELURUH jawaban di result ini adalah Yes (tidak ada satupun No).
   Future<List<Map<String, dynamic>>> _grantBonusPoin({
-    required String userId,   // userId di sini adalah auditor — tidak dipakai untuk bonus
+    required String userId,
     required String idResult,
   }) async {
     final List<Map<String, dynamic>> granted = [];
     try {
+      // ── Guard: jika ada satu saja jawaban No → skip semua bonus tema & full ──
+      final hasAnyNo = _answers.values.any((ans) => ans == false);
+      if (hasAnyNo) return granted;
+
       final cfgRows = await _supabase
           .from('konfigurasi_poin')
           .select('kode, poin, deskripsi_template')
@@ -441,7 +445,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       }
       if (cfg.isEmpty) return granted;
 
-      // ── Ambil id_pic dari lokasi yang diaudit ──────────────────────────
+      // ── Ambil id_pic dari lokasi yang diaudit ──
       final levelType = widget.levelType;
       final idRef     = widget.idRef;
       final nameCol   = 'nama_$levelType';
@@ -454,9 +458,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
           .maybeSingle();
 
       final picId = levelRow?['id_pic']?.toString();
-      if (picId == null) return granted; // tidak ada PIC → skip
+      if (picId == null) return granted;
 
-      // ── Hitung skor per tema ───────────────────────────────────────────
+      // ── Hitung skor per tema (di sini pasti semua Yes karena guard di atas) ──
       final Map<String, List<bool>> temaAnswers = {};
       for (final q in _questions) {
         final id  = q['id_question'].toString();
@@ -481,14 +485,15 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         temaNames[id] = name;
       }
 
+      // Karena sudah dipastikan tidak ada No, semua tema pasti 100%
       bool allTema100 = temaAnswers.isNotEmpty;
       final List<Map<String, dynamic>> logEntries = [];
 
       for (final entry in temaAnswers.entries) {
-        final temaId = entry.key;
+        final temaId  = entry.key;
         final answers = entry.value;
+        // Double-check: semua harus Yes
         final allYes  = answers.every((a) => a == true);
-
         if (!allYes) {
           allTema100 = false;
           continue;
@@ -501,12 +506,11 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
               .replaceAll('{tema}', temaLabel)
               .replaceAll('{lokasi}', widget.locationName);
 
-          // Bonus ke PIC, bukan auditor
           logEntries.add({
-            'id_user':         picId,
-            'poin':            temaCfg['poin'] as int,
-            'deskripsi':       deskripsi,
-            'tipe_aktivitas':  'audit_bonus_tema',
+            'id_user':        picId,
+            'poin':           temaCfg['poin'] as int,
+            'deskripsi':      deskripsi,
+            'tipe_aktivitas': 'audit_bonus_tema',
           });
           granted.add({'poin': temaCfg['poin'] as int, 'deskripsi': deskripsi});
         }
@@ -518,12 +522,11 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             .replaceAll('{lokasi}', widget.locationName)
             .replaceAll('{tema}', '');
 
-        // Bonus ke PIC, bukan auditor
         logEntries.add({
-          'id_user':         picId,
-          'poin':            fullCfg['poin'] as int,
-          'deskripsi':       deskripsi,
-          'tipe_aktivitas':  'audit_bonus_full',
+          'id_user':        picId,
+          'poin':           fullCfg['poin'] as int,
+          'deskripsi':      deskripsi,
+          'tipe_aktivitas': 'audit_bonus_full',
         });
         granted.add({'poin': fullCfg['poin'] as int, 'deskripsi': deskripsi});
       }
