@@ -186,12 +186,15 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   }
 
   void _scrollToNext(String answeredId) {
-    if (!mounted) return;
+    if (!mounted || !_scrollCtrl.hasClients) return;
 
     final idx = _questions.indexWhere(
       (q) => q['id_question'].toString() == answeredId,
     );
     if (idx < 0) return;
+
+    final currentScroll = _scrollCtrl.offset;
+    final maxScroll = _scrollCtrl.position.maxScrollExtent;
 
     // Cari pertanyaan atau tema header berikutnya yang sudah ter-render
     for (int i = idx + 1; i < _questions.length; i++) {
@@ -200,41 +203,43 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       final ctx = key?.currentContext;
       if (ctx == null) continue;
 
-      // Pastikan context masih valid dan widget masih mounted
       final ro = ctx.findRenderObject();
       if (ro == null || !ro.attached) continue;
 
-      // Gunakan manual scroll ke offset RenderObject agar lebih stabil
-      // dibanding Scrollable.ensureVisible yang bisa arah terbalik
       final renderBox = ro as RenderBox?;
       if (renderBox == null) continue;
 
       try {
-        final offset = renderBox.localToGlobal(Offset.zero, ancestor: _scrollCtrl.position.context.storageContext.findRenderObject());
-        final currentScroll = _scrollCtrl.offset;
-        final targetScroll = currentScroll + offset.dy - 80; // 80px padding atas
+        final offset = renderBox.localToGlobal(
+          Offset.zero,
+          ancestor: _scrollCtrl.position.context.storageContext.findRenderObject(),
+        );
+        final rawTarget = currentScroll + offset.dy - 80; // 80px padding atas
 
-        _scrollCtrl.animateTo(
-          targetScroll.clamp(0.0, _scrollCtrl.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOut,
-        );
+        // ── PERUBAHAN: jangan pernah scroll mundur ke atas, hanya boleh maju ke bawah ──
+        final targetScroll = rawTarget.clamp(currentScroll, maxScroll);
+
+        if (targetScroll > currentScroll) {
+          _scrollCtrl.animateTo(
+            targetScroll,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeOut,
+          );
+        }
+        // Jika targetScroll <= currentScroll, pertanyaan berikutnya sudah terlihat,
+        // tidak perlu scroll sama sekali (dan tidak boleh scroll mundur ke atas).
       } catch (_) {
-        // Fallback ke ensureVisible jika localToGlobal gagal
-        Scrollable.ensureVisible(
-          ctx,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOut,
-          alignment: 0.1,
-        );
+        // ── PERUBAHAN: tidak lagi fallback ke ensureVisible karena berisiko
+        // scroll ke atas — lebih aman tidak auto-scroll untuk kasus ini.
       }
       return;
     }
 
     // Semua sudah dijawab → scroll ke bawah untuk tombol Submit
-    if (_scrollCtrl.hasClients) {
+    final bottomTarget = _scrollCtrl.position.maxScrollExtent;
+    if (bottomTarget > currentScroll) {
       _scrollCtrl.animateTo(
-        _scrollCtrl.position.maxScrollExtent,
+        bottomTarget,
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeOut,
       );
@@ -559,104 +564,128 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        contentPadding: const EdgeInsets.all(24),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 80, height: 80,
-                decoration: BoxDecoration(
-                    color: color.withOpacity(0.12), shape: BoxShape.circle),
-                child: Center(
-                  child: Text(
-                    '${score.toStringAsFixed(0)}%',
-                    style: GoogleFonts.poppins(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: color),
+      // ── PERUBAHAN: popup bisa ditutup dengan klik di luar area ──
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        // ── PERUBAHAN: auto-tutup popup 5 detik setelah muncul ──
+        Future.delayed(const Duration(seconds: 5), () {
+          try {
+            if (Navigator.of(dialogContext).canPop()) {
+              Navigator.of(dialogContext).pop();
+            }
+          } catch (_) {
+            // Popup sudah ditutup lebih dulu (klik luar / tombol) — aman diabaikan
+          }
+        });
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          contentPadding: const EdgeInsets.all(24),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 80, height: 80,
+                  decoration: BoxDecoration(
+                      color: color.withOpacity(0.12), shape: BoxShape.circle),
+                  child: Center(
+                    child: Text(
+                      '${score.toStringAsFixed(0)}%',
+                      style: GoogleFonts.poppins(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: color),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                _t('Audit Selesai!', 'Audit Completed!', '审计完成！'),
-                style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _textMain),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${widget.locationName} — $label',
-                style: GoogleFonts.poppins(fontSize: 13, color: _textSub),
-                textAlign: TextAlign.center,
-              ),
+                const SizedBox(height: 14),
+                Text(
+                  // ── PERUBAHAN: urutan parameter (en, id, zh) diperbaiki ──
+                  _t('Audit Completed!', 'Audit Selesai!', '审计完成！'),
+                  style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: _textMain),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${widget.locationName} — $label',
+                  style: GoogleFonts.poppins(fontSize: 13, color: _textSub),
+                  textAlign: TextAlign.center,
+                ),
 
-              // ── Info jika ada jawaban No: poin menunggu perbaikan ──
-              if (hasNoAnswer) ...[
-                const SizedBox(height: 16),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _amber.withOpacity(0.07),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _amber.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.info_outline_rounded,
-                          size: 15, color: Color(0xFFF59E0B)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _t(
-                            'Masih ada temuan yang belum selesai. '
-                            'Poin keseluruhan akan ditampilkan setelah PIC membalas '
-                            'dan Anda mengkonfirmasi semua perbaikan.',
-                            'Some findings are pending. Overall points will be '
-                            'shown after PIC replies and you confirm all fixes.',
-                            '存在待处理发现。PIC回复并您确认所有修复后将显示总积分。',
+                // ── Info jika ada jawaban No: poin menunggu perbaikan ──
+                if (hasNoAnswer) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      // ── PERUBAHAN: background dibuat putih saja ──
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _amber.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline_rounded,
+                            size: 15, color: Color(0xFFF59E0B)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            // ── PERUBAHAN: urutan parameter (en, id, zh) diperbaiki ──
+                            _t(
+                              'Some findings are pending. Overall points will be '
+                              'shown after PIC replies and you confirm all fixes.',
+                              'Masih ada temuan yang belum selesai. '
+                              'Poin keseluruhan akan ditampilkan setelah PIC membalas '
+                              'dan Anda mengkonfirmasi semua perbaikan.',
+                              '存在待处理发现。PIC回复并您确认所有修复后将显示总积分。',
+                            ),
+                            style: GoogleFonts.poppins(
+                                fontSize: 11, color: _amber),
                           ),
-                          style: GoogleFonts.poppins(
-                              fontSize: 11, color: _amber),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // ── PERUBAHAN: cukup tutup dialog di sini,
+                      // navigasi balik ditangani setelah dialog selesai (lihat .then di bawah) ──
+                      Navigator.pop(dialogContext);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: color,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                    child: Text(
+                        // ── PERUBAHAN: urutan parameter (en, id, zh) diperbaiki ──
+                        _t('Done', 'Selesai', '完成'),
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
-
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: color,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                  ),
-                  child: Text(_t('Selesai', 'Done', '完成'),
-                      style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w700)),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
-    );
+        );
+      },
+    ).then((_) {
+      // ── PERUBAHAN: baru kembali ke screen sebelumnya SETELAH popup tertutup,
+      // konsisten untuk semua cara menutup (tombol / klik luar / auto 5 detik) ──
+      if (mounted) Navigator.pop(context);
+    });
   }
 
   @override

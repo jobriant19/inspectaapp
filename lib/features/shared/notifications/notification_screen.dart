@@ -1162,18 +1162,30 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
         // Poin dari log_poin (hanya untuk auditor)
         if (role == 'auditor') {
           try {
+            final createdAt = item['created_at']?.toString() ?? '';
+            final auditDt = DateTime.tryParse(createdAt);
+
             final logs = await _supabase
                 .from('log_poin')
                 .select('poin, deskripsi, tipe_aktivitas, created_at')
                 .eq('id_user', userId)
                 .eq('tipe_aktivitas', 'audit_submit')
-                .gte('created_at', item['created_at']?.toString() ?? '')
                 .order('created_at', ascending: false)
-                .limit(5);
+                .limit(200);
 
+            // ── PERUBAHAN: tambahkan batas atas window waktu (±15 menit dari
+            // created_at audit ini). AUDIT_SUBMIT diberikan serentak saat
+            // submit, jadi window ketat ini mencegah poin dari audit LAIN
+            // di lokasi yang sama (sebelumnya tidak terbatas karena hanya
+            // pakai gte) ikut tertampil berulang pada kartu yang berbeda ──
             final filtered = (logs as List).where((l) {
               final desc = l['deskripsi']?.toString() ?? '';
-              return desc.contains(locName);
+              if (!desc.contains(locName)) return false;
+              if (auditDt == null) return true;
+              final logDt = DateTime.tryParse(l['created_at']?.toString() ?? '');
+              if (logDt == null) return true;
+              final diffMinutes = logDt.difference(auditDt).inMinutes.abs();
+              return diffMinutes <= 15;
             }).toList();
 
             item['_poin_logs'] = List<Map<String, dynamic>>.from(filtered);
@@ -1183,14 +1195,10 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
         } else {
           // Poin bonus yang diterima PIC dari log_poin
           // Include audit_bonus_tema, audit_bonus_full, audit_bonus_pic
-          // Tidak pakai filter created_at agar bonus tema/full yang dikirim
-          // bersamaan saat audit submit tetap terbaca
           try {
-            final auditDate = item['tanggal_audit']?.toString() ?? '';
             final createdAt = item['created_at']?.toString() ?? '';
+            final auditDt = DateTime.tryParse(createdAt);
 
-            // Ambil semua log bonus PIC tanpa batasan waktu,
-            // filter berdasarkan nama lokasi di deskripsi
             final logs = await _supabase
                 .from('log_poin')
                 .select('poin, deskripsi, tipe_aktivitas, created_at')
@@ -1203,22 +1211,32 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                 .order('created_at', ascending: false)
                 .limit(200);
 
-            // Filter: deskripsi mengandung nama lokasi
-            // Dan created_at tidak lebih dari 1 hari sebelum audit
-            final auditDt = DateTime.tryParse(createdAt);
+            // ── PERUBAHAN: pisahkan window waktu pencocokan per jenis bonus,
+            // agar bonus tema/full milik audit LAIN di lokasi sama (tanggal
+            // berdekatan) tidak ikut tampil di kartu audit ini.
+            // - audit_bonus_tema & audit_bonus_full: diberikan SAAT submit,
+            //   jadi cocokkan dengan window sangat ketat (±5 menit).
+            // - audit_bonus_pic: diberikan setelah PIC memperbaiki & auditor
+            //   konfirmasi, bisa beberapa hari setelah audit, jadi cocokkan
+            //   dengan window 0–30 hari SETELAH audit. ──
             final filtered = (logs as List).where((l) {
               final desc = l['deskripsi']?.toString() ?? '';
               if (!desc.contains(locName)) return false;
-              // Pastikan log ini sekitar waktu audit (±2 hari)
-              if (auditDt != null) {
-                final logDt = DateTime.tryParse(
-                    l['created_at']?.toString() ?? '');
-                if (logDt != null) {
-                  final diff = logDt.difference(auditDt).inDays.abs();
-                  return diff <= 2;
-                }
+              if (auditDt == null) return true;
+
+              final logDt = DateTime.tryParse(l['created_at']?.toString() ?? '');
+              if (logDt == null) return true;
+
+              final tipe = l['tipe_aktivitas']?.toString() ?? '';
+              if (tipe == 'audit_bonus_tema' || tipe == 'audit_bonus_full') {
+                final diffMinutes = logDt.difference(auditDt).inMinutes.abs();
+                // ── PERUBAHAN: window dilebarkan dari 5 ke 15 menit untuk
+                // toleransi keterlambatan jaringan saat proses submit ──
+                return diffMinutes <= 15;
               }
-              return true;
+              // audit_bonus_pic
+              final diffDays = logDt.difference(auditDt).inDays;
+              return diffDays >= 0 && diffDays <= 30;
             }).toList();
 
             item['_poin_logs'] = List<Map<String, dynamic>>.from(filtered);
@@ -1238,7 +1256,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                   'Tema:audit_tema(nama_tema_id, nama_tema_en, nama_tema_zh)'
                 '), '
                 'Replies:audit_answer_reply('
-                  'id_reply, catatan_reply, gambar_reply, '
+                  'id_reply, id_pic, catatan_reply, gambar_reply, '
                   'is_confirmed, confirmed_at, created_at, '
                   'PIC:User!fk_reply_pic(nama, gambar_user)'
                 ')',
@@ -1568,7 +1586,6 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
     final locationName = item['_location_name']?.toString() ?? '-';
     final levelType = item['level_type']?.toString() ?? '';
     final date = _formatDate(item['tanggal_audit']);
-    final poinLogs = (item['_poin_logs'] as List<Map<String, dynamic>>?) ?? [];
     final answers = (item['_answers'] as List<Map<String, dynamic>>?) ?? [];
     final role = item['_role']?.toString() ?? 'auditor';
     final isPic = role == 'pic';
@@ -1577,7 +1594,6 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
     final idResult = item['id_result']?.toString() ?? '';
     final userId = _supabase.auth.currentUser?.id ?? '';
 
-    // Cek apakah ada jawaban No yang belum semua confirmed
     final noAnswers = answers.where((a) => a['jawaban'] == false).toList();
     final allNoConfirmed = noAnswers.isNotEmpty &&
         noAnswers.every((a) {
@@ -1585,19 +1601,38 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
           return replies.any((r) => r['is_confirmed'] == true);
         });
 
-    // Hitung nilai efektif: jika semua No sudah confirmed, nilai = 100
-    final effectiveScore = (noAnswers.isNotEmpty && allNoConfirmed)
-        ? 100.0
-        : displayScore;
-    final effectiveScoreColor = _scoreColor(
-        noAnswers.isNotEmpty && allNoConfirmed ? 100.0 : displayScore);
-
-    // Nilai ditampilkan hanya jika semua No sudah confirmed (atau tidak ada No)
+    final effectiveScore =
+        (noAnswers.isNotEmpty && allNoConfirmed) ? 100.0 : displayScore;
+    final effectiveScoreColor =
+        _scoreColor(noAnswers.isNotEmpty && allNoConfirmed ? 100.0 : displayScore);
     final showScore = noAnswers.isEmpty || allNoConfirmed;
 
+    final rawPoinLogs = (item['_poin_logs'] as List<Map<String, dynamic>>?) ?? [];
+    // ── PERUBAHAN: filter tambahan berdasarkan struktur data —
+    // audit TANPA jawaban No (100% murni) hanya mungkin mendapat
+    // audit_bonus_tema / audit_bonus_full saat submit, TIDAK PERNAH
+    // audit_bonus_pic. Audit yang ADA jawaban No (termasuk yang sudah
+    // Final via konfirmasi) sudah pasti TIDAK pernah mendapat
+    // audit_bonus_tema / audit_bonus_full (lihat guard hasAnyNo di
+    // _grantBonusPoin), hanya mungkin audit_bonus_pic setelah semua No
+    // dikonfirmasi. Filter ini mencegah bonus milik audit LAIN di lokasi
+    // yang sama ikut tertampil pada kartu yang salah ──
+    final poinLogs = role != 'pic'
+        ? rawPoinLogs
+        : rawPoinLogs.where((l) {
+            final tipe = l['tipe_aktivitas']?.toString() ?? '';
+            if (noAnswers.isEmpty) {
+              return tipe == 'audit_bonus_tema' || tipe == 'audit_bonus_full';
+            }
+            return tipe == 'audit_bonus_pic';
+          }).toList();
+    final showPoinLogs = role == 'auditor' ? true : (noAnswers.isEmpty || allNoConfirmed);
+
     int totalPoin = 0;
-    for (final l in poinLogs) {
-      totalPoin += ((l['poin'] as num?)?.toInt() ?? 0);
+    if (showPoinLogs) {
+      for (final l in poinLogs) {
+        totalPoin += ((l['poin'] as num?)?.toInt() ?? 0);
+      }
     }
 
     final expanded = ValueNotifier<bool>(false);
@@ -1629,7 +1664,6 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Row(children: [
-                  // Score circle
                   Container(
                     width: 54, height: 54,
                     decoration: BoxDecoration(
@@ -1655,7 +1689,8 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                                 if (isFinalized || allNoConfirmed)
                                   Text(_t('Final', 'Final', '最终'),
                                       style: GoogleFonts.poppins(
-                                          fontSize: 8, color: effectiveScoreColor)),
+                                          fontSize: 8,
+                                          color: effectiveScoreColor)),
                               ],
                             ),
                           )
@@ -1683,8 +1718,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                       children: [
                         Row(children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: isPic
                                   ? const Color(0xFF10B981).withOpacity(0.12)
@@ -1696,15 +1730,12 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                               style: GoogleFonts.poppins(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
-                                  color: isPic
-                                      ? const Color(0xFF10B981)
-                                      : _blue),
+                                  color: isPic ? const Color(0xFF10B981) : _blue),
                             ),
                           ),
                           const SizedBox(width: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: _blue.withOpacity(0.08),
                               borderRadius: BorderRadius.circular(6),
@@ -1743,12 +1774,11 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                               ),
                             ),
                           ],
-                          // Badge poin hanya jika sudah show score
-                          if (totalPoin != 0 && showScore) ...[
+                          // Badge poin hanya jika showPoinLogs dan ada poin
+                          if (totalPoin != 0 && showPoinLogs) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
                                 color: totalPoin > 0
                                     ? const Color(0xFF10B981).withOpacity(0.12)
@@ -1756,9 +1786,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                totalPoin > 0
-                                    ? '+$totalPoin poin'
-                                    : '$totalPoin poin',
+                                totalPoin > 0 ? '+$totalPoin poin' : '$totalPoin poin',
                                 style: GoogleFonts.poppins(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w700,
@@ -1768,18 +1796,15 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                               ),
                             ),
                           ],
-                          // Badge perlu perbaikan jika belum semua confirmed
                           if (!showScore) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF59E0B).withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                    color: const Color(0xFFF59E0B)
-                                        .withOpacity(0.4)),
+                                    color: const Color(0xFFF59E0B).withOpacity(0.4)),
                               ),
                               child: Text(
                                 _t('Perlu Perbaikan', 'Needs Fix', '需要修复'),
@@ -1809,8 +1834,8 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
             if (isExpanded) ...[
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
-              // Poin log (hanya jika showScore)
-              if (poinLogs.isNotEmpty)
+              // Poin log — hanya tampil jika showPoinLogs
+              if (poinLogs.isNotEmpty && showPoinLogs)
                 Container(
                   margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
                   padding: const EdgeInsets.all(12),
@@ -1820,8 +1845,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                       _blue.withOpacity(0.05),
                     ]),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: const Color(0xFF10B981).withOpacity(0.3)),
+                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1880,7 +1904,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                   ),
                 ),
 
-              // ── Pertanyaan No — reply + konfirmasi ──
+              // Pertanyaan No + thread reply
               if (noAnswers.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
@@ -1901,7 +1925,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                     _buildAnswerThreadFull(ans, idResult, isPic, userId)),
               ],
 
-              // Detail jawaban semua (per tema) — untuk konteks
+              // Ringkasan jawaban semua
               if (answers.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
@@ -1928,9 +1952,11 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
     );
   }
 
-  /// Thread reply lengkap untuk pertanyaan No:
-  /// - PIC bisa reply (gambar + notes)
-  /// - Auditor bisa reply (gambar opsional + notes) + konfirmasi Yes
+  /// Thread reply untuk pertanyaan No:
+  /// - PIC: foto (wajib) + notes (wajib) → submit reply
+  /// - Auditor: notes (wajib) → konfirmasi Yes langsung
+  /// - Tombol Edit + Delete hanya pada reply card
+  /// - Konfirmasi Yes HANYA dari sisi auditor (tidak perlu reply dulu)
   Widget _buildAnswerThreadFull(
       Map<String, dynamic> ans,
       String idResult,
@@ -1943,18 +1969,20 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
         [];
     final gambar = ans['gambar_jawaban']?.toString() ?? '';
     final catatan = ans['catatan']?.toString() ?? '';
-    final allConfirmed =
-        replies.isNotEmpty && replies.every((r) => r['is_confirmed'] == true);
+    final idAnswer = ans['id_answer']?.toString() ?? '';
+
+    // Cek apakah reply PIC sudah dikonfirmasi oleh auditor
+    final picReplies = replies.where((r) => r['is_confirmed'] != true).toList();
+    final confirmedReplies = replies.where((r) => r['is_confirmed'] == true).toList();
+    final isFullyConfirmed = confirmedReplies.isNotEmpty;
 
     String questionText;
     if (widget.lang == 'EN') {
       questionText = q?['pertanyaan_en']?.toString() ??
-          q?['pertanyaan']?.toString() ??
-          '-';
+          q?['pertanyaan']?.toString() ?? '-';
     } else if (widget.lang == 'ZH') {
       questionText = q?['pertanyaan_zh']?.toString() ??
-          q?['pertanyaan']?.toString() ??
-          '-';
+          q?['pertanyaan']?.toString() ?? '-';
     } else {
       questionText = q?['pertanyaan']?.toString() ?? '-';
     }
@@ -1963,12 +1991,12 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
       margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: allConfirmed
+        color: isFullyConfirmed
             ? const Color(0xFF10B981).withOpacity(0.05)
             : const Color(0xFFFFF7ED),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: allConfirmed
+          color: isFullyConfirmed
               ? const Color(0xFF10B981).withOpacity(0.3)
               : const Color(0xFFEF4444).withOpacity(0.2),
         ),
@@ -1976,18 +2004,25 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Pertanyaan
+          // ── Pertanyaan ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 20, height: 20,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withOpacity(0.1),
+                  color: isFullyConfirmed
+                      ? const Color(0xFF10B981).withOpacity(0.1)
+                      : const Color(0xFFEF4444).withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.close_rounded,
-                    size: 12, color: Color(0xFFEF4444)),
+                child: Icon(
+                  isFullyConfirmed ? Icons.check_rounded : Icons.close_rounded,
+                  size: 12,
+                  color: isFullyConfirmed
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFEF4444),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -2000,7 +2035,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
             ],
           ),
 
-          // Evidence auditor
+          // Evidence auditor (gambar temuan)
           if (gambar.isNotEmpty) ...[
             const SizedBox(height: 8),
             ClipRRect(
@@ -2011,7 +2046,16 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
             ),
           ],
           if (catatan.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
+            // ── PERUBAHAN: tambah label "Notes" agar lebih jelas ──
+            Text(
+              _t('Catatan', 'Notes', '备注'),
+              style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF94A3B8)),
+            ),
+            const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -2024,18 +2068,22 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
             ),
           ],
 
-          // Replies
+          // ── Daftar Replies ──
           if (replies.isNotEmpty) ...[
             const SizedBox(height: 10),
             const Divider(height: 1, color: Color(0xFFF1F5F9)),
             const SizedBox(height: 8),
             ...replies.map((reply) {
+              final confirmed = reply['is_confirmed'] == true;
               final picData = reply['PIC'] as Map<String, dynamic>?;
               final picName = picData?['nama']?.toString() ?? '-';
-              final confirmed = reply['is_confirmed'] == true;
               final replyGambar = reply['gambar_reply']?.toString() ?? '';
               final replyCatatan = reply['catatan_reply']?.toString() ?? '';
               final idReply = reply['id_reply']?.toString() ?? '';
+              // ── PERUBAHAN: cek apakah reply ini benar-benar dikirim oleh
+              // User yang sedang login, bukan sekadar role PIC/Auditor ──
+              final replyOwnerId = reply['id_pic']?.toString();
+              final isOwnReply = replyOwnerId != null && replyOwnerId == userId;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -2054,11 +2102,10 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Header reply + Edit/Delete (hanya jika belum confirmed dan milik PIC)
                     Row(children: [
                       Icon(
-                        confirmed
-                            ? Icons.verified_rounded
-                            : Icons.reply_rounded,
+                        confirmed ? Icons.verified_rounded : Icons.reply_rounded,
                         size: 13,
                         color: confirmed
                             ? const Color(0xFF10B981)
@@ -2078,7 +2125,37 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                                   : const Color(0xFF6366F1)),
                         ),
                       ),
+                      // Edit & Delete hanya untuk PIC pada reply yang belum confirmed
+                      if (isPic && !confirmed && isOwnReply) ...[
+                        GestureDetector(
+                          onTap: () => _showEditReplySheet(
+                              idReply, idAnswer, idResult, userId, reply),
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: _blue.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Icon(Icons.edit_rounded,
+                                size: 13, color: _blue),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => _deleteReply(idReply),
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444).withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(Icons.delete_outline_rounded,
+                                size: 13, color: Color(0xFFEF4444)),
+                          ),
+                        ),
+                      ],
                     ]),
+
                     if (replyCatatan.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(replyCatatan,
@@ -2099,29 +2176,55 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                       ),
                     ],
 
-                    // Tombol balas + konfirmasi (hanya auditor, reply belum confirmed)
-                    if (!isPic && !confirmed) ...[
+                    // ── PERUBAHAN: tombol Konfirmasi + Balas — HANYA untuk
+                    // Auditor, HANYA pada reply milik PIC (bukan reply
+                    // auditor sendiri), belum confirmed. Tombol "Balas"
+                    // memungkinkan auditor memberi feedback ke PIC kalau
+                    // perbaikan dirasa belum cukup, tanpa harus langsung
+                    // konfirmasi yes ──
+                    if (!isPic && !confirmed && !isOwnReply) ...[
                       const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _showAuditorReplySheet(
-                              idReply, ans['id_answer'].toString(), idResult, userId),
-                          icon: const Icon(Icons.rate_review_rounded, size: 14),
-                          label: Text(
-                            _t('Balas & Konfirmasi', 'Reply & Confirm', '回复并确认'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 11, fontWeight: FontWeight.w600),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF10B981),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                            padding: const EdgeInsets.symmetric(vertical: 8),
+                      Row(children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () =>
+                                _confirmReply(idReply, idAnswer, idResult),
+                            icon: const Icon(Icons.check_circle_rounded, size: 14),
+                            label: Text(
+                              _t('Konfirmasi', 'Confirm', '确认'),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showAuditorReplySheet(
+                                idReply, idAnswer, idResult, userId),
+                            icon: const Icon(Icons.reply_rounded, size: 14),
+                            label: Text(
+                              _t('Balas', 'Reply', '回复'),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _blue,
+                              side: BorderSide(color: _blue),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                          ),
+                        ),
+                      ]),
                     ],
                   ],
                 ),
@@ -2129,21 +2232,19 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
             }),
           ],
 
-          // Tombol Reply: PIC (jika belum confirmed) atau Auditor (bisa reply balik)
-          if (!allConfirmed) ...[
+          // ── Tombol Reply — hanya untuk PIC jika belum fully confirmed ──
+          if (isPic && !isFullyConfirmed) ...[
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () =>
-                    _showReplyBottomSheet(ans, idResult, isPic, userId),
+                    _showReplyBottomSheet(ans, idResult, true, userId),
                 icon: const Icon(Icons.reply_rounded, size: 14),
                 label: Text(
-                  isPic
-                      ? (replies.isEmpty
-                          ? _t('Balas', 'Reply', '回复')
-                          : _t('Perbarui Balasan', 'Update Reply', '更新回复'))
-                      : _t('Tambah Catatan', 'Add Note', '添加备注'),
+                  replies.isEmpty
+                      ? _t('Balas Temuan', 'Reply Finding', '回复发现')
+                      : _t('Tambah Balasan', 'Add Reply', '添加回复'),
                   style: GoogleFonts.poppins(
                       fontSize: 12, fontWeight: FontWeight.w600),
                 ),
@@ -2157,12 +2258,45 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
               ),
             ),
           ],
+
+          // ── Info untuk Auditor: menunggu reply PIC ──
+          if (!isPic && replies.isEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B).withOpacity(0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: const Color(0xFFF59E0B).withOpacity(0.25)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.hourglass_top_rounded,
+                    size: 13, color: Color(0xFFF59E0B)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _t(
+                      'Menunggu balasan PIC…',
+                      'Waiting for PIC reply…',
+                      '等待PIC回复…',
+                    ),
+                    style: GoogleFonts.poppins(
+                        fontSize: 11, color: const Color(0xFFF59E0B)),
+                  ),
+                ),
+              ]),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  /// Bottom sheet reply — PIC: gambar+notes wajib; Auditor: gambar opsional+notes
+  /// Bottom sheet reply untuk PIC:
+  /// - Foto WAJIB (ada indikator *)
+  /// - Notes WAJIB (ada indikator *)
   Future<void> _showReplyBottomSheet(
       Map<String, dynamic> ans,
       String idResult,
@@ -2178,8 +2312,8 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => Padding(
-          padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: Container(
             decoration: const BoxDecoration(
               color: Colors.white,
@@ -2199,21 +2333,64 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  isPic
-                      ? _t('Balas Temuan', 'Reply Finding', '回复发现')
-                      : _t('Tambah Catatan', 'Add Note', '添加备注'),
-                  style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1E3A8A)),
-                ),
-                const SizedBox(height: 14),
 
-                // Upload foto (wajib untuk PIC, opsional untuk auditor)
+                // Header
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.reply_rounded,
+                        color: Color(0xFF6366F1), size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _t('Balas Temuan', 'Reply Finding', '回复发现'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1E3A8A)),
+                        ),
+                        Text(
+                          _t(
+                            'Sertakan bukti foto dan penjelasan tindakan perbaikan.',
+                            'Include photo evidence and corrective action description.',
+                            '请附上照片证据和纠正措施说明。',
+                          ),
+                          style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: const Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+
+                // ── Foto Bukti WAJIB ──
+                RichText(
+                  text: TextSpan(
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E3A8A)),
+                    children: const [
+                      TextSpan(text: 'Foto Bukti Perbaikan'),
+                      TextSpan(
+                          text: ' *',
+                          style: TextStyle(color: Color(0xFFEF4444))),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
                 GestureDetector(
                   onTap: () async {
-                    // Navigasi ke camera screen untuk ambil foto
                     final url = await Navigator.push<String>(
                       ctx,
                       MaterialPageRoute(
@@ -2231,24 +2408,297 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                       color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: const Color(0xFF6366F1).withOpacity(0.35)),
+                        color: photoUrl == null
+                            ? const Color(0xFFEF4444).withOpacity(0.4)
+                            : const Color(0xFF6366F1).withOpacity(0.5),
+                      ),
                     ),
                     child: photoUrl == null
                         ? Padding(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             child: Column(children: [
                               const Icon(Icons.add_a_photo_rounded,
                                   color: Color(0xFF6366F1), size: 22),
                               const SizedBox(height: 4),
                               Text(
-                                isPic
-                                    ? _t('Upload Foto Bukti Perbaikan',
-                                        'Upload Fix Evidence Photo',
-                                        '上传修复证据照片')
-                                    : _t('Upload Foto (opsional)',
-                                        'Upload Photo (optional)',
-                                        '上传照片（可选）'),
+                                _t('Ambil / Upload Foto *',
+                                    'Take / Upload Photo *', '拍照/上传照片 *'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF6366F1)),
+                              ),
+                              Text(
+                                _t('Wajib diisi', 'Required', '必填'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 10,
+                                    color: const Color(0xFFEF4444)),
+                              ),
+                            ]),
+                          )
+                        : Stack(children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(photoUrl!,
+                                  height: 140,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover),
+                            ),
+                            Positioned(
+                              top: 6, right: 6,
+                              child: GestureDetector(
+                                onTap: () => setSt(() => photoUrl = null),
+                                child: Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.5),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close_rounded,
+                                      color: Colors.white, size: 14),
+                                ),
+                              ),
+                            ),
+                          ]),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ── Notes WAJIB ──
+                RichText(
+                  text: TextSpan(
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E3A8A)),
+                    children: const [
+                      TextSpan(text: 'Keterangan Tindakan Perbaikan'),
+                      TextSpan(
+                          text: ' *',
+                          style: TextStyle(color: Color(0xFFEF4444))),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 3,
+                  style: GoogleFonts.poppins(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: _t(
+                      'Jelaskan tindakan perbaikan yang telah dilakukan…',
+                      'Describe corrective action taken…',
+                      '描述已采取的纠正措施…',
+                    ),
+                    hintStyle: GoogleFonts.poppins(
+                        fontSize: 12, color: Colors.grey),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: Color(0xFFE2E8F0))),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide:
+                            const BorderSide(color: Color(0xFFE2E8F0))),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF6366F1), width: 1.5)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: submitting
+                        ? null
+                        : () async {
+                            // Validasi: foto wajib
+                            if (photoUrl == null) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                content: Text(_t(
+                                    'Upload foto bukti perbaikan terlebih dahulu.',
+                                    'Please upload fix evidence photo.',
+                                    '请先上传修复证据照片。')),
+                                backgroundColor: const Color(0xFFEF4444),
+                              ));
+                              return;
+                            }
+                            // Validasi: notes wajib
+                            if (noteCtrl.text.trim().isEmpty) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                content: Text(_t(
+                                    'Keterangan tindakan perbaikan wajib diisi.',
+                                    'Corrective action description is required.',
+                                    '请填写纠正措施说明。')),
+                                backgroundColor: const Color(0xFFEF4444),
+                              ));
+                              return;
+                            }
+                            setSt(() => submitting = true);
+                            try {
+                              await _supabase.from('audit_answer_reply').insert({
+                                'id_answer': ans['id_answer'],
+                                'id_pic': userId,
+                                'catatan_reply': noteCtrl.text.trim(),
+                                'gambar_reply': photoUrl,
+                                'is_confirmed': false,
+                              });
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              _fetch();
+                            } catch (e) {
+                              setSt(() => submitting = false);
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(content: Text('Error: $e')));
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF6366F1),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: submitting
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : Text(
+                            _t('Kirim Balasan', 'Send Reply', '发送回复'),
+                            style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Edit reply yang sudah ada (hanya PIC, belum confirmed)
+  Future<void> _showEditReplySheet(
+      String idReply,
+      String idAnswer,
+      String idResult,
+      String userId,
+      Map<String, dynamic> existingReply) async {
+    final noteCtrl = TextEditingController(
+        text: existingReply['catatan_reply']?.toString() ?? '');
+    String? photoUrl = existingReply['gambar_reply']?.toString();
+    if (photoUrl != null && photoUrl.isEmpty) photoUrl = null;
+    bool submitting = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.edit_rounded, color: _blue, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _t('Edit Balasan', 'Edit Reply', '编辑回复'),
+                      style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1E3A8A)),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+
+                // Foto WAJIB
+                RichText(
+                  text: TextSpan(
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E3A8A)),
+                    children: const [
+                      TextSpan(text: 'Foto Bukti Perbaikan'),
+                      TextSpan(
+                          text: ' *',
+                          style: TextStyle(color: Color(0xFFEF4444))),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: () async {
+                    final url = await Navigator.push<String>(
+                      ctx,
+                      MaterialPageRoute(
+                        builder: (_) => AuditEvidenceCameraScreen(
+                          lang: widget.lang,
+                          questionText: '',
+                        ),
+                      ),
+                    );
+                    if (url != null) setSt(() => photoUrl = url);
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: photoUrl == null
+                            ? const Color(0xFFEF4444).withOpacity(0.4)
+                            : const Color(0xFF6366F1).withOpacity(0.5),
+                      ),
+                    ),
+                    child: photoUrl == null
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            child: Column(children: [
+                              const Icon(Icons.add_a_photo_rounded,
+                                  color: Color(0xFF6366F1), size: 22),
+                              const SizedBox(height: 4),
+                              Text(
+                                _t('Ambil / Upload Foto *',
+                                    'Take / Upload Photo *', '拍照/上传照片 *'),
                                 style: GoogleFonts.poppins(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
@@ -2284,18 +2734,32 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                 ),
                 const SizedBox(height: 12),
 
-                // Notes
+                // Notes WAJIB
+                RichText(
+                  text: TextSpan(
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E3A8A)),
+                    children: const [
+                      TextSpan(text: 'Keterangan Tindakan Perbaikan'),
+                      TextSpan(
+                          text: ' *',
+                          style: TextStyle(color: Color(0xFFEF4444))),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 6),
                 TextField(
                   controller: noteCtrl,
                   maxLines: 3,
                   style: GoogleFonts.poppins(fontSize: 13),
                   decoration: InputDecoration(
-                    hintText: isPic
-                        ? _t(
-                            'Jelaskan tindakan perbaikan…',
-                            'Describe corrective action…',
-                            '描述纠正措施…')
-                        : _t('Tambahkan catatan…', 'Add a note…', '添加备注…'),
+                    hintText: _t(
+                      'Jelaskan tindakan perbaikan…',
+                      'Describe corrective action…',
+                      '描述纠正措施…',
+                    ),
                     hintStyle: GoogleFonts.poppins(
                         fontSize: 12, color: Colors.grey),
                     filled: true,
@@ -2325,9 +2789,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                     onPressed: submitting
                         ? null
                         : () async {
-                            if (noteCtrl.text.trim().isEmpty) return;
-                            // PIC: foto wajib
-                            if (isPic && photoUrl == null) {
+                            if (photoUrl == null) {
                               ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                                 content: Text(_t(
                                     'Upload foto bukti perbaikan terlebih dahulu.',
@@ -2337,29 +2799,36 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                               ));
                               return;
                             }
+                            if (noteCtrl.text.trim().isEmpty) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                content: Text(_t(
+                                    'Keterangan tindakan perbaikan wajib diisi.',
+                                    'Corrective action description is required.',
+                                    '请填写纠正措施说明。')),
+                                backgroundColor: const Color(0xFFEF4444),
+                              ));
+                              return;
+                            }
                             setSt(() => submitting = true);
                             try {
                               await _supabase
                                   .from('audit_answer_reply')
-                                  .insert({
-                                'id_answer': ans['id_answer'],
-                                'id_pic': userId,
+                                  .update({
                                 'catatan_reply': noteCtrl.text.trim(),
                                 'gambar_reply': photoUrl,
-                                'is_confirmed': false,
-                              });
+                              }).eq('id_reply', idReply);
                               if (ctx.mounted) Navigator.pop(ctx);
                               _fetch();
                             } catch (e) {
                               setSt(() => submitting = false);
                               if (ctx.mounted) {
                                 ScaffoldMessenger.of(ctx).showSnackBar(
-                                  SnackBar(content: Text('Error: $e')));
+                                    SnackBar(content: Text('Error: $e')));
                               }
                             }
                           },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6366F1),
+                      backgroundColor: _blue,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
@@ -2371,7 +2840,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
                         : Text(
-                            _t('Kirim', 'Send', '发送'),
+                            _t('Simpan Perubahan', 'Save Changes', '保存更改'),
                             style: GoogleFonts.poppins(
                                 fontWeight: FontWeight.w700)),
                   ),
@@ -2384,7 +2853,65 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
     );
   }
 
-  /// Bottom sheet untuk auditor membalas balasan PIC + konfirmasi sekaligus
+  /// Hapus reply (hanya PIC, belum confirmed)
+  Future<void> _deleteReply(String idReply) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          _t('Hapus Balasan', 'Delete Reply', '删除回复'),
+          style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1E3A8A)),
+        ),
+        content: Text(
+          _t('Balasan ini akan dihapus. Lanjutkan?',
+              'This reply will be deleted. Continue?', '此回复将被删除。是否继续？'),
+          style: GoogleFonts.poppins(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(_t('Batal', 'Cancel', '取消'),
+                style: const TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(_t('Hapus', 'Delete', '删除'),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+    try {
+      await _supabase
+          .from('audit_answer_reply')
+          .delete()
+          .eq('id_reply', idReply);
+      _fetch();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+        ));
+      }
+    }
+  }
+
+  /// Bottom sheet untuk auditor MEMBALAS balasan PIC tanpa mengonfirmasi.
+  /// Dipakai saat perbaikan PIC dirasa belum cukup — auditor menambahkan
+  /// catatan (opsional foto) ke thread, PIC akan melihatnya dan bisa
+  /// membalas lagi. Reply ini TIDAK menandai is_confirmed: true.
   Future<void> _showAuditorReplySheet(
       String idReply,
       String idAnswer,
@@ -2425,11 +2952,10 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withOpacity(0.12),
+                      color: _blue.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.check_circle_outline_rounded,
-                        color: Color(0xFF10B981), size: 20),
+                    child: Icon(Icons.reply_rounded, color: _blue, size: 20),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -2437,7 +2963,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _t('Balas & Konfirmasi', 'Reply & Confirm', '回复并确认'),
+                          _t('Balas Perbaikan', 'Reply to Fix', '回复修复'),
                           style: GoogleFonts.poppins(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
@@ -2445,9 +2971,9 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                         ),
                         Text(
                           _t(
-                            'Tambahkan catatan balasan lalu konfirmasi perbaikan.',
-                            'Add a reply note then confirm the fix.',
-                            '添加回复备注并确认修复。',
+                            'Jelaskan jika perbaikan belum sesuai — PIC akan menerima balasan ini dan bisa memperbaiki lagi.',
+                            'Explain if the fix is not sufficient yet — PIC will receive this and can fix it again.',
+                            '说明修复是否仍不充分——PIC将收到此回复并可以再次修复。',
                           ),
                           style: GoogleFonts.poppins(
                               fontSize: 11, color: const Color(0xFF64748B)),
@@ -2458,7 +2984,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                 ]),
                 const SizedBox(height: 16),
 
-                // Upload foto (opsional untuk auditor)
+                // Upload foto (opsional)
                 GestureDetector(
                   onTap: () async {
                     final url = await Navigator.push<String>(
@@ -2477,15 +3003,13 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: const Color(0xFF10B981).withOpacity(0.4)),
+                      border: Border.all(color: _blue.withOpacity(0.3)),
                     ),
                     child: photoUrl == null
                         ? Padding(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             child: Column(children: [
-                              const Icon(Icons.add_a_photo_rounded,
-                                  color: Color(0xFF10B981), size: 22),
+                              Icon(Icons.add_a_photo_rounded, color: _blue, size: 22),
                               const SizedBox(height: 4),
                               Text(
                                 _t('Upload Foto (opsional)',
@@ -2493,7 +3017,7 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                                 style: GoogleFonts.poppins(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF10B981)),
+                                    color: _blue),
                               ),
                             ]),
                           )
@@ -2525,16 +3049,16 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                 ),
                 const SizedBox(height: 12),
 
-                // Notes (wajib)
+                // Catatan (wajib)
                 TextField(
                   controller: noteCtrl,
                   maxLines: 3,
                   style: GoogleFonts.poppins(fontSize: 13),
                   decoration: InputDecoration(
                     hintText: _t(
-                      'Catatan konfirmasi (wajib)…',
-                      'Confirmation note (required)…',
-                      '确认备注（必填）…',
+                      'Jelaskan kekurangan perbaikan ini (wajib)…',
+                      'Describe what is still lacking (required)…',
+                      '说明此修复仍存在的问题（必填）…',
                     ),
                     hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
                     filled: true,
@@ -2550,37 +3074,8 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                         borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
                     focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                            color: Color(0xFF10B981), width: 1.5)),
+                        borderSide: BorderSide(color: _blue, width: 1.5)),
                   ),
-                ),
-                const SizedBox(height: 16),
-
-                // Info badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF10B981).withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: const Color(0xFF10B981).withOpacity(0.25)),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.info_outline_rounded,
-                        size: 14, color: Color(0xFF10B981)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _t(
-                          'Setelah dikirim, perbaikan akan dikonfirmasi dan poin akan dihitung.',
-                          'After sending, the fix will be confirmed and points will be calculated.',
-                          '发送后，修复将被确认并计算积分。',
-                        ),
-                        style: GoogleFonts.poppins(
-                            fontSize: 11, color: const Color(0xFF10B981)),
-                      ),
-                    ),
-                  ]),
                 ),
                 const SizedBox(height: 16),
 
@@ -2602,29 +3097,19 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                             }
                             setSt(() => submitting = true);
                             try {
-                              // 1. Simpan catatan auditor ke audit_answer_reply sebagai catatan tambahan
-                              //    (opsional — hanya jika ada catatan/foto dari auditor)
-                              if (noteCtrl.text.trim().isNotEmpty) {
-                                await _supabase.from('audit_answer_reply').insert({
-                                  'id_answer': idAnswer,
-                                  'id_pic': userId,    // auditor menggunakan field id_pic sebagai pengirim
-                                  'catatan_reply': noteCtrl.text.trim(),
-                                  'gambar_reply': photoUrl,
-                                  'is_confirmed': true, // langsung confirmed karena ini dari auditor
-                                });
-                              }
-                              // 2. Update reply PIC menjadi confirmed
-                              await _supabase
-                                  .from('audit_answer_reply')
-                                  .update({
-                                    'is_confirmed': true,
-                                    'confirmed_at': DateTime.now().toIso8601String(),
-                                  })
-                                  .eq('id_reply', idReply);
-
+                              // ── Hanya menambahkan balasan auditor ke thread,
+                              // TIDAK mengonfirmasi reply PIC — tujuannya
+                              // memberi feedback bahwa perbaikan belum cukup,
+                              // bukan menyetujuinya ──
+                              await _supabase.from('audit_answer_reply').insert({
+                                'id_answer': idAnswer,
+                                'id_pic': userId,
+                                'catatan_reply': noteCtrl.text.trim(),
+                                'gambar_reply': photoUrl,
+                                'is_confirmed': false,
+                              });
                               if (ctx.mounted) Navigator.pop(ctx);
-                              // Panggil _confirmReply untuk logika bonus PIC
-                              await _confirmReply(idReply, idAnswer, idResult);
+                              _fetch();
                             } catch (e) {
                               setSt(() => submitting = false);
                               if (ctx.mounted) {
@@ -2638,15 +3123,13 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
                             width: 16, height: 16,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.check_circle_rounded, size: 16),
+                        : const Icon(Icons.send_rounded, size: 16),
                     label: Text(
-                      submitting
-                          ? ''
-                          : _t('Kirim & Konfirmasi', 'Send & Confirm', '发送并确认'),
+                      submitting ? '' : _t('Kirim Balasan', 'Send Reply', '发送回复'),
                       style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF10B981),
+                      backgroundColor: _blue,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
@@ -2662,104 +3145,108 @@ class _AuditNotifRedirectTabState extends State<_AuditNotifRedirectTab>
     );
   }
 
-  /// Konfirmasi reply Yes dari auditor + beri bonus AUDIT_BONUS_PIC ke PIC
-  /// jika semua jawaban No sudah confirmed
-  Future<void> _confirmReply(
-      String idReply, String idAnswer, String idResult) async {
-    try {
-      await _supabase
-          .from('audit_answer_reply')
-          .update({'is_confirmed': true, 'confirmed_at': DateTime.now().toIso8601String()})
-          .eq('id_reply', idReply);
+  /// Konfirmasi reply PIC oleh Auditor.
+/// Memberikan AUDIT_BONUS_PIC ke PIC jika semua No sudah confirmed.
+/// TIDAK memberikan bonus tema / bonus full.
+Future<void> _confirmReply(
+    String idReply, String idAnswer, String idResult) async {
+  try {
+    // Update reply → is_confirmed: true
+    await _supabase
+        .from('audit_answer_reply')
+        .update({
+          'is_confirmed': true,
+          'confirmed_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id_reply', idReply);
 
-      // Cek apakah semua jawaban No sudah confirmed
-      final resultRow = await _supabase
-          .from('audit_result')
-          .select('is_finalized, level_type, id_ref, id_auditor')
-          .eq('id_result', idResult)
-          .maybeSingle();
+    // Cek apakah result sudah finalized
+    final resultRow = await _supabase
+        .from('audit_result')
+        .select('is_finalized, level_type, id_ref, id_auditor')
+        .eq('id_result', idResult)
+        .maybeSingle();
 
-      if (resultRow == null || resultRow['is_finalized'] == true) {
-        _fetch();
-        return;
-      }
-
-      final allAnswers = await _supabase
-          .from('audit_answer')
-          .select(
-              'id_answer, jawaban, '
-              'Replies:audit_answer_reply(is_confirmed)')
-          .eq('id_result', idResult);
-
-      final noAnswers = (allAnswers as List)
-          .where((a) => a['jawaban'] == false)
-          .toList();
-
-      final allConfirmed = noAnswers.isNotEmpty &&
-          noAnswers.every((a) {
-            final replies = (a['Replies'] as List?) ?? [];
-            return replies.any((r) => r['is_confirmed'] == true);
-          });
-
-      if (!allConfirmed) {
-        _fetch();
-        return;
-      }
-
-      // Semua No sudah confirmed → beri bonus AUDIT_BONUS_PIC ke PIC
-      final levelType = resultRow['level_type'].toString();
-      final idRef = resultRow['id_ref'].toString();
-      final nameCol = 'nama_$levelType';
-      final idCol = 'id_$levelType';
-
-      final locRow = await _supabase
-          .from(levelType)
-          .select('id_pic, $nameCol')
-          .eq(idCol, idRef)
-          .maybeSingle();
-
-      final picId = locRow?['id_pic']?.toString();
-      final lokasiName = locRow?[nameCol]?.toString() ?? '-';
-
-      if (picId != null) {
-        final cfgRow = await _supabase
-            .from('konfigurasi_poin')
-            .select('poin, deskripsi_template')
-            .eq('kode', 'AUDIT_BONUS_PIC')
-            .eq('is_aktif', true)
-            .maybeSingle();
-
-        if (cfgRow != null) {
-          final deskripsi = (cfgRow['deskripsi_template'] as String)
-              .replaceAll('{lokasi}', lokasiName);
-
-          await _supabase.from('log_poin').insert({
-            'id_user': picId,
-            'poin': cfgRow['poin'] as int,
-            'deskripsi': deskripsi,
-            'tipe_aktivitas': 'audit_bonus_pic',
-          });
-        }
-      }
-
-      // Tandai result as finalized
-      await _supabase
-          .from('audit_result')
-          .update({'is_finalized': true})
-          .eq('id_result', idResult);
-
+    if (resultRow == null || resultRow['is_finalized'] == true) {
       _fetch();
-    } catch (e) {
-      debugPrint('_confirmReply error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: const Color(0xFFEF4444)),
-        );
+      return;
+    }
+
+    // Ambil semua jawaban No dan cek apakah semua sudah confirmed
+    final allAnswers = await _supabase
+        .from('audit_answer')
+        .select('id_answer, jawaban, Replies:audit_answer_reply(is_confirmed)')
+        .eq('id_result', idResult);
+
+    final noAnswers = (allAnswers as List)
+        .where((a) => a['jawaban'] == false)
+        .toList();
+
+    final allNoConfirmed = noAnswers.isNotEmpty &&
+        noAnswers.every((a) {
+          final replies = (a['Replies'] as List?) ?? [];
+          return replies.any((r) => r['is_confirmed'] == true);
+        });
+
+    if (!allNoConfirmed) {
+      // Belum semua No confirmed — jangan finalize dulu
+      _fetch();
+      return;
+    }
+
+    // Semua No sudah confirmed → beri AUDIT_BONUS_PIC ke PIC
+    final levelType = resultRow['level_type'].toString();
+    final idRef = resultRow['id_ref'].toString();
+    final nameCol = 'nama_$levelType';
+    final idCol = 'id_$levelType';
+
+    final locRow = await _supabase
+        .from(levelType)
+        .select('id_pic, $nameCol')
+        .eq(idCol, idRef)
+        .maybeSingle();
+
+    final picId = locRow?['id_pic']?.toString();
+    final lokasiName = locRow?[nameCol]?.toString() ?? '-';
+
+    if (picId != null) {
+      final cfgRow = await _supabase
+          .from('konfigurasi_poin')
+          .select('poin, deskripsi_template')
+          .eq('kode', 'AUDIT_BONUS_PIC')
+          .eq('is_aktif', true)
+          .maybeSingle();
+
+      if (cfgRow != null) {
+        final deskripsi = (cfgRow['deskripsi_template'] as String)
+            .replaceAll('{lokasi}', lokasiName);
+
+        await _supabase.from('log_poin').insert({
+          'id_user': picId,
+          'poin': cfgRow['poin'] as int,
+          'deskripsi': deskripsi,
+          'tipe_aktivitas': 'audit_bonus_pic',
+        });
       }
     }
+
+    // Tandai result sebagai finalized
+    await _supabase
+        .from('audit_result')
+        .update({'is_finalized': true})
+        .eq('id_result', idResult);
+
+    _fetch();
+  } catch (e) {
+    debugPrint('_confirmReply error: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error: $e'),
+        backgroundColor: const Color(0xFFEF4444),
+      ));
+    }
   }
+}
 
   /// Ringkasan jawaban semua (yes dan no) dalam format compact
   Widget _buildAnswerSummary(List<Map<String, dynamic>> answers) {
