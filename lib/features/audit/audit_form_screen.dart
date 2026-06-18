@@ -324,7 +324,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       }
 
       // 4. Beri poin AUDIT_SUBMIT ke auditor
-      await _grantAuditSubmitPoin(userId: userId, score: score);
+      await _grantAuditSubmitPoin(userId: userId, score: score, idResult: idResult);
 
       // 5. Kirim notif ke PIC lokasi yang diaudit
       await _notifyPic(idResult, score);
@@ -400,6 +400,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   Future<void> _grantAuditSubmitPoin({
     required String userId,
     required double score,
+    required String idResult,
   }) async {
     try {
       final cfgRow = await _supabase
@@ -420,6 +421,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         'poin':           cfgRow['poin'] as int,
         'deskripsi':      deskripsi,
         'tipe_aktivitas': 'audit_submit',
+        'id_result':      idResult, // ── TAMBAHKAN INI ──
       });
     } catch (e) {
       debugPrint('Error granting audit submit poin: $e');
@@ -516,6 +518,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             'poin':           temaCfg['poin'] as int,
             'deskripsi':      deskripsi,
             'tipe_aktivitas': 'audit_bonus_tema',
+            'id_result':      idResult, // ── TAMBAHKAN INI ──
           });
           granted.add({'poin': temaCfg['poin'] as int, 'deskripsi': deskripsi});
         }
@@ -532,6 +535,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
           'poin':           fullCfg['poin'] as int,
           'deskripsi':      deskripsi,
           'tipe_aktivitas': 'audit_bonus_full',
+          'id_result':      idResult, // ── TAMBAHKAN INI ──
         });
         granted.add({'poin': fullCfg['poin'] as int, 'deskripsi': deskripsi});
       }
