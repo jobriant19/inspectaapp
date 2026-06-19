@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../../core/services/gemini_recurring_service.dart';
 import '../finding/finding_detail_screen.dart';
 import '../home/kts_finding_card.dart';
 
@@ -11,20 +12,13 @@ class _AppColors {
   static const primary = Color(0xFF0EA5E9);
   static const primaryDark = Color(0xFF0369A1);
   static const primaryLight = Color(0xFFE0F2FE);
-  static const accent = Color(0xFF38BDF8);
   static const surface = Color(0xFFF0F9FF);
-  static const cardBg = Colors.white;
   static const textPrimary = Color(0xFF0C4A6E);
   static const textSecondary = Color(0xFF64748B);
   static const textMuted = Color(0xFFBDBDBD);
   static const divider = Color(0xFFE0F2FE);
   static const selfHighlight = Color(0xFFFFF7ED);
   static const selfHighlightBorder = Color(0xFFFED7AA);
-  static const chipSelected = Color(0xFF0369A1);
-  static const chipUnselected = Colors.white;
-  static const targetBlue = Color(0xFF0EA5E9);
-  static const success = Color(0xFF10B981);
-  static const warning = Color(0xFFF59E0B);
 }
 
 // ─── Model Data ──────────────────────────────────────────────────────────────
@@ -230,7 +224,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   // ─── Chart collapse state ─────────────────────────────────────────────────
   bool _isChartExpanded = false;
   int _currentTabCount = 4;
-  bool _fetchTriggeredByTabFilter = false;
 
   // ─── Shimmer state untuk chart per-tab ────────────────────────────────────
   bool _isChartLoadingForTab = false;
@@ -1874,68 +1867,52 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   /// Fetch accident reports yang berulang (grouped by judul/penyebab yang mirip)
   Future<List<Map<String, dynamic>>> _fetchAccidentRecurringData() async {
     try {
-      final locale = widget.lang == 'ID' ? 'id_ID' : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
-      
-      // 1. Buat base query TANPA .order() terlebih dahulu
       var query = _supabase
           .from('accident_report')
           .select('''
             id_laporan, judul, deskripsi, foto_bukti, created_at, status,
             tanggal_kejadian, tingkat_keparahan, penyebab, tindakan_diambil,
-            id_lokasi, id_unit, id_subunit, id_area,
+            id_lokasi, id_unit, id_subunit, id_area, id_pelapor,
             lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area),
             User_Pelapor:User!accident_report_id_pelapor_fkey(nama, gambar_user)
           ''')
           .gte('created_at', _recurringFrom.toIso8601String())
           .lte('created_at', DateTime(
-              _recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String());
+              _recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59)
+              .toIso8601String());
 
-      // 2. Tambahkan filter kondisional (.eq) di sini
       if (_recurringUserId != null) {
         query = query.eq('id_pelapor', _recurringUserId!);
       }
 
-      // 3. Tambahkan .order() di tahap paling akhir saat akan mengeksekusi query (await)
-      final List<dynamic> response = await query.order('created_at', ascending: false);
-      
+      final List<dynamic> response =
+          await query.order('created_at', ascending: false);
       final reports = List<Map<String, dynamic>>.from(response);
-
       if (reports.isEmpty) return [];
 
-      // Grouping sederhana berdasarkan tingkat_keparahan + kesamaan penyebab
-      final Map<String, List<Map<String, dynamic>>> groups = {};
-      for (final r in reports) {
-        final key = (r['tingkat_keparahan'] ?? '').toString().toLowerCase();
-        groups.putIfAbsent(key, () => []).add(r);
-      }
+      // ── AI Analysis dengan DB cache ─────────────────────────────────────────
+      final groups = await GeminiRecurringService.instance.analyzeAccidents(
+        reports,
+        fromDate: _recurringFrom,
+        toDate: _recurringTo,
+        filterUserId: _recurringUserId,
+      );
 
-      // Hanya kembalikan grup dengan ≥ 2 laporan
-      final result = <Map<String, dynamic>>[];
-      groups.forEach((key, items) {
-        if (items.length < 2) return;
-        final first = items.first;
-        String location = '';
-        if (first['area'] != null) location = first['area']['nama_area'] ?? '';
-        else if (first['subunit'] != null) location = first['subunit']['nama_subunit'] ?? '';
-        else if (first['unit'] != null) location = first['unit']['nama_unit'] ?? '';
-        else if (first['lokasi'] != null) location = first['lokasi']['nama_lokasi'] ?? '';
-
-        result.add({
-          'topic': first['tingkat_keparahan'] ?? '-',
-          'locationArea': location,
-          'total': items.length,
-          'imageUrl': first['foto_bukti'],
-          'reports': items,
-        });
-      });
-
-      result.sort((a, b) => (b['total'] as int).compareTo(a['total'] as int));
-      return result;
+      return groups.map((g) => {
+        'topic': g.topic,
+        'locationArea': g.locationArea,
+        'total': g.total,
+        'imageUrl': g.imageUrl,
+        'reports': g.reports,
+        'severityPattern': g.severityPattern,
+        'similarityScore': g.similarityScore,
+        'aiReason': g.reason,
+      }).toList();
     } catch (e) {
       debugPrint('Error fetching accident recurring: $e');
       return [];
     }
-}
+  }
 
   Future<List<RecurringTopic>> _fetchRecurringData({bool ktsOnly = false}) async {
     try {
@@ -1944,7 +1921,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           .select('''
             id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan,
             poin_temuan, target_waktu_selesai, jenis_temuan,
-            id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab,
+            id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, id_user,
             lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area),
             kategoritemuan(nama_kategoritemuan),
             is_pro, is_visitor, is_eksekutif, no_order, jumlah_item,
@@ -1958,13 +1935,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               _recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59)
               .toIso8601String());
 
-      // Filter berdasarkan jenis_temuan
       if (ktsOnly) {
         query = query.eq('jenis_temuan', 'KTS Production');
       } else {
         query = query.neq('jenis_temuan', 'KTS Production');
       }
-
       if (_recurringUserId != null) {
         query = query.eq('id_user', _recurringUserId!);
       }
@@ -1972,227 +1947,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       final List<dynamic> response =
           await query.order('created_at', ascending: false);
       final findings = List<Map<String, dynamic>>.from(response);
-
       if (findings.isEmpty) return [];
 
-      final groups = _groupFindingsSemantic(findings);
-      groups.sort((a, b) => b.total.compareTo(a.total));
-      return groups;
+      // ── AI Analysis dengan DB cache ─────────────────────────────────────────
+      final groups = await GeminiRecurringService.instance.analyzeFindings(
+        findings,
+        isKts: ktsOnly,
+        fromDate: _recurringFrom,
+        toDate: _recurringTo,
+        filterUserId: _recurringUserId,
+      );
+
+      return groups.map((g) => RecurringTopic(
+        topic: g.topic,
+        locationArea: g.locationArea,
+        total: g.total,
+        imageUrl: g.imageUrl,
+        findings: g.findings,
+      )).toList();
     } catch (e) {
       debugPrint('Error fetching Recurring: $e');
       return [];
     }
-  }
-
-  /// Normalisasi teks: lowercase, hapus tanda baca, stemming sederhana
-  String _normalizeText(String text) {
-    // Lowercase
-    String result = text.toLowerCase().trim();
-
-    // Hapus tanda baca dan karakter spesial
-    result = result.replaceAll(RegExp(r'[^\w\s]'), ' ');
-
-    // Normalisasi spasi
-    result = result.replaceAll(RegExp(r'\s+'), ' ').trim();
-
-    // Stopwords Indonesia + Inggris yang umum
-    const stopwords = {
-      'yang', 'di', 'ke', 'dari', 'dan', 'atau', 'tidak', 'ada', 'pada',
-      'dengan', 'untuk', 'ini', 'itu', 'adalah', 'sudah', 'belum', 'akan',
-      'bisa', 'dapat', 'perlu', 'harus', 'karena', 'saat', 'masih', 'nya',
-      'an', 'ter', 'me', 'ber', 'pe', 'se', 'the', 'a', 'is', 'in',
-      'on', 'at', 'to', 'of', 'and', 'or', 'not', 'no', 'was', 'are',
-      'be', 'has', 'had', 'have', 'do', 'does', 'did', 'but', 'by', 'as',
-      'telah', 'sedang', 'juga', 'lebih', 'lagi', 'saja', 'pun',
-      'agar', 'atas', 'bawah', 'dalam', 'luar', 'kiri', 'kanan', 'dekat',
-      'jauh', 'besar', 'kecil', 'panjang', 'pendek', 'tinggi', 'rendah',
-    };
-
-    final words = result.split(' ')
-        .where((w) => w.length > 1 && !stopwords.contains(w))
-        .toList();
-
-    // Stemming sederhana: potong akhiran umum Indonesia
-    final stemmed = words.map((w) {
-      if (w.endsWith('kan') && w.length > 5) return w.substring(0, w.length - 3);
-      if (w.endsWith('an') && w.length > 4) return w.substring(0, w.length - 2);
-      if (w.endsWith('i') && w.length > 3) return w.substring(0, w.length - 1);
-      if (w.endsWith('nya') && w.length > 4) return w.substring(0, w.length - 3);
-      if (w.endsWith('ing') && w.length > 4) return w.substring(0, w.length - 3);
-      if (w.endsWith('ed') && w.length > 3) return w.substring(0, w.length - 2);
-      return w;
-    }).toList();
-
-    return stemmed.join(' ');
-  }
-
-  /// Hitung TF-IDF vector untuk setiap dokumen
-  List<Map<String, double>> _computeTfIdf(List<String> docs) {
-    // Tokenize semua dokumen
-    final tokenized = docs.map((d) => d.split(' ').where((w) => w.isNotEmpty).toList()).toList();
-
-    // Hitung DF (document frequency) per term
-    final df = <String, int>{};
-    for (final tokens in tokenized) {
-      final unique = tokens.toSet();
-      for (final t in unique) {
-        df[t] = (df[t] ?? 0) + 1;
-      }
-    }
-
-    final n = docs.length;
-    final vectors = <Map<String, double>>[];
-
-    for (final tokens in tokenized) {
-      if (tokens.isEmpty) {
-        vectors.add({});
-        continue;
-      }
-
-      // TF: frekuensi term dalam dokumen ini
-      final tf = <String, int>{};
-      for (final t in tokens) {
-        tf[t] = (tf[t] ?? 0) + 1;
-      }
-
-      // TF-IDF
-      final vec = <String, double>{};
-      for (final entry in tf.entries) {
-        final termTf = entry.value / tokens.length;
-        final idfLog = (n > 1 && (df[entry.key] ?? 0) < n)
-            ? (1 + (n.toDouble() / df[entry.key]!.toDouble()))
-            : 1.0;
-        vec[entry.key] = termTf * idfLog;
-      }
-      vectors.add(vec);
-    }
-
-    return vectors;
-  }
-
-  /// Versi yang lebih sederhana dan reliable
-  double _similarity(Map<String, double> a, Map<String, double> b) {
-    if (a.isEmpty || b.isEmpty) return 0.0;
-    double dot = 0.0;
-    double normA = 0.0;
-    double normB = 0.0;
-    for (final k in a.keys) {
-      dot += a[k]! * (b[k] ?? 0.0);
-      normA += a[k]! * a[k]!;
-    }
-    for (final v in b.values) {
-      normB += v * v;
-    }
-    if (normA <= 0 || normB <= 0) return 0.0;
-    return dot / (math.sqrt(normA) * math.sqrt(normB));
-  }
-
-  /// Main semantic grouping — TF-IDF + Cosine Similarity + konteks
-  List<RecurringTopic> _groupFindingsSemantic(List<Map<String, dynamic>> findings) {
-    const double threshold = 0.30;
-    final limit = math.min(findings.length, 500);
-
-    // Pre-compute normalized tokens per finding
-    final tokensList = List<Set<String>>.generate(limit, (i) {
-      final f = findings[i];
-      final judul = _normalizeText(f['judul_temuan']?.toString() ?? '');
-      final kat = _normalizeText(
-          (f['kategoritemuan'] as Map<String, dynamic>?)?['nama_kategoritemuan']?.toString() ?? '');
-      final subkat = _normalizeText(
-          (f['subkategoritemuan'] as Map<String, dynamic>?)?['nama_subkategoritemuan']?.toString() ?? '');
-      final deskripsi = _normalizeText(f['deskripsi_temuan']?.toString() ?? '');
-      // Judul paling penting — duplikasi untuk bobot
-      final allTokens = [
-        ...judul.split(' '), ...judul.split(' '), ...judul.split(' '),
-        ...kat.split(' '), ...kat.split(' '),
-        ...subkat.split(' '),
-        ...deskripsi.split(' '),
-      ].where((w) => w.length > 1).toSet();
-      return allTokens;
-    });
-
-    // Jaccard similarity — jauh lebih cepat dari TF-IDF
-    double jaccard(Set<String> a, Set<String> b) {
-      if (a.isEmpty || b.isEmpty) return 0.0;
-      final intersection = a.intersection(b).length;
-      final union = a.union(b).length;
-      return union == 0 ? 0.0 : intersection / union;
-    }
-
-    // Union-Find
-    final parent = List<int>.generate(limit, (i) => i);
-    int find(int x) {
-      while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; }
-      return x;
-    }
-    void union(int x, int y) {
-      final px = find(x), py = find(y);
-      if (px != py) parent[px] = py;
-    }
-
-    for (int i = 0; i < limit; i++) {
-      for (int j = i + 1; j < limit; j++) {
-        // Jangan campur 5R dan KTS
-        final jenisI = (findings[i]['jenis_temuan'] ?? '').toString();
-        final jenisJ = (findings[j]['jenis_temuan'] ?? '').toString();
-        if (jenisI != jenisJ) continue;
-
-        // Fast pre-check: jika kategori berbeda, skip
-        final katI = (findings[i]['kategoritemuan'] as Map<String, dynamic>?)?['nama_kategoritemuan']?.toString() ?? '';
-        final katJ = (findings[j]['kategoritemuan'] as Map<String, dynamic>?)?['nama_kategoritemuan']?.toString() ?? '';
-        if (katI.isNotEmpty && katJ.isNotEmpty && katI != katJ) continue;
-
-        if (jaccard(tokensList[i], tokensList[j]) >= threshold) {
-          union(i, j);
-        }
-      }
-    }
-
-    // Kumpulkan grup
-    final groupMap = <int, List<int>>{};
-    for (int i = 0; i < limit; i++) {
-      groupMap.putIfAbsent(find(i), () => []).add(i);
-    }
-
-    final result = <RecurringTopic>[];
-    groupMap.forEach((root, indices) {
-      if (indices.length < 2) return;
-
-      final groupFindings = indices.map((i) => findings[i]).toList();
-      final first = groupFindings.first;
-      final isKts = (first['jenis_temuan'] ?? '') == 'KTS Production';
-
-      // Label paling representatif
-      final titles = groupFindings
-          .map((f) => f['judul_temuan']?.toString() ?? '')
-          .where((t) => t.isNotEmpty)
-          .toList()
-        ..sort((a, b) => a.length.compareTo(b.length));
-      final label = titles.firstWhere((t) => t.length >= 5,
-          orElse: () => titles.isNotEmpty ? titles.first : '-');
-
-      String location = '';
-      if (!isKts) {
-        if (first['area'] != null) location = first['area']['nama_area'] ?? '';
-        else if (first['subunit'] != null) location = first['subunit']['nama_subunit'] ?? '';
-        else if (first['unit'] != null) location = first['unit']['nama_unit'] ?? '';
-        else if (first['lokasi'] != null) location = first['lokasi']['nama_lokasi'] ?? '';
-      } else {
-        location = (first['no_order'] ?? '').toString();
-        if (location.isEmpty) location = '-';
-      }
-
-      result.add(RecurringTopic(
-        topic: label,
-        locationArea: location,
-        total: groupFindings.length,
-        imageUrl: first['gambar_temuan'] as String?,
-        findings: groupFindings,
-      ));
-    });
-
-    result.sort((a, b) => b.total.compareTo(a.total));
-    return result;
   }
 
   Widget _buildRecurringShimmer() {
