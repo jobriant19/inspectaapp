@@ -451,7 +451,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
         ]),
       ),
 
-      // ── Filter Bar ──
+      // FILTER BAR
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
         child: Row(children: [
@@ -528,7 +528,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
         ]),
       ),
 
-      // Log List
+      // ACTIVITY LOG LIST
       Expanded(
         child: _isLoading
             ? Shimmer.fromColors(
@@ -585,6 +585,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     ]);
   }
 
+  // ACTIVITY LOG CARD
   Widget _buildActivityLogCard(Map<String, dynamic> log) {
     final int poin = (log['poin'] as num).toInt();
     final bool isPositive = poin >= 0;

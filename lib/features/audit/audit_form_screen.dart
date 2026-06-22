@@ -349,7 +349,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
   Future<void> _notifyPic(String idResult, double score) async {
     try {
-      // Ambil id_pic dari level yang diaudit
       final nameCol = 'nama_${widget.levelType}';
       final idCol = 'id_${widget.levelType}';
       final levelRow = await _supabase
@@ -361,23 +360,44 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       final picId = levelRow?['id_pic']?.toString();
       if (picId == null) return;
 
-      // Ambil FCM token PIC
       final picData = await _supabase
           .from('User')
-          .select('fcm_token, nama')
+          .select('fcm_token')
           .eq('id_user', picId)
           .maybeSingle();
 
       final fcmToken = picData?['fcm_token']?.toString();
       if (fcmToken == null || fcmToken.trim().isEmpty) return;
 
-      final notifTitle = _t(
-        'Hasil Audit Masuk',
-        'Audit Result Received',
-        '收到审计结果',
-      );
-      final notifBody =
-          '${widget.locationName} — ${score.toStringAsFixed(0)}%';
+      final bool isPerfect = !_answers.values.any((ans) => ans == false);
+
+      // ── Judul & body berbeda tergantung hasil audit ──
+      final String notifTitle;
+      final String notifBody;
+
+      if (isPerfect) {
+        notifTitle = widget.lang == 'EN'
+            ? '🏆 Perfect Audit Result!'
+            : widget.lang == 'ZH'
+                ? '🏆 完美审计结果！'
+                : '🏆 Hasil Audit Sempurna!';
+        notifBody = widget.lang == 'EN'
+            ? '${widget.locationName} scored ${score.toStringAsFixed(0)}% — All items passed! Bonus points have been added.'
+            : widget.lang == 'ZH'
+                ? '${widget.locationName} 得分 ${score.toStringAsFixed(0)}% — 全部通过！已添加奖励积分。'
+                : '${widget.locationName} meraih ${score.toStringAsFixed(0)}% — Semua item lulus! Poin bonus telah ditambahkan.';
+      } else {
+        notifTitle = widget.lang == 'EN'
+            ? '📋 Audit Result — Action Required'
+            : widget.lang == 'ZH'
+                ? '📋 审计结果 — 需要改进'
+                : '📋 Hasil Audit — Perlu Perbaikan';
+        notifBody = widget.lang == 'EN'
+            ? '${widget.locationName} scored ${score.toStringAsFixed(0)}%. Some items need corrective action. Please reply in the Audit tab.'
+            : widget.lang == 'ZH'
+                ? '${widget.locationName} 得分 ${score.toStringAsFixed(0)}%。部分项目需要整改，请在审计标签中回复。'
+                : '${widget.locationName} meraih ${score.toStringAsFixed(0)}%. Ada item yang perlu diperbaiki. Silakan balas di tab Audit.';
+      }
 
       await _supabase.functions.invoke(
         'send-fcm-v1',
@@ -388,6 +408,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
           'data': {
             'click_action': 'FLUTTER_NOTIFICATION_CLICK',
             'route': 'audit_notif',
+            'id_result': idResult,
           },
         },
       );

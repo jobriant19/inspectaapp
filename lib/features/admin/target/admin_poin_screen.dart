@@ -15,7 +15,6 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
 
-  // ── Teks multi-bahasa ──
   String _t(String key) {
     const txt = {
       'ID': {
@@ -130,7 +129,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
     );
   }
 
-  // ── Form tambah / edit ──
+  // ADD & EDIT FORM
   void _showForm({Map<String, dynamic>? item}) {
     final isEdit = item != null;
     final kodeCtrl = TextEditingController(text: item?['kode'] ?? '');
@@ -163,7 +162,6 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Handle
                     Center(
                       child: Container(
                         width: 40, height: 4,
@@ -210,15 +208,15 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                     const SizedBox(height: 12),
                     _formField(ketCtrl, _t('keterangan'), required: false, maxLines: 2),
                     const SizedBox(height: 12),
-                    // Toggle aktif
+                    // ACTIVE TOGGLE
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(_t('aktif'), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF2563EB))),
                         Switch(
                           value: isAktif,
-                          activeColor: const Color(0xFF22C55E), // hijau cerah
-                          activeTrackColor: const Color(0xFFBBF7D0), // hijau muda track
+                          activeColor: const Color(0xFF22C55E),
+                          activeTrackColor: const Color(0xFFBBF7D0),
                           inactiveThumbColor: Colors.grey.shade400,
                           inactiveTrackColor: Colors.grey.shade200,
                           onChanged: (v) => setModalState(() => isAktif = v),
@@ -337,67 +335,15 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
     }
   }
 
-  Future<void> _deleteItem(int id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(_t('delete_confirm'), style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-        content: Text(_t('delete_desc'), style: GoogleFonts.poppins()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(_t('cancel'), style: const TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            child: Text(_t('delete'), style: const TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      try {
-        await Supabase.instance.client.from('konfigurasi_poin').delete().eq('id', id);
-        _showSnack(_t('success_delete'));
-        _fetchData();
-      } catch (e) {
-        _showSnack(_t('error'), isError: true);
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          _t('title'),
-          style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              color: const Color.fromARGB(255, 240, 244, 1)),  // ← kuning gelap (terbaca)
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Color.fromARGB(255, 240, 244, 1)),  // ← kuning
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.black.withOpacity(0.06)),
-        ),
-      ),
-      // ← TIDAK ADA floatingActionButton
       body: _isLoading
           ? _buildShimmer()
           : RefreshIndicator(
               onRefresh: _fetchData,
-              color: const Color.fromARGB(255, 245, 244, 1),   // ← kuning
+              color: const Color.fromARGB(255, 245, 244, 1),
               child: _items.isEmpty
                   ? _buildEmpty()
                   : ListView.separated(
@@ -411,9 +357,8 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
   }
 
   Widget _buildCard(Map<String, dynamic> item) {
-    const primaryColor = Color.fromARGB(255, 245, 244, 1);   // ← kuning cerah
-    const primaryDark  = Color.fromARGB(255, 213, 210, 7);   // ← kuning gelap
-    const primaryLight = Color(0xFFFFFBEB);   // ← kuning sangat muda
+    const primaryColor = Color.fromARGB(255, 245, 244, 1);
+    const primaryDark  = Color.fromARGB(255, 213, 210, 7);
 
     final isAktif = item['is_aktif'] as bool? ?? true;
     return Container(
@@ -440,7 +385,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Poin badge ──
+            // POINT BADGE
             Container(
               width: 60,
               height: 60,
@@ -571,7 +516,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                     ),
                   ],
                   const SizedBox(height: 10),
-                  // ── Hanya tombol Edit ──
+                  // EDIT BUTTON
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -601,7 +546,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                                 style: GoogleFonts.poppins(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF2563EB)), // biru cerah
+                                    color: const Color(0xFF2563EB)),
                               ),
                             ],
                           ),
@@ -614,20 +559,6 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _actionBtn(IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(7),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, size: 16, color: color),
       ),
     );
   }

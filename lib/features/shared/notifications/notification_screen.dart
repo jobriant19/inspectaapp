@@ -8,12 +8,6 @@ import 'assigned_findings_tab.dart';
 import 'activity_log_tab.dart';
 import 'audit_notif_tab.dart';
 
-/// NotificationScreen — sekarang hanya bertanggung jawab atas shell
-/// (header, TabBar, realtime listener untuk badge/local-notif).
-/// Konten masing-masing tab dipindah ke file terpisah:
-///   - assigned_findings_tab.dart → AssignedFindingsTab
-///   - activity_log_tab.dart      → ActivityLogTab
-///   - audit_notif_tab.dart       → AuditNotifTab (sudah membawa fix bug bonus tema)
 class NotificationScreen extends StatefulWidget {
   final String lang;
   final List<dynamic>? initialFindings;
@@ -192,7 +186,7 @@ class _NotificationScreenState extends State<NotificationScreen>
         backgroundColor: const Color(0xFFF8FAFF),
         body: Column(
           children: [
-            // ── HEADER ──
+            // HEADER
             Container(
               color: Colors.white,
               child: SafeArea(
@@ -231,7 +225,7 @@ class _NotificationScreenState extends State<NotificationScreen>
                       ),
                     ),
                     const SizedBox(height: 12),
-                    // ── 3 Tab dalam satu baris rapi ──
+                    // 3 TAB 
                     Container(
                       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                       padding: const EdgeInsets.all(3),
@@ -300,7 +294,7 @@ class _NotificationScreenState extends State<NotificationScreen>
               ),
             ),
 
-            // ── KONTEN ──
+            // CONTENT
             Expanded(
               child: TabBarView(
                 controller: _tabController,

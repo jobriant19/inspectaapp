@@ -6,8 +6,6 @@ import 'package:shimmer/shimmer.dart';
 import '../../user/finding/finding_detail_screen.dart';
 import '../../user/home/finding_card.dart';
 
-/// Tab "Assigned Findings" — diekstrak dari notification_screen.dart
-/// tanpa mengubah tampilan maupun fungsionalitas apapun.
 class AssignedFindingsTab extends StatefulWidget {
   final String lang;
   final List<Map<String, dynamic>>? initialData;

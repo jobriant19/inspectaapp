@@ -5,26 +5,6 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../audit/audit_evidence_camera_screen.dart';
 
-/// Tab "Audit" — diekstrak dari notification_screen.dart.
-///
-/// ── PERBAIKAN BUG (lihat _fetch()) ──
-/// Sebelumnya pencocokan log_poin (audit_bonus_tema / audit_bonus_full /
-/// audit_bonus_pic) ke kartu audit dilakukan lewat window waktu (menit/hari)
-/// + substring nama lokasi pada `deskripsi`. Pendekatan itu rapuh: kalau ada
-/// 2 audit untuk lokasi yang sama dalam window waktu berdekatan, entry bonus
-/// tema bisa "hilang" dari kartu yang benar atau nyasar ke kartu lain.
-/// Sekarang log_poin dicocokkan dengan PASTI lewat kolom `id_result` (FK ke
-/// audit_result), bukan lagi tebak-tebakan waktu/teks. Ini menghilangkan
-/// seluruh kelas bug tersebut secara permanen.
-///
-/// Prasyarat schema (jalankan sekali di Supabase SQL editor):
-///   alter table public.log_poin
-///     add column if not exists id_result bigint references public.audit_result(id_result);
-///
-/// Prasyarat kode: audit_form_screen.dart (_grantAuditSubmitPoin,
-/// _grantBonusPoin) dan notification_screen.dart (_confirmReply, untuk
-/// audit_bonus_pic) harus menyertakan 'id_result': idResult saat insert ke
-/// log_poin. Lihat file audit_form_screen_PATCH.dart yang menyertai ini.
 class AuditNotifTab extends StatefulWidget {
   final String lang;
   final String Function(String) t;
@@ -78,7 +58,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     if (userId == null) return;
     setState(() => _isLoading = true);
     try {
-      // ── 1. Fetch sebagai AUDITOR ──────────────────────────────────────
+      // AUDITOR FETCH
       final auditorRows = await _supabase
           .from('audit_result')
           .select(
@@ -98,7 +78,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
         items.add(r);
       }
 
-      // ── 2. Fetch sebagai PIC ──────────────────────────────────────────
+      // PIC LOCATION FETCH
       final picLevels = await Future.wait([
         _supabase.from('lokasi').select('id_lokasi').eq('id_pic', userId),
         _supabase.from('unit').select('id_unit').eq('id_pic', userId),
@@ -131,27 +111,24 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           final r = Map<String, dynamic>.from(row as Map);
           r['_role'] = 'pic';
           r['_level'] = ref['level'];
-          // Hindari duplikat jika user adalah auditor sekaligus PIC lokasi sendiri
           final alreadyExists = items.any((i) => i['id_result'] == r['id_result']);
           if (!alreadyExists) items.add(r);
         }
       }
 
-      // Sort by created_at desc
+      // SORT BY created_at 
       items.sort((a, b) {
         final at = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
         final bt = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
         return bt.compareTo(at);
       });
 
-      // ── 3. Enrich setiap item ─────────────────────────────────────────
       for (final item in items) {
         final levelType = item['level_type']?.toString() ?? item['_level']?.toString() ?? '';
         final idRef = item['id_ref']?.toString() ?? '';
         final idResult = item['id_result']?.toString() ?? '';
-        // final role = item['_role']?.toString() ?? 'auditor';
 
-        // Nama lokasi
+        // LOCATION NAME
         if (levelType.isNotEmpty && idRef.isNotEmpty) {
           try {
             final nameCol = 'nama_$levelType';
@@ -169,11 +146,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           item['_location_name'] = '-';
         }
 
-        // ── PERBAIKAN BUG: poin sekarang diambil PERSIS lewat id_result,
-        // bukan lagi lewat window waktu + substring nama lokasi. Ini berlaku
-        // sama untuk auditor (audit_submit) maupun PIC (audit_bonus_tema,
-        // audit_bonus_full, audit_bonus_pic) — semua match 1:1 ke audit ini
-        // saja, tidak mungkin nyasar ke audit lain di lokasi yang sama. ──
         try {
           final logs = await _supabase
               .from('log_poin')
@@ -186,7 +158,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           item['_poin_logs'] = <Map<String, dynamic>>[];
         }
 
-        // Jawaban + tema + replies untuk detail (auditor dan PIC)
+        // ANSWER, THEME, REPLIES FOR AUDITOR & PIC DETAILS
         try {
           final answers = await _supabase
               .from('audit_answer')
@@ -401,7 +373,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
 
     return Column(
       children: [
-        // ── Filter bar ──
+        // FILTER BAR
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
           child: Row(children: [
@@ -460,7 +432,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           ]),
         ),
 
-        // ── Content ──
+        // CONTENT
         Expanded(
           child: _isLoading
               ? Shimmer.fromColors(
@@ -518,6 +490,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     );
   }
 
+  // AUDIT NOTIF CARD
   Widget _buildCard(Map<String, dynamic> item) {
     final score = double.tryParse(item['nilai_audit']?.toString() ?? '');
     final scoreFinal = double.tryParse(item['nilai_final']?.toString() ?? '');
@@ -548,13 +521,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
         _scoreColor(noAnswers.isNotEmpty && allNoConfirmed ? 100.0 : displayScore);
     final showScore = noAnswers.isEmpty || allNoConfirmed;
 
-    // ── PERBAIKAN BUG: _poin_logs sekarang sudah 1:1 milik audit ini saja
-    // (difilter lewat id_result di _fetch()), jadi tidak perlu lagi filter
-    // tambahan berdasarkan window waktu / tebak jenis tipe_aktivitas mana
-    // yang "mungkin" milik kartu ini. Auditor melihat semua log miliknya;
-    // PIC melihat semua log miliknya untuk audit ini (audit_bonus_tema,
-    // audit_bonus_full, dan/atau audit_bonus_pic — apa pun yang benar-benar
-    // tercatat dengan id_result ini). ──
     final poinLogs = (item['_poin_logs'] as List<Map<String, dynamic>>?) ?? [];
     final showPoinLogs = true;
 
@@ -588,7 +554,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
         ),
         child: Column(
           children: [
-            // ── Header ──
+            // HEADER
             GestureDetector(
               onTap: () => expanded.value = !isExpanded,
               child: Padding(
@@ -760,11 +726,11 @@ class _AuditNotifTabState extends State<AuditNotifTab>
               ),
             ),
 
-            // ── Detail expand ──
+            // EXPAND DETAIL
             if (isExpanded) ...[
               const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
-              // Poin log — hanya tampil jika showPoinLogs
+              // POINT LOG
               if (poinLogs.isNotEmpty && showPoinLogs)
                 Container(
                   margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
@@ -834,7 +800,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                   ),
                 ),
 
-              // Pertanyaan No + thread reply
+              // ANSWER IS NO + THREAD REPLY
               if (noAnswers.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
@@ -855,7 +821,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                     _buildAnswerThreadFull(ans, idResult, isPic, userId)),
               ],
 
-              // Ringkasan jawaban semua
+              // ALL SUMMARY ANSWER
               if (answers.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
@@ -882,11 +848,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     );
   }
 
-  /// Thread reply untuk pertanyaan No:
-  /// - PIC: foto (wajib) + notes (wajib) → submit reply
-  /// - Auditor: notes (wajib) → konfirmasi Yes langsung
-  /// - Tombol Edit + Delete hanya pada reply card
-  /// - Konfirmasi Yes HANYA dari sisi auditor (tidak perlu reply dulu)
   Widget _buildAnswerThreadFull(
       Map<String, dynamic> ans,
       String idResult,
@@ -901,7 +862,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     final catatan = ans['catatan']?.toString() ?? '';
     final idAnswer = ans['id_answer']?.toString() ?? '';
 
-    // Cek apakah reply PIC sudah dikonfirmasi oleh auditor
+    // IS PIC REPLY CONRIRMED BY AUDITOR ?
     final confirmedReplies = replies.where((r) => r['is_confirmed'] == true).toList();
     final isFullyConfirmed = confirmedReplies.isNotEmpty;
 
@@ -933,7 +894,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Pertanyaan ──
+          // QUESTION
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -964,7 +925,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             ],
           ),
 
-          // Evidence auditor (gambar temuan)
+          // AUDITOR EVIDENCE IMAGE
           if (gambar.isNotEmpty) ...[
             const SizedBox(height: 8),
             ClipRRect(
@@ -996,7 +957,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             ),
           ],
 
-          // ── Daftar Replies ──
+          // REPLIES LIST
           if (replies.isNotEmpty) ...[
             const SizedBox(height: 10),
             const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -1150,7 +1111,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             }),
           ],
 
-          // ── Tombol Reply — hanya untuk PIC jika belum fully confirmed ──
+          // REPLY BUTTON ONLY FOR PIC NOT YET CONFIRMED
           if (isPic && !isFullyConfirmed) ...[
             const SizedBox(height: 8),
             SizedBox(
@@ -1177,7 +1138,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             ),
           ],
 
-          // ── Info untuk Auditor: menunggu reply PIC ──
+          // AUDIT INFO WAITING FOR PIC REPLY
           if (!isPic && replies.isEmpty) ...[
             const SizedBox(height: 8),
             Container(
@@ -1212,7 +1173,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     );
   }
 
-  /// Bottom sheet reply untuk PIC: Foto WAJIB, Notes WAJIB.
+  /// PIC REPLY BOTTOM SHEET IMAGE + NOTES REQUIRED
   Future<void> _showReplyBottomSheet(
       Map<String, dynamic> ans,
       String idResult,
@@ -1457,6 +1418,17 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                                 'gambar_reply': photoUrl,
                                 'is_confirmed': false,
                               });
+
+                              // AUDITOR NOTIF IF PIC DONE REPLY
+                              final picUserData = await _supabase
+                                  .from('User')
+                                  .select('nama')
+                                  .eq('id_user', userId)
+                                  .maybeSingle();
+                              final picName =
+                                  picUserData?['nama']?.toString() ?? '-';
+                              await _notifyAuditor(idResult, picName);
+
                               if (ctx.mounted) Navigator.pop(ctx);
                               _fetch();
                             } catch (e) {
@@ -1493,7 +1465,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     );
   }
 
-  /// Edit reply yang sudah ada (hanya PIC, belum confirmed)
+  /// REPLY EDIT FOR PIC NOT YET CONFIRMED 
   Future<void> _showEditReplySheet(
       String idReply,
       String idAnswer,
@@ -1754,7 +1726,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     );
   }
 
-  /// Hapus reply (hanya PIC, belum confirmed)
+  /// DELETE REPLY FOR PIC NOT YET CONFIRMED
   Future<void> _deleteReply(String idReply) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -1809,7 +1781,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     }
   }
 
-  /// Bottom sheet untuk auditor MEMBALAS balasan PIC tanpa mengonfirmasi.
+  /// AUDITOR REPLY BOTTOM SHEET FOR PIC REPLY NOT YET CONFIRMED
   Future<void> _showAuditorReplySheet(
       String idReply,
       String idAnswer,
@@ -1996,6 +1968,21 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                                 'gambar_reply': photoUrl,
                                 'is_confirmed': false,
                               });
+
+                              // ── Notif ke PIC: Auditor membalas (bukan confirm) ──
+                              final auditorUserData = await _supabase
+                                  .from('User')
+                                  .select('nama')
+                                  .eq('id_user', userId)
+                                  .maybeSingle();
+                              final auditorName =
+                                  auditorUserData?['nama']?.toString() ?? '-';
+                              await _notifyPicFromAuditor(
+                                idResult: idResult,
+                                auditorName: auditorName,
+                                isConfirm: false,
+                              );
+
                               if (ctx.mounted) Navigator.pop(ctx);
                               _fetch();
                             } catch (e) {
@@ -2033,17 +2020,165 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     );
   }
 
-  /// Konfirmasi reply PIC oleh Auditor.
-  /// Memberikan AUDIT_BONUS_PIC ke PIC jika semua No sudah confirmed.
-  /// TIDAK memberikan bonus tema / bonus full.
-  ///
-  /// ── PERBAIKAN BUG: insert log_poin sekarang menyertakan 'id_result'
-  /// agar bonus ini langsung tertaut pasti ke kartu audit yang benar,
-  /// konsisten dengan cara _fetch() mengambil _poin_logs di atas. ──
+  /// SEND PUSH NOTIF TO AUDITOR WHEN PIC REPLY
+  Future<void> _notifyAuditor(String idResult, String picName) async {
+    try {
+      final resultRow = await _supabase
+          .from('audit_result')
+          .select('id_auditor, level_type, id_ref')
+          .eq('id_result', idResult)
+          .maybeSingle();
+
+      if (resultRow == null) return;
+
+      final auditorId = resultRow['id_auditor']?.toString();
+      if (auditorId == null) return;
+
+      final auditorData = await _supabase
+          .from('User')
+          .select('fcm_token')
+          .eq('id_user', auditorId)
+          .maybeSingle();
+
+      final fcmToken = auditorData?['fcm_token']?.toString();
+      if (fcmToken == null || fcmToken.trim().isEmpty) return;
+
+      // GET LOCATION NAME
+      final levelType = resultRow['level_type']?.toString() ?? '';
+      final idRef = resultRow['id_ref']?.toString() ?? '';
+      String locationName = '-';
+      if (levelType.isNotEmpty && idRef.isNotEmpty) {
+        try {
+          final nameCol = 'nama_$levelType';
+          final idCol = 'id_$levelType';
+          final locRow = await _supabase
+              .from(levelType)
+              .select(nameCol)
+              .eq(idCol, idRef)
+              .maybeSingle();
+          locationName = locRow?[nameCol]?.toString() ?? '-';
+        } catch (_) {}
+      }
+
+      final notifTitle = _t(
+        '🔧 PIC Membalas Temuan',
+        '🔧 PIC Replied to Finding',
+        '🔧 PIC已回复发现',
+      );
+      final notifBody = _t(
+        '$picName telah mengirim bukti perbaikan untuk $locationName. Silakan tinjau dan konfirmasi.',
+        '$picName has submitted corrective action evidence for $locationName. Please review and confirm.',
+        '$picName 已提交 $locationName 的整改证据，请审阅并确认。',
+      );
+
+      await _supabase.functions.invoke(
+        'send-fcm-v1',
+        body: {
+          'token': fcmToken.trim(),
+          'title': notifTitle,
+          'body': notifBody,
+          'data': {
+            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+            'route': 'audit_notif',
+            'id_result': idResult,
+          },
+        },
+      );
+    } catch (e) {
+      debugPrint('_notifyAuditor error: $e');
+    }
+  }
+
+  /// SEND PUSH NOTIF TO PIC WHEN AUDITOR HAS BEEN CONFIRM OR REPLY 
+  Future<void> _notifyPicFromAuditor({
+    required String idResult,
+    required String auditorName,
+    required bool isConfirm,
+  }) async {
+    try {
+      final resultRow = await _supabase
+          .from('audit_result')
+          .select('level_type, id_ref')
+          .eq('id_result', idResult)
+          .maybeSingle();
+
+      if (resultRow == null) return;
+
+      final levelType = resultRow['level_type']?.toString() ?? '';
+      final idRef = resultRow['id_ref']?.toString() ?? '';
+      if (levelType.isEmpty || idRef.isEmpty) return;
+
+      final nameCol = 'nama_$levelType';
+      final idCol = 'id_$levelType';
+
+      final locRow = await _supabase
+          .from(levelType)
+          .select('id_pic, $nameCol')
+          .eq(idCol, idRef)
+          .maybeSingle();
+
+      final picId = locRow?['id_pic']?.toString();
+      final locationName = locRow?[nameCol]?.toString() ?? '-';
+      if (picId == null) return;
+
+      final picData = await _supabase
+          .from('User')
+          .select('fcm_token')
+          .eq('id_user', picId)
+          .maybeSingle();
+
+      final fcmToken = picData?['fcm_token']?.toString();
+      if (fcmToken == null || fcmToken.trim().isEmpty) return;
+
+      final String notifTitle;
+      final String notifBody;
+
+      if (isConfirm) {
+        notifTitle = _t(
+          '✅ Perbaikan Dikonfirmasi!',
+          '✅ Fix Confirmed!',
+          '✅ 整改已确认！',
+        );
+        notifBody = _t(
+          'Auditor $auditorName telah mengkonfirmasi perbaikan Anda untuk $locationName. Poin bonus telah ditambahkan!',
+          'Auditor $auditorName has confirmed your fix for $locationName. Bonus points have been added!',
+          '审计员 $auditorName 已确认您对 $locationName 的整改。已添加奖励积分！',
+        );
+      } else {
+        notifTitle = _t(
+          '💬 Auditor Membalas Temuan',
+          '💬 Auditor Replied to Finding',
+          '💬 审计员已回复发现',
+        );
+        notifBody = _t(
+          'Auditor $auditorName memberikan catatan tambahan untuk $locationName. Silakan tinjau dan perbaiki kembali.',
+          'Auditor $auditorName added notes for $locationName. Please review and fix again.',
+          '审计员 $auditorName 对 $locationName 添加了备注，请审阅并再次整改。',
+        );
+      }
+
+      await _supabase.functions.invoke(
+        'send-fcm-v1',
+        body: {
+          'token': fcmToken.trim(),
+          'title': notifTitle,
+          'body': notifBody,
+          'data': {
+            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+            'route': 'audit_notif',
+            'id_result': idResult,
+          },
+        },
+      );
+    } catch (e) {
+      debugPrint('_notifyPicFromAuditor error: $e');
+    }
+  }
+
   Future<void> _confirmReply(
       String idReply, String idAnswer, String idResult) async {
     try {
-      // Update reply → is_confirmed: true
+      // UPDATE REPLY → is_confirmed: true
       await _supabase
           .from('audit_answer_reply')
           .update({
@@ -2052,7 +2187,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           })
           .eq('id_reply', idReply);
 
-      // Cek apakah result sudah finalized
+      // CHECK RESULT FINALIZED
       final resultRow = await _supabase
           .from('audit_result')
           .select('is_finalized, level_type, id_ref, id_auditor')
@@ -2064,7 +2199,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
         return;
       }
 
-      // Ambil semua jawaban No dan cek apakah semua sudah confirmed
+      // GET ALL ANSWER NO & CHECK ARE ALL CONFIRMED
       final allAnswers = await _supabase
           .from('audit_answer')
           .select('id_answer, jawaban, Replies:audit_answer_reply(is_confirmed)')
@@ -2081,12 +2216,11 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           });
 
       if (!allNoConfirmed) {
-        // Belum semua No confirmed — jangan finalize dulu
         _fetch();
         return;
       }
 
-      // Semua No sudah confirmed → beri AUDIT_BONUS_PIC ke PIC
+      // ALL NO ANSWER CONFIRMED → SEND AUDIT_BONUS_PIC TO PIC
       final levelType = resultRow['level_type'].toString();
       final idRef = resultRow['id_ref'].toString();
       final nameCol = 'nama_$levelType';
@@ -2118,12 +2252,27 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             'poin': cfgRow['poin'] as int,
             'deskripsi': deskripsi,
             'tipe_aktivitas': 'audit_bonus_pic',
-            'id_result': idResult, // ── PERBAIKAN BUG: tautkan ke audit_result ──
+            'id_result': idResult,
           });
         }
       }
 
-      // Tandai result sebagai finalized
+      // NOTIF TO PIC FOR SUCCESS CONFIRM + ACCEPT BONUS
+      final auditorId = resultRow['id_auditor']?.toString() ?? '';
+      if (auditorId.isNotEmpty) {
+        final auditorUserData = await _supabase
+            .from('User')
+            .select('nama')
+            .eq('id_user', auditorId)
+            .maybeSingle();
+        final auditorName = auditorUserData?['nama']?.toString() ?? '-';
+        await _notifyPicFromAuditor(
+          idResult: idResult,
+          auditorName: auditorName,
+          isConfirm: true,
+        );
+      }
+
       await _supabase
           .from('audit_result')
           .update({'is_finalized': true})
@@ -2141,7 +2290,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     }
   }
 
-  /// Ringkasan jawaban semua (yes dan no) dalam format compact
+  /// ALL ANSWER SUMMARY 
   Widget _buildAnswerSummary(List<Map<String, dynamic>> answers) {
     final Map<String, List<Map<String, dynamic>>> byTema = {};
     for (final ans in answers) {

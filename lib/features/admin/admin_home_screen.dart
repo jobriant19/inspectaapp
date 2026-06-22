@@ -8,20 +8,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:intl/intl.dart';
-
-// ─── Import screen admin lainnya ───
 import '../audit/audit_location_screen.dart';
 import '../user/leaderboard/leaderboard_detail_screen.dart';
 import 'admin_help_reports_screen.dart';
-import 'admin_poin_screen.dart';
 import 'admin_profile_screen.dart';
 import 'admin_verification_screen.dart';
 import 'settings/admin_settings_screen.dart';
 import 'admin_user_screen.dart';
 import 'admin_location_screen.dart';
 import 'admin_category_screen.dart';
-// Import login screen untuk logout
 import '../auth/login_screen.dart';
+import 'target/admin_poin_target_screen.dart';
 
 // ============================================================
 // ADMIN HOME SCREEN
@@ -543,7 +540,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
-                    color: const Color(0xFF1E3A8A),
+                    color: const Color.fromARGB(255, 29, 199, 97),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1070,16 +1067,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       ),
       _MenuItem(
         label: _lang == 'EN'
-            ? 'Point\nConfiguration'
+            ? 'Points &\n5R Target'
             : _lang == 'ZH'
-                ? '积分\n配置'
-                : 'Konfigurasi\nPoin',
+                ? '积分与\n5R目标'
+                : 'Poin &\nTarget 5R',
         icon: Icons.stars_rounded,
         gradient: const [Color.fromARGB(255, 245, 229, 11), Color.fromARGB(255, 217, 175, 6)],
         shadow: const Color.fromARGB(255, 245, 233, 11),
         onTap: () => Navigator.push(
           context,
-          _slideRoute(AdminPoinScreen(lang: _lang)),
+          _slideRoute(AdminPoinTargetScreen(lang: _lang)),  // ← PAKAI SCREEN BARU
         ),
       ),
       _MenuItem(

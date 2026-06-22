@@ -28,6 +28,10 @@ class GeminiRecurringService {
   // Image byte cache — hindari re-download
   final Map<String, Uint8List?> _imageCache = {};
 
+  // In-flight guard — cegah double analysis bersamaan
+  final Map<String, Future<List<RecurringGroup>>> _findingInFlight = {};
+  final Map<String, Future<List<RecurringAccidentGroup>>> _accidentInFlight = {};
+
   // ─────────────────────────────────────────────────────────────────────────
   // PUBLIC API
   // ─────────────────────────────────────────────────────────────────────────
@@ -54,6 +58,38 @@ class GeminiRecurringService {
 
     if (findings.isEmpty) return [];
 
+    // Guard: jika sudah ada analysis yang sedang berjalan untuk key yang sama, tunggu hasilnya
+    final flightKey = '$cacheType|${_fmtDate(fromDate ?? DateTime(2000))}|${_fmtDate(toDate ?? DateTime.now())}|${filterUserId ?? ''}';
+    if (_findingInFlight.containsKey(flightKey)) {
+      debugPrint('⏳ Reusing in-flight analysis for $flightKey');
+      return _findingInFlight[flightKey]!;
+    }
+
+    final future = _doAnalyzeFindings(
+      findings,
+      isKts: isKts,
+      fromDate: fromDate,
+      toDate: toDate,
+      filterUserId: filterUserId,
+      cacheType: cacheType,
+    );
+    _findingInFlight[flightKey] = future;
+    try {
+      final result = await future;
+      return result;
+    } finally {
+      _findingInFlight.remove(flightKey);
+    }
+  }
+
+  Future<List<RecurringGroup>> _doAnalyzeFindings(
+    List<Map<String, dynamic>> findings, {
+    required bool isKts,
+    required String cacheType,
+    DateTime? fromDate,
+    DateTime? toDate,
+    String? filterUserId,
+  }) async {
     final clusters = _buildClusters(findings, isKts: isKts);
     debugPrint('📦 Pre-clusters: ${clusters.length}');
 
@@ -101,6 +137,33 @@ class GeminiRecurringService {
 
     if (reports.isEmpty) return [];
 
+    final flightKey = 'Accident|${_fmtDate(fromDate ?? DateTime(2000))}|${_fmtDate(toDate ?? DateTime.now())}|${filterUserId ?? ''}';
+    if (_accidentInFlight.containsKey(flightKey)) {
+      debugPrint('⏳ Reusing in-flight accident analysis for $flightKey');
+      return _accidentInFlight[flightKey]!;
+    }
+
+    final future = _doAnalyzeAccidents(
+      reports,
+      fromDate: fromDate,
+      toDate: toDate,
+      filterUserId: filterUserId,
+    );
+    _accidentInFlight[flightKey] = future;
+    try {
+      final result = await future;
+      return result;
+    } finally {
+      _accidentInFlight.remove(flightKey);
+    }
+  }
+
+  Future<List<RecurringAccidentGroup>> _doAnalyzeAccidents(
+    List<Map<String, dynamic>> reports, {
+    DateTime? fromDate,
+    DateTime? toDate,
+    String? filterUserId,
+  }) async {
     final clusters = _buildAccidentClusters(reports);
     debugPrint('📦 Pre-clusters accident: ${clusters.length}');
 

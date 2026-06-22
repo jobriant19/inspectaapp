@@ -6,6 +6,8 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/services/gemini_recurring_service.dart';
 import '../finding/finding_detail_screen.dart';
 import '../home/kts_finding_card.dart';
+import 'accident_recurring_tab.dart';
+import 'analytics_kts_tab.dart';
 
 // ─── Warna & Tema ──────────────────────────────────────────────────────────
 class _AppColors {
@@ -210,7 +212,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   String _selectedLocationLevel = 'Lokasi';
   DateTime? _lastUpdated;
   int _chartRefreshKey = 0;
-  int _recurringChartRefreshKey = 0;
 
   // Recurring findings filter
   DateTime _recurringFrom = DateTime(DateTime.now().year - 1, DateTime.now().month);
@@ -233,11 +234,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   Future<List<LocationData>>? _accidentLokasiFuture;
   Future<List<Map<String, dynamic>>>? _accidentRecurringFuture;
 
-  // ─── KTS data ─────────────────────────────────────────────────────────────
-  Future<List<MemberData>>? _ktsAnggotaFuture;
-  Future<List<InspectionData>>? _ktsInspeksiFuture;
-  Future<List<LocationData>>? _ktsLokasiFuture;
-
   // ─── Chart data ───────────────────────────────────────────────────────────
   Future<List<_ChartBarData>>? _chartFuture;
   int _chartTargetTemuan       = 2;  // Anggota / Members
@@ -247,9 +243,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   int _chartTargetSubunit      = 5;
   int _chartTargetArea         = 5;
   int _activeTabIndex = 0;
-
-  // ─── Recurring Chart data ─────────────────────────────────────────────────
-  Future<List<_ChartBarData>>? _recurringChartFuture;
 
   // ─── State untuk Data ────────────────────────────────────────────────────
   Future<List<MemberData>>? _anggotaFuture;
@@ -372,9 +365,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     final levelBackendValue = ['Lokasi', 'Unit', 'Subunit', 'Area'][
         _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
 
-    final int newTabCount = _selectedFindingType == 'KTS Production' ? 2
-      : _selectedFindingType == 'Accident' ? 3
-      : 4;
+    final int newTabCount = _selectedFindingType == 'Accident' ? 3 : 4;
 
     // Reset activeTabIndex ke 0 saat finding type berubah (bukan dari tab filter)
     if (!fromTabFilter && _currentTabCount != newTabCount) {
@@ -398,25 +389,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           _inspeksiFuture = _fetchInspeksiData(month, year, roleBackendValue);
           _lokasiFuture = _fetchLokasiData(month, year, levelBackendValue);
           _auditLokasiFuture = _fetchLokasiAuditData(month, year, levelBackendValue);
-
         }
         _chartFuture = _fetchChartData(month, year, '5R');
         _chartRefreshKey++;
         _recurringFuture = _fetchRecurringData(ktsOnly: false);
-        _recurringChartFuture = _fetchRecurringChartData();
-        _recurringChartRefreshKey++;
-
-      } else if (_selectedFindingType == 'KTS Production') {
-        if (_filterMode == 'daily' && _selectedDate != null) {
-          _ktsAnggotaFuture = _fetchKtsAnggotaDataDaily(_selectedDate!, _selectedUnitId);
-        } else {
-          _ktsAnggotaFuture = _fetchKtsAnggotaData(month, year, _selectedUnitId);
-        }
-        _chartFuture = _fetchChartData(month, year, 'KTS Production');
-        _chartRefreshKey++;
-        _recurringFuture = _fetchRecurringData(ktsOnly: true);
-        _recurringChartFuture = _fetchKtsRecurringChartData();
-        _recurringChartRefreshKey++;
 
       } else {
         // Accident
@@ -430,8 +406,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         _accidentRecurringFuture = _fetchAccidentRecurringData();
         _chartFuture = _fetchChartData(month, year, 'Accident');
         _chartRefreshKey++;
-        _recurringChartFuture = _fetchAccidentRecurringChartData();
-        _recurringChartRefreshKey++;
       }
     });
   }
@@ -461,48 +435,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         _chartRefreshKey++;
         _isChartLoadingForTab = false;
 
+        // Jangan re-fetch recurring saat tab switch — sudah di-fetch di _fetchAllData()
+        // Hanya refresh chart recurring jika belum ada data
         final bool isRecurringTab =
             (_selectedFindingType == '5R' && newIdx == 3) ||
-            (_selectedFindingType == 'KTS Production' && newIdx == 1) ||
             (_selectedFindingType == 'Accident' && newIdx == 2);
         if (isRecurringTab) {
-          if (_selectedFindingType == 'KTS Production') {
-            _recurringFuture = _fetchRecurringData(ktsOnly: true);
-            _recurringChartFuture = _fetchKtsRecurringChartData();
-          } else if (_selectedFindingType == 'Accident') {
+          if (_selectedFindingType == 'Accident' && _accidentRecurringFuture == null) {
             _accidentRecurringFuture = _fetchAccidentRecurringData();
-            _recurringChartFuture = _fetchAccidentRecurringChartData();
-          } else {
+          } else if (_selectedFindingType == '5R' && _recurringFuture == null) {
             _recurringFuture = _fetchRecurringData(ktsOnly: false);
-            _recurringChartFuture = _fetchRecurringChartData();
           }
-          _recurringChartRefreshKey++;
         }
       });
     });
-  }
-  
-  Future<void> _fetchChartTarget(int month, int year) async {
-    try {
-      final data = await _supabase
-          .from('target_bulanan')
-          .select()
-          .eq('bulan', month)
-          .eq('tahun', year)
-          .maybeSingle();
-      if (mounted && data != null) {
-        setState(() {
-          _chartTargetTemuan       = data['target_anggota']  ?? 2;
-          _chartTargetPenyelesaian = data['target_inspeksi'] ?? 2;
-          _chartTargetLokasi       = data['target_lokasi']   ?? 5;
-          _chartTargetUnit         = data['target_unit']     ?? 5;
-          _chartTargetSubunit      = data['target_subunit']  ?? 5;
-          _chartTargetArea         = data['target_area']     ?? 5;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching chart target: $e');
-    }
   }
 
   /// Kembalikan pasangan [targetTemuan, targetPenyelesaian] sesuai tab aktif (5R only).
@@ -530,34 +476,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     }
   }
 
-  /// Refresh chart sesuai konteks saat ini (bulan, unit, tipe)
-  void _refreshChart() {
-    final month = _selectedMonth;
-    final year = DateTime.now().year;
-    setState(() {
-      _chartFuture = _fetchChartData(month, year, _selectedFindingType);
-      _chartRefreshKey++; // wajib agar FutureBuilder rebuild dengan key baru
-    });
-  }
-
   void _fetchRecurring() {
     setState(() {
       if (_selectedFindingType == 'Accident') {
         _accidentRecurringFuture = _fetchAccidentRecurringData();
-        _recurringChartFuture = _fetchAccidentRecurringChartData();
-      } else if (_selectedFindingType == 'KTS Production') {
-        _recurringFuture = _fetchRecurringData(ktsOnly: true);
-        _recurringChartFuture = _fetchKtsRecurringChartData();
       } else {
         _recurringFuture = _fetchRecurringData(ktsOnly: false);
-        _recurringChartFuture = _fetchRecurringChartData();
       }
       // Selalu refresh chart utama juga agar sinkron
       final month = _selectedMonth;
       final year = DateTime.now().year;
       _chartFuture = _fetchChartData(month, year, _selectedFindingType);
       _chartRefreshKey++;
-      _recurringChartRefreshKey++;
     });
   }
 
@@ -1033,49 +963,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           date: i + 1, temuan: laporanMap[i + 1] ?? 0, penyelesaian: selesaiMap[i + 1] ?? 0));
       }
 
-      // ── Helper: build monthly chart (untuk tab Recurring) ──
-      List<_ChartBarData> buildMonthlyFromTemuan(List<dynamic> res) {
-        final Map<String, int> temuanMap = {}, selesaiMap = {};
-        for (final t in res) {
-          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-          if (dt == null) continue;
-          final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-          temuanMap[key] = (temuanMap[key] ?? 0) + 1;
-          if (t['id_penyelesaian'] != null) selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
-        }
-        final result = <_ChartBarData>[];
-        DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
-        final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
-        int idx = 1;
-        while (!cur.isAfter(endMonth)) {
-          final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
-          result.add(_ChartBarData(date: idx++, temuan: temuanMap[key] ?? 0, penyelesaian: selesaiMap[key] ?? 0));
-          cur = DateTime(cur.year, cur.month + 1);
-        }
-        return result;
-      }
-
-      List<_ChartBarData> buildMonthlyFromAccident(List<dynamic> res) {
-        final Map<String, int> laporanMap = {}, selesaiMap = {};
-        for (final t in res) {
-          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-          if (dt == null) continue;
-          final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-          laporanMap[key] = (laporanMap[key] ?? 0) + 1;
-          if (t['status'] == 'Selesai') selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
-        }
-        final result = <_ChartBarData>[];
-        DateTime cur = DateTime(_recurringFrom.year, _recurringFrom.month);
-        final endMonth = DateTime(_recurringTo.year, _recurringTo.month);
-        int idx = 1;
-        while (!cur.isAfter(endMonth)) {
-          final key = '${cur.year}-${cur.month.toString().padLeft(2, '0')}';
-          result.add(_ChartBarData(date: idx++, temuan: laporanMap[key] ?? 0, penyelesaian: selesaiMap[key] ?? 0));
-          cur = DateTime(cur.year, cur.month + 1);
-        }
-        return result;
-      }
-
       // ════════════════════════════════════════════════════════════
       // ACCIDENT
       // ════════════════════════════════════════════════════════════
@@ -1096,7 +983,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           };
           final idCol = idColMap[levelBackend] ?? 'id_lokasi';
 
-          // Langsung ambil accident_report yang punya lokasi — tidak perlu ambil daftar lokasi dulu
           final List<dynamic> res = await _supabase
               .from('accident_report')
               .select('created_at, status, $idCol')
@@ -1115,7 +1001,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               .gte('created_at', startDt.toIso8601String())
               .lte('created_at', endDt.toIso8601String());
 
-          // Filter unit hanya jika dipilih — jika tidak, ambil semua tanpa filter user
           if (_selectedUnitId != null) {
             final List<dynamic> usersInUnit = await _supabase
                 .from('User')
@@ -1131,44 +1016,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
           final List<dynamic> res = await query;
           return buildDailyFromAccident(res);
-        }
-      }
-
-      // ════════════════════════════════════════════════════════════
-      // KTS PRODUCTION
-      // ════════════════════════════════════════════════════════════
-      else if (type == 'KTS Production') {
-
-        // ── Tab 1: Recurring KTS — ditangani di luar (chart disembunyikan)
-        if (_activeTabIndex == 1) {
-          return [];
-        }
-
-        // ── Tab 0: Members KTS ─────────────────────────────────────
-        else {
-          var query = _supabase
-              .from('temuan')
-              .select('created_at, id_penyelesaian, id_user')
-              .eq('jenis_temuan', 'KTS Production')
-              .gte('created_at', startDt.toIso8601String())
-              .lte('created_at', endDt.toIso8601String());
-
-          // Filter unit hanya jika dipilih — jika tidak, ambil semua tanpa filter user
-          if (_selectedUnitId != null) {
-            final List<dynamic> usersInUnit = await _supabase
-                .from('User')
-                .select('id_user')
-                .eq('id_unit', _selectedUnitId!);
-            final userIds = usersInUnit.map((u) => u['id_user'].toString()).toList();
-            if (userIds.isEmpty) {
-              return List.generate(isDaily ? 1 : daysInMonth,
-                (i) => _ChartBarData(date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
-            }
-            query = query.inFilter('id_user', userIds);
-          }
-
-          final List<dynamic> res = await query;
-          return buildDailyFromTemuan(res);
         }
       }
 
@@ -1191,7 +1038,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
               .gte('created_at', startDt.toIso8601String())
               .lte('created_at', endDt.toIso8601String());
 
-          // Filter unit hanya jika dipilih
           if (_selectedUnitId != null) {
             final List<dynamic> usersInUnit = await _supabase
                 .from('User')
@@ -1236,7 +1082,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         // ── Tab 2: Location 5R ─────────────────────────────────────
         else {
           if (!isDaily) {
-            // Ambil semua audit_result di bulan ini untuk level ini
             final levelBackend = ['lokasi', 'unit', 'subunit', 'area'][
                 _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
             final List<dynamic> auditRes = await _supabase
@@ -1246,7 +1091,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                 .gte('tanggal_audit', startOfMonth.toIso8601String().split('T').first)
                 .lte('tanggal_audit', endOfMonth.toIso8601String().split('T').first);
 
-            // Group: rata-rata nilai_audit per hari
             final Map<int, List<double>> dayScores = {};
             for (final a in auditRes) {
               final dt = DateTime.tryParse(a['tanggal_audit']?.toString() ?? '');
@@ -1265,7 +1109,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             });
           }
 
-          // Daily mode → tetap pakai temuan count seperti semula
           final levelBackend = ['lokasi', 'unit', 'subunit', 'area'][
               _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
           final Map<String, String> idColMap = {
@@ -1287,404 +1130,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       debugPrint('Error fetching chart data: $e');
       return [];
     }
-  }
-
-  Future<List<_ChartBarData>> _fetchRecurringChartData() async {
-    try {
-      final fromStr = _recurringFrom.toIso8601String();
-      final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
-      
-      if (_selectedFindingType == 'Accident') {
-        var query = _supabase
-            .from('accident_report')
-            .select('created_at, status')
-            .gte('created_at', fromStr)
-            .lte('created_at', toStr);
-        if (_recurringUserId != null) query = query.eq('id_pelapor', _recurringUserId!);
-        final List<dynamic> res = await query;
-        
-        // Group by month
-        final Map<String, int> laporanMap = {};
-        final Map<String, int> selesaiMap = {};
-        for (final t in res) {
-          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-          if (dt == null) continue;
-          final key = '${dt.year}-${dt.month.toString().padLeft(2,'0')}';
-          laporanMap[key] = (laporanMap[key] ?? 0) + 1;
-          if (t['status'] == 'Selesai') selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
-        }
-        
-        return _buildMonthlyChartData(laporanMap, selesaiMap);
-        
-      } else {
-        // 5R atau KTS
-        var query = _supabase
-            .from('temuan')
-            .select('created_at, id_penyelesaian, jenis_temuan')
-            .gte('created_at', fromStr)
-            .lte('created_at', toStr);
-        if (_selectedFindingType == 'KTS Production') {
-          query = query.eq('jenis_temuan', 'KTS Production');
-        } else {
-          query = query.neq('jenis_temuan', 'KTS Production');
-        }
-        if (_recurringUserId != null) query = query.eq('id_user', _recurringUserId!);
-        final List<dynamic> res = await query;
-        
-        final Map<String, int> temuanMap = {};
-        final Map<String, int> selesaiMap = {};
-        for (final t in res) {
-          final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-          if (dt == null) continue;
-          final key = '${dt.year}-${dt.month.toString().padLeft(2,'0')}';
-          temuanMap[key] = (temuanMap[key] ?? 0) + 1;
-          if (t['id_penyelesaian'] != null) selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
-        }
-        
-        return _buildMonthlyChartData(temuanMap, selesaiMap);
-      }
-    } catch (e) {
-      debugPrint('Error fetching recurring chart: $e');
-      return [];
-    }
-  }
-
-  /// Chart recurring khusus KTS — digroup per topic (judul_temuan) sesuai yang tampil di tabel
-  Future<List<_ChartBarData>> _fetchKtsRecurringChartData() async {
-    try {
-      final fromStr = _recurringFrom.toIso8601String();
-      final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
-
-      var query = _supabase
-          .from('temuan')
-          .select('created_at, id_penyelesaian')
-          .eq('jenis_temuan', 'KTS Production')
-          .gte('created_at', fromStr)
-          .lte('created_at', toStr);
-      if (_recurringUserId != null) query = query.eq('id_user', _recurringUserId!);
-
-      final List<dynamic> res = await query;
-
-      final Map<String, int> temuanMap = {};
-      final Map<String, int> selesaiMap = {};
-      for (final t in res) {
-        final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-        if (dt == null) continue;
-        final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-        temuanMap[key] = (temuanMap[key] ?? 0) + 1;
-        if (t['id_penyelesaian'] != null) selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
-      }
-
-      return _buildMonthlyChartData(temuanMap, selesaiMap);
-    } catch (e) {
-      debugPrint('Error fetching KTS recurring chart: $e');
-      return [];
-    }
-  }
-
-  /// Chart recurring khusus Accident — digroup per bulan dari accident_report
-  Future<List<_ChartBarData>> _fetchAccidentRecurringChartData() async {
-    try {
-      final fromStr = _recurringFrom.toIso8601String();
-      final toStr = DateTime(_recurringTo.year, _recurringTo.month + 1, 0, 23, 59, 59).toIso8601String();
-
-      var query = _supabase
-          .from('accident_report')
-          .select('created_at, status')
-          .gte('created_at', fromStr)
-          .lte('created_at', toStr);
-      if (_recurringUserId != null) query = query.eq('id_pelapor', _recurringUserId!);
-
-      final List<dynamic> res = await query;
-
-      final Map<String, int> laporanMap = {};
-      final Map<String, int> selesaiMap = {};
-      for (final t in res) {
-        final dt = DateTime.tryParse(t['created_at']?.toString() ?? '');
-        if (dt == null) continue;
-        final key = '${dt.year}-${dt.month.toString().padLeft(2, '0')}';
-        laporanMap[key] = (laporanMap[key] ?? 0) + 1;
-        if (t['status'] == 'Selesai') selesaiMap[key] = (selesaiMap[key] ?? 0) + 1;
-      }
-
-      return _buildMonthlyChartData(laporanMap, selesaiMap);
-    } catch (e) {
-      debugPrint('Error fetching Accident recurring chart: $e');
-      return [];
-    }
-  }
-
-  List<_ChartBarData> _buildMonthlyChartData(
-      Map<String, int> primaryMap, Map<String, int> secondaryMap) {
-    final result = <_ChartBarData>[];
-    DateTime current = DateTime(_recurringFrom.year, _recurringFrom.month);
-    final end = DateTime(_recurringTo.year, _recurringTo.month);
-    int idx = 1;
-    while (!current.isAfter(end)) {
-      final key = '${current.year}-${current.month.toString().padLeft(2,'0')}';
-      result.add(_ChartBarData(
-        date: idx++,
-        temuan: primaryMap[key] ?? 0,
-        penyelesaian: secondaryMap[key] ?? 0,
-      ));
-      current = DateTime(current.year, current.month + 1);
-    }
-    return result;
-  }
-
-  // ── KTS Fetch Methods ────────────────────────────────────────────────────────
-  Future<List<MemberData>> _fetchKtsAnggotaData(int month, int year, String? unitId) async {
-    try {
-      // Langsung query dari tabel temuan jenis_temuan = KTS Production
-      var temuanQuery = _supabase
-          .from('temuan')
-          .select('id_user, id_penyelesaian, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit))')
-          .eq('jenis_temuan', 'KTS Production')
-          .gte('created_at', DateTime(year, month, 1).toIso8601String())
-          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String());
-
-      final List<dynamic> temuanRes = await temuanQuery;
-
-      if (temuanRes.isEmpty) return [];
-
-      // Grouping per user
-      final Map<String, Map<String, dynamic>> grouped = {};
-      for (final t in temuanRes) {
-        final user = t['User_Creator'] as Map<String, dynamic>?;
-        if (user == null) continue;
-        final uid = t['id_user']?.toString() ?? '';
-        if (uid.isEmpty) continue;
-
-        // Filter unit jika ada
-        if (unitId != null) {
-          final userUnitId = user['id_unit']?.toString();
-          if (userUnitId != unitId) continue;
-        }
-
-        grouped.putIfAbsent(uid, () => {
-          'nama': user['nama'] ?? '-',
-          'gambar_user': user['gambar_user'],
-          'unitName': (user['unit'] as Map<String, dynamic>?)?['nama_unit'],
-          'temuan': 0,
-          'selesai': 0,
-        });
-        grouped[uid]!['temuan'] = (grouped[uid]!['temuan'] as int) + 1;
-        if (t['id_penyelesaian'] != null) {
-          grouped[uid]!['selesai'] = (grouped[uid]!['selesai'] as int) + 1;
-        }
-      }
-
-      final currentUserId = _supabase.auth.currentUser?.id;
-      return grouped.entries.map((e) {
-        final uid = e.key;
-        final v = e.value;
-        return MemberData(
-          name: v['nama'] as String? ?? '-',
-          unitName: v['unitName'] as String?,
-          findings: v['temuan'] as int,
-          completed: v['selesai'] as int,
-          isSelf: uid == currentUserId,
-          avatarUrl: v['gambar_user'] as String?,
-          avatarColor: const Color(0xFFFBBF24),
-        );
-      }).toList()
-        ..sort((a, b) => b.findings.compareTo(a.findings));
-    } catch (e) {
-      debugPrint('Error fetching KTS Anggota: $e');
-      return [];
-    }
-  }
-
-  Future<List<InspectionData>> _fetchKtsInspeksiData(int month, int year, String role) async {
-    try {
-      final List<dynamic> response = await _supabase
-          .from('temuan')
-          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama)')
-          .eq('jenis_temuan', 'KTS Production')
-          .gte('created_at', DateTime(year, month, 1).toIso8601String())
-          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String());
-      final Map<String, Map<String, dynamic>> grouped = {};
-      for (final item in response) {
-        final user = item['User_Creator'] as Map<String, dynamic>?;
-        if (user == null) continue;
-        final userId = item['id_user']?.toString() ?? '';
-        grouped.putIfAbsent(userId, () => {'nama': user['nama'] ?? '', 'temuan': 0});
-        grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
-      }
-      return grouped.values.map((item) => InspectionData(
-        name: item['nama'] as String, findings: item['temuan'] as int,
-      )).toList()..sort((a, b) => b.findings.compareTo(a.findings));
-    } catch (e) { return []; }
-  }
-
-  Future<List<LocationData>> _fetchKtsLokasiData(int month, int year, String level) async {
-    try {
-      final levelLower = level.toLowerCase();
-      final idMap = {
-        'lokasi': 'id_lokasi', 'unit': 'id_unit',
-        'subunit': 'id_subunit', 'area': 'id_area'
-      };
-      final nameMap = {
-        'lokasi': 'nama_lokasi', 'unit': 'nama_unit',
-        'subunit': 'nama_subunit', 'area': 'nama_area'
-      };
-      final idCol = idMap[levelLower] ?? 'id_lokasi';
-      final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
-
-      final List<dynamic> locations = await _supabase
-          .from(levelLower)
-          .select('$idCol, $nameCol');
-
-      final List<dynamic> temuanRes = await _supabase
-          .from('temuan')
-          .select(idCol)
-          .eq('jenis_temuan', 'KTS Production')
-          .gte('created_at', DateTime(year, month, 1).toIso8601String())
-          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String())
-          .not(idCol, 'is', null);
-
-      final Map<String, int> countMap = {};
-      for (final t in temuanRes) {
-        final id = t[idCol]?.toString() ?? '';
-        if (id.isEmpty) continue;
-        countMap[id] = (countMap[id] ?? 0) + 1;
-      }
-
-      final List<dynamic> picRes = await _supabase
-          .from('User')
-          .select('$idCol, nama')
-          .not(idCol, 'is', null);
-
-      final Map<String, String> picMap = {};
-      for (final p in picRes) {
-        final locId = p[idCol]?.toString() ?? '';
-        if (locId.isEmpty || picMap.containsKey(locId)) continue;
-        picMap[locId] = p['nama']?.toString() ?? 'PIC belum diatur';
-      }
-
-      return locations.map<LocationData>((loc) {
-        final id = loc[idCol]?.toString() ?? '';
-        return LocationData(
-          name: loc[nameCol]?.toString() ?? '-',
-          pic: picMap[id] ?? 'PIC belum diatur',
-          value: (countMap[id] ?? 0).toString(),
-        );
-      }).toList()
-        ..sort((a, b) => (int.tryParse(b.value ?? '0') ?? 0)
-            .compareTo(int.tryParse(a.value ?? '0') ?? 0));
-    } catch (e) {
-      debugPrint('Error fetching KTS Lokasi: $e');
-      return [];
-    }
-  }
-
-  Future<List<MemberData>> _fetchKtsAnggotaDataDaily(DateTime date, String? unitId) async {
-    try {
-      final start = DateTime(date.year, date.month, date.day);
-      final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
-
-      final List<dynamic> temuanRes = await _supabase
-          .from('temuan')
-          .select('id_user, id_penyelesaian, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit))')
-          .eq('jenis_temuan', 'KTS Production')
-          .gte('created_at', start.toIso8601String())
-          .lte('created_at', end.toIso8601String());
-
-      if (temuanRes.isEmpty) return [];
-
-      final Map<String, Map<String, dynamic>> grouped = {};
-      for (final t in temuanRes) {
-        final user = t['User_Creator'] as Map<String, dynamic>?;
-        if (user == null) continue;
-        final uid = t['id_user']?.toString() ?? '';
-        if (uid.isEmpty) continue;
-
-        if (unitId != null) {
-          final userUnitId = user['id_unit']?.toString();
-          if (userUnitId != unitId) continue;
-        }
-
-        grouped.putIfAbsent(uid, () => {
-          'nama': user['nama'] ?? '-',
-          'gambar_user': user['gambar_user'],
-          'unitName': (user['unit'] as Map<String, dynamic>?)?['nama_unit'],
-          'temuan': 0,
-          'selesai': 0,
-        });
-        grouped[uid]!['temuan'] = (grouped[uid]!['temuan'] as int) + 1;
-        if (t['id_penyelesaian'] != null) {
-          grouped[uid]!['selesai'] = (grouped[uid]!['selesai'] as int) + 1;
-        }
-      }
-
-      final currentUserId = _supabase.auth.currentUser?.id;
-      return grouped.entries.map((e) {
-        final uid = e.key;
-        final v = e.value;
-        return MemberData(
-          name: v['nama'] as String? ?? '-',
-          unitName: v['unitName'] as String?,
-          findings: v['temuan'] as int,
-          completed: v['selesai'] as int,
-          isSelf: uid == currentUserId,
-          avatarUrl: v['gambar_user'] as String?,
-          avatarColor: const Color(0xFFFBBF24),
-        );
-      }).toList()
-        ..sort((a, b) => b.findings.compareTo(a.findings));
-    } catch (e) {
-      debugPrint('Error fetching KTS Anggota daily: $e');
-      return [];
-    }
-  }
-
-  Future<List<InspectionData>> _fetchKtsInspeksiDataDaily(DateTime date, String role) async {
-    try {
-      final start = DateTime(date.year, date.month, date.day);
-      final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
-      final List<dynamic> response = await _supabase.from('temuan')
-          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama)')
-          .eq('jenis_temuan', 'KTS Production')
-          .gte('created_at', start.toIso8601String())
-          .lte('created_at', end.toIso8601String());
-      final Map<String, Map<String, dynamic>> grouped = {};
-      for (final item in response) {
-        final user = item['User_Creator'] as Map<String, dynamic>?;
-        if (user == null) continue;
-        final userId = item['id_user']?.toString() ?? '';
-        grouped.putIfAbsent(userId, () => {'nama': user['nama'] ?? '', 'temuan': 0});
-        grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
-      }
-      return grouped.values.map((item) => InspectionData(
-        name: item['nama'] as String, findings: item['temuan'] as int,
-      )).toList()..sort((a, b) => b.findings.compareTo(a.findings));
-    } catch (e) { return []; }
-  }
-
-  Future<List<LocationData>> _fetchKtsLokasiDataDaily(DateTime date, String level) async {
-    try {
-      final start = DateTime(date.year, date.month, date.day);
-      final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
-      final levelLower = level.toLowerCase();
-      final idMap = {'lokasi': 'id_lokasi', 'unit': 'id_unit', 'subunit': 'id_subunit', 'area': 'id_area'};
-      final nameMap = {'lokasi': 'nama_lokasi', 'unit': 'nama_unit', 'subunit': 'nama_subunit', 'area': 'nama_area'};
-      final idCol = idMap[levelLower] ?? 'id_lokasi';
-      final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
-      final locations = await _supabase.from(levelLower).select('$idCol, $nameCol');
-      final temuanList = await _supabase.from('temuan').select(idCol)
-          .eq('jenis_temuan', 'KTS Production')
-          .gte('created_at', start.toIso8601String()).lte('created_at', end.toIso8601String());
-      final Map<String, int> countMap = {};
-      for (final t in temuanList) {
-        final id = t[idCol]?.toString() ?? '';
-        if (id.isEmpty) continue;
-        countMap[id] = (countMap[id] ?? 0) + 1;
-      }
-      return (locations as List<dynamic>).map((loc) => LocationData(
-        name: loc[nameCol]?.toString() ?? '-', pic: '-',
-        value: (countMap[loc[idCol]?.toString() ?? ''] ?? 0).toString(),
-      )).toList()..sort((a, b) => (int.tryParse(b.value ?? '0') ?? 0).compareTo(int.tryParse(a.value ?? '0') ?? 0));
-    } catch (e) { return []; }
   }
 
   // ── Accident Report Fetch Methods ────────────────────────────────────────────
@@ -2192,7 +1637,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   itemBuilder: (_, i) {
                     final item = filtered[i];
                     final lbl = labelOf(item);
-                    final isSel = item == selected || lbl == (selected != null ? labelOf(selected!) : null);
+                    final isSel = item == selected || lbl == (selected != null ? labelOf(selected) : null);
                     return InkWell(
                       onTap: () => Navigator.pop(ctx, item),
                       child: Container(
@@ -2663,25 +2108,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     );
   }
 
-  // Inspection role picker popup
-  void _showRolePicker() async {
-    final result = await _showSearchPopup<String>(
-      context: context,
-      title: getTxt('eksekutif') + ' / ' + getTxt('profesional') + ' / ' + getTxt('visitor'),
-      items: _translatedRoles,
-      labelOf: (e) => e,
-      selected: _selectedInspectionRole,
-    );
-    if (result != null && mounted) {
-      setState(() => _selectedInspectionRole = result);
-      _fetchAllData();
-    }
-  }
-
   Widget _buildConditionalChart() {
     final bool isRecurringTabActive =
         (_selectedFindingType == '5R' && _activeTabIndex == 3) ||
-        (_selectedFindingType == 'KTS Production' && _activeTabIndex == 1) ||
         (_selectedFindingType == 'Accident' && _activeTabIndex == 2);
 
     if (isRecurringTabActive) return const SizedBox.shrink();
@@ -2689,76 +2118,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     // Shimmer saat loading perpindahan tab
     if (_isChartLoadingForTab) {
       return _buildChartShimmerSmall();
-    }
-
-    // ── KTS Production → Members (tab 0): Collapsible + Pie Chart ──
-    if (_selectedFindingType == 'KTS Production' && _activeTabIndex == 0) {
-      final activeColor = const Color(0xFFF59E0B);
-      final locale = widget.lang == 'ID' ? 'id_ID'
-          : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
-      final monthLabel = _filterMode == 'daily' && _selectedDate != null
-          ? DateFormat('d MMM yyyy', locale).format(_selectedDate!)
-          : DateFormat('MMMM yyyy', locale)
-              .format(DateTime(DateTime.now().year, _selectedMonthIndex + 1));
-
-      return Column(children: [
-        GestureDetector(
-          onTap: () => setState(() => _isChartExpanded = !_isChartExpanded),
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: activeColor.withOpacity(0.4), width: 1.2),
-              boxShadow: [BoxShadow(color: activeColor.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
-            ),
-            child: Row(children: [
-              Icon(Icons.bar_chart_rounded, size: 16, color: activeColor),
-              const SizedBox(width: 8),
-              Expanded(child: Text(
-                widget.lang == 'ID' ? 'Grafik $monthLabel'
-                    : widget.lang == 'ZH' ? '$monthLabel 图表'
-                    : 'Chart $monthLabel',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: activeColor),
-              )),
-              AnimatedRotation(
-                turns: _isChartExpanded ? 0.5 : 0,
-                duration: const Duration(milliseconds: 250),
-                child: Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: activeColor),
-              ),
-            ]),
-          ),
-        ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          child: _isChartExpanded
-              ? FutureBuilder<List<MemberData>>(
-                  future: _ktsAnggotaFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return _buildChartShimmerSmall();
-                    }
-                    final data = snapshot.data ?? [];
-                    final totalFindings = data.fold<int>(0, (sum, m) => sum + m.findings);
-                    final totalCompleted = data.fold<int>(0, (sum, m) => sum + m.completed);
-                    return _buildAnalyticsPieChart(
-                      totalPrimary: totalFindings,
-                      totalSecondary: totalCompleted,
-                      colorPrimary: const Color(0xFFF59E0B),
-                      colorSecondary: const Color(0xFF10B981),
-                      labelPrimary: widget.lang == 'ID' ? 'Temuan'
-                          : widget.lang == 'ZH' ? '发现' : 'Findings',
-                      labelSecondary: widget.lang == 'ID' ? 'Selesai'
-                          : widget.lang == 'ZH' ? '已完成' : 'Completed',
-                      activeColor: const Color(0xFFF59E0B),
-                    );
-                  },
-                )
-              : const SizedBox.shrink(),
-        ),
-      ]);
     }
 
     // ── Accident → Members (tab 0): Collapsible + Pie Chart ──
@@ -2827,7 +2186,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   },
                 )
               : const SizedBox.shrink(),
-        ),
+          ),
       ]);
     }
 
@@ -2901,11 +2260,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   },
                 )
               : const SizedBox.shrink(),
-        ),
+          ),
       ]);
     }
 
-    // ── Selain kondisi di atas: Bar Chart (5R semua tab, dll) ──
+    // ── Selain kondisi di atas: Bar Chart (5R semua tab) ──
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
       child: KeyedSubtree(
@@ -2943,23 +2302,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     if (result != null && mounted) {
       setState(() => _selectedLocationLevel = result);
       _fetchAllData(fromTabFilter: true);
-    }
-  }
-
-  // Location picker (using FullLocationPickerBottomSheet style but as popup)
-  void _showLocationPickerForFilter() async {
-    final result = await showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _AnalyticsLocationPickerSheet(lang: widget.lang),
-    );
-    if (result != null && mounted) {
-      // apply location filter
-      setState(() {
-        _selectedLocationLevel = _translatedLocationLevels[result['level'] as int];
-      });
-      _fetchAllData();
     }
   }
 
@@ -3315,49 +2657,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Column(children: [
-        _buildFindingTypeSelector(),
-        _buildTabBar(),
-        _buildConditionalChart(),
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: _selectedFindingType == 'KTS Production'
-                ? [
-                    _buildAnggotaTab(),
-                    _buildTemuanBerulangTab(filterKts: true),
-                  ]
-                : _selectedFindingType == 'Accident'
-                    ? [
-                        _buildAnggotaTab(),
-                        _buildLokasiTab(),
-                        _buildAccidentRecurringTab(),
-                      ]
-                    : [
-                        _buildAnggotaTab(),
-                        _buildInspeksiTab(),
-                        _buildLokasiTab(),
-                        _buildTemuanBerulangTab(filterKts: false),
-                      ],
-          ),
-        ),
-      ]),
-    );
-  }
-
   // ── Tab Bar ────────────────────────────────────────────────────────────────
   Widget _buildTabBar() {
-    final bool isKts = _selectedFindingType == 'KTS Production';
     final bool isAccident = _selectedFindingType == 'Accident';
 
     final List<String> tabLabels;
-    if (isKts) {
-      tabLabels = [getTxt('anggota'), getTxt('temuan_berulang')];
-    } else if (isAccident) {
+    if (isAccident) {
       final recurringLabel = widget.lang == 'ID' ? 'Kecelakaan Berulang'
           : widget.lang == 'ZH' ? '重复事故' : 'Recurring Accident';
       tabLabels = [getTxt('anggota'), getTxt('lokasi'), recurringLabel];
@@ -3365,11 +2670,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       tabLabels = [getTxt('anggota'), getTxt('inspeksi'), getTxt('lokasi'), getTxt('temuan_berulang')];
     }
 
-    final activeColor = _selectedFindingType == 'KTS Production'
-        ? const Color(0xFFF59E0B)
-        : _selectedFindingType == 'Accident'
-            ? const Color(0xFFEF4444)
-            : _AppColors.primary;
+    final activeColor = _selectedFindingType == 'Accident'
+        ? const Color(0xFFEF4444)
+        : _AppColors.primary;
 
     return Container(
       color: Colors.transparent,
@@ -3382,7 +2685,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         padding: const EdgeInsets.all(3),
         child: TabBar(
           controller: _tabController,
-          // Untuk 3 tab pakai fill agar proporsional
           isScrollable: tabLabels.length > 4,
           tabAlignment: tabLabels.length > 4 ? TabAlignment.center : TabAlignment.fill,
           indicator: BoxDecoration(
@@ -3399,6 +2701,58 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           tabs: tabLabels.map((t) => Tab(child: Text(t))).toList(),
         ),
       ),
+    );
+  }
+
+  // ─── build method ─────────────────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    // Jika KTS Production aktif, tampilkan selector di atas dan KTS widget di bawah
+    if (_selectedFindingType == 'KTS Production') {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Column(
+          children: [
+            _buildFindingTypeSelector(),
+            Expanded(
+              child: KTSAnalyticsTab(
+                lang: widget.lang,
+                userId: _supabase.auth.currentUser?.id ?? '',
+                onTabChanged: () {
+                  // Callback ketika user ingin berpindah dari KTS
+                  // Di-handle oleh selector
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(children: [
+        _buildFindingTypeSelector(),
+        _buildTabBar(),
+        _buildConditionalChart(),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: _selectedFindingType == 'Accident'
+                ? [
+                    _buildAnggotaTab(),
+                    _buildLokasiTab(),
+                    _buildAccidentRecurringTab(),
+                  ]
+                : [
+                    _buildAnggotaTab(),
+                    _buildInspeksiTab(),
+                    _buildLokasiTab(),
+                    _buildTemuanBerulangTab(filterKts: false),
+                  ],
+          ),
+        ),
+      ]),
     );
   }
 
@@ -4033,151 +3387,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     Text(label, style: const TextStyle(fontSize: 10, color: _AppColors.textSecondary)),
   ]);
 
-  Widget _buildRecurringChart(Color activeColor) {
-    final locale = widget.lang == 'ID' ? 'id_ID' : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
-    
-    List<String> monthLabels = [];
-    DateTime current = DateTime(_recurringFrom.year, _recurringFrom.month);
-    final end = DateTime(_recurringTo.year, _recurringTo.month);
-    while (!current.isAfter(end)) {
-      monthLabels.add(DateFormat('MMM yy', locale).format(current));
-      current = DateTime(current.year, current.month + 1);
-    }
-
-    return FutureBuilder<List<_ChartBarData>>(
-      key: ValueKey(_recurringChartRefreshKey),
-      future: _recurringChartFuture, 
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            height: 100,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: activeColor.withOpacity(0.2))),
-            child: Center(child: CircularProgressIndicator(color: activeColor, strokeWidth: 2)),
-          );
-        }
-        final data = snapshot.data ?? [];
-        if (data.isEmpty || data.every((d) => d.temuan == 0 && d.penyelesaian == 0)) {
-          return const SizedBox.shrink();
-        }
-
-        int maxVal = 1;
-        for (final d in data) {
-          if (d.temuan > maxVal) maxVal = d.temuan;
-          if (d.penyelesaian > maxVal) maxVal = d.penyelesaian;
-        }
-        maxVal = ((maxVal / 5).ceil() * 5).clamp(1, 9999);
-
-        const double chartH = 100.0;
-        const double barGroupW = 36.0;
-        const double barW = 10.0;
-        const double leftW = 28.0;
-        const colorPenyelesaian = Color(0xFF10B981);
-
-        double valToY(int v) => chartH - (v / maxVal * chartH).clamp(0.0, chartH);
-        final yStep2 = (maxVal / 4).ceil().clamp(1, 99999);
-        final yLabels = List.generate(5, (i) => i * yStep2);
-
-        return Container(
-          margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          padding: const EdgeInsets.fromLTRB(0, 10, 8, 6),
-          decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: activeColor.withOpacity(0.25)),
-            boxShadow: [BoxShadow(color: activeColor.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))],
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 32, bottom: 6),
-              child: Wrap(spacing: 10, children: [
-                _chartLegendItem(activeColor,
-                  _selectedFindingType == 'Accident'
-                      ? (widget.lang == 'ID' ? 'Laporan' : 'Reports')
-                      : (widget.lang == 'ID' ? 'Temuan' : 'Findings')),
-                _chartLegendItem(colorPenyelesaian,
-                  widget.lang == 'ID' ? 'Selesai' : 'Completed'),
-              ]),
-            ),
-            SizedBox(
-              height: chartH + 22,
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SizedBox(
-                  width: leftW, height: chartH,
-                  child: Stack(children: yLabels.map((v) {
-                    final yPos = valToY(v);
-                    if (yPos < 0 || yPos > chartH) return const SizedBox.shrink();
-                    return Positioned(
-                      top: yPos - 6, right: 2,
-                      child: Text(
-                        v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : '$v',
-                        style: const TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: _AppColors.textSecondary,
-                        ),
-                      ),
-                    );
-                  }).toList()),
-                ),
-                Expanded(child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: data.length * barGroupW + 8,
-                    child: Stack(children: [
-                      ...yLabels.map((v) => Positioned(
-                        top: valToY(v), left: 0, right: 0,
-                        child: Container(height: 1, color: _AppColors.divider),
-                      )),
-                      ...data.asMap().entries.map((entry) {
-                        final i = entry.key;
-                        final d = entry.value;
-                        final x = i * barGroupW + 4.0;
-                        final tH = (d.temuan / maxVal * chartH).clamp(0.0, chartH);
-                        final pH = (d.penyelesaian / maxVal * chartH).clamp(0.0, chartH);
-                        final label = i < monthLabels.length ? monthLabels[i] : '';
-                        return Positioned(
-                          left: x, top: 0,
-                          child: SizedBox(
-                            width: barGroupW, height: chartH + 22,
-                            child: Column(children: [
-                              SizedBox(height: chartH, child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(width: barW, height: tH,
-                                    decoration: BoxDecoration(color: activeColor,
-                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(3)))),
-                                  const SizedBox(width: 2),
-                                  Container(width: barW, height: pH,
-                                    decoration: BoxDecoration(color: colorPenyelesaian,
-                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(3)))),
-                                ],
-                              )),
-                              const SizedBox(height: 2),
-                              Text(label, style: const TextStyle(
-                                fontSize: 6.5, color: _AppColors.textSecondary,
-                                fontWeight: FontWeight.w500),
-                                textAlign: TextAlign.center),
-                            ]),
-                          ),
-                        );
-                      }),
-                    ]),
-                  ),
-                )),
-              ]),
-            ),
-          ]),
-        );
-      },
-    );
-  }
-
   // ── Anggota Tab ────────────────────────────────────────────────────────────
   Widget _buildAnggotaTab() {
     return Column(children: [
-      // Filter row — proportional width
       Container(
         color: Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -4207,8 +3419,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         Future<List<MemberData>>? activeFuture;
         if (_selectedFindingType == '5R') {
           activeFuture = _anggotaFuture;
-        } else if (_selectedFindingType == 'KTS Production') {
-          activeFuture = _ktsAnggotaFuture;
         } else {
           activeFuture = _accidentAnggotaFuture;
         }
@@ -4264,7 +3474,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         ],
       ));
     }
-    // Mapping warna per role (konsisten dengan explore_screen filter)
+    
     const Map<String, Color> roleColors = {
       'Eksekutif': Color(0xFFEF4444),
       'Executive': Color(0xFFEF4444),
@@ -4353,9 +3563,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       Expanded(child: Builder(builder: (context) {
         final Future<List<InspectionData>>? activeFuture = _selectedFindingType == '5R'
             ? _inspeksiFuture
-            : _selectedFindingType == 'KTS Production'
-                ? _ktsInspeksiFuture
-                : Future.value([]);
+            : Future.value([]);
         if (activeFuture == null) return _buildInspeksiShimmer();
         return FutureBuilder<List<InspectionData>>(
           future: activeFuture,
@@ -4363,17 +3571,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildInspeksiShimmer();
             }
-          if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('${getTxt('tidak_ada_temuan_role')} "$_selectedInspectionRole".'));
-          }
-          return ListView.separated(
-            padding: EdgeInsets.zero,
-            itemCount: snapshot.data!.length,
-            separatorBuilder: (_, __) => Divider(height: 1, color: _AppColors.divider, indent: 16),
-            itemBuilder: (_, i) => _buildInspectionRow(snapshot.data![i]),
-          );
-        },
-      );
+            if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+              return Center(child: Text('${getTxt('tidak_ada_temuan_role')} "$_selectedInspectionRole".'));
+            }
+            return ListView.separated(
+              padding: EdgeInsets.zero,
+              itemCount: snapshot.data!.length,
+              separatorBuilder: (_, __) => Divider(height: 1, color: _AppColors.divider, indent: 16),
+              itemBuilder: (_, i) => _buildInspectionRow(snapshot.data![i]),
+            );
+          },
+        );
       })),
     ]);
   }
@@ -4408,7 +3616,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       if (!use5RAudit) _buildAuditPeriodBanner(),
       _buildLastUpdatedTextWidget(),
 
-      // ── Header tabel ──
       use5RAudit
           ? _buildTableHeader(
               [getTxt('rank'), getTxt('lokasi'), _getRankAuditLabel()],
@@ -4419,7 +3626,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
       Expanded(child: Builder(builder: (context) {
         if (use5RAudit) {
-          // ── 5R Monthly: tampilkan nilai audit ──
           final Future<List<AuditLocationData>>? f = _auditLokasiFuture;
           if (f == null) return _buildLokasiShimmer();
           return FutureBuilder<List<AuditLocationData>>(
@@ -4452,13 +3658,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           );
         }
 
-        // ── Daily atau KTS/Accident: tampilkan temuan count seperti semula ──
+        // ── Daily atau Accident: tampilkan temuan count seperti semula ──
         final Future<List<LocationData>>? activeFuture =
             _selectedFindingType == '5R'
                 ? _lokasiFuture
-                : _selectedFindingType == 'KTS Production'
-                    ? _ktsLokasiFuture
-                    : _accidentLokasiFuture;
+                : _accidentLokasiFuture;
         if (activeFuture == null) return _buildLokasiShimmer();
         return FutureBuilder<List<LocationData>>(
           future: activeFuture,
@@ -4500,10 +3704,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     final fromLabel = DateFormat('MMM yyyy', locale).format(_recurringFrom);
     final toLabel = DateFormat('MMM yyyy', locale).format(_recurringTo);
     final periodLabel = '$fromLabel - $toLabel';
-
-    final activeColor = _selectedFindingType == 'KTS Production'
-        ? const Color(0xFFF59E0B)
-        : _AppColors.primary;
 
     return Column(children: [
       Container(
@@ -4565,323 +3765,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
   }
 
   Widget _buildAccidentRecurringTab() {
-    final locale = widget.lang == 'ID' ? 'id_ID' : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
-    final fromLabel = DateFormat('MMM yyyy', locale).format(_recurringFrom);
-    final toLabel = DateFormat('MMM yyyy', locale).format(_recurringTo);
-    final periodLabel = '$fromLabel - $toLabel';
-
-    final tabTitle = widget.lang == 'ID' ? 'Laporan Kecelakaan Berulang'
-        : widget.lang == 'ZH' ? '重复事故报告' : 'Recurring Accident Reports';
-    final emptyText = widget.lang == 'ID' ? 'Tidak ada laporan kecelakaan berulang.'
-        : widget.lang == 'ZH' ? '没有重复的事故报告。' : 'No recurring accident reports.';
-
-    return Column(children: [
-      Container(
-        color: Colors.transparent,
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child: Row(children: [
-          Expanded(child: _buildFilterButton(
-            label: periodLabel,
-            onTap: _showPeriodPicker,
-            icon: Icons.calendar_month_rounded,
-          )),
-          const SizedBox(width: 10),
-          Expanded(child: _buildFilterButton(
-            label: _recurringUserName.isEmpty ? getTxt('semua_grup') : _recurringUserName,
-            onTap: _showUserPicker,
-          )),
-        ]),
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-        child: Align(alignment: Alignment.centerLeft,
-          child: Text(tabTitle, style: const TextStyle(
-            fontSize: 14, fontWeight: FontWeight.w700, color: _AppColors.textPrimary))),
-      ),
-      const Divider(height: 1, color: _AppColors.divider),
-      Expanded(child: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _accidentRecurringFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildRecurringShimmer();
-          }
-          final groups = snapshot.data ?? [];
-          if (groups.isEmpty) {
-            return Center(child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(width: 72, height: 72,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2), shape: BoxShape.circle),
-                  child: Icon(Icons.warning_amber_rounded, size: 36,
-                    color: const Color(0xFFEF4444).withOpacity(0.5))),
-                const SizedBox(height: 16),
-                Text(emptyText, textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, color: _AppColors.textSecondary, height: 1.5)),
-              ],
-            ));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-            itemCount: groups.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (_, i) => _buildAccidentRecurringCard(groups[i]),
-          );
-        },
-      )),
-    ]);
-  }
-
-  Widget _buildAccidentRecurringCard(Map<String, dynamic> group) {
-    final topic = group['topic'] as String;
-    final locationArea = group['locationArea'] as String;
-    final total = group['total'] as int;
-    final imageUrl = group['imageUrl'] as String?;
-    final reports = group['reports'] as List<Map<String, dynamic>>;
-
-    // Warna berdasarkan tingkat keparahan
-    Color severityColor;
-    IconData severityIcon;
-    final topicLower = topic.toLowerCase();
-    if (topicLower.contains('berat') || topicLower.contains('heavy') || topicLower.contains('重')) {
-      severityColor = const Color(0xFFEF4444);
-      severityIcon = Icons.dangerous_rounded;
-    } else if (topicLower.contains('menengah') || topicLower.contains('medium') || topicLower.contains('中')) {
-      severityColor = const Color(0xFFF59E0B);
-      severityIcon = Icons.warning_amber_rounded;
-    } else {
-      severityColor = const Color(0xFF10B981);
-      severityIcon = Icons.info_outline_rounded;
-    }
-
-    final severityLabel = widget.lang == 'ID' ? 'Tingkat: $topic'
-        : widget.lang == 'ZH' ? '级别: $topic' : 'Severity: $topic';
-
-    return GestureDetector(
-      onTap: () => _showAccidentRecurringDetail(topic, reports),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: severityColor.withOpacity(0.3), width: 1.5),
-          boxShadow: [BoxShadow(color: severityColor.withOpacity(0.08), blurRadius: 8, offset: const Offset(0, 3))],
-        ),
-        child: Row(children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.horizontal(left: Radius.circular(14)),
-            child: Container(
-              width: 80, height: 80,
-              color: severityColor.withOpacity(0.1),
-              child: imageUrl != null && imageUrl.isNotEmpty
-                  ? Image.network(imageUrl, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(severityIcon, color: severityColor, size: 32))
-                  : Icon(severityIcon, color: severityColor, size: 32),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(severityLabel,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: severityColor),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              Row(children: [
-                Icon(Icons.location_on_rounded, size: 13, color: _AppColors.textSecondary),
-                const SizedBox(width: 3),
-                Expanded(child: Text(locationArea.isEmpty ? '-' : locationArea,
-                  style: const TextStyle(fontSize: 12, color: _AppColors.textSecondary),
-                  maxLines: 1, overflow: TextOverflow.ellipsis)),
-              ]),
-            ]),
-          )),
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: severityColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: severityColor.withOpacity(0.3)),
-            ),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(getTxt('total'), style: TextStyle(fontSize: 9, color: severityColor.withOpacity(0.7))),
-              Text('$total', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: severityColor)),
-            ]),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  void _showAccidentRecurringDetail(String topic, List<Map<String, dynamic>> reports) {
-    final locale = widget.lang == 'ID' ? 'id_ID' : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
-    final titleLabel = widget.lang == 'ID' ? 'Daftar Laporan' : widget.lang == 'ZH' ? '报告列表' : 'Report List';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.85, maxChildSize: 0.95, minChildSize: 0.5,
-        builder: (_, scrollCtrl) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(children: [
-            Container(margin: const EdgeInsets.only(top: 10), width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(children: [
-                Expanded(child: Text(topic,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _AppColors.textPrimary))),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(10)),
-                  child: Text('${getTxt('total')}: ${reports.length}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFEF4444)))),
-              ]),
-            ),
-            const Divider(height: 1, color: _AppColors.divider),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-              child: Align(alignment: Alignment.centerLeft,
-                child: Text('$titleLabel (${reports.length})',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.textPrimary))),
-            ),
-            Expanded(child: ListView.separated(
-              controller: scrollCtrl,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              itemCount: reports.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => _buildAccidentReportCard(reports[i], locale),
-            )),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAccidentReportCard(Map<String, dynamic> data, String locale) {
-    final judul = (data['judul'] ?? '-').toString();
-    final status = (data['status'] ?? '').toString();
-    final tingkat = (data['tingkat_keparahan'] ?? '').toString();
-    final penyebab = (data['penyebab'] ?? '-').toString();
-    final fotoUrl = (data['foto_bukti'] ?? '').toString();
-    final isSelesai = status == 'Selesai';
-
-    final tanggal = () {
-      final v = data['created_at'];
-      if (v == null) return '-';
-      final dt = v is DateTime ? v : DateTime.tryParse(v.toString());
-      if (dt == null) return '-';
-      return DateFormat('dd/MM/yyyy', locale).format(dt);
-    }();
-
-    String location = '';
-    if (data['area'] != null) location = data['area']['nama_area'] ?? '';
-    else if (data['subunit'] != null) location = data['subunit']['nama_subunit'] ?? '';
-    else if (data['unit'] != null) location = data['unit']['nama_unit'] ?? '';
-    else if (data['lokasi'] != null) location = data['lokasi']['nama_lokasi'] ?? '';
-
-    final statusColor = isSelesai ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-    final statusBg = isSelesai ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2);
-    final statusText = isSelesai
-        ? (widget.lang == 'ID' ? 'Selesai' : widget.lang == 'ZH' ? '已完成' : 'Resolved')
-        : (widget.lang == 'ID' ? status : status);
-
-    Color severityColor;
-    final tLower = tingkat.toLowerCase();
-    if (tLower.contains('berat') || tLower.contains('heavy')) {
-      severityColor = const Color(0xFFEF4444);
-    } else if (tLower.contains('menengah') || tLower.contains('medium')) {
-      severityColor = const Color(0xFFF59E0B);
-    } else {
-      severityColor = const Color(0xFF10B981);
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: severityColor.withOpacity(0.3), width: 1.5),
-        boxShadow: [BoxShadow(color: severityColor.withOpacity(0.1), blurRadius: 8, offset: const Offset(0, 3))],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Foto
-            Container(
-              width: 72, height: 72,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: severityColor.withOpacity(0.3), width: 1.5)),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8.5),
-                child: fotoUrl.isNotEmpty
-                    ? Image.network(fotoUrl, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(Icons.image_not_supported, color: Colors.grey))
-                    : Container(color: const Color(0xFFF8FAFC),
-                        child: const Icon(Icons.warning_amber_rounded, color: Colors.grey, size: 28)),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(judul,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.textPrimary),
-                  maxLines: 2, overflow: TextOverflow.ellipsis)),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: severityColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: severityColor, width: 1)),
-                  child: Text(tingkat, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: severityColor))),
-              ]),
-              const SizedBox(height: 4),
-              if (location.isNotEmpty)
-                Row(children: [
-                  const Icon(Icons.place_rounded, size: 11, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 3),
-                  Expanded(child: Text(location,
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
-                    maxLines: 1, overflow: TextOverflow.ellipsis)),
-                ]),
-              const SizedBox(height: 4),
-              Row(children: [
-                const Icon(Icons.calendar_today_rounded, size: 10, color: Color(0xFF94A3B8)),
-                const SizedBox(width: 3),
-                Text(tanggal, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(12)),
-                  child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusColor))),
-              ]),
-            ])),
-          ]),
-        ),
-        // Penyebab row
-        if (penyebab.isNotEmpty && penyebab != '-')
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: severityColor.withOpacity(0.06),
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14))),
-            child: Row(children: [
-              Icon(Icons.info_outline_rounded, size: 12, color: severityColor),
-              const SizedBox(width: 5),
-              Expanded(child: Text(penyebab,
-                style: TextStyle(fontSize: 11, color: severityColor.withOpacity(0.9), fontWeight: FontWeight.w500),
-                maxLines: 2, overflow: TextOverflow.ellipsis)),
-            ]),
-          ),
-      ]),
+    return AccidentRecurringTab(
+      lang: widget.lang,
+      accidentRecurringFuture: _accidentRecurringFuture,
+      recurringFrom: _recurringFrom,
+      recurringTo: _recurringTo,
+      recurringUserName: _recurringUserName,
+      onShowPeriodPicker: _showPeriodPicker,
+      onShowUserPicker: _showUserPicker,
     );
   }
 
@@ -5928,34 +4819,6 @@ class _Avatar extends StatelessWidget {
         color: bg.withOpacity(0.15), shape: BoxShape.circle,
         border: Border.all(color: bg.withOpacity(0.3), width: 1)),
       child: Center(child: _buildInitials()),
-    );
-  }
-}
-
-class _RoleChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _RoleChip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? _AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: selected ? _AppColors.primary : _AppColors.divider, width: 1.5),
-          boxShadow: selected ? [BoxShadow(color: _AppColors.primary.withOpacity(0.3),
-              blurRadius: 6, offset: const Offset(0, 2))] : null,
-        ),
-        child: Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-            color: selected ? Colors.white : _AppColors.textSecondary)),
-      ),
     );
   }
 }

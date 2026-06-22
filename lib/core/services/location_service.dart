@@ -21,7 +21,6 @@ class LocationService {
     _lastCheckTime = null;
   }
 
-  /// Apakah cache masih valid?
   bool get _isCacheValid {
     if (_cachedResult == null || _lastCheckTime == null) return false;
     return DateTime.now().difference(_lastCheckTime!) < _cacheDuration;
@@ -53,8 +52,6 @@ class LocationService {
     return true;
   }
 
-  /// Cek lokasi dengan cache 5 menit
-  /// [forceRefresh] = true untuk bypass cache (misalnya saat user tap "Coba Lagi")
   Future<LocationCheckResult> checkUserAtAtmi({bool forceRefresh = false}) async {
     if (!forceRefresh && _isCacheValid) {
       debugPrint('📍 Using cached location result: ${_cachedResult!.reason}');
