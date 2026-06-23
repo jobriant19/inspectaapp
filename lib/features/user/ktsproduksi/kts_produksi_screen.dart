@@ -1549,10 +1549,10 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
         'id_user': user.id,
         'poin_penyelesaian': 10,
         'penyebab': _penyebabCtrl.text.trim().isEmpty
-                ? (_selectedSubKategori != null ? _selectedSubKategori!['nama_subkategoritemuan'] : null)
-                : _penyebabCtrl.text.trim(),
+            ? (_selectedSubKategori != null ? _selectedSubKategori!['nama_subkategoritemuan'] : null)
+            : _penyebabCtrl.text.trim(),
         'bagian': _selectedBagian,
-        'id_faktor_penyebab': _selectedSubKategori?['id_subkategoritemuan'],
+        'id_subkategoritemuan_penyebab': _selectedSubKategori?['id_subkategoritemuan'],
       }).select('id_penyelesaian').single();
 
       final String newPenyelesaianId = insertRes['id_penyelesaian'].toString();

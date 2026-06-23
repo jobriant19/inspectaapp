@@ -441,22 +441,22 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
 
       // MASUKKAN PENYEBAB & ID FAKTOR KE TABEL PENYELESAIAN DI SINI
       final insertRes = await supabase
-          .from('penyelesaian')
-          .insert({
-            'gambar_penyelesaian': imageUrl,
-            'catatan_penyelesaian': _tindakanCtrl.text.trim(),
-            'additional_cost': biayaValue,
-            'tanggal_selesai': DateTime.now().toIso8601String(),
-            'id_user': user.id,
-            'poin_penyelesaian': 10,
-            'penyebab': _penyebabCtrl.text.trim().isEmpty
-                ? (_selectedSubKategori != null ? _selectedSubKategori!['nama_subkategoritemuan'] : null)
-                : _penyebabCtrl.text.trim(),
-            'bagian': _selectedBagian,
-            'id_subkategoritemuan_penyebab': null,
-          })
-          .select('id_penyelesaian')
-          .single();
+        .from('penyelesaian')
+        .insert({
+          'gambar_penyelesaian': imageUrl,
+          'catatan_penyelesaian': _tindakanCtrl.text.trim(),
+          'additional_cost': biayaValue,
+          'tanggal_selesai': DateTime.now().toIso8601String(),
+          'id_user': user.id,
+          'poin_penyelesaian': 10,
+          'penyebab': _penyebabCtrl.text.trim().isEmpty
+              ? (_selectedSubKategori != null ? _selectedSubKategori!['nama_subkategoritemuan'] : null)
+              : _penyebabCtrl.text.trim(),
+          'bagian': _selectedBagian,
+          'id_subkategoritemuan_penyebab': _selectedSubKategori?['id_subkategoritemuan'],
+        })
+        .select('id_penyelesaian')
+        .single();
 
       final String newPenyelesaianId = insertRes['id_penyelesaian'].toString();
 

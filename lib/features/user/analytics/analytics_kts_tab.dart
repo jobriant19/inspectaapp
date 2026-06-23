@@ -5,6 +5,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/services/gemini_recurring_service.dart';
 import '../finding/finding_detail_screen.dart';
 import '../home/kts_finding_card.dart';
+import 'kts production/kts_penyebab_tab.dart';
 
 // ─── Warna & Tema ──────────────────────────────────────────────────────────
 class _KTSAppColors {
@@ -175,7 +176,7 @@ class _KTSAnalyticsTabState extends State<KTSAnalyticsTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _initLocaleDependentLists();
     _fetchUnits().then((_) {
       _fetchAllData();
@@ -1348,9 +1349,13 @@ class _KTSAnalyticsTabState extends State<KTSAnalyticsTab>
     );
   }
 
-  // ─── 2 Tab untuk KTS: Members dan Recurring Findings ──────────────────────
+  // ─── 3 Tab untuk KTS: Members, Cause, dan Recurring Findings ──────────────────────
   Widget _buildKTSTabBar() {
-    final tabLabels = [getTxt('anggota'), getTxt('temuan_berulang')];
+    final tabLabels = [
+      getTxt('anggota'),
+      widget.lang == 'ID' ? 'Penyebab' : widget.lang == 'ZH' ? '原因' : 'Cause',
+      getTxt('temuan_berulang'),
+    ];
     final activeColor = _KTSAppColors.primary;
 
     return Container(
@@ -2118,6 +2123,7 @@ class _KTSAnalyticsTabState extends State<KTSAnalyticsTab>
             controller: _tabController,
             children: [
               _buildAnggotaTab(),
+              KtsPenyebabTab(lang: widget.lang),
               _buildRecurringTab(),
             ],
           ),
