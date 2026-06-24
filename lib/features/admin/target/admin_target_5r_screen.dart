@@ -225,6 +225,8 @@ class _State extends State<AdminTarget5rScreen> {
     int u = 0,
     int s = 0,
     int ar = 0,
+    int aSelesai = 0,
+    int iSelesai = 0,
     String? label,
     String? ket,
     required bool aktif,
@@ -241,6 +243,8 @@ class _State extends State<AdminTarget5rScreen> {
         'target_unit': u,
         'target_subunit': s,
         'target_area': ar,
+        'target_anggota_selesai': aSelesai,
+        'target_inspeksi_selesai': iSelesai,
         'off_day_label': label,
         'keterangan': ket?.isEmpty == true ? null : ket,
         'is_aktif': aktif,
@@ -769,6 +773,10 @@ class _State extends State<AdminTarget5rScreen> {
                     item['target_anggota'] as int? ?? 0, tc),
                 _badge(Icons.search_rounded,
                     item['target_inspeksi'] as int? ?? 0, tc),
+                _badge(Icons.check_circle_rounded,
+                    item['target_anggota_selesai'] as int? ?? 0, _kGreen),
+                _badge(Icons.check_circle_outline_rounded,
+                    item['target_inspeksi_selesai'] as int? ?? 0, _kGreen),
                 _badge(Icons.location_city_rounded,
                     item['target_lokasi'] as int? ?? 0, tc),
                 _badge(Icons.apartment_rounded,
@@ -900,6 +908,10 @@ class _State extends State<AdminTarget5rScreen> {
         text: '${item?['target_subunit'] ?? 5}');
     final cAr = TextEditingController(
         text: '${item?['target_area'] ?? 5}');
+    final cASelesai = TextEditingController(
+        text: '${item?['target_anggota_selesai'] ?? 2}');
+    final cISelesai = TextEditingController(
+        text: '${item?['target_inspeksi_selesai'] ?? 2}');
     final cLbl = TextEditingController(
         text: item?['off_day_label'] as String? ?? '');
     final cKet = TextEditingController(
@@ -1011,8 +1023,8 @@ class _State extends State<AdminTarget5rScreen> {
                                       ? 'Target Bulanan'
                                       : 'Monthly Targets'),
                               const SizedBox(height: 10),
-                              _targetGrid(
-                                  cA, cI, cL, cU, cS, cAr),
+                              _targetGrid(cA, cI, cL, cU, cS, cAr,
+                                cASelesai: cASelesai, cISelesai: cISelesai),
                             ],
 
                             // ── DAILY / OFF DAY: date picker
@@ -1063,8 +1075,8 @@ class _State extends State<AdminTarget5rScreen> {
                                         ? 'Target Harian'
                                         : 'Daily Targets'),
                                 const SizedBox(height: 10),
-                                _targetGrid(
-                                    cA, cI, cL, cU, cS, cAr),
+                                _targetGrid(cA, cI, cL, cU, cS, cAr,
+                                  cASelesai: cASelesai, cISelesai: cISelesai),
                               ],
                             ],
 
@@ -1160,6 +1172,8 @@ class _State extends State<AdminTarget5rScreen> {
                                       s: int.tryParse(cS.text) ?? 0,
                                       ar: int.tryParse(cAr.text) ??
                                           0,
+                                      aSelesai: int.tryParse(cASelesai.text) ?? 0,
+                                      iSelesai: int.tryParse(cISelesai.text) ?? 0,
                                       label: cLbl.text.trim().isEmpty
                                           ? null
                                           : cLbl.text.trim(),
@@ -1444,17 +1458,22 @@ class _State extends State<AdminTarget5rScreen> {
     TextEditingController cL,
     TextEditingController cU,
     TextEditingController cS,
-    TextEditingController cAr,
-  ) {
+    TextEditingController cAr, {
+    TextEditingController? cASelesai,
+    TextEditingController? cISelesai,
+  }) {
     final pairs = [
       (cA, _t('a'), Icons.people_rounded, _kGreen),
+      if (cASelesai != null)
+        (cASelesai, widget.lang == 'ID' ? 'Target Anggota Selesai'
+            : widget.lang == 'ZH' ? '成员完成目标' : 'Member Completion Target',
+        Icons.check_circle_rounded, _kGreen),
       (cI, _t('i'), Icons.search_rounded, _kGreen),
-      (
-        cL,
-        _t('l'),
-        Icons.location_city_rounded,
-        const Color(0xFF2563EB)
-      ),
+      if (cISelesai != null)
+        (cISelesai, widget.lang == 'ID' ? 'Target Inspeksi Selesai'
+            : widget.lang == 'ZH' ? '检查完成目标' : 'Inspection Completion Target',
+        Icons.check_circle_outline_rounded, _kGreen),
+      (cL, _t('l'), Icons.location_city_rounded, const Color(0xFF2563EB)),
       (cU, _t('u'), Icons.apartment_rounded, const Color(0xFF2563EB)),
       (cS, _t('s'), Icons.domain_rounded, const Color(0xFF7C3AED)),
       (cAr, _t('ar'), Icons.place_rounded, const Color(0xFF7C3AED)),
@@ -1472,26 +1491,20 @@ class _State extends State<AdminTarget5rScreen> {
               style: GoogleFonts.poppins(fontSize: 13),
               decoration: InputDecoration(
                 labelText: p.$2,
-                labelStyle: GoogleFonts.poppins(
-                    fontSize: 11, color: Colors.black54),
-                prefixIcon:
-                    Icon(p.$3, size: 16, color: p.$4),
+                labelStyle: GoogleFonts.poppins(fontSize: 11, color: Colors.black54),
+                prefixIcon: Icon(p.$3, size: 16, color: p.$4),
                 filled: true,
                 fillColor: p.$4.withOpacity(0.04),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide:
-                        BorderSide(color: p.$4.withOpacity(0.3))),
+                    borderSide: BorderSide(color: p.$4.withOpacity(0.3))),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide:
-                        BorderSide(color: p.$4.withOpacity(0.3))),
+                    borderSide: BorderSide(color: p.$4.withOpacity(0.3))),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide:
-                        BorderSide(color: p.$4, width: 1.5)),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 10),
+                    borderSide: BorderSide(color: p.$4, width: 1.5)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               ),
               validator: (v) {
                 final n = int.tryParse(v?.trim() ?? '');

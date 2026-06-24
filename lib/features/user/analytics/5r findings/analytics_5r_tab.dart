@@ -232,6 +232,8 @@ class _Analytics5RTabState extends State<Analytics5RTab>
   int _chartTargetUnit         = 5;
   int _chartTargetSubunit      = 5;
   int _chartTargetArea         = 5;
+  int _chartTargetAnggotaSelesai  = 2;
+  int _chartTargetInspeksiSelesai = 2;
   int _activeTabIndex = 0;
 
   // ─── State untuk Data ────────────────────────────────────────────────────
@@ -297,31 +299,132 @@ class _Analytics5RTabState extends State<Analytics5RTab>
     }
   }
 
+  // ─── Target Resolution ────────────────────────────────────────────────────
+  // Letakkan di dalam class _Analytics5RTabState, ganti _fetchTarget() lama
+
   Future<void> _fetchTarget() async {
     try {
       final month = _selectedMonthIndex + 1;
       final year = DateTime.now().year;
-      final data = await _supabase
-          .from('target_bulanan')
-          .select()
-          .eq('bulan', month)
-          .eq('tahun', year)
-          .maybeSingle();
-      if (mounted && data != null) {
-        setState(() {
-          _targetAnggota  = data['target_anggota']  ?? 2;
-          _targetInspeksi = data['target_inspeksi'] ?? 2;
-          _chartTargetTemuan       = data['target_anggota']  ?? 2;
-          _chartTargetPenyelesaian = data['target_inspeksi'] ?? 2;
-          _chartTargetLokasi       = data['target_lokasi']   ?? 5;
-          _chartTargetUnit         = data['target_unit']     ?? 5;
-          _chartTargetSubunit      = data['target_subunit']  ?? 5;
-          _chartTargetArea         = data['target_area']     ?? 5;
-        });
+
+      if (_filterMode == 'daily' && _selectedDate != null) {
+        await _fetchTargetForDate(_selectedDate!);
+      } else {
+        await _fetchTargetMonthly(month, year);
       }
     } catch (e) {
       debugPrint('Error fetching target: $e');
     }
+  }
+
+  /// Ambil target untuk mode bulanan
+  Future<void> _fetchTargetMonthly(int month, int year) async {
+    try {
+      final rows = await _supabase
+          .from('target_5r_findings')
+          .select()
+          .eq('type', 'monthly')
+          .eq('bulan', month)
+          .eq('tahun', year)
+          .eq('is_aktif', true)
+          .order('updated_at', ascending: false)
+          .limit(1);
+
+      if (!mounted) return;
+      final data = (rows as List).isNotEmpty ? rows.first : null;
+      setState(() {
+        if (data != null) {
+          _targetAnggota               = data['target_anggota']          ?? 2;
+          _targetInspeksi              = data['target_inspeksi']         ?? 2;
+          _chartTargetTemuan           = data['target_anggota']          ?? 2;
+          _chartTargetPenyelesaian     = data['target_inspeksi']         ?? 2;
+          _chartTargetAnggotaSelesai   = data['target_anggota_selesai']  ?? 2;
+          _chartTargetInspeksiSelesai  = data['target_inspeksi_selesai'] ?? 2;
+          _chartTargetLokasi           = data['target_lokasi']           ?? 5;
+          _chartTargetUnit             = data['target_unit']             ?? 5;
+          _chartTargetSubunit          = data['target_subunit']          ?? 5;
+          _chartTargetArea             = data['target_area']             ?? 5;
+        } else {
+          _targetAnggota = 0; _targetInspeksi = 0;
+          _chartTargetTemuan = 0; _chartTargetPenyelesaian = 0;
+          _chartTargetAnggotaSelesai = 0; _chartTargetInspeksiSelesai = 0;
+          _chartTargetLokasi = 0; _chartTargetUnit = 0;
+          _chartTargetSubunit = 0; _chartTargetArea = 0;
+        }
+      });
+    } catch (e) {
+      debugPrint('Error fetching monthly target: $e');
+    }
+  }
+
+  /// Ambil target untuk mode harian (filter tanggal spesifik)
+  Future<void> _fetchTargetForDate(DateTime date) async {
+    try {
+      final dateStr = date.toIso8601String().split('T').first;
+      final weekday = date.weekday;
+
+      if (weekday == DateTime.saturday || weekday == DateTime.sunday) {
+        if (!mounted) return;
+        _applyZeroTarget();
+        return;
+      }
+
+      final offDayRows = await _supabase
+          .from('target_5r_findings')
+          .select()
+          .eq('type', 'off_day')
+          .eq('specific_date', dateStr)
+          .eq('is_aktif', true)
+          .limit(1);
+
+      if ((offDayRows as List).isNotEmpty) {
+        if (!mounted) return;
+        _applyZeroTarget();
+        return;
+      }
+
+      final dailyRows = await _supabase
+          .from('target_5r_findings')
+          .select()
+          .eq('type', 'daily_specific')
+          .eq('specific_date', dateStr)
+          .eq('is_aktif', true)
+          .order('updated_at', ascending: false)
+          .limit(1);
+
+      if ((dailyRows as List).isNotEmpty) {
+        final daily = dailyRows.first;
+        if (!mounted) return;
+        setState(() {
+          _targetAnggota               = daily['target_anggota']          ?? 2;
+          _targetInspeksi              = daily['target_inspeksi']         ?? 2;
+          _chartTargetTemuan           = daily['target_anggota']          ?? 2;
+          _chartTargetPenyelesaian     = daily['target_inspeksi']         ?? 2;
+          _chartTargetAnggotaSelesai   = daily['target_anggota_selesai']  ?? 2;
+          _chartTargetInspeksiSelesai  = daily['target_inspeksi_selesai'] ?? 2;
+          _chartTargetLokasi           = daily['target_lokasi']           ?? 5;
+          _chartTargetUnit             = daily['target_unit']             ?? 5;
+          _chartTargetSubunit          = daily['target_subunit']          ?? 5;
+          _chartTargetArea             = daily['target_area']             ?? 5;
+        });
+        return;
+      }
+
+      await _fetchTargetMonthly(date.month, date.year);
+    } catch (e) {
+      debugPrint('Error fetching daily target: $e');
+    }
+  }
+
+  /// Set semua target ke 0 (hari libur / weekend)
+  void _applyZeroTarget() {
+    setState(() {
+      _targetAnggota = 0; _targetInspeksi = 0;
+      _chartTargetTemuan = 0; _chartTargetPenyelesaian = 0;
+      _chartTargetAnggotaSelesai = 0; _chartTargetInspeksiSelesai = 0;
+      _chartTargetLokasi = 0; _chartTargetUnit = 0;
+      _chartTargetSubunit = 0; _chartTargetArea = 0;
+    });
   }
 
   int get _selectedMonth => _selectedMonthIndex + 1;
@@ -343,6 +446,9 @@ class _Analytics5RTabState extends State<Analytics5RTab>
     if (!fromTabFilter) {
       _isChartLoadingForTab = false;
     }
+
+    _fetchTarget();
+
     final roleBackendValue = ['Eksekutif', 'Profesional', 'Visitor'][
         _translatedRoles.indexOf(_selectedInspectionRole).clamp(0, 2)];
     final levelBackendValue = ['Lokasi', 'Unit', 'Subunit', 'Area'][
@@ -412,13 +518,15 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
   (int temuan, int selesai) get _activeTabTargets {
     switch (_activeTabIndex) {
-      case 0:
-        return (_chartTargetTemuan, _chartTargetTemuan);
-      case 1:
-        return (_chartTargetPenyelesaian, _chartTargetPenyelesaian);
-      case 2:
-        final levelLower = ['Lokasi', 'Unit', 'Subunit', 'Area']
-            [_translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
+      case 0: // Members — temuan dari target_anggota, selesai dari target_anggota_selesai
+        return (_chartTargetTemuan, _chartTargetAnggotaSelesai);
+      case 1: // Inspeksi — temuan dari target_inspeksi, selesai dari target_inspeksi_selesai
+        return (_chartTargetPenyelesaian, _chartTargetInspeksiSelesai);
+      case 2: // Lokasi
+        final levelIdx = _translatedLocationLevels
+            .indexOf(_selectedLocationLevel)
+            .clamp(0, 3);
+        final levelLower = ['Lokasi', 'Unit', 'Subunit', 'Area'][levelIdx];
         switch (levelLower) {
           case 'Unit':    return (_chartTargetUnit,    _chartTargetUnit);
           case 'Subunit': return (_chartTargetSubunit, _chartTargetSubunit);
@@ -705,10 +813,9 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
       final currentUserId = _supabase.auth.currentUser?.id;
       return users
-          .where((u) => stats.containsKey(u['id_user']?.toString() ?? ''))
           .map((u) {
             final uid = u['id_user']?.toString() ?? '';
-            final s = stats[uid]!;
+            final s = stats[uid] ?? {'temuan': 0, 'selesai': 0};
             return MemberData5R(
               name: u['nama'] as String? ?? '-',
               unitName: (u['unit'] as Map<String, dynamic>?)?['nama_unit'] as String?,
@@ -1185,7 +1292,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                     );
                   }
                   final data = snapshot.data ?? [];
-                  if (data.isEmpty || data.every((d) => d.temuan == 0 && d.penyelesaian == 0)) {
+                  if (data.isEmpty) {
                     return Container(
                       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                       padding: const EdgeInsets.all(20),
@@ -1201,12 +1308,12 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                   }
 
                   final (tTarget, pTarget) = _activeTabTargets;
-                  int maxVal = math.max(tTarget, pTarget).clamp(1, 99999);
+                  int maxVal = math.max(tTarget, pTarget);
                   for (final d in data) {
                     if (d.temuan > maxVal) maxVal = d.temuan;
                     if (d.penyelesaian > maxVal) maxVal = d.penyelesaian;
                   }
-                  maxVal = ((maxVal / 5).ceil() * 5).clamp(1, 9999);
+                  maxVal = ((maxVal / 5).ceil() * 5).clamp(5, 9999);
 
                   const double chartH = 140.0;
                   const double barGroupW = 28.0;
@@ -1246,15 +1353,15 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                               widget.lang == 'ID' ? 'Temuan' : 'Findings'),
                             _chartLegendItem(colorPenyelesaian,
                               widget.lang == 'ID' ? 'Selesai' : 'Completed'),
-                            if (_activeTabIndex != 3) ...[
-                              _chartLegendDash(const Color(0xFFEF4444),
+                            if (_activeTabIndex != 3 && _activeTabTargets.$1 > 0) ...[
+                              _chartLegendDash(
+                                const Color(0xFFEF4444),
                                 _activeTabIndex == 0
-                                    ? (widget.lang == 'ID' ? 'Target Anggota' : 'Member Target')
+                                    ? (widget.lang == 'ID' ? 'Target Anggota' : widget.lang == 'ZH' ? '成员目标' : 'Member Target')
                                     : _activeTabIndex == 1
-                                        ? (widget.lang == 'ID' ? 'Target Inspeksi' : 'Inspection Target')
-                                        : (widget.lang == 'ID' ? 'Target Lokasi' : 'Location Target')),
-                              _chartLegendDash(const Color(0xFFF59E0B),
-                                widget.lang == 'ID' ? 'Target Selesai' : 'Completion Target'),
+                                        ? (widget.lang == 'ID' ? 'Target Inspeksi' : widget.lang == 'ZH' ? '检查目标' : 'Inspection Target')
+                                        : (widget.lang == 'ID' ? 'Target Lokasi' : widget.lang == 'ZH' ? '位置目标' : 'Location Target'),
+                              ),
                             ],
                           ]);
                         }),
@@ -1287,8 +1394,11 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                                   top: valToY(v), left: 0, right: 0,
                                   child: Container(height: 1, color: _AppColors.divider),
                                 )),
+                                // BARU — garis dashed hanya tampil jika target > 0
                                 Builder(builder: (context) {
                                   final (tTarget, pTarget) = _activeTabTargets;
+                                  // Tidak tampilkan garis jika: tab Recurring, atau target = 0
+                                  // (target 0 = hari libur / weekend / belum diset admin)
                                   final showTarget = _activeTabIndex != 3 && tTarget > 0;
                                   if (!showTarget) return const SizedBox.shrink();
                                   return Stack(children: [
@@ -1408,7 +1518,11 @@ class _Analytics5RTabState extends State<Analytics5RTab>
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildAnggotaShimmer();
             }
-            if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+            if (snapshot.hasError) {
+              return Center(child: Text(getTxt('tidak_ada_data_anggota')));
+            }
+            // Jika tidak ada data sama sekali (bukan karena semua 0, tapi benar-benar tidak ada user)
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return Center(child: Text(getTxt('tidak_ada_data_anggota')));
             }
             final memberList = snapshot.data!;
@@ -1421,7 +1535,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                 [getTxt('nama'), getTxt('temuan'), getTxt('selesai')],
                 flex: [3, 1, 1],
               ),
-              _buildTargetRow([getTxt('target_bulanan'), '$_targetAnggota', '$_targetAnggota']),
+              _buildTargetRow([getTxt('target_bulanan'), '$_targetAnggota', '$_chartTargetAnggotaSelesai']),
               Expanded(child: ListView.separated(
                 padding: EdgeInsets.zero,
                 itemCount: memberList.length,
@@ -2138,8 +2252,14 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
   Widget _buildMemberRow(MemberData5R m) {
     final target = _targetAnggota;
-    final findingsColor = m.findings >= target ? const Color(0xFF16A34A) : _AppColors.textPrimary;
-    final completedColor = m.completed >= target ? const Color(0xFF16A34A) : _AppColors.textPrimary;
+    // Hanya warnai hijau jika target > 0 (bukan hari libur) DAN findings >= target
+    final findingsColor = (target > 0 && m.findings >= target)
+        ? const Color(0xFF16A34A)
+        : _AppColors.textPrimary;
+    final completedTarget = _chartTargetAnggotaSelesai;
+    final completedColor = (completedTarget > 0 && m.completed >= completedTarget)
+        ? const Color(0xFF16A34A)
+        : _AppColors.textPrimary;
 
     return Container(
       color: m.isSelf ? _AppColors.selfHighlight : Colors.white,
@@ -2168,8 +2288,13 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
   Widget _buildSelfPinnedRow(MemberData5R self) {
     final target = _targetAnggota;
-    final findingsColor = self.findings >= target ? const Color(0xFF16A34A) : _AppColors.textSecondary;
-    final completedColor = self.completed >= target ? const Color(0xFF16A34A) : _AppColors.textSecondary;
+    final findingsColor = (target > 0 && self.findings >= target)
+        ? const Color(0xFF16A34A)
+        : _AppColors.textSecondary;
+    final completedTarget = _chartTargetAnggotaSelesai;
+    final completedColor = (completedTarget > 0 && self.completed >= completedTarget)
+        ? const Color(0xFF16A34A)
+        : _AppColors.textSecondary;
 
     return Container(
       decoration: BoxDecoration(
@@ -2196,7 +2321,9 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
   Widget _buildInspectionRow(InspectionData5R item) {
     final target = _targetInspeksi;
-    final findingsColor = item.findings >= target ? const Color(0xFF16A34A) : _AppColors.textPrimary;
+    final findingsColor = (target > 0 && item.findings >= target)
+        ? const Color(0xFF16A34A)
+        : _AppColors.textPrimary;
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
