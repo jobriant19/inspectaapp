@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/services/location_service.dart';
@@ -2267,22 +2266,22 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'category': 'Category',
         'subcategory': 'Sub-Category',
         'reported_on': 'Reported on',
-        'resolution': 'Resolution',
-        'upload_proof': 'Upload Proof of Resolution',
+        'resolution': 'Solution',
+        'upload_proof': 'Upload Proof of Solution',
         'change_photo': 'Change Photo',
-        'resolution_notes': 'Resolution Notes (Optional)',
+        'resolution_notes': 'Solution Notes (Optional)',
         'resolution_notes_hint': 'Describe the actions taken...',
         'mention_user': 'Mention a user',
         'comment_hint': 'Write a comment...',
         'finish': 'Finish',
         'finish_and_new': 'Finish & Create New',
-        'err_proof_required': 'Proof of resolution is required!',
+        'err_proof_required': 'Proof of solution is required!',
         'finish_success': 'Finding finished successfully!',
         'finish_fail': 'Failed to finish finding',
         'created_by': 'Created by', // <-- BARU
         'resolved_by': 'Resolved by', // <-- BARU
         'completed_on': 'Completed on', // <-- BARU
-        'resolution_result': 'Resolution Result', // <-- BARU
+        'resolution_result': 'Solution Result', // <-- BARU
         'notes': 'Notes:', // <-- BARU
         'cost': 'Cost Incurred:', // <-- BARU
         'resolved': 'Finding Resolved',
