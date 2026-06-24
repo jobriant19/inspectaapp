@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// ============================================================
-// WIDGET: TOMBOL "CHOOSE MODE" DI HOME CONTENT
-// Panggil ini di tempat tombol Pro Mode sebelumnya berada
-// ============================================================
 class ChooseModeButton extends StatelessWidget {
   final bool isProMode;
   final bool isVisitorMode;
@@ -154,7 +151,13 @@ Future<void> showChooseModeSheet({
   required String lang,
   required ValueChanged<bool> onProModeChanged,
   required ValueChanged<bool> onVisitorModeChanged,
-}) {
+}) async {
+  // Baca setting admin sebelum buka sheet
+  final prefs = await SharedPreferences.getInstance();
+  final bool proModeVisible = prefs.getBool('pro_mode_button_visible') ?? true;
+
+  if (!context.mounted) return;
+
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -165,6 +168,7 @@ Future<void> showChooseModeSheet({
       lang: lang,
       onProModeChanged: onProModeChanged,
       onVisitorModeChanged: onVisitorModeChanged,
+      hideProMode: !proModeVisible, // ← TAMBAHAN
     ),
   );
 }
@@ -175,6 +179,7 @@ class _ChooseModeSheet extends StatefulWidget {
   final String lang;
   final ValueChanged<bool> onProModeChanged;
   final ValueChanged<bool> onVisitorModeChanged;
+  final bool hideProMode;
 
   const _ChooseModeSheet({
     required this.isProMode,
@@ -182,6 +187,7 @@ class _ChooseModeSheet extends StatefulWidget {
     required this.lang,
     required this.onProModeChanged,
     required this.onVisitorModeChanged,
+    this.hideProMode = false,
   });
 
   @override
@@ -342,25 +348,26 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
             const SizedBox(height: 24),
 
             // Pro Mode Card
-            _ModeCard(
-              icon: Icons.workspace_premium_rounded,
-              iconGradient: const LinearGradient(
-                colors: [Color(0xFF4ADE80), Color(0xFF16A34A)],
+            if (!widget.hideProMode) ...[
+              _ModeCard(
+                icon: Icons.workspace_premium_rounded,
+                iconGradient: const LinearGradient(
+                  colors: [Color(0xFF4ADE80), Color(0xFF16A34A)],
+                ),
+                glowColor: const Color(0xFF4ADE80),
+                title: t('pro_title'),
+                description: t('pro_desc'),
+                isActive: _isProMode,
+                activeLabel: t('active'),
+                inactiveLabel: t('inactive'),
+                lang: widget.lang,
+                onChanged: (val) {
+                  setState(() => _isProMode = val);
+                  widget.onProModeChanged(val);
+                },
               ),
-              glowColor: const Color(0xFF4ADE80),
-              title: t('pro_title'),
-              description: t('pro_desc'),
-              isActive: _isProMode,
-              activeLabel: t('active'),
-              inactiveLabel: t('inactive'),
-              lang: widget.lang,
-              onChanged: (val) {
-                setState(() => _isProMode = val);
-                widget.onProModeChanged(val);
-              },
-            ),
-
-            const SizedBox(height: 14),
+              const SizedBox(height: 14),
+            ],
 
             // Visitor Mode Card
             _ModeCard(

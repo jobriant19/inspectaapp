@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../core/services/auth_service.dart';
 import '../../../core/utils/image_picker_helper.dart';
 import '../../../core/utils/jabatan_helper.dart';
 
@@ -44,10 +45,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isEditMode = false;
   bool _hasChanges = false;
 
+  // Password change state
+  bool _showPasswordSection = false;
+  final TextEditingController _newPassCtrl = TextEditingController();
+  final TextEditingController _confirmPassCtrl = TextEditingController();
+  bool _isNewPassVisible = false;
+  bool _isConfirmPassVisible = false;
+
   final Map<String, Map<String, String>> _txt = {
-    'EN': { 'profile_title': 'My Profile', 'edit_title': 'Edit Profile', 'name': 'Name', 'email': 'Email Address', 'role': 'Job Title', 'location': 'Location', 'save': 'Save Changes', 'success': 'Profile Updated!', 'success_body': 'Your profile has been successfully updated.', 'edit': 'Edit', 'verifier': 'Verifier', 'error_update': 'Update Failed', 'error_body': 'Failed to update profile. Please try again.', 'close': 'Close', 'saving': 'Saving your profile...', 'uploading': 'Uploading photo...' },
-    'ID': { 'profile_title': 'Profil Saya', 'edit_title': 'Ubah Profil', 'name': 'Nama', 'email': 'Alamat Email', 'role': 'Jabatan', 'location': 'Lokasi', 'save': 'Simpan Perubahan', 'success': 'Profil Diperbarui!', 'success_body': 'Profil Anda berhasil diperbarui.', 'edit': 'Ubah', 'verifier': 'Verifier', 'error_update': 'Gagal Memperbarui', 'error_body': 'Gagal memperbarui profil. Silakan coba lagi.', 'close': 'Tutup', 'saving': 'Menyimpan profil Anda...', 'uploading': 'Mengunggah foto...' },
-    'ZH': { 'profile_title': '我的资料', 'edit_title': '编辑资料', 'name': '姓名', 'email': '电子邮件', 'role': '职位', 'location': '地点', 'save': '保存更改', 'success': '资料已更新！', 'success_body': '您的资料已成功更新。', 'edit': '编辑', 'verifier': '验证者', 'error_update': '更新失败', 'error_body': '无法更新资料，请重试。', 'close': '关闭', 'saving': '正在保存资料...', 'uploading': '正在上传照片...' },
+    'EN': { 'profile_title': 'My Profile', 'edit_title': 'Edit Profile', 'name': 'Name', 'email': 'Email Address', 'role': 'Job Title', 'location': 'Location', 'save': 'Save Changes', 'success': 'Profile Updated!', 'success_body': 'Your profile has been successfully updated.', 'edit': 'Edit', 'verifier': 'Verifier', 'error_update': 'Update Failed', 'error_body': 'Failed to update profile. Please try again.', 'close': 'Close', 'saving': 'Saving your profile...', 'uploading': 'Uploading photo...', 'change_password': 'Change Password',
+            'new_password': 'New Password',
+            'confirm_password': 'Confirm Password',
+            'password_hint': 'Min 6 characters',
+            'confirm_hint': 'Re-enter new password',
+            'password_mismatch': 'Passwords do not match!',
+            'password_too_short': 'Password must be at least 6 characters',
+            'password_updated': 'Password updated successfully!',
+            'password_error': 'Failed to update password' },
+    'ID': { 'profile_title': 'Profil Saya', 'edit_title': 'Ubah Profil', 'name': 'Nama', 'email': 'Alamat Email', 'role': 'Jabatan', 'location': 'Lokasi', 'save': 'Simpan Perubahan', 'success': 'Profil Diperbarui!', 'success_body': 'Profil Anda berhasil diperbarui.', 'edit': 'Ubah', 'verifier': 'Verifier', 'error_update': 'Gagal Memperbarui', 'error_body': 'Gagal memperbarui profil. Silakan coba lagi.', 'close': 'Tutup', 'saving': 'Menyimpan profil Anda...', 'uploading': 'Mengunggah foto...', 'change_password': 'Ubah Password',
+            'new_password': 'Password Baru',
+            'confirm_password': 'Konfirmasi Password',
+            'password_hint': 'Min 6 karakter',
+            'confirm_hint': 'Ulangi password baru',
+            'password_mismatch': 'Password tidak cocok!',
+            'password_too_short': 'Password minimal 6 karakter',
+            'password_updated': 'Password berhasil diperbarui!',
+            'password_error': 'Gagal memperbarui password' },
+    'ZH': { 'profile_title': '我的资料', 'edit_title': '编辑资料', 'name': '姓名', 'email': '电子邮件', 'role': '职位', 'location': '地点', 'save': '保存更改', 'success': '资料已更新！', 'success_body': '您的资料已成功更新。', 'edit': '编辑', 'verifier': '验证者', 'error_update': '更新失败', 'error_body': '无法更新资料，请重试。', 'close': '关闭', 'saving': '正在保存资料...', 'uploading': '正在上传照片...', 'change_password': '修改密码',
+            'new_password': '新密码',
+            'confirm_password': '确认密码',
+            'password_hint': '最少6个字符',
+            'confirm_hint': '再次输入新密码',
+            'password_mismatch': '两次密码不一致！',
+            'password_too_short': '密码至少需要6个字符',
+            'password_updated': '密码更新成功！',
+            'password_error': '更新密码失败' },
   };
   String getTxt(String key) => _txt[widget.lang]?[key] ?? key;
 
@@ -60,6 +92,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _hasChanges = _nameController.text != _initialName || _imageFile != null);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _newPassCtrl.dispose();
+    _confirmPassCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadProfile() async {
@@ -334,6 +374,360 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _updatePassword() async {
+    final newPass = _newPassCtrl.text.trim();
+    final confirmPass = _confirmPassCtrl.text.trim();
+
+    if (newPass.length < 6) {
+      _showResultDialog(isSuccess: false, errorDetail: getTxt('password_too_short'));
+      return;
+    }
+    if (newPass != confirmPass) {
+      _showResultDialog(isSuccess: false, errorDetail: getTxt('password_mismatch'));
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    _showLoadingDialog();
+
+    final user = Supabase.instance.client.auth.currentUser!;
+
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'update-user-password',
+        body: {
+          'user_id': user.id,
+          'new_password': newPass,
+        },
+      );
+
+      final authService = AuthService();
+      final newHash = authService.hashPassword(
+        Supabase.instance.client.auth.currentUser!.email ?? '',
+        newPass,
+      );
+      await Supabase.instance.client
+          .from('User')
+          .update({'pass': newHash})
+          .eq('id_user', user.id);
+
+      if (mounted) {
+        Navigator.of(context).pop(); // tutup loading
+        setState(() {
+          _newPassCtrl.clear();
+          _confirmPassCtrl.clear();
+          _showPasswordSection = false;
+          _isSaving = false;
+        });
+        _showPasswordSuccessDialog();
+      }
+    } catch (e) {
+      debugPrint('Error updating password: $e');
+      if (mounted) {
+        Navigator.of(context).pop(); // tutup loading
+        setState(() => _isSaving = false);
+        _showResultDialog(isSuccess: false, errorDetail: e.toString());
+      }
+    }
+  }
+
+  void _showPasswordSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFDCFCE7),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lock_open_rounded,
+                  color: Color(0xFF16A34A),
+                  size: 42,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                getTxt('password_updated'),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF16A34A),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(
+                    getTxt('close'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPasswordSection() {
+    if (!_isEditMode) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _showPasswordSection = !_showPasswordSection;
+              if (!_showPasswordSection) {
+                _newPassCtrl.clear();
+                _confirmPassCtrl.clear();
+              }
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: _showPasswordSection
+                  ? const Color(0xFFEFF6FF)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _showPasswordSection
+                    ? const Color(0xFF1D72F3)
+                    : Colors.grey.shade200,
+                width: _showPasswordSection ? 1.5 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF1D72F3).withOpacity(0.07),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _showPasswordSection
+                        ? const Color(0xFFBFDBFE)
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.lock_reset_rounded,
+                    size: 18,
+                    color: _showPasswordSection
+                        ? const Color(0xFF1D72F3)
+                        : Colors.grey.shade500,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    getTxt('change_password'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _showPasswordSection
+                          ? const Color(0xFF1D72F3)
+                          : Colors.black54,
+                    ),
+                  ),
+                ),
+                Icon(
+                  _showPasswordSection
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: _showPasswordSection
+                      ? const Color(0xFF1D72F3)
+                      : Colors.grey.shade400,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_showPasswordSection) ...[
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              getTxt('new_password'),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1D72F3),
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          _buildPasswordField(
+            controller: _newPassCtrl,
+            hint: getTxt('password_hint'),
+            isVisible: _isNewPassVisible,
+            onToggle: () =>
+                setState(() => _isNewPassVisible = !_isNewPassVisible),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              getTxt('confirm_password'),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1D72F3),
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          _buildPasswordField(
+            controller: _confirmPassCtrl,
+            hint: getTxt('confirm_hint'),
+            isVisible: _isConfirmPassVisible,
+            onToggle: () => setState(
+                () => _isConfirmPassVisible = !_isConfirmPassVisible),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.lock_rounded,
+                  color: Colors.white, size: 18),
+              label: Text(
+                getTxt('change_password'),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1D72F3),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                elevation: 2,
+                shadowColor: const Color(0xFF1D72F3).withOpacity(0.4),
+              ),
+              onPressed: _isSaving ? null : _updatePassword,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPasswordField({
+    required TextEditingController controller,
+    required String hint,
+    required bool isVisible,
+    required VoidCallback onToggle,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF1D72F3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1D72F3).withOpacity(0.07),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFBFDBFE),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.lock_outline,
+                color: Color(0xFF1D72F3), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              obscureText: !isVisible,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Color(0xFF1E293B),
+                fontWeight: FontWeight.w500,
+              ),
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle:
+                    TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: onToggle,
+            child: Icon(
+              isVisible
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: Colors.grey.shade400,
+              size: 20,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildRoleBadge() {
     // is_verificator TRUE selalu menang, abaikan id_jabatan
     final bool isVerif = widget.isVerificator == true ||
@@ -407,6 +801,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _imageBytes = null;
           _imageExt = null;
           _hasChanges = false;
+          _showPasswordSection = false;
+          _newPassCtrl.clear();
+          _confirmPassCtrl.clear();
         });
       },
       child: Scaffold(
@@ -423,6 +820,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _imageBytes = null;
                   _imageExt = null;
                   _hasChanges = false;
+                  _showPasswordSection = false;
+                  _newPassCtrl.clear();
+                  _confirmPassCtrl.clear();
                 });
               } else {
                 Navigator.of(context).pop();
@@ -585,6 +985,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _buildInfoField(_jabatan, getTxt('role'), Icons.work_outline),
                           _buildInfoField(_lokasi, getTxt('location'), Icons.location_on_outlined),
                           const SizedBox(height: 24),
+                          _buildPasswordSection(),
+                          const SizedBox(height: 16),
                           if (_isEditMode)
                             SizedBox(
                               width: double.infinity,
