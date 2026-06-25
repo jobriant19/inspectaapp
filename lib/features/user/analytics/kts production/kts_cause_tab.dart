@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
-// ─── Konstanta Warna ──────────────────────────────────────────────────────────
 class _C {
   static const primary      = Color(0xFFF59E0B);
   static const primaryDark  = Color(0xFFD97706);
@@ -20,16 +19,16 @@ class _C {
   static const greenLight   = Color(0xFFD1FAE5);
 }
 
-// ─── Daftar Bagian ────────────────────────────────────────────────────────────
+// SECTION LIST
 const List<String> kKtsBagianList = [
   'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
   'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
 ];
 
-// ─── Enum mode filter ─────────────────────────────────────────────────────────
+// ENUM FILTER MODE
 enum _FilterType { bagian, faktor, biaya }
 
-// ─── Model ────────────────────────────────────────────────────────────────────
+// MODEL
 class _BagianStat {
   final String bagian;
   final int jumlah;
@@ -45,7 +44,6 @@ class _FaktorStat {
   const _FaktorStat({required this.id, required this.namaFaktor, required this.jumlah, required this.totalBiaya});
 }
 
-// ─── Main Widget ──────────────────────────────────────────────────────────────
 class KtsPenyebabTab extends StatefulWidget {
   final String lang;
   const KtsPenyebabTab({super.key, required this.lang});
@@ -57,7 +55,6 @@ class KtsPenyebabTab extends StatefulWidget {
 class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   final _db = Supabase.instance.client;
 
-  // ─── i18n ─────────────────────────────────────────────────────────────────
   String _t(String k) => _i18n[widget.lang]?[k] ?? _i18n['ID']![k] ?? k;
   static const _i18n = {
     'ID': {
@@ -140,24 +137,24 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     },
   };
 
-  // ─── State filter waktu ───────────────────────────────────────────────────
+  // TIME FILTER STATE
   int _monthIdx  = DateTime.now().month - 1;
   String _mode   = 'monthly';
   DateTime? _selDate;
   late List<String> _months;
 
-  // ─── State filter type ────────────────────────────────────────────────────
+  // FILTER TYPE STATE
   _FilterType? _activeFilter = _FilterType.bagian;
   String? _subBagian;
   String? _subFaktorId;
 
-  // ─── State chart ─────────────────────────────────────────────────────────
+  // CHART STATE
   bool _chartExpanded = false;
 
-  // ─── Sub-filter untuk KTS Cost (bagian / faktor) ──────────────────────────
-  String _biayaSubFilter = 'faktor'; // 'faktor' | 'bagian'
+  // KTS COST SUB FILTER
+  String _biayaSubFilter = 'faktor';
 
-  // ─── State data ───────────────────────────────────────────────────────────
+  // DATA STATE
   bool _loading = false;
   List<_BagianStat> _bagianStats = [];
   List<_FaktorStat> _faktorStats = [];
@@ -166,10 +163,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   // ignore: unused_field
   int _totalKts = 0;
 
-  /// Faktor master dari subkategoritemuan WHERE kategoritemuan.nama = 'KTS Produksi'
   List<Map<String, dynamic>> _faktorMaster = [];
 
-  // ─── Lifecycle ───────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
@@ -188,10 +183,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     _months = List.generate(12, (i) => DateFormat.MMM(locale).format(DateTime(2000, i + 1)));
   }
 
-  /// Ambil subkategoritemuan dari kategori 'KTS Produksi'
   Future<void> _loadFaktorMaster() async {
     try {
-      // Cari id_kategoritemuan dengan nama 'KTS Produksi'
       final katRes = await _db
           .from('kategoritemuan')
           .select('id_kategoritemuan')
@@ -214,7 +207,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     }
   }
 
-  // ─── Date Range ──────────────────────────────────────────────────────────
+  // DATE RANGE
   (DateTime, DateTime) _dateRange() {
     if (_mode == 'daily' && _selDate != null) {
       final d = _selDate!;
@@ -225,14 +218,11 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     return (DateTime(y, m, 1), DateTime(y, m + 1, 0, 23, 59, 59));
   }
 
-  // ─── Load Data ────────────────────────────────────────────────────────────
+  // LOAD DATA
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
       final (start, end) = _dateRange();
-
-      // Query temuan KTS Production yang sudah ada penyelesaian
-      // JOIN penyelesaian, ambil bagian & id_subkategoritemuan_penyebab
       final res = await _db
           .from('temuan')
           .select('''
@@ -254,8 +244,6 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           .not('id_penyelesaian', 'is', null);
 
       final rows = List<Map<String, dynamic>>.from(res);
-
-      // Apply sub-filter
       final filtered = rows.where((r) {
         final p = r['penyelesaian'] as Map<String, dynamic>?;
         if (p == null) return false;
@@ -265,13 +253,10 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         return true;
       }).toList();
 
-      // ── Akumulasi Bagian ──
       final Map<String, ({int n, double biaya})> bagMap = {
         for (final b in kKtsBagianList) b: (n: 0, biaya: 0.0),
       };
 
-      // ── Akumulasi Faktor (dari subkategoritemuan) ──
-      // Inisialisasi semua faktor master dengan n=0
       final Map<String, ({String nama, int n, double biaya})> faktMap = {
         for (final f in _faktorMaster)
           f['id_subkategoritemuan'].toString(): (
@@ -289,19 +274,18 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         final faktorNama = subkat?['nama_subkategoritemuan'] as String? ?? '';
         final faktorId   = p['id_subkategoritemuan_penyebab']?.toString() ?? '';
 
-        // Bagian
+        // SECTION
         if (bagian.isNotEmpty && kKtsBagianList.contains(bagian)) {
           final cur = bagMap[bagian]!;
           bagMap[bagian] = (n: cur.n + 1, biaya: cur.biaya + biaya);
         }
 
-        // Faktor
+        // FACTOR
         if (faktorId.isNotEmpty) {
           final cur = faktMap[faktorId];
           if (cur != null) {
             faktMap[faktorId] = (nama: cur.nama, n: cur.n + 1, biaya: cur.biaya + biaya);
           } else if (faktorNama.isNotEmpty) {
-            // Faktor ada di DB tapi belum di master (edge case)
             faktMap[faktorId] = (nama: faktorNama, n: 1, biaya: biaya);
           }
         }
@@ -342,10 +326,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     }
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // PICKERS (sama persis dengan versi lama — tidak ada perubahan)
-  // ──────────────────────────────────────────────────────────────────────────
-
+  // FILTER PICKERS
   void _showMonthPicker() async {
     String tmpMode   = _mode;
     int tmpMonthIdx  = _monthIdx;
@@ -669,9 +650,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
   // FILTER BAR
-  // ──────────────────────────────────────────────────────────────────────────
   Widget _buildFilterBar() {
     final locale = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
     final periodLabel = _mode == 'daily' && _selDate != null
@@ -710,7 +689,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: Row(children: [
-        // ── Tombol Periode ──
+        // PERIOD BUTTON
         _filterBtn(
           label: periodLabel,
           active: true,
@@ -720,7 +699,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         ),
         const SizedBox(width: 6),
 
-        // ── Tombol Select View ──
+        // SELECT VIEW BUTTON
         Expanded(
           flex: showBiayaSub ? 2 : 3,
           child: GestureDetector(
@@ -765,7 +744,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           ),
         ),
 
-        // ── Sub-filter: hanya untuk Bagian/Faktor (non-biaya) ──
+        // SUB FILTER
         if (subAction != null) ...[
           const SizedBox(width: 6),
           GestureDetector(
@@ -805,7 +784,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           ),
         ],
 
-        // ── Sub-filter KTS Cost: Faktor / Bagian ──
+        // KTS COST SUB FILTER
         if (showBiayaSub) ...[
           const SizedBox(width: 6),
           Expanded(
@@ -904,9 +883,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
   // CHART TOGGLE HEADER
-  // ──────────────────────────────────────────────────────────────────────────
   Widget _buildChartToggle() {
     final locale = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
     final lbl = _mode == 'daily' && _selDate != null
@@ -934,14 +911,10 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // CHART — Horizontal bar sesuai gambar 3
-  // ──────────────────────────────────────────────────────────────────────────
   Widget _buildChart() {
     if (_loading) return _shimmerBox(180);
 
     if (_activeFilter == _FilterType.biaya) {
-      // Rows sesuai sub-filter biaya
       final sourceStats = _biayaSubFilter == 'faktor' ? _faktorStats : _bagianStats;
       final rows = sourceStats.map((s) {
         final biayaJuta = s is _FaktorStat
@@ -951,7 +924,6 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         return _ChartRow(label: label, value: biayaJuta);
       }).toList();
 
-      // Total hanya dari rows yang value > 0 (sesuai tabel)
       final totalBiayaChart = sourceStats.fold(0.0, (sum, s) {
         final b = s is _FaktorStat ? s.totalBiaya : (s as _BagianStat).totalBiaya;
         return sum + b;
@@ -977,7 +949,6 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     }
   }
 
-  /// Chart horizontal bar persis seperti gambar 3
   Widget _buildHorizontalBarChart({
     required String title,
     required List<_ChartRow> rows,
@@ -1037,7 +1008,6 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                               width: barWidth.clamp(0.0, constraints.maxWidth),
                               decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
                             ),
-                            // Angka di tengah bar
                             SizedBox(
                               height: 22,
                               width: constraints.maxWidth,
@@ -1129,7 +1099,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header
+                // HEADER
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
                   decoration: BoxDecoration(
@@ -1164,13 +1134,13 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                   ]),
                 ),
 
-                // Isi
+                // CONTENT
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Nama faktor/bagian
+                      // FACTOR/SECTION NAME
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1191,7 +1161,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Row: Juta Rupiah
+                      // MILION IDR ROW
                       _detailRow(
                         icon: Icons.bar_chart_rounded,
                         color: _C.orange,
@@ -1202,7 +1172,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                       ),
                       const SizedBox(height: 8),
 
-                      // Row: Nominal Rp
+                      // Rp ROW
                       _detailRow(
                         icon: Icons.account_balance_wallet_rounded,
                         color: _C.green,
@@ -1241,7 +1211,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header ──
+          // HEADER
           Row(children: [
             Expanded(
               child: Center(
@@ -1264,11 +1234,9 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           ]),
           const SizedBox(height: 8),
 
-          // ── Chart area ──
+          // CHART AREA
           LayoutBuilder(builder: (ctx, constraints) {
-            // Bar area = total width - label kiri - gap - sisa untuk nilai+bar kanan
-            // Kita sisakan ruang kanan untuk angka nilai inline
-            const double rightPad = 48.0; // ruang angka di kanan bar
+            const double rightPad = 48.0;
             final double barAreaW = constraints.maxWidth - labelW - 6 - rightPad;
 
             final List<double> tX = axisVals
@@ -1278,7 +1246,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Label sumbu X ──
+                // LABEL X
                 SizedBox(
                   height: 14,
                   child: Row(children: [
@@ -1314,7 +1282,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 ),
                 const SizedBox(height: 2),
 
-                // ── Garis atas ──
+                // TOP LINE
                 Row(children: [
                   SizedBox(width: labelW + 6),
                   Container(width: barAreaW, height: 1, color: const Color(0xFFE2E8F0)),
@@ -1322,7 +1290,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 ]),
                 const SizedBox(height: 4),
 
-                // ── Baris data ──
+                // DATA LINE
                 ...sorted.map((row) {
                   final frac     = axisMax > 0 ? (row.value / axisMax).clamp(0.0, 1.0) : 0.0;
                   final isZero   = row.value == 0;
@@ -1338,7 +1306,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            // Label kiri
+                            // LEFT LABEL
                             SizedBox(
                               width: labelW,
                               child: Text(
@@ -1356,12 +1324,11 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                             ),
                             const SizedBox(width: 6),
 
-                            // Bar + angka inline langsung setelah bar
                             Expanded(
                               child: Stack(
                                 clipBehavior: Clip.none,
                                 children: [
-                                  // Bar (CustomPaint)
+                                  // CUSTOM PAINT BAR
                                   Positioned.fill(
                                     child: CustomPaint(
                                       painter: _BiayaBarPainter(
@@ -1375,7 +1342,6 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                                     ),
                                   ),
 
-                                  // Angka tepat di sebelah kanan ujung bar
                                   if (!isZero)
                                     Positioned(
                                       left: barWidth + 4,
@@ -1404,7 +1370,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 }),
 
                 const SizedBox(height: 4),
-                // ── Garis bawah ──
+                // BOTTOM LINE
                 Row(children: [
                   SizedBox(width: labelW + 6),
                   Container(width: barAreaW, height: 1, color: const Color(0xFFE2E8F0)),
@@ -1416,7 +1382,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
 
           const SizedBox(height: 10),
 
-          // ── Total biaya ──
+          // COST TOTAL
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -1448,9 +1414,6 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // TABEL — sesuai gambar 2
-  // ──────────────────────────────────────────────────────────────────────────
   Widget _buildTableBagian() {
     final stats    = _bagianStats;
     final total    = stats.fold(0, (s, e) => s + e.jumlah);
@@ -1522,7 +1485,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  // ─── Tabel helpers ────────────────────────────────────────────────────────
+  // TABLE HELPERS
   Widget _tableHeader(List<String> cols, List<int> flexes, Color bg, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -1571,7 +1534,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
+  // HELPERS
   String _formatRp(double v) {
     if (v == 0) return 'Rp0';
     return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp', decimalDigits: 0).format(v);
@@ -1630,19 +1593,14 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
   // BUILD
-  // ──────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      // ── Filter bar: STICKY (tidak scroll) ──
       _buildFilterBar(),
-
-      // ── Chart toggle button: STICKY ──
       _buildChartToggle(),
 
-      // ── Konten utama: chart + tabel scroll bersama ──
+      // MAIN CONTENT: CHART + TABLE
       Expanded(
         child: RefreshIndicator(
           onRefresh: _loadData,
@@ -1650,14 +1608,11 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           child: ListView(
             padding: const EdgeInsets.only(bottom: 24),
             children: [
-              // Chart (muncul/sembunyi lewat AnimatedSize, ikut scroll)
               AnimatedSize(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
                 child: _chartExpanded ? _buildChart() : const SizedBox.shrink(),
               ),
-
-              // Tabel sesuai filter
               if (_loading)
                 _buildShimmerList()
               else if (_activeFilter == _FilterType.faktor) ...[
@@ -1672,7 +1627,6 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                   _buildTableFaktor(),
                 ],
               ] else ...[
-                // default: Cause Section (bagian)
                 _sectionTitle(_t('bagian_penyebab'), _C.blue, Icons.grid_view_rounded),
                 _buildTableBagian(),
               ],
@@ -1694,7 +1648,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   }
 }
 
-// ─── Data model chart ─────────────────────────────────────────────────────────
+// DATA MODEL CHART
 class _ChartRow {
   final String label;
   final double value;
@@ -1723,8 +1677,6 @@ class _BiayaBarPainter extends CustomPainter {
     final tickPaint = Paint()
       ..color = const Color(0xFFE2E8F0)
       ..strokeWidth = 1;
-
-    // Garis tick vertikal saja — TANPA background overlay
     for (int i = 1; i < tX.length; i++) {
       canvas.drawLine(
         Offset(tX[i], 0),
@@ -1732,8 +1684,6 @@ class _BiayaBarPainter extends CustomPainter {
         tickPaint,
       );
     }
-
-    // Bar orange
     if (!isZero && barWidth > 0) {
       final barPaint = Paint()..color = barColor;
       canvas.drawRRect(
