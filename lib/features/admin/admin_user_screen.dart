@@ -38,6 +38,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   List<Map<String, dynamic>> _allUnitFilter = [];
   List<Map<String, dynamic>> _allSubunitFilter = [];
   List<Map<String, dynamic>> _allAreaFilter = [];
+  // ignore: unused_field
   bool _filterDataLoaded = false;
 
   final Map<String, int> _monthlyPoints = {};
@@ -661,6 +662,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     String? selectedSubunitId = user?['id_subunit'] as String?;
     String? selectedAreaId = user?['id_area'] as String?;
     String? selectedSupervisorId = user?['id_supervisor'] as String?;
+    String? _selectedBagianKasie = user?['bagian_kasie'] as String?;
     List<Map<String, dynamic>> supervisorList = [];
 
     List<Map<String, dynamic>> lokasiList = [];
@@ -737,15 +739,15 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             loadLokasi(setDlg).then((_) {
               if (isEdit && selectedLokasiId != null) {
                 loadUnit(selectedLokasiId!, setDlg).then((_) {
-                  setDlg(() => selectedUnitId = user?['id_unit'] as String?);
+                  setDlg(() => selectedUnitId = user['id_unit'] as String?);
                   if (selectedUnitId != null) {
                     loadSubunit(selectedUnitId!, setDlg).then((_) {
                       setDlg(() =>
-                          selectedSubunitId = user?['id_subunit'] as String?);
+                          selectedSubunitId = user['id_subunit'] as String?);
                       if (selectedSubunitId != null) {
                         loadArea(selectedSubunitId!, setDlg).then((_) {
                           setDlg(() =>
-                              selectedAreaId = user?['id_area'] as String?);
+                              selectedAreaId = user['id_area'] as String?);
                         });
                       }
                     });
@@ -1084,6 +1086,60 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                             onChanged: (v) =>
                                 setDlg(() => selectedJabatan = v),
                           ),
+                          // ── Bagian Kasie (hanya jika jabatan = 3) ──
+                          if (selectedJabatan == 3) ...[
+                            const SizedBox(height: 14),
+                            _buildDlgLabel(widget.lang == 'EN'
+                                ? 'Kasie Section'
+                                : widget.lang == 'ZH'
+                                    ? '科长部门'
+                                    : 'Bagian Kasie'),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String?>(
+                                  value: (user?['bagian_kasie'] as String?),
+                                  isExpanded: true,
+                                  dropdownColor: Colors.white,
+                                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black45),
+                                  hint: Text(
+                                    widget.lang == 'EN' ? 'Select section'
+                                        : widget.lang == 'ZH' ? '选择部门' : 'Pilih bagian',
+                                    style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+                                  ),
+                                  items: [
+                                    DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text(
+                                        widget.lang == 'EN' ? '— No section —'
+                                            : widget.lang == 'ZH' ? '— 无部门 —' : '— Tanpa bagian —',
+                                        style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+                                      ),
+                                    ),
+                                    ...const [
+                                      'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
+                                      'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
+                                    ].map((b) => DropdownMenuItem<String?>(
+                                      value: b,
+                                      child: Text(b,
+                                        style: GoogleFonts.poppins(
+                                            color: const Color(0xFF1E3A8A), fontSize: 13)),
+                                    )),
+                                  ],
+                                  onChanged: (v) => setDlg(() {
+                                    // Simpan ke variabel lokal — perlu deklarasi di _showUserDialog
+                                    _selectedBagianKasie = v;
+                                  }),
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 20),
 
                           _buildDivider(),
@@ -1386,6 +1442,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                       idSubunit: selectedSubunitId,
                                       idArea: selectedAreaId,
                                       idSupervisor: selectedSupervisorId,
+                                      bagianKasie: selectedJabatan == 3 ? _selectedBagianKasie : null,
                                     );
                                     if (ctx.mounted) Navigator.pop(ctx);
                                   },
@@ -1493,6 +1550,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     String? idSubunit,
     String? idArea,
     String? idSupervisor,
+    String? bagianKasie,
   }) async {
     if (nama.isEmpty || email.isEmpty) {
       _showSnack(
@@ -1517,6 +1575,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           'id_subunit': idSubunit,
           'id_area': idArea,
           'id_supervisor': idSupervisor,
+          'bagian_kasie': bagianKasie,
         };
 
         // Jika password diisi, update juga password

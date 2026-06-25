@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'kts_cause_tab.dart';
+import 'kts_kasie_tab.dart';
 import 'kts_members_tab.dart';
 import 'kts_recurring_tab.dart';
 
@@ -30,7 +31,7 @@ class _KTSAnalyticsTabState extends State<KTSAnalyticsTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -39,12 +40,13 @@ class _KTSAnalyticsTabState extends State<KTSAnalyticsTab>
     super.dispose();
   }
 
-  // KTS TAB BAR: MEMBERS, CAUSE, RECURRING FINDINGS
+  // KTS TAB BAR: MEMBERS, CAUSE, KASIE, RECURRING FINDINGS
   Widget _buildKTSTabBar() {
     final tabLabels = [
       widget.lang == 'ID' ? 'Anggota' : widget.lang == 'ZH' ? '成员' : 'Members',
       widget.lang == 'ID' ? 'Penyebab' : widget.lang == 'ZH' ? '原因' : 'Cause',
-      widget.lang == 'ID' ? 'Temuan Berulang' : widget.lang == 'ZH' ? '重复发现' : 'Recurring Findings',
+      widget.lang == 'ID' ? 'Kasi' : widget.lang == 'ZH' ? '科长' : 'Kasie',
+      widget.lang == 'ID' ? 'Temuan Berulang' : widget.lang == 'ZH' ? '重复发现' : 'Recurring KTS',
     ];
     final activeColor = _KTSAppColors.primary;
 
@@ -68,11 +70,11 @@ class _KTSAnalyticsTabState extends State<KTSAnalyticsTab>
           indicatorSize: TabBarIndicatorSize.tab,
           labelColor: Colors.white,
           unselectedLabelColor: activeColor,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11.5),
+          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 10.5),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 10.5),
           dividerColor: Colors.transparent,
           overlayColor: WidgetStateProperty.all(Colors.transparent),
-          tabs: tabLabels.map((t) => Tab(child: Text(t))).toList(),
+          tabs: tabLabels.map((t) => Tab(child: Text(t, textAlign: TextAlign.center))).toList(),
         ),
       ),
     );
@@ -90,6 +92,7 @@ class _KTSAnalyticsTabState extends State<KTSAnalyticsTab>
             children: [
               KtsMembersTab(lang: widget.lang, userId: widget.userId),
               KtsPenyebabTab(lang: widget.lang),
+              KtsKasieTab(lang: widget.lang),
               KtsRecurringTab(lang: widget.lang),
             ],
           ),
