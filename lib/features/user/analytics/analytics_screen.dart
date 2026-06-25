@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '5r findings/analytics_5r_tab.dart';
 import 'kts production/analytics_kts_tab.dart';
-import 'analytics_accident_tab.dart';
+import 'accident report/analytics_accident_tab.dart';
 
 // MAIN SCREEN
 class AnalyticsScreen extends StatefulWidget {
