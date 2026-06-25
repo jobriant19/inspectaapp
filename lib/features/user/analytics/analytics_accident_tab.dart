@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../core/services/gemini_recurring_service.dart';
+import 'accident report/accident_location_tab.dart';
 import 'accident report/accident_members_tab.dart';
 
 class _C {
@@ -16,13 +17,6 @@ class _C {
   static const amber           = Color(0xFFF59E0B);
   static const green           = Color(0xFF10B981);
   static const orange          = Color(0xFFF97316);
-}
-
-class _LocationData {
-  final String name;
-  final String pic;
-  final String? value;
-  const _LocationData({required this.name, required this.pic, this.value});
 }
 
 // ─── Widget utama ─────────────────────────────────────────────────────────────
@@ -61,9 +55,9 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   bool _isChartLoadingForTab = false;
 
   // ── Data futures ─────────────────────────────────────────────────────────────
-  Future<List<_LocationData>>?         _locationFuture;
   Future<List<Map<String, dynamic>>>?  _recurringFuture;
   final _membersTabKey = GlobalKey<AccidentMembersTabState>();
+  final _locationTabKey = GlobalKey<AccidentLocationTabState>();
 
   // ── Unit list (untuk grup filter) ────────────────────────────────────────────
   List<Map<String, dynamic>> _unitList = [];
@@ -117,18 +111,8 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
 
   void _fetchAll({bool fromTabFilter = false}) {
     if (!fromTabFilter) _isChartLoadingForTab = false;
-    final month = _selectedMonthIndex + 1;
-    final year  = DateTime.now().year;
 
-    setState(() {
-      _lastUpdated = DateTime.now();
-      if (_filterMode == 'daily' && _selectedDate != null) {
-        _locationFuture = _fetchLocationDaily(_selectedDate!, _levelBackend);
-      } else {
-        _locationFuture = _fetchLocation(month, year, _levelBackend);
-      }
-      _recurringFuture = _fetchRecurring();
-    });
+    setState(() => _lastUpdated = DateTime.now());
 
     _membersTabKey.currentState?.fetchData(
       filterMode:         _filterMode,
@@ -136,6 +120,15 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
       selectedDate:       _selectedDate,
       selectedUnitId:     _selectedUnitId,
     );
+
+    _locationTabKey.currentState?.fetchData(
+      filterMode:         _filterMode,
+      selectedMonthIndex: _selectedMonthIndex,
+      selectedDate:       _selectedDate,
+      levelBackend:       _levelBackend,
+    );
+
+    setState(() => _recurringFuture = _fetchRecurring());
   }
 
   void _onTabChanged() {
@@ -155,76 +148,6 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   String get _levelBackend {
     final idx = _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3);
     return _levelBackends[idx];
-  }
-
-  // ─── Location (monthly) ─────────────────────────────────────────────────────
-  Future<List<_LocationData>> _fetchLocation(int month, int year, String level) async {
-    try {
-      final ll = level.toLowerCase();
-      final idCol   = _idColFor(ll);
-      final nameCol = _nameColFor(ll);
-
-      final List<dynamic> locations = await _supabase.from(ll).select('$idCol, $nameCol');
-      final List<dynamic> reportRes = await _supabase
-          .from('accident_report')
-          .select(idCol)
-          .gte('created_at', DateTime(year, month, 1).toIso8601String())
-          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String())
-          .not(idCol, 'is', null);
-
-      final Map<String, int> countMap = {};
-      for (final t in reportRes) {
-        final id = t[idCol]?.toString() ?? '';
-        if (id.isEmpty) continue;
-        countMap[id] = (countMap[id] ?? 0) + 1;
-      }
-      final List<dynamic> picRes = await _supabase
-          .from('User').select('$idCol, nama').not(idCol, 'is', null);
-      final Map<String, String> picMap = {};
-      for (final p in picRes) {
-        final locId = p[idCol]?.toString() ?? '';
-        if (locId.isEmpty || picMap.containsKey(locId)) continue;
-        picMap[locId] = p['nama']?.toString() ?? 'PIC belum diatur';
-      }
-      return locations.map<_LocationData>((loc) {
-        final id = loc[idCol]?.toString() ?? '';
-        return _LocationData(
-          name:  loc[nameCol]?.toString() ?? '-',
-          pic:   picMap[id] ?? 'PIC belum diatur',
-          value: (countMap[id] ?? 0).toString(),
-        );
-      }).toList()
-        ..sort((a, b) => (int.tryParse(b.value ?? '0') ?? 0)
-            .compareTo(int.tryParse(a.value ?? '0') ?? 0));
-    } catch (e) { return []; }
-  }
-
-  // ─── Location (daily) ───────────────────────────────────────────────────────
-  Future<List<_LocationData>> _fetchLocationDaily(DateTime date, String level) async {
-    try {
-      final start = DateTime(date.year, date.month, date.day);
-      final end   = DateTime(date.year, date.month, date.day, 23, 59, 59);
-      final ll    = level.toLowerCase();
-      final idCol   = _idColFor(ll);
-      final nameCol = _nameColFor(ll);
-      final locations  = await _supabase.from(ll).select('$idCol, $nameCol');
-      final reportList = await _supabase.from('accident_report').select(idCol)
-          .gte('created_at', start.toIso8601String())
-          .lte('created_at', end.toIso8601String());
-      final Map<String, int> countMap = {};
-      for (final t in reportList) {
-        final id = t[idCol]?.toString() ?? '';
-        if (id.isEmpty) continue;
-        countMap[id] = (countMap[id] ?? 0) + 1;
-      }
-      return (locations as List<dynamic>).map((loc) => _LocationData(
-        name:  loc[nameCol]?.toString() ?? '-',
-        pic:   '-',
-        value: (countMap[loc[idCol]?.toString() ?? ''] ?? 0).toString(),
-      )).toList()
-        ..sort((a, b) => (int.tryParse(b.value ?? '0') ?? 0)
-            .compareTo(int.tryParse(a.value ?? '0') ?? 0));
-    } catch (e) { return []; }
   }
 
   // ─── Recurring ──────────────────────────────────────────────────────────────
@@ -263,10 +186,6 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
       }).toList();
     } catch (e) { return []; }
   }
-
-  // ─── Column helpers ─────────────────────────────────────────────────────────
-  String _idColFor(String ll)   => {'lokasi':'id_lokasi','unit':'id_unit','subunit':'id_subunit','area':'id_area'}[ll] ?? 'id_lokasi';
-  String _nameColFor(String ll) => {'lokasi':'nama_lokasi','unit':'nama_unit','subunit':'nama_subunit','area':'nama_area'}[ll] ?? 'nama_lokasi';
 
   // ─── i18n helper ────────────────────────────────────────────────────────────
   String _t(String id, String en, String zh) {
@@ -416,20 +335,27 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
 
   // ─── Location pie chart ───────────────────────────────────────────────────────
   Widget _buildLocationPieChart() {
-    return FutureBuilder<List<_LocationData>>(
-      future: _locationFuture,
+    final future = _locationTabKey.currentState?.currentFuture;
+    if (future == null) return _buildChartShimmer();
+    return FutureBuilder<List<LocationData>>(
+      future: future,
       builder: (_, snap) {
-        if (snap.connectionState == ConnectionState.waiting) return _buildChartShimmer();
-        final data        = snap.data ?? [];
-        final totalAll    = data.fold<int>(0, (s, l) => s + (int.tryParse(l.value ?? '0') ?? 0));
-        final topCount    = data.isNotEmpty ? (int.tryParse(data.first.value ?? '0') ?? 0) : 0;
-        final others      = totalAll - topCount;
+        if (snap.connectionState == ConnectionState.waiting) {
+          return _buildChartShimmer();
+        }
+        final data     = snap.data ?? [];
+        final totalAll = data.fold<int>(
+            0, (s, l) => s + (int.tryParse(l.value ?? '0') ?? 0));
+        final topCount = data.isNotEmpty
+            ? (int.tryParse(data.first.value ?? '0') ?? 0) : 0;
+        final others   = totalAll - topCount;
         return _buildPieChart(
           totalPrimary:   topCount,
           totalSecondary: others,
           colorPrimary:   _C.red,
           colorSecondary: _C.orange,
-          labelPrimary:   data.isNotEmpty ? data.first.name : _t('Teratas', 'Top', '最高'),
+          labelPrimary:   data.isNotEmpty
+              ? data.first.name : _t('Teratas', 'Top', '最高'),
           labelSecondary: _t('Lokasi Lainnya', 'Other Locations', '其他位置'),
           iconPrimary:    Icons.location_on_rounded,
           iconSecondary:  Icons.more_horiz_rounded,
@@ -606,83 +532,28 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   //  TAB: LOCATION
   // ════════════════════════════════════════════════════════════════════════════
   Widget _buildLocationTab() {
-    return Column(children: [
-      Container(
-        color: Colors.transparent,
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child: Row(children: [
+    return AccidentLocationTab(
+      key:                      _locationTabKey,
+      lang:                     widget.lang,
+      filterMode:               _filterMode,
+      selectedMonthIndex:       _selectedMonthIndex,
+      selectedDate:             _selectedDate,
+      selectedLocationLevel:    _selectedLocationLevel,
+      translatedLocationLevels: _translatedLocationLevels,
+      levelBackends:            _levelBackends,
+      lastUpdatedText:          _lastUpdatedText,
+      buildFilterBtn: ({
+        required String    label,
+        required VoidCallback onTap,
+        IconData           icon     = Icons.keyboard_arrow_down_rounded,
+        bool               isActive = false,
+      }) =>
           _buildFilterBtn(
-            label: _filterMode == 'daily' && _selectedDate != null
-                ? DateFormat('d MMM yyyy',
-                    widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
-                    .format(_selectedDate!)
-                : _translatedMonths[_selectedMonthIndex],
-            isActive: true,
-            onTap: () => _showMonthPicker(() => _fetchAll(fromTabFilter: true)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: _buildFilterBtn(
-            label: _selectedLocationLevel,
-            onTap: _showLevelPicker,
-          )),
-        ]),
+              label: label, onTap: onTap, icon: icon, isActive: isActive),
+      showMonthPicker: (_) => _showMonthPicker(
+        () => _fetchAll(fromTabFilter: true),
       ),
-      _buildLastUpdated(),
-      _buildTableHeader([
-        _t('Rank', 'Rank', '排名'),
-        _t('Lokasi', 'Location', '位置'),
-        _t('Laporan', 'Reports', '报告'),
-      ], flex: [1, 3, 1], isLocation: true),
-      Expanded(child: _locationFuture == null
-          ? _buildLocationShimmer()
-          : FutureBuilder<List<_LocationData>>(
-              future: _locationFuture,
-              builder: (_, snap) {
-                if (snap.connectionState == ConnectionState.waiting) return _buildLocationShimmer();
-                final list = snap.data ?? [];
-                if (list.isEmpty) {
-                  return Center(child: Text(
-                    _t('Tidak ada data lokasi.', 'No location data.', '没有位置数据。'),
-                    style: const TextStyle(color: _C.textSecondary)));
-                }
-                return ListView.separated(
-                  padding: EdgeInsets.zero,
-                  itemCount: list.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1, color: _C.divider, indent: 16),
-                  itemBuilder: (_, i) => _buildLocationRow(i + 1, list[i]),
-                );
-              },
-            )),
-    ]);
-  }
-
-  Widget _buildLocationRow(int rank, _LocationData loc) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: [
-        SizedBox(width: 40, child: Text('$rank', textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: _C.textSecondary, fontWeight: FontWeight.w500))),
-        Expanded(flex: 3, child: Row(children: [
-          Container(
-            width: 38, height: 38,
-            decoration: BoxDecoration(
-                color: _C.red.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.location_city_rounded, color: _C.red, size: 20)),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(loc.name, style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w600, color: _C.textPrimary),
-                overflow: TextOverflow.ellipsis),
-            Text(loc.pic, style: const TextStyle(fontSize: 11.5, color: _C.textSecondary),
-                overflow: TextOverflow.ellipsis),
-          ])),
-        ])),
-        SizedBox(width: 70, child: Text(loc.value ?? '0', textAlign: TextAlign.center,
-            style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w600,
-                color: (int.tryParse(loc.value ?? '0') ?? 0) > 0 ? _C.red : _C.textMuted))),
-      ]),
+      showLevelPicker: _showLevelPicker,
     );
   }
 
@@ -821,18 +692,6 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  //  SHARED UI HELPERS
-  // ════════════════════════════════════════════════════════════════════════════
-
-  Widget _buildLastUpdated() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Text(_lastUpdatedText,
-          style: const TextStyle(fontSize: 11, color: _C.textSecondary, height: 1.4)),
-    );
-  }
-
   Widget _buildFilterBtn({
     required String label,
     required VoidCallback onTap,
@@ -866,61 +725,6 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
     );
   }
 
-  Widget _buildTableHeader(List<String> cols, {required List<int> flex, bool isLocation = false}) {
-    return Container(
-      color: const Color(0xFFF8FAFF),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: isLocation
-          ? Row(children: [
-              SizedBox(width: 40, child: Text(cols[0], textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                      color: _C.textSecondary, letterSpacing: 0.2))),
-              Expanded(flex: 3, child: Text(cols[1], textAlign: TextAlign.left,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                      color: _C.textSecondary, letterSpacing: 0.2))),
-              SizedBox(width: 70, child: Text(cols[2], textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                      color: _C.textSecondary, letterSpacing: 0.2))),
-            ])
-          : Row(children: List.generate(cols.length, (i) => Expanded(
-              flex: flex[i],
-              child: Padding(
-                padding: EdgeInsets.only(left: i == 0 ? 44 : 0),
-                child: Text(cols[i],
-                    textAlign: i == 0 ? TextAlign.left : TextAlign.center,
-                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
-                        color: _C.textSecondary, letterSpacing: 0.2)),
-              )))),
-    );
-  }
-
-  Widget _buildLocationShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[200]!, highlightColor: Colors.grey[50]!,
-      child: ListView.separated(
-        padding: EdgeInsets.zero, itemCount: 8,
-        separatorBuilder: (_, __) => const Divider(height: 1, color: _C.divider, indent: 16),
-        itemBuilder: (_, __) => Container(
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(children: [
-            SizedBox(width: 40, child: Center(child: _shimmerBox(height: 14, width: 20))),
-            Expanded(flex: 3, child: Row(children: [
-              _shimmerBox(height: 38, width: 38, borderRadius: 10),
-              const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                _shimmerBox(height: 14, width: double.infinity),
-                const SizedBox(height: 4),
-                _shimmerBox(height: 12, width: 100),
-              ])),
-            ])),
-            SizedBox(width: 70, child: Center(child: _shimmerBox(height: 14, width: 20))),
-          ]),
-        ),
-      ),
-    );
-  }
-
   Widget _buildRecurringShimmer() {
     return Shimmer.fromColors(
       baseColor: Colors.grey[200]!, highlightColor: Colors.grey[50]!,
@@ -932,17 +736,6 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
           height: 80,
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
         ),
-      ),
-    );
-  }
-
-  Widget _shimmerBox({double? width, required double height,
-      bool isCircle = false, double borderRadius = 8}) {
-    return Container(
-      width: width, height: height,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(isCircle ? height / 2 : borderRadius),
       ),
     );
   }
