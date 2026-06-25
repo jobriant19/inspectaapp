@@ -420,12 +420,19 @@ class _Analytics5RTabState extends State<Analytics5RTab>
   }
 
   (int temuan, int selesai) get _activeTabTargets {
+    final bool isHolidayOrWeekend = _filterMode == 'daily' &&
+        _selectedDate != null &&
+        (_targetAnggota == 0 && _targetInspeksi == 0);
+
     switch (_activeTabIndex) {
-      case 0: 
+      case 0:
+        if (isHolidayOrWeekend) return (0, 0);
         return (_chartTargetTemuan, _chartTargetAnggotaSelesai);
-      case 1: 
+      case 1:
+        if (isHolidayOrWeekend) return (0, 0);
         return (_chartTargetPenyelesaian, _chartTargetInspeksiSelesai);
       case 2:
+        if (isHolidayOrWeekend) return (0, 0);
         final levelIdx = _translatedLocationLevels
             .indexOf(_selectedLocationLevel)
             .clamp(0, 3);
@@ -726,22 +733,22 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       final startOfMonth = DateTime(year, month, 1);
       final endOfMonth = DateTime(year, month + 1, 0, 23, 59, 59);
 
-      DateTime startDt, endDt;
       bool isDaily = _filterMode == 'daily' && _selectedDate != null;
+      DateTime startDt, endDt;
       if (isDaily) {
         startDt = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day);
-        endDt = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, 23, 59, 59);
+        endDt   = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, 23, 59, 59);
       } else {
         startDt = startOfMonth;
-        endDt = endOfMonth;
+        endDt   = endOfMonth;
       }
 
       List<_ChartBarData> buildDailyFromTemuan(List<dynamic> res) {
         if (isDaily) {
           return [_ChartBarData(
-            date: _selectedDate!.day,
-            temuan: res.length,
-            penyelesaian: res.where((t) => t['id_penyelesaian'] != null).length,
+            date          : _selectedDate!.day,
+            temuan        : res.length,
+            penyelesaian  : res.where((t) => t['id_penyelesaian'] != null).length,
           )];
         }
         final Map<int, int> temuanMap = {}, selesaiMap = {};
@@ -773,8 +780,9 @@ class _Analytics5RTabState extends State<Analytics5RTab>
               .eq('id_unit', _selectedUnitId!);
           final userIds = usersInUnit.map((u) => u['id_user'].toString()).toList();
           if (userIds.isEmpty) {
-            return List.generate(isDaily ? 1 : daysInMonth,
-                (i) => _ChartBarData(date: isDaily ? _selectedDate!.day : i + 1, temuan: 0, penyelesaian: 0));
+            return isDaily
+                ? [_ChartBarData(date: _selectedDate!.day, temuan: 0, penyelesaian: 0)]
+                : List.generate(daysInMonth, (i) => _ChartBarData(date: i + 1, temuan: 0, penyelesaian: 0));
           }
           query = query.inFilter('id_user', userIds);
         }
@@ -820,16 +828,16 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
         final Map<int, List<double>> dayScores = {};
         for (final a in auditRes) {
-          final dt = DateTime.tryParse(a['tanggal_audit']?.toString() ?? '');
+          final dt    = DateTime.tryParse(a['tanggal_audit']?.toString() ?? '');
           if (dt == null) continue;
           final score = double.tryParse(a['nilai_audit']?.toString() ?? '');
           if (score == null) continue;
           dayScores.putIfAbsent(dt.day, () => []).add(score);
         }
         return List.generate(daysInMonth, (i) {
-          final day = i + 1;
+          final day    = i + 1;
           final scores = dayScores[day] ?? [];
-          final avg = scores.isEmpty
+          final avg    = scores.isEmpty
               ? 0
               : (scores.reduce((a, b) => a + b) / scores.length).round();
           return _ChartBarData(date: day, temuan: avg, penyelesaian: 0);
@@ -842,7 +850,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
         'lokasi': 'id_lokasi', 'unit': 'id_unit',
         'subunit': 'id_subunit', 'area': 'id_area',
       };
-      final idCol = idColMap[levelBackend] ?? 'id_lokasi';
+      final idCol    = idColMap[levelBackend] ?? 'id_lokasi';
       final List<dynamic> res = await _supabase
           .from('temuan')
           .select('created_at, id_penyelesaian, $idCol')
@@ -1014,38 +1022,29 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                           color: _AppColors.primary, strokeWidth: 2)),
                     );
                   }
-                  final data = snapshot.data ?? [];
-                  if (data.isEmpty) {
-                    return Container(
-                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                          color: Colors.white, borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _AppColors.primaryLight)),
-                      child: Center(child: Text(
-                        widget.lang == 'ID' ? 'Tidak ada data grafik'
-                            : widget.lang == 'ZH' ? '暂无图表数据' : 'No chart data',
-                        style: const TextStyle(color: _AppColors.textSecondary, fontSize: 13),
-                      )),
-                    );
-                  }
 
                   final (tTarget, pTarget) = _activeTabTargets;
+                  final data = snapshot.data ?? [];
+
                   int maxVal = math.max(tTarget, pTarget);
                   for (final d in data) {
                     if (d.temuan > maxVal) maxVal = d.temuan;
                     if (d.penyelesaian > maxVal) maxVal = d.penyelesaian;
                   }
-                  maxVal = ((maxVal / 5).ceil() * 5).clamp(5, 9999);
+                  maxVal = ((math.max(maxVal, 5) / 5).ceil() * 5).clamp(5, 9999);
 
-                  const double chartH = 140.0;
+                  const double chartH    = 140.0;
                   const double barGroupW = 28.0;
-                  const double barW = 8.0;
-                  const double leftW = 28.0;
+                  const double barW      = 8.0;
+                  const double leftW     = 36.0;
 
                   double valToY(int v) => chartH - (v / maxVal * chartH).clamp(0.0, chartH);
-                  final yStep = (maxVal / 4).ceil().clamp(1, 99999);
+
+                  final yStep  = (maxVal / 4).ceil().clamp(1, 99999);
                   final yLabels = List.generate(5, (i) => i * yStep);
+
+                  final bool isLocationAuditTab = _activeTabIndex == 2
+                      && !(_filterMode == 'daily' && _selectedDate != null);
 
                   return Container(
                     margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -1056,72 +1055,86 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                       boxShadow: [BoxShadow(color: activeColor.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))],
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      // LEGEND
                       Padding(
-                        padding: const EdgeInsets.only(left: 32, bottom: 8),
-                        child: Builder(builder: (ctx) {
-                          final bool isLocationAuditTab = _activeTabIndex == 2
-                              && !(_filterMode == 'daily' && _selectedDate != null);
-
-                          if (isLocationAuditTab) {
-                            return Wrap(spacing: 12, children: [
-                              _chartLegendItem(colorTemuan,
-                                widget.lang == 'ID' ? 'Rata-rata Nilai Audit'
-                                    : widget.lang == 'ZH' ? '平均审计分数'
-                                    : 'Avg Audit Score'),
-                            ]);
-                          }
-
-                          return Wrap(spacing: 12, children: [
-                            _chartLegendItem(colorTemuan,
-                              widget.lang == 'ID' ? 'Temuan' : 'Findings'),
-                            _chartLegendItem(colorPenyelesaian,
-                              widget.lang == 'ID' ? 'Selesai' : 'Completed'),
-                            if (_activeTabIndex != 3 && _activeTabTargets.$1 > 0) ...[
-                              _chartLegendDash(
-                                const Color(0xFFEF4444),
-                                _activeTabIndex == 0
-                                    ? (widget.lang == 'ID' ? 'Target Anggota' : widget.lang == 'ZH' ? '成员目标' : 'Member Target')
-                                    : _activeTabIndex == 1
-                                        ? (widget.lang == 'ID' ? 'Target Inspeksi' : widget.lang == 'ZH' ? '检查目标' : 'Inspection Target')
-                                        : (widget.lang == 'ID' ? 'Target Lokasi' : widget.lang == 'ZH' ? '位置目标' : 'Location Target'),
-                              ),
-                            ],
-                          ]);
-                        }),
+                        padding: EdgeInsets.only(left: leftW + 4, bottom: 8),
+                        child: isLocationAuditTab
+                            ? Wrap(spacing: 12, children: [
+                                _chartLegendItem(colorTemuan,
+                                  widget.lang == 'ID' ? 'Rata-rata Nilai Audit'
+                                      : widget.lang == 'ZH' ? '平均审计分数'
+                                      : 'Avg Audit Score'),
+                              ])
+                            : Wrap(spacing: 12, children: [
+                                _chartLegendItem(colorTemuan,
+                                  widget.lang == 'ID' ? 'Temuan' : 'Findings'),
+                                _chartLegendItem(colorPenyelesaian,
+                                  widget.lang == 'ID' ? 'Selesai' : 'Completed'),
+                                if (_activeTabIndex != 3 && tTarget > 0)
+                                  _chartLegendDash(
+                                    const Color(0xFFEF4444),
+                                    _activeTabIndex == 0
+                                        ? (widget.lang == 'ID' ? 'Target Anggota' : widget.lang == 'ZH' ? '成员目标' : 'Member Target')
+                                        : _activeTabIndex == 1
+                                            ? (widget.lang == 'ID' ? 'Target Inspeksi' : widget.lang == 'ZH' ? '检查目标' : 'Inspection Target')
+                                            : (widget.lang == 'ID' ? 'Target Lokasi' : widget.lang == 'ZH' ? '位置目标' : 'Location Target'),
+                                  ),
+                                if (_activeTabIndex != 3 && pTarget > 0)
+                                  _chartLegendDash(
+                                    const Color(0xFFF59E0B),
+                                    _activeTabIndex == 0
+                                        ? (widget.lang == 'ID' ? 'Target Anggota Selesai' : widget.lang == 'ZH' ? '成员完成目标' : 'Member Completion Target')
+                                        : _activeTabIndex == 1
+                                            ? (widget.lang == 'ID' ? 'Target Inspeksi Selesai' : widget.lang == 'ZH' ? '检查完成目标' : 'Inspection Completion Target')
+                                            : (widget.lang == 'ID' ? 'Target Selesai' : widget.lang == 'ZH' ? '完成目标' : 'Completion Target'),
+                                  ),
+                              ]),
                       ),
+
+                      // CHART AREA
                       SizedBox(
                         height: chartH + 28,
                         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           SizedBox(
                             width: leftW,
                             height: chartH,
-                            child: Stack(children: yLabels.map((v) {
-                              final yPos = valToY(v);
-                              if (yPos < 0 || yPos > chartH) return const SizedBox.shrink();
-                              return Positioned(
-                                top: yPos - 7, right: 2,
-                                child: Text(
-                                  v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : '$v',
-                                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600,
-                                      color: _AppColors.textSecondary),
-                                ),
-                              );
-                            }).toList()),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: yLabels.map((v) {
+                                final yPos = valToY(v);
+                                if (yPos < 0 || yPos > chartH) return const SizedBox.shrink();
+                                return Positioned(
+                                  top: yPos - 7,
+                                  right: 4,
+                                  left: 0,
+                                  child: Text(
+                                    v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : '$v',
+                                    textAlign: TextAlign.right,
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                      color: _AppColors.textSecondary,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
                           ),
+
+                          // PLOT AREA
                           Expanded(child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: SizedBox(
-                              width: data.length * barGroupW + 8,
+                              width: math.max(data.length * barGroupW + 8, 40),
                               child: Stack(children: [
                                 ...yLabels.map((v) => Positioned(
                                   top: valToY(v), left: 0, right: 0,
                                   child: Container(height: 1, color: _AppColors.divider),
                                 )),
-                                Builder(builder: (context) {
-                                  final (tTarget, pTarget) = _activeTabTargets;
-                                  final showTarget = _activeTabIndex != 3 && tTarget > 0;
-                                  if (!showTarget) return const SizedBox.shrink();
-                                  return Stack(children: [
+
+                                // TARGET LINE
+                                if (_activeTabIndex != 3 && tTarget > 0)
+                                  Stack(children: [
                                     Positioned(
                                       top: valToY(tTarget), left: 0, right: 0,
                                       child: CustomPaint(
@@ -1132,8 +1145,9 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                                       child: CustomPaint(
                                         painter: _DashedLinePainter(const Color(0xFFF59E0B)),
                                         child: const SizedBox(height: 2))),
-                                  ]);
-                                }),
+                                  ]),
+
+                                // CHART BAR
                                 ...data.asMap().entries.map((entry) {
                                   final i = entry.key;
                                   final d = entry.value;
@@ -1141,9 +1155,11 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                                   final tH = (d.temuan / maxVal * chartH).clamp(0.0, chartH);
                                   final pH = (d.penyelesaian / maxVal * chartH).clamp(0.0, chartH);
 
-                                  final dateLabel = DateFormat('d/M',
-                                    widget.lang == 'ID' ? 'id_ID' : 'en_US',
-                                  ).format(DateTime(DateTime.now().year, _selectedMonthIndex + 1, d.date));
+                                  final dateLabel = _filterMode == 'daily' && _selectedDate != null
+                                      ? DateFormat('d/M', widget.lang == 'ID' ? 'id_ID' : 'en_US')
+                                          .format(_selectedDate!)
+                                      : DateFormat('d/M', widget.lang == 'ID' ? 'id_ID' : 'en_US')
+                                          .format(DateTime(DateTime.now().year, _selectedMonthIndex + 1, d.date));
 
                                   return Positioned(
                                     left: x, top: 0,

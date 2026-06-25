@@ -210,8 +210,6 @@ class _State extends State<AdminTarget5rScreen> {
     _view = l;
   }
 
-  // ── CRUD ─────────────────────────────────────────────────────────────────
-
   Future<void> _save({
     required bool isEdit,
     int? id,
@@ -232,24 +230,54 @@ class _State extends State<AdminTarget5rScreen> {
     required bool aktif,
   }) async {
     try {
-      final payload = {
-        'type': type.db,
-        'bulan': bulan,
-        'tahun': tahun,
-        'specific_date': date?.toIso8601String().split('T').first,
-        'target_anggota': a,
-        'target_inspeksi': i,
-        'target_lokasi': l,
-        'target_unit': u,
-        'target_subunit': s,
-        'target_area': ar,
-        'target_anggota_selesai': aSelesai,
-        'target_inspeksi_selesai': iSelesai,
-        'off_day_label': label,
-        'keterangan': ket?.isEmpty == true ? null : ket,
-        'is_aktif': aktif,
-        'updated_at': DateTime.now().toIso8601String(),
+      final Map<String, dynamic> payload = {
+        'type'                    : type.db,
+        'is_aktif'                : aktif,
+        'keterangan'              : ket?.isEmpty == true ? null : ket,
+        'updated_at'              : DateTime.now().toIso8601String(),
       };
+
+      if (type == _T.monthly) {
+        payload['bulan']                    = bulan;
+        payload['tahun']                    = tahun;
+        payload['specific_date']            = null;
+        payload['off_day_label']            = null;
+        payload['target_anggota']           = a;
+        payload['target_inspeksi']          = i;
+        payload['target_lokasi']            = l;
+        payload['target_unit']              = u;
+        payload['target_subunit']           = s;
+        payload['target_area']              = ar;
+        payload['target_anggota_selesai']   = aSelesai;
+        payload['target_inspeksi_selesai']  = iSelesai;
+      } else if (type == _T.daily) {
+        payload['bulan']                    = null;
+        payload['tahun']                    = null;
+        payload['specific_date']            = date?.toIso8601String().split('T').first;
+        payload['off_day_label']            = null;
+        payload['target_anggota']           = a;
+        payload['target_inspeksi']          = i;
+        payload['target_lokasi']            = l;
+        payload['target_unit']              = u;
+        payload['target_subunit']           = s;
+        payload['target_area']              = ar;
+        payload['target_anggota_selesai']   = aSelesai;
+        payload['target_inspeksi_selesai']  = iSelesai;
+      } else {
+        payload['bulan']                    = null;
+        payload['tahun']                    = null;
+        payload['specific_date']            = date?.toIso8601String().split('T').first;
+        payload['off_day_label']            = label;
+        payload['target_anggota']           = 0;
+        payload['target_inspeksi']          = 0;
+        payload['target_lokasi']            = 0;
+        payload['target_unit']              = 0;
+        payload['target_subunit']           = 0;
+        payload['target_area']              = 0;
+        payload['target_anggota_selesai']   = 0;
+        payload['target_inspeksi_selesai']  = 0;
+      }
+
       if (isEdit && id != null) {
         await Supabase.instance.client
             .from('target_5r_findings')
@@ -263,7 +291,8 @@ class _State extends State<AdminTarget5rScreen> {
         _snack(_t('ok_add'));
       }
       _fetch();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Save target error: $e');
       _snack(_t('err'), err: true);
     }
   }
@@ -317,8 +346,6 @@ class _State extends State<AdminTarget5rScreen> {
         margin: const EdgeInsets.all(16),
       ));
 
-  // ── BUILD ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext ctx) => Scaffold(
     backgroundColor: const Color(0xFFF8FAFC),
@@ -346,7 +373,7 @@ class _State extends State<AdminTarget5rScreen> {
   Widget _filterBar() => Container(
     color: Colors.white,
     child: Column(children: [
-      // ── Baris 1: Banner Add Target (gaya admin_user_screen) ──
+      // ADD TARGET BUTTON
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         child: GestureDetector(
@@ -411,11 +438,11 @@ class _State extends State<AdminTarget5rScreen> {
         ),
       ),
 
-      // ── Baris 2: Search bar (dipersempit) + Dropdown status aktif ──
+      // SEARCH BAR + ACTIVE FILTER
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
         child: Row(children: [
-          // Search bar (flex agar proporsional)
+          // SEARCH BAR
           Expanded(
             flex: 3,
             child: TextField(
@@ -443,7 +470,7 @@ class _State extends State<AdminTarget5rScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // Dropdown status aktif/nonaktif
+          // ACTIVE FILTER
           Expanded(
             flex: 2,
             child: Container(
@@ -525,11 +552,11 @@ class _State extends State<AdminTarget5rScreen> {
         ]),
       ),
 
-      // ── Baris 3: 4 filter chip tipe (fill penuh, sejajar dengan baris atas) ──
+      // TYPE FILTER CHIP
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
         child: Row(children: [
-          // Semua
+          // ALL
           Expanded(child: _typeChip(
             _t('alltype'),
             _fType == null,
@@ -538,7 +565,7 @@ class _State extends State<AdminTarget5rScreen> {
             () => setState(() { _fType = null; _filter(); }),
           )),
           const SizedBox(width: 6),
-          // Bulanan
+          // MONTHLY
           Expanded(child: _typeChip(
             _t('monthly'),
             _fType == _T.monthly,
@@ -547,7 +574,7 @@ class _State extends State<AdminTarget5rScreen> {
             () => setState(() { _fType = _T.monthly; _filter(); }),
           )),
           const SizedBox(width: 6),
-          // Harian
+          // DAILY
           Expanded(child: _typeChip(
             _t('daily'),
             _fType == _T.daily,
@@ -556,7 +583,7 @@ class _State extends State<AdminTarget5rScreen> {
             () => setState(() { _fType = _T.daily; _filter(); }),
           )),
           const SizedBox(width: 6),
-          // Hari Libur
+          // OFF DAY
           Expanded(child: _typeChip(
             _t('offDay'),
             _fType == _T.offDay,
@@ -567,7 +594,7 @@ class _State extends State<AdminTarget5rScreen> {
         ]),
       ),
 
-      // ── Info banner saat filter holiday aktif ──
+      // OFF DAY FILTER ACTIVE INFO BANNER
       if (_fType == _T.offDay)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -600,7 +627,7 @@ class _State extends State<AdminTarget5rScreen> {
     ]),
   );
 
-  /// Chip filter tipe — fill penuh dalam Row, warna per tipe
+  // CHIP FILTER TYPE
   Widget _typeChip(
     String label,
     bool sel,
@@ -652,8 +679,7 @@ class _State extends State<AdminTarget5rScreen> {
     );
   }
 
-  // ── TARGET CARD ───────────────────────────────────────────────────────────
-
+  // TARGET CARD
   Widget _card(Map<String, dynamic> item) {
     final type = _TE.from(item['type'] as String? ?? 'monthly');
     final aktif = item['is_aktif'] as bool? ?? true;
@@ -721,7 +747,7 @@ class _State extends State<AdminTarget5rScreen> {
               _statusBadge(aktif),
             ]),
 
-            // OFF DAY: tampilkan label + info (bukan "Tidak ada target")
+            // OFF DAY: LABEL + INFO
             if (type == _T.offDay) ...[
               const SizedBox(height: 10),
               Container(
@@ -765,7 +791,7 @@ class _State extends State<AdminTarget5rScreen> {
               ),
             ],
 
-            // NON-HOLIDAY: tampilkan target grid
+            // NON-HOLIDAY: TARGET GRID
             if (type != _T.offDay) ...[
               const SizedBox(height: 10),
               Wrap(spacing: 8, runSpacing: 6, children: [
@@ -880,11 +906,9 @@ class _State extends State<AdminTarget5rScreen> {
             child: Icon(icon, size: 16, color: c),
           ));
 
-  // ── FORM ──────────────────────────────────────────────────────────────────
-
+  // FORM
   void _showForm({Map<String, dynamic>? item}) {
     final isEdit = item != null;
-    // Edit sekarang bisa ganti type
     _T selType = isEdit
         ? _TE.from(item['type'] as String? ?? 'monthly')
         : _T.monthly;
@@ -980,7 +1004,7 @@ class _State extends State<AdminTarget5rScreen> {
                             ]),
                             const SizedBox(height: 18),
 
-                            // ── TYPE SELECTOR (edit sekarang bisa ganti)
+                            // TYPE SELECTOR
                             Text(_t('type'),
                                 style: GoogleFonts.poppins(
                                     fontSize: 12,
@@ -990,7 +1014,6 @@ class _State extends State<AdminTarget5rScreen> {
                             _buildTypeSelector(
                                 selType, setM, (t) {
                               selType = t;
-                              // Reset field saat type berubah
                               if (t == _T.monthly) {
                                 selBulan = DateTime.now().month;
                                 selTahun = DateTime.now().year;
@@ -1000,7 +1023,7 @@ class _State extends State<AdminTarget5rScreen> {
                             }),
                             const SizedBox(height: 18),
 
-                            // ── MONTHLY: bulan + tahun
+                            // MONTHLY: MONTH + YEAR
                             if (selType == _T.monthly) ...[
                               Row(children: [
                                 Expanded(
@@ -1027,7 +1050,7 @@ class _State extends State<AdminTarget5rScreen> {
                                 cASelesai: cASelesai, cISelesai: cISelesai),
                             ],
 
-                            // ── DAILY / OFF DAY: date picker
+                            // DAILY / OFF DAY: DATE PICKER
                             if (selType != _T.monthly) ...[
                               _styledDatePicker(selDate, ctx,
                                   (p) => setM(() => selDate = p)),
@@ -1040,7 +1063,7 @@ class _State extends State<AdminTarget5rScreen> {
                                 _formFieldStyled(cLbl, _t('label'),
                                     required: false),
                                 const SizedBox(height: 12),
-                                // Info: holiday = no target
+                                // INFO: OFFDAY NO TARGET
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
@@ -1087,7 +1110,7 @@ class _State extends State<AdminTarget5rScreen> {
                                 maxLines: 2),
                             const SizedBox(height: 12),
 
-                            // ── ACTIVE TOGGLE
+                            // ACTIVE TOGGLE
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 14, vertical: 10),
@@ -1135,7 +1158,7 @@ class _State extends State<AdminTarget5rScreen> {
                             ),
                             const SizedBox(height: 20),
 
-                            // ── SAVE BUTTON
+                            // SAVE BUTTON
                             SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
@@ -1204,9 +1227,7 @@ class _State extends State<AdminTarget5rScreen> {
     );
   }
 
-  // ── FORM HELPERS ──────────────────────────────────────────────────────────
-
-  /// Type selector styled (semua clickable, termasuk saat edit)
+  // FORM HELPERS
   Widget _buildTypeSelector(
       _T current, StateSetter setM, void Function(_T) onChange) {
     final types = [
@@ -1294,7 +1315,6 @@ class _State extends State<AdminTarget5rScreen> {
                 color: _kGreen)),
       ]);
 
-  /// Styled dropdown bulan
   Widget _styledDropdownMonth(int value, ValueChanged<int?> onChanged) {
     return _StyledDropdown<int>(
       value: value,
@@ -1313,7 +1333,6 @@ class _State extends State<AdminTarget5rScreen> {
     );
   }
 
-  /// Styled dropdown tahun
   Widget _styledDropdownYear(
       int value, List<int> years, ValueChanged<int?> onChanged) {
     return _StyledDropdown<int>(
@@ -1331,7 +1350,6 @@ class _State extends State<AdminTarget5rScreen> {
     );
   }
 
-  /// Styled date picker row
   Widget _styledDatePicker(
       DateTime date, BuildContext ctx, ValueChanged<DateTime> onPick) {
     return GestureDetector(
@@ -1549,8 +1567,6 @@ class _State extends State<AdminTarget5rScreen> {
                     fontWeight: FontWeight.w500)),
           ]));
 }
-
-// ── Styled Dropdown Widget ─────────────────────────────────────────────────────
 
 class _StyledDropdown<T> extends StatelessWidget {
   final T value;
