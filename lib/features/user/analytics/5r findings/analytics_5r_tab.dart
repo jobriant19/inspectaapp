@@ -6,8 +6,9 @@ import 'package:shimmer/shimmer.dart';
 import '../../../../core/services/gemini_recurring_service.dart';
 import '../../finding/finding_detail_screen.dart';
 import '../../home/kts_finding_card.dart';
+import '5r_inspection_tab.dart';
+import '5r_members_tab.dart';
 
-// ─── Warna & Tema ──────────────────────────────────────────────────────────
 class _AppColors {
   static const primary = Color(0xFF0EA5E9);
   static const primaryDark = Color(0xFF0369A1);
@@ -17,41 +18,6 @@ class _AppColors {
   static const textSecondary = Color(0xFF64748B);
   static const textMuted = Color(0xFFBDBDBD);
   static const divider = Color(0xFFE0F2FE);
-  static const selfHighlight = Color(0xFFFFF7ED);
-  static const selfHighlightBorder = Color(0xFFFED7AA);
-}
-
-// ─── Model Data ──────────────────────────────────────────────────────────────
-class MemberData5R {
-  final String name;
-  final String? unitName;
-  final int findings;
-  final int completed;
-  final bool isSelf;
-  final String? avatarUrl;
-  final Color? avatarColor;
-
-  const MemberData5R({
-    required this.name,
-    this.unitName,
-    required this.findings,
-    required this.completed,
-    this.isSelf = false,
-    this.avatarUrl,
-    this.avatarColor,
-  });
-}
-
-class InspectionData5R {
-  final String name;
-  final int findings;
-  final bool isSelf;
-
-  const InspectionData5R({
-    required this.name,
-    required this.findings,
-    this.isSelf = false,
-  });
 }
 
 class LocationData5R {
@@ -237,7 +203,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
   int _activeTabIndex = 0;
 
   // ─── State untuk Data ────────────────────────────────────────────────────
-  Future<List<MemberData5R>>? _anggotaFuture;
+  final _membersTabKey = GlobalKey<FiveRMembersTabState>();
   Future<List<InspectionData5R>>? _inspeksiFuture;
   Future<List<LocationData5R>>? _lokasiFuture;
   Future<List<AuditLocationData5R>>? _auditLokasiFuture;
@@ -468,11 +434,9 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       final year = DateTime.now().year;
 
       if (_filterMode == 'daily' && _selectedDate != null) {
-        _anggotaFuture = _fetchAnggotaDataDaily(_selectedDate!, _selectedUnitId);
         _inspeksiFuture = _fetchInspeksiDataDaily(_selectedDate!, roleBackendValue);
         _lokasiFuture = _fetchLokasiDataDaily(_selectedDate!, levelBackendValue);
       } else {
-        _anggotaFuture = _fetchAnggotaData(month, year, _selectedUnitId);
         _inspeksiFuture = _fetchInspeksiData(month, year, roleBackendValue);
         _lokasiFuture = _fetchLokasiData(month, year, levelBackendValue);
         _auditLokasiFuture = _fetchLokasiAuditData(month, year, levelBackendValue);
@@ -481,6 +445,13 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       _chartRefreshKey++;
       _recurringFuture = _fetchRecurringData();
     });
+
+    _membersTabKey.currentState?.fetchData(
+      filterMode:         _filterMode,
+      selectedMonthIndex: _selectedMonthIndex,
+      selectedDate:       _selectedDate,
+      selectedUnitId:     _selectedUnitId,
+    );
   }
 
   void _onTabChanged() {
@@ -546,63 +517,6 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       _chartFuture = _fetchChartData(month, year);
       _chartRefreshKey++;
     });
-  }
-
-  // ─── Data Fetchers ────────────────────────────────────────────────────────
-
-  Future<List<MemberData5R>> _fetchAnggotaData(int month, int year, String? unitId) async {
-    try {
-      var userQuery = _supabase
-          .from('User')
-          .select('id_user, nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit)');
-      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
-      final List<dynamic> users = await userQuery;
-      if (users.isEmpty) return [];
-
-      final userIds = users.map((u) => u['id_user'].toString()).toList();
-
-      final List<dynamic> temuanRes = await _supabase
-          .from('temuan')
-          .select('id_user, id_penyelesaian')
-          .neq('jenis_temuan', 'KTS Production')
-          .gte('created_at', DateTime(year, month, 1).toIso8601String())
-          .lte('created_at', DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String())
-          .inFilter('id_user', userIds);
-
-      final Map<String, Map<String, int>> stats = {};
-      for (final t in temuanRes) {
-        final uid = t['id_user']?.toString() ?? '';
-        if (uid.isEmpty) continue;
-        stats.putIfAbsent(uid, () => {'temuan': 0, 'selesai': 0});
-        stats[uid]!['temuan'] = stats[uid]!['temuan']! + 1;
-        if (t['id_penyelesaian'] != null) {
-          stats[uid]!['selesai'] = stats[uid]!['selesai']! + 1;
-        }
-      }
-
-      final currentUserId = _supabase.auth.currentUser?.id;
-      final result = users.map((u) {
-        final uid = u['id_user']?.toString() ?? '';
-        final s = stats[uid] ?? {'temuan': 0, 'selesai': 0};
-        return MemberData5R(
-          name: u['nama'] as String? ?? '-',
-          unitName: (u['unit'] as Map<String, dynamic>?)?['nama_unit'] as String?,
-          findings: s['temuan']!,
-          completed: s['selesai']!,
-          isSelf: uid == currentUserId,
-          avatarUrl: u['gambar_user'] as String?,
-          avatarColor: const Color(0xFF0EA5E9),
-        );
-      }).toList()
-        ..sort((a, b) {
-          final c = b.findings.compareTo(a.findings);
-          return c != 0 ? c : a.name.compareTo(b.name);
-        });
-      return result;
-    } catch (e) {
-      debugPrint('Error fetching Anggota: $e');
-      return [];
-    }
   }
 
   Future<List<InspectionData5R>> _fetchInspeksiData(int month, int year, String role) async {
@@ -774,65 +688,6 @@ class _Analytics5RTabState extends State<Analytics5RTab>
         });
     } catch (e) {
       debugPrint('Error fetching audit lokasi: $e');
-      return [];
-    }
-  }
-
-  Future<List<MemberData5R>> _fetchAnggotaDataDaily(DateTime date, String? unitId) async {
-    try {
-      final start = DateTime(date.year, date.month, date.day);
-      final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
-
-      var userQuery = _supabase
-          .from('User')
-          .select('id_user, nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit)');
-      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
-      final List<dynamic> users = await userQuery;
-      if (users.isEmpty) return [];
-
-      final userIds = users.map((u) => u['id_user'].toString()).toList();
-
-      final List<dynamic> temuanRes = await _supabase
-          .from('temuan')
-          .select('id_user, id_penyelesaian')
-          .neq('jenis_temuan', 'KTS Production')
-          .gte('created_at', start.toIso8601String())
-          .lte('created_at', end.toIso8601String())
-          .inFilter('id_user', userIds);
-
-      final Map<String, Map<String, int>> stats = {};
-      for (final t in temuanRes) {
-        final uid = t['id_user']?.toString() ?? '';
-        if (uid.isEmpty) continue;
-        stats.putIfAbsent(uid, () => {'temuan': 0, 'selesai': 0});
-        stats[uid]!['temuan'] = stats[uid]!['temuan']! + 1;
-        if (t['id_penyelesaian'] != null) {
-          stats[uid]!['selesai'] = stats[uid]!['selesai']! + 1;
-        }
-      }
-
-      final currentUserId = _supabase.auth.currentUser?.id;
-      return users
-          .map((u) {
-            final uid = u['id_user']?.toString() ?? '';
-            final s = stats[uid] ?? {'temuan': 0, 'selesai': 0};
-            return MemberData5R(
-              name: u['nama'] as String? ?? '-',
-              unitName: (u['unit'] as Map<String, dynamic>?)?['nama_unit'] as String?,
-              findings: s['temuan']!,
-              completed: s['selesai']!,
-              isSelf: uid == currentUserId,
-              avatarUrl: u['gambar_user'] as String?,
-              avatarColor: const Color(0xFF0EA5E9),
-            );
-          })
-          .toList()
-          ..sort((a, b) {
-            final c = b.findings.compareTo(a.findings);
-            return c != 0 ? c : a.name.compareTo(b.name);
-          });
-    } catch (e) {
-      debugPrint('Error fetching Anggota daily: $e');
       return [];
     }
   }
@@ -1483,170 +1338,56 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
   // ─── Anggota Tab ──────────────────────────────────────────────────────────
   Widget _buildAnggotaTab() {
-    return Column(children: [
-      Container(
-        color: Colors.transparent,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(children: [
+    return FiveRMembersTab(
+      key:                  _membersTabKey,
+      lang:                 widget.lang,
+      filterMode:           _filterMode,
+      selectedMonthIndex:   _selectedMonthIndex,
+      selectedDate:         _selectedDate,
+      selectedUnitId:       _selectedUnitId,
+      unitList:             _unitList,
+      targetAnggota:        _targetAnggota,
+      targetAnggotaSelesai: _chartTargetAnggotaSelesai,
+      lastUpdatedText:      _lastUpdatedText,
+      getTxt:               getTxt,
+      buildFilterBtn: ({
+        required String    label,
+        required VoidCallback onTap,
+        IconData           icon     = Icons.keyboard_arrow_down_rounded,
+        bool               isActive = false,
+      }) =>
           _buildFilterButton(
-            label: _filterMode == 'daily' && _selectedDate != null
-                ? DateFormat('d MMM yyyy',
-                    widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
-                    .format(_selectedDate!)
-                : _translatedMonths[_selectedMonthIndex],
-            isActive: true,
-            onTap: () => _showMonthPicker(() => _fetchAllData(fromTabFilter: true)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: _buildFilterButton(
-            label: _selectedUnitId == null
-                ? getTxt('semua_grup_anggota')
-                : (_unitList.firstWhere(
-                    (u) => u['id_unit'].toString() == _selectedUnitId,
-                    orElse: () => {'nama_unit': getTxt('semua_grup')})['nama_unit'] as String),
-            onTap: _showGroupPicker,
-          )),
-        ]),
+              label: label, onTap: onTap, icon: icon, isActive: isActive),
+      showMonthPicker: (_) => _showMonthPicker(
+        () => _fetchAllData(fromTabFilter: true),
       ),
-      _buildLastUpdatedWidget(),
-      Expanded(child: Builder(builder: (context) {
-        final Future<List<MemberData5R>>? activeFuture = _anggotaFuture;
-        if (activeFuture == null) return _buildAnggotaShimmer();
-        return FutureBuilder<List<MemberData5R>>(
-          future: activeFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildAnggotaShimmer();
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text(getTxt('tidak_ada_data_anggota')));
-            }
-            // Jika tidak ada data sama sekali (bukan karena semua 0, tapi benar-benar tidak ada user)
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Center(child: Text(getTxt('tidak_ada_data_anggota')));
-            }
-            final memberList = snapshot.data!;
-            final self = memberList.firstWhere(
-              (m) => m.isSelf,
-              orElse: () => MemberData5R(name: getTxt('saya'), findings: 0, completed: 0, isSelf: true),
-            );
-            return Column(children: [
-              _buildTableHeader(
-                [getTxt('nama'), getTxt('temuan'), getTxt('selesai')],
-                flex: [3, 1, 1],
-              ),
-              _buildTargetRow([getTxt('target_bulanan'), '$_targetAnggota', '$_chartTargetAnggotaSelesai']),
-              Expanded(child: ListView.separated(
-                padding: EdgeInsets.zero,
-                itemCount: memberList.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: _AppColors.divider, indent: 16),
-                itemBuilder: (_, i) => _buildMemberRow(memberList[i]),
-              )),
-              _buildSelfPinnedRow(self),
-            ]);
-          },
-        );
-      })),
-    ]);
+      showGroupPicker: _showGroupPicker,
+    );
   }
 
   // ─── Inspeksi Tab ─────────────────────────────────────────────────────────
   Widget _buildInspeksiTab() {
-    const Map<String, Color> roleColors = {
-      'Eksekutif': Color(0xFFEF4444),
-      'Executive': Color(0xFFEF4444),
-      '行政': Color(0xFFEF4444),
-      'Profesional': Color(0xFFF59E0B),
-      'Professional': Color(0xFFF59E0B),
-      '专业': Color(0xFFF59E0B),
-      'Visitor': Color(0xFF3B82F6),
-      '访客': Color(0xFF3B82F6),
-    };
-
-    return Column(children: [
-      Container(
-        color: Colors.transparent,
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child: Row(children: [
-          _buildFilterButton(
-            label: _filterMode == 'daily' && _selectedDate != null
-                ? DateFormat('d MMM yyyy',
-                    widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
-                    .format(_selectedDate!)
-                : _translatedMonths[_selectedMonthIndex],
-            isActive: true,
-            onTap: () => _showMonthPicker(() => _fetchAllData(fromTabFilter: true)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Row(
-              children: _translatedRoles.map((r) {
-                final isSelected = _selectedInspectionRole == r;
-                final activeColor = roleColors[r] ?? _AppColors.primary;
-                return Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(right: r != _translatedRoles.last ? 6 : 0),
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _selectedInspectionRole = r);
-                        _fetchAllData(fromTabFilter: true);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: isSelected ? activeColor : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected ? activeColor : _AppColors.divider,
-                            width: isSelected ? 1.5 : 1,
-                          ),
-                          boxShadow: isSelected
-                              ? [BoxShadow(
-                                  color: activeColor.withOpacity(0.28),
-                                  blurRadius: 8, offset: const Offset(0, 3))]
-                              : [],
-                        ),
-                        child: Center(child: Text(r,
-                          style: TextStyle(
-                            fontSize: 11.5, fontWeight: FontWeight.w700,
-                            color: isSelected ? Colors.white : _AppColors.textSecondary),
-                          textAlign: TextAlign.center,
-                          maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ]),
+    return FiveRInspectionTab(
+      lang: widget.lang,
+      filterMode: _filterMode,
+      selectedMonthIndex: _selectedMonthIndex,
+      selectedDate: _selectedDate,
+      targetInspeksi: _targetInspeksi,
+      lastUpdatedText: _lastUpdatedText,
+      getTxt: getTxt,
+      translatedMonths: _translatedMonths,
+      translatedRoles: _translatedRoles,
+      selectedInspectionRole: _selectedInspectionRole,
+      inspeksiFuture: _inspeksiFuture,
+      buildFilterBtn: _buildFilterButton,
+      showMonthPicker: (_) => _showMonthPicker(
+        () => _fetchAllData(fromTabFilter: true),
       ),
-      _buildLastUpdatedWidget(),
-      _buildTableHeader([getTxt('nama'), getTxt('temuan')], flex: [3, 1]),
-      _buildTargetRow([getTxt('target_bulanan'), '$_targetInspeksi']),
-      Expanded(child: Builder(builder: (context) {
-        if (_inspeksiFuture == null) return _buildInspeksiShimmer();
-        return FutureBuilder<List<InspectionData5R>>(
-          future: _inspeksiFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildInspeksiShimmer();
-            }
-            if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-              return Center(child: Text('${getTxt('tidak_ada_temuan_role')} "$_selectedInspectionRole".'));
-            }
-            return ListView.separated(
-              padding: EdgeInsets.zero,
-              itemCount: snapshot.data!.length,
-              separatorBuilder: (_, __) => const Divider(height: 1, color: _AppColors.divider, indent: 16),
-              itemBuilder: (_, i) => _buildInspectionRow(snapshot.data![i]),
-            );
-          },
-        );
-      })),
-    ]);
+      onRoleChanged: (role) {
+        setState(() => _selectedInspectionRole = role);
+        _fetchAllData(fromTabFilter: true);
+      },
+    );
   }
 
   // ─── Lokasi Tab ───────────────────────────────────────────────────────────
@@ -2225,121 +1966,6 @@ class _Analytics5RTabState extends State<Analytics5RTab>
     );
   }
 
-  Widget _buildTargetRow(List<String> vals) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      decoration: BoxDecoration(
-        color: _AppColors.primaryLight,
-        border: Border(bottom: BorderSide(color: _AppColors.divider)),
-      ),
-      child: Row(children: [
-        Expanded(
-          flex: 3,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 44),
-            child: Text(vals[0], textAlign: TextAlign.left,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.primary)),
-          ),
-        ),
-        ...vals.sublist(1).map((v) => Expanded(
-          flex: 1,
-          child: Text(v, textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.primary)),
-        )),
-      ]),
-    );
-  }
-
-  Widget _buildMemberRow(MemberData5R m) {
-    final target = _targetAnggota;
-    // Hanya warnai hijau jika target > 0 (bukan hari libur) DAN findings >= target
-    final findingsColor = (target > 0 && m.findings >= target)
-        ? const Color(0xFF16A34A)
-        : _AppColors.textPrimary;
-    final completedTarget = _chartTargetAnggotaSelesai;
-    final completedColor = (completedTarget > 0 && m.completed >= completedTarget)
-        ? const Color(0xFF16A34A)
-        : _AppColors.textPrimary;
-
-    return Container(
-      color: m.isSelf ? _AppColors.selfHighlight : Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      child: Row(children: [
-        Expanded(flex: 3, child: Row(children: [
-          _Avatar5R(name: m.name, avatarUrl: m.avatarUrl, color: m.avatarColor, size: 34),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(m.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _AppColors.textPrimary),
-                overflow: TextOverflow.ellipsis),
-            if (m.unitName != null && m.unitName!.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(m.unitName!, style: const TextStyle(fontSize: 11, color: _AppColors.textSecondary),
-                  overflow: TextOverflow.ellipsis),
-            ],
-          ])),
-        ])),
-        Expanded(flex: 1, child: Text('${m.findings}', textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: findingsColor))),
-        Expanded(flex: 1, child: Text('${m.completed}', textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: completedColor))),
-      ]),
-    );
-  }
-
-  Widget _buildSelfPinnedRow(MemberData5R self) {
-    final target = _targetAnggota;
-    final findingsColor = (target > 0 && self.findings >= target)
-        ? const Color(0xFF16A34A)
-        : _AppColors.textSecondary;
-    final completedTarget = _chartTargetAnggotaSelesai;
-    final completedColor = (completedTarget > 0 && self.completed >= completedTarget)
-        ? const Color(0xFF16A34A)
-        : _AppColors.textSecondary;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: _AppColors.selfHighlight,
-        border: const Border(top: BorderSide(color: _AppColors.selfHighlightBorder, width: 1.5)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6, offset: const Offset(0, -2))],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: [
-        Expanded(flex: 3, child: Row(children: [
-          _Avatar5R(name: self.name, avatarUrl: self.avatarUrl, color: self.avatarColor, size: 34),
-          const SizedBox(width: 10),
-          Expanded(child: Text(self.name,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _AppColors.textPrimary),
-            overflow: TextOverflow.ellipsis)),
-        ])),
-        Expanded(flex: 1, child: Text('${self.findings}', textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: findingsColor))),
-        Expanded(flex: 1, child: Text('${self.completed}', textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: completedColor))),
-      ]),
-    );
-  }
-
-  Widget _buildInspectionRow(InspectionData5R item) {
-    final target = _targetInspeksi;
-    final findingsColor = (target > 0 && item.findings >= target)
-        ? const Color(0xFF16A34A)
-        : _AppColors.textPrimary;
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: [
-        Expanded(flex: 3, child: Row(children: [
-          _Avatar5R(name: item.name, size: 34),
-          const SizedBox(width: 10),
-          Expanded(child: Text(item.name,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _AppColors.textPrimary))),
-        ])),
-        Expanded(flex: 1, child: Text('${item.findings}', textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: findingsColor))),
-      ]),
-    );
-  }
-
   Widget _buildAuditPeriodBanner() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -2472,55 +2098,6 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(isCircle ? height / 2 : borderRadius),
-      ),
-    );
-  }
-
-  Widget _buildAnggotaShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[200]!, highlightColor: Colors.grey[50]!,
-      child: ListView.separated(
-        padding: EdgeInsets.zero, itemCount: 10,
-        separatorBuilder: (_, __) => const Divider(height: 1, color: _AppColors.divider, indent: 16),
-        itemBuilder: (_, __) => Container(
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-          child: Row(children: [
-            Expanded(flex: 3, child: Row(children: [
-              _buildShimmerBox(height: 34, width: 34, isCircle: true),
-              const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                _buildShimmerBox(height: 14, width: 120),
-                const SizedBox(height: 4),
-                _buildShimmerBox(height: 12, width: 80),
-              ])),
-            ])),
-            Expanded(flex: 1, child: Center(child: _buildShimmerBox(height: 14, width: 20))),
-            Expanded(flex: 1, child: Center(child: _buildShimmerBox(height: 14, width: 20))),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInspeksiShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[200]!, highlightColor: Colors.grey[50]!,
-      child: ListView.separated(
-        padding: EdgeInsets.zero, itemCount: 10,
-        separatorBuilder: (_, __) => const Divider(height: 1, color: _AppColors.divider, indent: 16),
-        itemBuilder: (_, __) => Container(
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(children: [
-            Expanded(flex: 3, child: Row(children: [
-              _buildShimmerBox(height: 34, width: 34, isCircle: true),
-              const SizedBox(width: 10),
-              Expanded(child: _buildShimmerBox(height: 14)),
-            ])),
-            Expanded(flex: 1, child: Center(child: _buildShimmerBox(height: 14, width: 20))),
-          ]),
-        ),
       ),
     );
   }
@@ -3483,39 +3060,6 @@ class _AuditLocationDetailSheetState extends State<_AuditLocationDetailSheet> {
                     )),
         ]),
       ),
-    );
-  }
-}
-
-// ─── Helper Widgets ───────────────────────────────────────────────────────────
-class _Avatar5R extends StatelessWidget {
-  final String name;
-  final Color? color;
-  final double size;
-  final String? avatarUrl;
-
-  const _Avatar5R({required this.name, this.color, this.size = 36, this.avatarUrl});
-
-  @override
-  Widget build(BuildContext context) {
-    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundImage: NetworkImage(avatarUrl!),
-        onBackgroundImageError: (_, __) {},
-        child: null,
-      );
-    }
-    final initials = name.trim().split(' ').take(2)
-        .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').join();
-    final bg = color ?? _AppColors.primary;
-    return Container(
-      width: size, height: size,
-      decoration: BoxDecoration(
-        color: bg.withOpacity(0.15), shape: BoxShape.circle,
-        border: Border.all(color: bg.withOpacity(0.3), width: 1)),
-      child: Center(child: Text(initials,
-        style: TextStyle(fontSize: size * 0.35, fontWeight: FontWeight.w700, color: bg))),
     );
   }
 }
