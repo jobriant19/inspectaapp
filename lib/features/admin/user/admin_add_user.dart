@@ -261,7 +261,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.10),
+            color: color.withValues(alpha:0.10),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 14, color: color),
@@ -437,10 +437,10 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: value ? color.withOpacity(0.06) : Colors.grey.shade50,
+        color: value ? color.withValues(alpha:0.06) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: value ? color.withOpacity(0.25) : Colors.grey.shade200,
+          color: value ? color.withValues(alpha:0.25) : Colors.grey.shade200,
         ),
       ),
       child: Row(
@@ -449,7 +449,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color:
-                  value ? color.withOpacity(0.12) : Colors.grey.shade100,
+                  value ? color.withValues(alpha:0.12) : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon,
@@ -470,7 +470,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
             value: value,
             onChanged: onChanged,
             activeColor: color,
-            activeTrackColor: color.withOpacity(0.25),
+            activeTrackColor: color.withValues(alpha:0.25),
             inactiveThumbColor: Colors.grey.shade400,
             inactiveTrackColor: Colors.grey.shade200,
           ),
@@ -887,7 +887,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
+                  color: Colors.black.withValues(alpha:0.06),
                   blurRadius: 8,
                   offset: const Offset(0, -2),
                 ),
@@ -936,7 +936,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
                             elevation: 2,
-                            shadowColor: _primary.withOpacity(0.3),
+                            shadowColor: _primary.withValues(alpha:0.3),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
