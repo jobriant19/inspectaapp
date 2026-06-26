@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'user/admin_add_user.dart';
 import 'user/admin_delete_user.dart';
+import 'user/admin_detail_user.dart';
 import 'user/admin_edit_user.dart';
 
 class AdminUserScreen extends StatefulWidget {
@@ -22,7 +23,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   bool _isLoading = true;
   String _search = '';
 
-  // Filter state
+  // FILTER STATE
   String? _filterLokasiId;
   String? _filterLokasiName;
   String? _filterUnitId;
@@ -106,7 +107,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       ]);
 
       if (mounted) {
-        // Build monthly points map
         final logList = List<Map<String, dynamic>>.from(results[2] as List);
         final Map<String, int> pMap = {};
         for (final log in logList) {
@@ -145,7 +145,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       }).toList();
     }
 
-    // Filter hierarki lokasi (Area → Subunit → Unit → Lokasi)
     if (_filterAreaId != null) {
       result = result.where((u) => u['id_area']?.toString() == _filterAreaId).toList();
     } else if (_filterSubunitId != null) {
@@ -170,482 +169,19 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   }
 
   void _showUserDetail(Map<String, dynamic> user) {
-    final langCode = widget.lang;
-    final name = user['nama'] ?? '-';
-    final email = user['email'] ?? '-';
-    final phone = user['phone'] ?? '-';
-    final jabatan = user['jabatan']?['nama_jabatan'] ?? '-';
-    final isVisitor = user['is_visitor'] == true;
-    final isVerif = user['is_verificator'] == true;
-    final avatarUrl = user['gambar_user'] as String?;
-    final idUser = user['id_user'] ?? '-';
-    final timestamp = user['timestamp'];
-    final logLogin = user['log_login'];
-    final firstLogin = user['first_login'];
-    final lokasiName = user['lokasi']?['nama_lokasi'];
-    final unitName = user['unit']?['nama_unit'];
-    final subunitName = user['subunit']?['nama_subunit'];
-    final areaName = user['area']?['nama_area'];
-
-    // Monthly points from cache
-    final monthlyPoin = _monthlyPoints[idUser.toString()] ?? 0;
-
-    // Specific location string: area > subunit > unit > lokasi
-    String specificLocation = '-';
-    if (areaName != null && areaName.toString().isNotEmpty) {
-      specificLocation = areaName.toString();
-    } else if (subunitName != null && subunitName.toString().isNotEmpty) {
-      specificLocation = subunitName.toString();
-    } else if (unitName != null && unitName.toString().isNotEmpty) {
-      specificLocation = unitName.toString();
-    } else if (lokasiName != null && lokasiName.toString().isNotEmpty) {
-      specificLocation = lokasiName.toString();
-    }
-
-    String _formatDate(dynamic raw) {
-      if (raw == null) return '-';
-      try {
-        final dt = DateTime.parse(raw.toString()).toLocal();
-        return '${dt.day.toString().padLeft(2, '0')}/'
-            '${dt.month.toString().padLeft(2, '0')}/'
-            '${dt.year}  ${dt.hour.toString().padLeft(2, '0')}:'
-            '${dt.minute.toString().padLeft(2, '0')}';
-      } catch (_) {
-        return raw.toString();
-      }
-    }
-
-    showModalBottomSheet(
+    AdminUserDetailSheet.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.92,
-        minChildSize: 0.6,
-        maxChildSize: 0.97,
-        expand: false,
-        builder: (_, scrollCtrl) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              // ── Fixed Header ──
-              Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: Column(
-                  children: [
-                    // Handle bar + close button row
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: Row(
-                        children: [
-                          const Spacer(),
-                          Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade300,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: () => Navigator.pop(ctx),
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(Icons.close_rounded,
-                                  size: 18, color: Colors.grey.shade600),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Avatar + name header
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                      child: Row(
-                        children: [
-                          Stack(
-                            children: [
-                              CircleAvatar(
-                                radius: 36,
-                                backgroundColor: _primary.withOpacity(0.12),
-                                backgroundImage: avatarUrl != null
-                                    ? CachedNetworkImageProvider(avatarUrl)
-                                    : null,
-                                child: avatarUrl == null
-                                    ? Text(
-                                        name.isNotEmpty
-                                            ? name[0].toUpperCase()
-                                            : '?',
-                                        style: GoogleFonts.poppins(
-                                          color: _primary,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 26,
-                                        ),
-                                      )
-                                    : null,
-                              ),
-                              // Badge poin bulan ini
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFBBF24),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: Colors.white, width: 2),
-                                  ),
-                                  child: Text(
-                                    '$monthlyPoin',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name,
-                                  style: GoogleFonts.poppins(
-                                    color: const Color(0xFF1E3A8A),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  email,
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.black45,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 4,
-                                  children: [
-                                    _buildDetailChip(
-                                        jabatan, _primary, Icons.work_outline),
-                                    if (isVisitor)
-                                      _buildDetailChip(
-                                        langCode == 'EN'
-                                            ? 'Visitor'
-                                            : langCode == 'ZH'
-                                                ? '访客'
-                                                : 'Pengunjung',
-                                        const Color(0xFF0891B2),
-                                        Icons.visibility_outlined,
-                                      ),
-                                    if (isVerif)
-                                      _buildDetailChip(
-                                        langCode == 'EN'
-                                            ? 'Verificator'
-                                            : langCode == 'ZH'
-                                                ? '验证员'
-                                                : 'Verifikator',
-                                        const Color(0xFFF59E0B),
-                                        Icons.verified_user_outlined,
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(color: Colors.grey.shade100, thickness: 1.5, height: 1),
-                  ],
-                ),
-              ),
-              // ── Scrollable Content ──
-              Expanded(
-                child: ListView(
-                  controller: scrollCtrl,
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                  children: [
-                    _buildDetailSection(
-                      langCode == 'EN'
-                          ? 'Personal Information'
-                          : langCode == 'ZH'
-                              ? '个人信息'
-                              : 'Informasi Pribadi',
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDetailRow(
-                      Icons.badge_outlined,
-                      langCode == 'EN'
-                          ? 'User ID'
-                          : langCode == 'ZH'
-                              ? '用户ID'
-                              : 'ID Pengguna',
-                      idUser.toString(),
-                      const Color(0xFF6366F1),
-                      small: true,
-                    ),
-                    _buildDetailRow(
-                      Icons.phone_outlined,
-                      langCode == 'EN'
-                          ? 'Phone'
-                          : langCode == 'ZH'
-                              ? '电话'
-                              : 'Telepon',
-                      phone == '-' || phone.toString().isEmpty ? '-' : phone.toString(),
-                      const Color(0xFF10B981),
-                    ),
-                    _buildDetailRow(
-                      Icons.location_on_outlined,
-                      langCode == 'EN'
-                          ? 'Location'
-                          : langCode == 'ZH'
-                              ? '位置'
-                              : 'Lokasi',
-                      specificLocation,
-                      const Color(0xFF0891B2),
-                    ),
-                    _buildDetailRow(
-                      Icons.star_outline_rounded,
-                      langCode == 'EN'
-                          ? 'Points This Month'
-                          : langCode == 'ZH'
-                              ? '本月积分'
-                              : 'Poin Bulan Ini',
-                      '$monthlyPoin pts',
-                      const Color(0xFFF59E0B),
-                    ),
-
-                    const SizedBox(height: 16),
-                    _buildDetailSection(
-                      langCode == 'EN'
-                          ? 'Activity'
-                          : langCode == 'ZH'
-                              ? '活动记录'
-                              : 'Aktivitas',
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDetailRow(
-                      Icons.calendar_today_outlined,
-                      langCode == 'EN'
-                          ? 'Registered'
-                          : langCode == 'ZH'
-                              ? '注册时间'
-                              : 'Terdaftar',
-                      _formatDate(timestamp),
-                      const Color(0xFF6366F1),
-                    ),
-                    _buildDetailRow(
-                      Icons.login_rounded,
-                      langCode == 'EN'
-                          ? 'First Login'
-                          : langCode == 'ZH'
-                              ? '首次登录'
-                              : 'Login Pertama',
-                      _formatDate(firstLogin),
-                      const Color(0xFF8B5CF6),
-                    ),
-                    _buildDetailRow(
-                      Icons.access_time_rounded,
-                      langCode == 'EN'
-                          ? 'Last Login'
-                          : langCode == 'ZH'
-                              ? '最后登录'
-                              : 'Login Terakhir',
-                      _formatDate(logLogin),
-                      const Color(0xFF10B981),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // ── Tombol Edit & Delete ──
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _showUserDialog(user: user);
-                            },
-                            icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.white),
-                            label: Text(
-                              langCode == 'EN' ? 'Edit' : langCode == 'ZH' ? '编辑' : 'Edit',
-                              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.white),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2563EB),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 0,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _deleteUser(user['id_user'], name);
-                            },
-                            icon: const Icon(Icons.delete_outline_rounded,
-                                size: 16, color: Colors.white),
-                            label: Text(
-                              langCode == 'EN'
-                                  ? 'Delete'
-                                  : langCode == 'ZH'
-                                      ? '删除'
-                                      : 'Hapus',
-                              style: GoogleFonts.poppins(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFEF4444),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              elevation: 0,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      user: user,
+      lang: widget.lang,
+      monthlyPoin: _monthlyPoints[user['id_user']?.toString() ?? ''] ?? 0,
+      onEdit: () => _showUserDialog(user: user),
+      onDelete: () => _deleteUser(user['id_user'], user['nama'] ?? '-'),
     );
   }
 
-  Widget _buildDetailSection(String title) {
-    return Row(
-      children: [
-        Container(
-          width: 3,
-          height: 16,
-          decoration: BoxDecoration(
-            color: _primary,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: GoogleFonts.poppins(
-            color: const Color(0xFF1E3A8A),
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailRow(
-      IconData icon, String label, String value, Color color,
-      {bool small = false}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.15)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 16, color: color),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.poppins(
-                    color: Colors.black45,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: GoogleFonts.poppins(
-                    color: const Color(0xFF1E3A8A),
-                    fontSize: small ? 11 : 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailChip(String label, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 10, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── DIALOG: Edit User saja (Add sudah dipindah ke AdminAddUserScreen) ───
+  // ADD & EDIT USER
   void _showUserDialog({Map<String, dynamic>? user}) {
     if (user == null) {
-      // Add User → arahkan ke AdminAddUserScreen (tidak berubah)
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -659,7 +195,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       return;
     }
 
-    // Edit User → arahkan ke AdminEditUserScreen (file baru)
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -721,17 +256,15 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       ),
       body: Column(
         children: [
-          // ── Sticky white section: filter buttons + Add User button ──
+          // FILTER BUTTONS + ADD USER BUTTON
           Container(
             color: Colors.white,
             child: Column(
               children: [
-                // Filter buttons row
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
                   child: _buildFilterButtons(),
                 ),
-                // Add User banner button
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                   child: GestureDetector(
@@ -808,7 +341,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
               ],
             ),
           ),
-          // ── Active filter chips ──
+          // ACTIVE FILTER CHIPS
           if (_filterLokasiId != null || _filterUnitId != null ||
               _filterSubunitId != null || _filterAreaId != null ||
               _filterJabatanId != null || _sortOrder != 'none')
@@ -841,7 +374,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 ],
               ),
             ),
-          // ── User list ──
+          // USER LIST
           Expanded(
             child: _isLoading
                 ? _buildShimmer()
@@ -865,10 +398,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       ),
     );
   }
-
-  // ══════════════════════════════════════
-  // WIDGET HELPERS
-  // ══════════════════════════════════════
 
   Widget _buildShimmer() {
     return Shimmer.fromColors(
@@ -929,8 +458,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     final avatarUrl = user['gambar_user'] as String?;
     final name = user['nama'] ?? '';
     final monthlyPoin = _monthlyPoints[user['id_user']?.toString() ?? ''] ?? 0;
-
-    // Specific location: area > subunit > unit > lokasi
     final areaName = user['area']?['nama_area'];
     final subunitName = user['subunit']?['nama_subunit'];
     final unitName = user['unit']?['nama_unit'];
@@ -946,7 +473,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       specificLocation = lokasiName.toString();
     }
 
-    // Warna berdasarkan jabatan
+    // ROLE COLORS
     Color roleColor = const Color(0xFF6366F1);
     final idJabatan = user['id_jabatan'];
     if (idJabatan == 1) roleColor = const Color(0xFFDC2626); // Eksekutif
@@ -972,7 +499,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       ),
       child: Row(
         children: [
-          // ── Avatar ──
+          // AVATAR
           Stack(
             children: [
               CircleAvatar(
@@ -994,7 +521,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                       )
                     : null,
               ),
-              // Badge poin kecil
+              // POINT BADGE
               Positioned(
                 bottom: 0,
                 right: 0,
@@ -1021,7 +548,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           ),
           const SizedBox(width: 14),
 
-          // ── Info ──
+          // INFO
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1035,7 +562,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                // ── Baris 1: Jabatan + badge visitor/verif ──
+                // LINE 1: ROLE + VISITOR/VERIF BADGE
                 Wrap(
                   spacing: 5,
                   runSpacing: 4,
@@ -1053,12 +580,12 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                       ),
                   ],
                 ),
-                // ── Baris 2: Lokasi spesifik (jika ada) ──
+                // LINE 2: SPESIFIC LOCATION
                 if (specificLocation.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   _buildChip(
                     specificLocation,
-                    _locationChipColor(user),   // ← warna per level
+                    _locationChipColor(user),
                     Icons.location_on_outlined,
                   ),
                 ],
@@ -1066,7 +593,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             ),
           ),
 
-          // ── Action Buttons ──
+          // ACTION BUTTON
           Column(
             children: [
               _buildIconBtn(
@@ -1088,20 +615,19 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   }
 
   Color _locationChipColor(Map<String, dynamic> user) {
-    // Warna sesuai level paling spesifik yang terisi
     if (user['area']?['nama_area'] != null &&
         (user['area']!['nama_area'] as String).isNotEmpty) {
-      return const Color(0xFFF472B6); // Area — pink (sama dengan tab Area)
+      return const Color(0xFFF472B6);
     }
     if (user['subunit']?['nama_subunit'] != null &&
         (user['subunit']!['nama_subunit'] as String).isNotEmpty) {
-      return const Color(0xFFFBBF24); // Subunit — amber (sama dengan tab Subunit)
+      return const Color(0xFFFBBF24);
     }
     if (user['unit']?['nama_unit'] != null &&
         (user['unit']!['nama_unit'] as String).isNotEmpty) {
-      return const Color(0xFF6366F1); // Unit — indigo (sama dengan tab Unit)
+      return const Color(0xFF6366F1);
     }
-    return const Color(0xFF10B981);   // Lokasi — hijau (sama dengan tab Lokasi)
+    return const Color(0xFF10B981);
   }
 
   Widget _buildChip(String label, Color color, IconData icon) {
@@ -1270,8 +796,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           } else {
             dialogTitle = _langCode == 'EN' ? 'Sort Order' : _langCode == 'ZH' ? '排序方式' : 'Urutan Abjad';
           }
-
-          // State lokal untuk cascading lokasi
           String? tempLokasiId   = _filterLokasiId;
           String? tempUnitId     = _filterUnitId;
           String? tempSubunitId  = _filterSubunitId;
@@ -1284,7 +808,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ── Header ──
+                // HEADER
                 Container(
                   padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
                   decoration: BoxDecoration(
@@ -1315,11 +839,11 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                   ),
                 ),
 
-                // ── Options ──
+                // OPTIONS
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 400),
                   child: type == 'lokasi'
-                      // ── LOKASI: cascading StatefulBuilder ──
+                      // LOCATION
                       ? StatefulBuilder(
                           builder: (ctx2, setInner) {
                             final filteredUnits = tempLokasiId == null ? _allUnitFilter
@@ -1334,7 +858,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // ── Tab Lokasi ──
+                                  // LOCATION TAB
                                   _buildCascadeSection(
                                     label: _langCode == 'EN' ? 'Location' : 'Lokasi',
                                     color: const Color(0xFF10B981),
@@ -1451,7 +975,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                         ),
                 ),
 
-                // ── Apply button untuk lokasi ──
+                // APPLY BUTTON FOR LOCATION
                 if (type == 'lokasi')
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
@@ -1459,7 +983,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
-                          // Cari nama dari ID yang dipilih
                           final lokasiNama = _allLokasiFilter.firstWhere(
                             (l) => l['id_lokasi']?.toString() == tempLokasiId, orElse: () => {})['nama_lokasi']?.toString();
                           final unitNama = _allUnitFilter.firstWhere(
