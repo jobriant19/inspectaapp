@@ -65,7 +65,7 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
           preferredSize: const Size.fromHeight(49),
           child: Column(
             children: [
-              Container(height: 1, color: Colors.black.withOpacity(0.06)),
+              Container(height: 1, color: Colors.black.withValues(alpha:0.06)),
               Container(
                 color: Colors.white,
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
@@ -86,7 +86,7 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: _kYellow.withOpacity(0.4),
+                          color: _kYellow.withValues(alpha:0.4),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
