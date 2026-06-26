@@ -66,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
   RealtimeChannel? _pointChannel;
   bool _isCheckingLocation = false;
   bool _isAtAtmi = false;
+  bool _isPreventiveMaintenanceVisible = true;
 
   // User data
   String _userName = '...';
@@ -508,6 +509,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (!kIsWeb) {
       NotificationService.instance.saveFcmTokenAfterLogin();
+    }
+
+    // Load Preventive Maintenance visibility
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _isPreventiveMaintenanceVisible =
+            prefs.getBool('pm_button_visible') ?? true;
+      });
     }
 
     // Cek lokasi di background (tidak blokir masuk home)
@@ -1661,6 +1671,7 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       shouldRefreshFindings: _findingsRefreshTrigger != _lastRefreshTrigger,
       onRefreshDone: () => setState(() => _lastRefreshTrigger = _findingsRefreshTrigger),
+      isPreventiveMaintenanceVisible: _isPreventiveMaintenanceVisible && (_userJabatanId == 1 || _userJabatanId == 3),
       buildInfoCard: () => UserInfoCard(
         userName: _userName,
         userRole: _userRole,

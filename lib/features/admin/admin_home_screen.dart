@@ -967,12 +967,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   Widget _buildProModeSettingsCard() {
     return StatefulBuilder(
       builder: (context, setCard) {
-        // State lokal untuk toggle — dibaca dari SharedPreferences
-        return FutureBuilder<bool>(
-          future: SharedPreferences.getInstance()
-              .then((p) => p.getBool('pro_mode_button_visible') ?? true),
+        return FutureBuilder<Map<String, bool>>(
+          future: SharedPreferences.getInstance().then((p) => {
+            'pro_mode': p.getBool('pro_mode_button_visible') ?? true,
+            'preventive_maintenance': p.getBool('preventive_maintenance_visible') ?? true,
+          }),
           builder: (context, snapshot) {
-            // Tampilkan shimmer kecil saat loading
             if (!snapshot.hasData) {
               return Container(
                 height: 60,
@@ -985,11 +985,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
               );
             }
 
-            final isVisible = snapshot.data!;
-
-            return _ProModeToggleCard(
-              lang: _lang,
-              initialValue: isVisible,
+            return Column(
+              children: [
+                _ProModeToggleCard(
+                  lang: _lang,
+                  initialValue: snapshot.data!['pro_mode']!,
+                ),
+                const SizedBox(height: 10),
+                _PreventiveMaintenanceToggleCard(
+                  lang: _lang,
+                  initialValue: snapshot.data!['preventive_maintenance']!,
+                ),
+              ],
             );
           },
         );
@@ -4357,6 +4364,177 @@ class _ProModeToggleCardState extends State<_ProModeToggleCard> {
                         fontSize: 10,
                         color: _isVisible
                             ? const Color(0xFF10B981)
+                            : Colors.grey.shade500,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Toggle Switch
+          _isSaving
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: _primary,
+                    strokeWidth: 2,
+                  ),
+                )
+              : Switch(
+                  value: _isVisible,
+                  onChanged: _toggle,
+                  activeColor: _primary,
+                  activeTrackColor: _primary.withOpacity(0.25),
+                  inactiveThumbColor: Colors.grey.shade400,
+                  inactiveTrackColor: Colors.grey.shade200,
+                ),
+        ],
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// WIDGET: Toggle Preventive Maintenance di home admin
+// ══════════════════════════════════════════════════════
+class _PreventiveMaintenanceToggleCard extends StatefulWidget {
+  final String lang;
+  final bool initialValue;
+
+  const _PreventiveMaintenanceToggleCard({
+    required this.lang,
+    required this.initialValue,
+  });
+
+  @override
+  State<_PreventiveMaintenanceToggleCard> createState() =>
+      _PreventiveMaintenanceToggleCardState();
+}
+
+class _PreventiveMaintenanceToggleCardState
+    extends State<_PreventiveMaintenanceToggleCard> {
+  static const String _kKey = 'preventive_maintenance_visible';
+  static const Color _primary = Color(0xFF1D4ED8); // biru
+
+  late bool _isVisible;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isVisible = widget.initialValue;
+  }
+
+  Future<void> _toggle(bool value) async {
+    setState(() {
+      _isVisible = value;
+      _isSaving = true;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kKey, value);
+    if (mounted) setState(() => _isSaving = false);
+  }
+
+  String _t(String key) {
+    final Map<String, Map<String, String>> txt = {
+      'EN': {
+        'label': 'Preventive Maintenance Button',
+        'on': 'Visible to users',
+        'off': 'Hidden from users',
+      },
+      'ID': {
+        'label': 'Tombol Pemeliharaan Preventif',
+        'on': 'Terlihat oleh pengguna',
+        'off': 'Disembunyikan dari pengguna',
+      },
+      'ZH': {
+        'label': '预防性维护按钮',
+        'on': '用户可见',
+        'off': '对用户隐藏',
+      },
+    };
+    return txt[widget.lang]?[key] ?? txt['EN']![key]!;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isVisible
+              ? _primary.withOpacity(0.3)
+              : Colors.grey.shade200,
+          width: _isVisible ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _primary.withOpacity(0.07),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Icon
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _isVisible
+                  ? _primary.withOpacity(0.10)
+                  : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.build_circle_rounded,
+              size: 18,
+              color: _isVisible ? _primary : Colors.grey.shade400,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Label + status
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _t('label'),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1E3A8A),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: _isVisible
+                            ? const Color(0xFF3B82F6)
+                            : Colors.grey.shade400,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      _isVisible ? _t('on') : _t('off'),
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        color: _isVisible
+                            ? const Color(0xFF3B82F6)
                             : Colors.grey.shade500,
                         fontWeight: FontWeight.w500,
                       ),

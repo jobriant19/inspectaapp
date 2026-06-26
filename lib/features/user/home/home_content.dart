@@ -6,6 +6,7 @@ import '../../audit/audit_form_screen.dart';
 import '../../audit/audit_selfie_screen.dart';
 import '../finding/finding_detail_screen.dart';
 import '../ktsproduksi/kts_detail_screen.dart';
+import '../preventif_maintenance/preventif_maintenance_screen.dart';
 import 'location_screen.dart';
 import '../ktsproduksi/kts_produksi_screen.dart';
 import '../accident/accident_report_screen.dart';
@@ -54,6 +55,7 @@ class HomeContent extends StatefulWidget {
   final bool isExecVerificator;
   final int? userJabatanId;
   final bool shouldRefreshFindings;
+  final bool isPreventiveMaintenanceVisible;
   final VoidCallback? onRefreshDone;
 
   const HomeContent({
@@ -83,6 +85,7 @@ class HomeContent extends StatefulWidget {
     this.userJabatanId,
     this.onRequestRefresh,
     this.shouldRefreshFindings = false,
+    this.isPreventiveMaintenanceVisible = false,
     this.onRefreshDone,
   });
 
@@ -120,6 +123,8 @@ class HomeContentState extends State<HomeContent> {
       'tab_kts': 'KTS Production',
       'view_all': 'View All',
       'audit_tasks': 'Pending Audit Tasks',
+      'preventive_maintenance': 'Preventive Maintenance',
+      'preventive_maintenance_sub': 'Schedule & manage maintenance',
     },
     'ID': {
       'inspeksi': 'Inspeksi',
@@ -141,6 +146,8 @@ class HomeContentState extends State<HomeContent> {
       'tab_kts': 'KTS Produksi',
       'view_all': 'Lihat Semua',
       'audit_tasks': 'Tugas Audit',
+      'preventive_maintenance': 'Pemeliharaan Preventif',
+      'preventive_maintenance_sub': 'Jadwal & kelola pemeliharaan',
     },
     'ZH': {
       'inspeksi': '检查',
@@ -161,6 +168,8 @@ class HomeContentState extends State<HomeContent> {
       'tab_kts': 'KTS生产',
       'view_all': '查看全部',
       'audit_tasks': '待完成审计任务',
+      'preventive_maintenance': '预防性维护',
+      'preventive_maintenance_sub': '计划和管理维护',
     },
   };
 
@@ -411,6 +420,11 @@ class HomeContentState extends State<HomeContent> {
             label: _t('laporan'),
             onTap: () => _push(AccidentReportListScreen(lang: widget.lang)),
           ),
+
+          if (widget.isPreventiveMaintenanceVisible) ...[
+            const SizedBox(height: 12),
+            _buildPreventiveMaintenanceButton(),
+          ],
 
           const SizedBox(height: 25),
 
@@ -926,6 +940,77 @@ class HomeContentState extends State<HomeContent> {
               ),
             ),
             const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white70),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Preventive Maintenance Button
+  Widget _buildPreventiveMaintenanceButton() {
+    const Color pmColor = Color(0xFF1D4ED8);
+    return GestureDetector(
+      onTap: () => _push(PreventifMaintenanceScreen(lang: widget.lang)),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1D4ED8), Color(0xFF2563EB)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: pmColor.withOpacity(0.28),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.build_circle_rounded,
+                size: 20,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _t('preventive_maintenance'),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    _t('preventive_maintenance_sub'),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: Colors.white70,
+            ),
           ],
         ),
       ),
