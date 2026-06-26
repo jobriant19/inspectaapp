@@ -6,7 +6,6 @@ class AdminLegalScreen extends StatefulWidget {
   final String lang;
   final String docType;
   final String title;
-  // Data di-pass dari AdminSettingsScreen agar tidak ada loading
   final List<Map<String, dynamic>>? initialDocs;
 
   const AdminLegalScreen({
@@ -36,7 +35,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     {'code': 'ZH', 'label': '中文',       'flag': '🇨🇳'},
   ];
 
-  // Map: langCode → list of sections (sorted by section_order)
   Map<String, List<Map<String, dynamic>>> _docs = {
     'ID': [], 'EN': [], 'ZH': [],
   };
@@ -44,15 +42,12 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
   @override
   void initState() {
     super.initState();
-    // Langsung pakai data cache — tidak ada loading
     if (widget.initialDocs != null) {
       _applyDocs(widget.initialDocs!);
     }
-    // Refresh diam-diam di background untuk sinkronisasi terbaru
     _loadSilent();
   }
 
-  // Susun list flat → map per lang
   void _applyDocs(List<Map<String, dynamic>> flat) {
     final Map<String, List<Map<String, dynamic>>> grouped = {
       'ID': [], 'EN': [], 'ZH': [],
@@ -63,7 +58,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
         grouped[code]!.add(row);
       }
     }
-    // Sort per lang berdasarkan section_order
     for (final key in grouped.keys) {
       grouped[key]!.sort((a, b) =>
           (a['section_order'] as int? ?? 1)
@@ -86,7 +80,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     }
   }
 
-  // ── Hitung section_order berikutnya untuk lang tertentu ─────────────────
   int _nextOrder(String langCode) {
     final sections = _docs[langCode] ?? [];
     if (sections.isEmpty) return 1;
@@ -96,10 +89,9 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     return maxOrder + 1;
   }
 
-  // ── Dialog tambah / edit section ─────────────────────────────────────────
   void _showSectionDialog({
     required String langCode,
-    Map<String, dynamic>? existing, // null = tambah baru
+    Map<String, dynamic>? existing,
   }) {
     final isEdit = existing != null;
     final langInfo = _langs.firstWhere((l) => l['code'] == langCode);
@@ -126,7 +118,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ── Sticky header ──────────────────────────────────────
+                // STICKY HEADER
                 Container(
                   padding: const EdgeInsets.fromLTRB(20, 18, 16, 14),
                   decoration: BoxDecoration(
@@ -135,7 +127,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                         top: Radius.circular(24)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha:0.04),
                         blurRadius: 4,
                         offset: const Offset(0, 2),
                       ),
@@ -188,7 +180,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                   ),
                 ),
 
-                // ── Scrollable body ────────────────────────────────────
+                // SCROLLABLE BODY
                 Flexible(
                   child: SingleChildScrollView(
                     padding:
@@ -196,7 +188,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Label Title
+                        // TITLE LABEL
                         Text(
                           widget.lang == 'EN' ? 'Title' : 'Judul',
                           style: GoogleFonts.poppins(
@@ -214,7 +206,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                                 : 'Judul bagian...'),
                         const SizedBox(height: 16),
 
-                        // Label Description
+                        // DESCRIPTION LABEL
                         Text(
                           widget.lang == 'EN'
                               ? 'Description'
@@ -238,7 +230,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                   ),
                 ),
 
-                // ── Sticky footer ──────────────────────────────────────
+                // STICKY FOOTER
                 Container(
                   padding:
                       const EdgeInsets.fromLTRB(20, 10, 20, 18),
@@ -248,7 +240,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                         bottom: Radius.circular(24)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha:0.04),
                         blurRadius: 4,
                         offset: const Offset(0, -2),
                       ),
@@ -336,7 +328,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     );
   }
 
-  // ── Simpan section ke DB ─────────────────────────────────────────────────
   Future<void> _saveSection({
     required String langCode,
     required Map<String, dynamic>? existing,
@@ -345,7 +336,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
   }) async {
     try {
       if (existing == null) {
-        // INSERT section baru
         final order = _nextOrder(langCode);
         await Supabase.instance.client.from('legal_documents').insert({
           'doc_type'     : widget.docType,
@@ -355,7 +345,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
           'section_order': order,
         });
       } else {
-        // UPDATE section yang sudah ada
         await Supabase.instance.client
             .from('legal_documents')
             .update({'title': title, 'content': content})
@@ -368,7 +357,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     }
   }
 
-  // ── Hapus section ────────────────────────────────────────────────────────
   Future<void> _deleteSection(int id, String langCode) async {
     final ok = await showDialog<bool>(
           context: context,
@@ -491,7 +479,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     }
   }
 
-  // ── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -523,14 +510,14 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Info banner
+              // INFO BANNER
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: _primary.withOpacity(0.06),
+                  color: _primary.withValues(alpha:0.06),
                   borderRadius: BorderRadius.circular(14),
                   border:
-                      Border.all(color: _primary.withOpacity(0.15)),
+                      Border.all(color: _primary.withValues(alpha:0.15)),
                 ),
                 child: Row(
                   children: [
@@ -551,7 +538,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Card per bahasa
+              // CARD PER LANGUAGE
               ..._langs.map((langInfo) {
                 final code = langInfo['code']!;
                 final sections = _docs[code] ?? [];
@@ -564,7 +551,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     );
   }
 
-  // ── Card per bahasa dengan multi-section ─────────────────────────────────
   Widget _buildLangCard(
     String code,
     Map<String, String> langInfo,
@@ -579,12 +565,12 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: hasSections
-              ? _primary.withOpacity(0.18)
+              ? _primary.withValues(alpha:0.18)
               : Colors.grey.shade200,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha:0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -592,7 +578,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
       ),
       child: Column(
         children: [
-          // ── Header bahasa ──────────────────────────────────────────
+          // LANGUAGE HEADER
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
             child: Row(
@@ -628,14 +614,14 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                     ],
                   ),
                 ),
-                // Badge status
+                // STATUS BADGE
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: hasSections
-                        ? const Color(0xFF10B981).withOpacity(0.10)
-                        : Colors.orange.withOpacity(0.10),
+                        ? const Color(0xFF10B981).withValues(alpha:0.10)
+                        : Colors.orange.withValues(alpha:0.10),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -652,7 +638,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Tombol Tambah Section
+                // ADD SECTION BUTTON
                 GestureDetector(
                   onTap: () => _showSectionDialog(langCode: code),
                   child: Container(
@@ -662,7 +648,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: _primary.withOpacity(0.3),
+                          color: _primary.withValues(alpha:0.3),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -676,7 +662,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
             ),
           ),
 
-          // ── Daftar sections ────────────────────────────────────────
+          // SECTIONS LIST
           if (hasSections) ...[
             Divider(
                 color: Colors.grey.shade100, height: 1, thickness: 1),
@@ -691,7 +677,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
             ),
           ],
 
-          // ── Kosong: prompt tambah ──────────────────────────────────
           if (!hasSections) ...[
             Divider(
                 color: Colors.grey.shade100, height: 1, thickness: 1),
@@ -703,10 +688,10 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   decoration: BoxDecoration(
-                    color: _primary.withOpacity(0.05),
+                    color: _primary.withValues(alpha:0.05),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: _primary.withOpacity(0.2),
+                        color: _primary.withValues(alpha:0.2),
                         style: BorderStyle.solid),
                   ),
                   child: Row(
@@ -735,7 +720,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     );
   }
 
-  // ── Tile per section ─────────────────────────────────────────────────────
+  // TITLE PER SECTION
   Widget _buildSectionTile(
       Map<String, dynamic> section, String langCode, int index) {
     return Padding(
@@ -743,12 +728,12 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Nomor urut section
+          // SECTION ORDERED NUMBER
           Container(
             width: 26,
             height: 26,
             decoration: BoxDecoration(
-              color: _primary.withOpacity(0.10),
+              color: _primary.withValues(alpha:0.10),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
@@ -763,7 +748,7 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          // Konten
+          // CONTEN
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -788,14 +773,14 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // Tombol Edit
+          // EDIT BUTTON
           GestureDetector(
             onTap: () => _showSectionDialog(
                 langCode: langCode, existing: section),
             child: Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: _primary.withOpacity(0.08),
+                color: _primary.withValues(alpha:0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(Icons.edit_outlined,
@@ -803,14 +788,14 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
             ),
           ),
           const SizedBox(width: 6),
-          // Tombol Hapus
+          // DELETE BUTTON
           GestureDetector(
             onTap: () =>
                 _deleteSection(section['id'] as int, langCode),
             child: Container(
               padding: const EdgeInsets.all(7),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withOpacity(0.08),
+                color: const Color(0xFFEF4444).withValues(alpha:0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.delete_outline_rounded,
@@ -822,7 +807,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     );
   }
 
-  // ── Field dalam dialog ───────────────────────────────────────────────────
   Widget _buildDialogField(
     TextEditingController ctrl, {
     int maxLines = 1,
@@ -851,7 +835,6 @@ class _AdminLegalScreenState extends State<AdminLegalScreen> {
     );
   }
 
-  // ── Snackbar ─────────────────────────────────────────────────────────────
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
