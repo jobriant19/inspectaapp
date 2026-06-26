@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-
 import '../../../core/services/fcm_v1_service.dart';
 import '../../shared/account/news_detail_screen.dart';
 import 'dart:convert';
@@ -175,13 +174,15 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         finalImageUrl = uploaded;
       } else {
         if (mounted) Navigator.of(context, rootNavigator: true).pop(); // tutup loading
-        if (mounted) _showResultDialog(
-          isSuccess: false,
-          message: widget.lang == 'EN'
-              ? 'Image upload failed.\nPlease check your storage bucket settings.'
-              : 'Upload gambar gagal.\nPeriksa pengaturan bucket storage Anda.',
-        );
-        return;
+        if (mounted) {
+          _showResultDialog(
+            isSuccess: false,
+            message: widget.lang == 'EN'
+                ? 'Image upload failed.\nPlease check your storage bucket settings.'
+                : 'Upload gambar gagal.\nPeriksa pengaturan bucket storage Anda.',
+          );
+          return;
+        }
       }
     }
 
@@ -255,14 +256,16 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       // Tutup loading dialog
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       debugPrint('SAVE ERROR: $e');
-      if (mounted) _showResultDialog(
-        isSuccess: false,
-        message: widget.lang == 'EN'
-            ? 'Failed to save news.\n${e.toString()}'
-            : widget.lang == 'ZH'
-                ? '保存新闻失败。\n${e.toString()}'
-                : 'Gagal menyimpan berita.\n${e.toString()}',
-      );
+      if (mounted) {
+        _showResultDialog(
+          isSuccess: false,
+          message: widget.lang == 'EN'
+              ? 'Failed to save news.\n${e.toString()}'
+              : widget.lang == 'ZH'
+                  ? '保存新闻失败。\n${e.toString()}'
+                  : 'Gagal menyimpan berita.\n${e.toString()}',
+        );
+      }
     }
   }
 
@@ -487,14 +490,14 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [_primary, _primary.withOpacity(0.75)],
+                    colors: [_primary, _primary.withValues(alpha:0.75)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                        color: _primary.withOpacity(0.35),
+                        color: _primary.withValues(alpha:0.35),
                         blurRadius: 12,
                         offset: const Offset(0, 4)),
                   ],
@@ -504,7 +507,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.25),
+                          color: Colors.white.withValues(alpha:0.25),
                           borderRadius: BorderRadius.circular(10)),
                       child: const Icon(Icons.add_rounded,
                           color: Colors.white, size: 22),
@@ -534,7 +537,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                                     : 'Ketuk untuk menambah berita baru',
                             style: GoogleFonts.poppins(
                                 fontSize: 10,
-                                color: Colors.white.withOpacity(0.85)),
+                                color: Colors.white.withValues(alpha:0.85)),
                           ),
                         ],
                       ),
@@ -555,7 +558,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.black.withOpacity(0.08)),
+                border: Border.all(color: Colors.black.withValues(alpha:0.08)),
               ),
               child: TextField(
                 onChanged: (v) => setState(() => _searchQuery = v),
@@ -676,12 +679,12 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
           color: isActive ? color : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-              color: isActive ? color : color.withOpacity(0.35),
+              color: isActive ? color : color.withValues(alpha:0.35),
               width: 1.5),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                      color: color.withOpacity(0.25),
+                      color: color.withValues(alpha:0.25),
                       blurRadius: 6,
                       offset: const Offset(0, 2))
                 ]
@@ -744,10 +747,10 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black.withOpacity(0.06)),
+          border: Border.all(color: Colors.black.withValues(alpha:0.06)),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha:0.04),
                 blurRadius: 8,
                 offset: const Offset(0, 2)),
           ],
@@ -775,7 +778,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                        color: color.withOpacity(0.10),
+                        color: color.withValues(alpha:0.10),
                         borderRadius: BorderRadius.circular(10)),
                     child: Icon(icon, color: color, size: 18),
                   ),
@@ -800,7 +803,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                  color: color.withOpacity(0.10),
+                                  color: color.withValues(alpha:0.10),
                                   borderRadius: BorderRadius.circular(6)),
                               child: Text(
                                 isUpdate ? 'Update' : 'Maintenance',
@@ -866,7 +869,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       child: Container(
         padding: const EdgeInsets.all(7),
         decoration: BoxDecoration(
-            color: color.withOpacity(0.10),
+            color: color.withValues(alpha:0.10),
             borderRadius: BorderRadius.circular(8)),
         child: Icon(icon, color: color, size: 15),
       ),
@@ -890,15 +893,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     );
   }
 
-  Widget _dlgLabel(String label) => Text(
-        label,
-        style: GoogleFonts.poppins(
-            color: Colors.black54,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.3),
-      );
-
   // ─────────────────────────────────────────────
   // POP UP LOADING — muncul saat proses simpan ke database
   // ─────────────────────────────────────────────
@@ -908,7 +902,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       context: context,
       barrierDismissible: false,
       barrierLabel: 'loading',
-      barrierColor: Colors.black.withOpacity(0.45),
+      barrierColor: Colors.black.withValues(alpha:0.45),
       transitionDuration: const Duration(milliseconds: 250),
       transitionBuilder: (_, anim, __, child) {
         return FadeTransition(
@@ -933,7 +927,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF1E3A8A).withOpacity(0.18),
+                    color: const Color(0xFF1E3A8A).withValues(alpha:0.18),
                     blurRadius: 32,
                     spreadRadius: 2,
                     offset: const Offset(0, 10),
@@ -982,7 +976,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'result',
-      barrierColor: Colors.black.withOpacity(0.45),
+      barrierColor: Colors.black.withValues(alpha:0.45),
       transitionDuration: const Duration(milliseconds: 320),
       transitionBuilder: (_, anim, __, child) {
         return FadeTransition(
@@ -1032,7 +1026,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                 borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                    color: primary.withOpacity(0.25),
+                    color: primary.withValues(alpha:0.25),
                     blurRadius: 40,
                     spreadRadius: 4,
                     offset: const Offset(0, 12),
@@ -1050,7 +1044,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                       color: bgLight,
                       shape: BoxShape.circle,
                       border: Border.all(
-                          color: primary.withOpacity(0.25), width: 2),
+                          color: primary.withValues(alpha:0.25), width: 2),
                     ),
                     child: Icon(icon, color: primary, size: 44),
                   ),
@@ -1085,9 +1079,9 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                       builder: (_, v, __) => LinearProgressIndicator(
                         value: v,
                         minHeight: 4,
-                        backgroundColor: primary.withOpacity(0.1),
+                        backgroundColor: primary.withValues(alpha:0.1),
                         valueColor:
-                            AlwaysStoppedAnimation<Color>(primary.withOpacity(0.6)),
+                            AlwaysStoppedAnimation<Color>(primary.withValues(alpha:0.6)),
                       ),
                     ),
                   ),
@@ -1110,7 +1104,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       context: context,
       barrierDismissible: false,
       barrierLabel: 'save_success',
-      barrierColor: Colors.black.withOpacity(0.45),
+      barrierColor: Colors.black.withValues(alpha:0.45),
       transitionDuration: const Duration(milliseconds: 320),
       transitionBuilder: (_, anim, __, child) {
         return FadeTransition(
@@ -1143,7 +1137,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                 borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF16A34A).withOpacity(0.25),
+                    color: const Color(0xFF16A34A).withValues(alpha:0.25),
                     blurRadius: 40,
                     spreadRadius: 4,
                     offset: const Offset(0, 12),
@@ -1161,7 +1155,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                       color: const Color(0xFFF0FDF4),
                       shape: BoxShape.circle,
                       border: Border.all(
-                          color: const Color(0xFF16A34A).withOpacity(0.25),
+                          color: const Color(0xFF16A34A).withValues(alpha:0.25),
                           width: 2),
                     ),
                     child: const Icon(Icons.check_circle_rounded,
@@ -1203,7 +1197,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                         value: v,
                         minHeight: 4,
                         backgroundColor:
-                            const Color(0xFF16A34A).withOpacity(0.1),
+                            const Color(0xFF16A34A).withValues(alpha:0.1),
                         valueColor: const AlwaysStoppedAnimation<Color>(
                             Color(0xFF16A34A)),
                       ),
@@ -1321,7 +1315,6 @@ class _NewsFormPageState extends State<_NewsFormPage> {
   // Hasil translate
   String? _titleId, _titleEn, _titleZh;
   String? _contentId, _contentEn, _contentZh;
-  bool _translated = false;
 
   @override
   void initState() {
@@ -1346,7 +1339,6 @@ class _NewsFormPageState extends State<_NewsFormPage> {
       _contentId = d['content_id'];
       _contentEn = d['content_en'];
       _contentZh = d['content_zh'];
-      _translated = true;
     }
   }
 
@@ -1399,7 +1391,7 @@ class _NewsFormPageState extends State<_NewsFormPage> {
 
     // Cek karakter non-Latin lain (Arab, Cyrillic, dll) → fallback EN
     if (RegExp(r'[^\x00-\x7F]').hasMatch(text) &&
-        !RegExp(r'[\u4e00-\u9fff]').hasMatch(text)) return 'en';
+        !RegExp(r'[\u4e00-\u9fff]').hasMatch(text)) { return 'en';}
 
     final lower = text.toLowerCase().trim();
     final words = lower.split(RegExp(r'[\s\.,!?;:()\-]+'))
@@ -1567,7 +1559,6 @@ class _NewsFormPageState extends State<_NewsFormPage> {
         _contentId = finalContentId;
         _contentEn = finalContentEn;
         _contentZh = finalContentZh;
-        _translated    = true;
         _isTranslating = false;
       });
 
@@ -1678,7 +1669,7 @@ class _NewsFormPageState extends State<_NewsFormPage> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
-          color: isActive ? color : color.withOpacity(0.08),
+          color: isActive ? color : color.withValues(alpha:0.08),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color, width: isActive ? 0 : 1),
         ),
@@ -1735,7 +1726,7 @@ class _NewsFormPageState extends State<_NewsFormPage> {
           Container(
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-              color: _primary.withOpacity(0.12),
+              color: _primary.withValues(alpha:0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(Icons.campaign_outlined, color: _primary, size: 18),
@@ -1917,7 +1908,7 @@ class _NewsFormPageState extends State<_NewsFormPage> {
                       border: Border.all(
                         color: _pickedImageBytes != null ||
                                 _existingImageUrl != null
-                            ? _primary.withOpacity(0.5)
+                            ? _primary.withValues(alpha:0.5)
                             : Colors.grey.shade200,
                         width: 1.5,
                       ),
@@ -1936,7 +1927,7 @@ class _NewsFormPageState extends State<_NewsFormPage> {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.55),
+                                    color: Colors.black.withValues(alpha:0.55),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Row(
@@ -1990,7 +1981,7 @@ class _NewsFormPageState extends State<_NewsFormPage> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 10, vertical: 6),
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.55),
+                                        color: Colors.black.withValues(alpha:0.55),
                                         borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Row(
@@ -2064,7 +2055,7 @@ class _NewsFormPageState extends State<_NewsFormPage> {
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 13),
                     ),
-                    onChanged: (_) => setState(() => _translated = false),
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -2097,7 +2088,7 @@ class _NewsFormPageState extends State<_NewsFormPage> {
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.all(14),
                     ),
-                    onChanged: (_) => setState(() => _translated = false),
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -2120,7 +2111,7 @@ class _NewsFormPageState extends State<_NewsFormPage> {
                     top: BorderSide(color: Colors.grey.shade100)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha:0.05),
                     blurRadius: 10,
                     offset: const Offset(0, -4),
                   ),
@@ -2189,25 +2180,5 @@ class _NewsFormPageState extends State<_NewsFormPage> {
         ],
       ),
     );
-  }
-
-  Widget _previewRow(String flag, String code, String text) {
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('$flag $code  ',
-          style: GoogleFonts.poppins(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Colors.grey.shade700)),
-      Expanded(
-        child: Text(
-          text,
-          style: GoogleFonts.poppins(
-              fontSize: 11,
-              color: const Color(0xFF1E293B)),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    ]);
   }
 }
