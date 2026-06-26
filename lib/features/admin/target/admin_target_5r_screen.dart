@@ -191,10 +191,9 @@ class _State extends State<AdminTarget5rScreen> {
   void _filter() {
     var l = List<Map<String, dynamic>>.from(_all);
     if (_fType != null) l = l.where((r) => r['type'] == _fType!.db).toList();
-    if (_fAktif != null)
-      l = l
-          .where((r) => (r['is_aktif'] as bool? ?? true) == _fAktif)
-          .toList();
+    if (_fAktif != null) {
+      l = l.where((r) => (r['is_aktif'] as bool? ?? true) == _fAktif).toList();
+    }
     if (_q.isNotEmpty) {
       final q = _q.toLowerCase();
       l = l
@@ -389,7 +388,7 @@ class _State extends State<AdminTarget5rScreen> {
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: _kGreen.withOpacity(0.35),
+                  color: _kGreen.withValues(alpha:0.35),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -399,7 +398,7 @@ class _State extends State<AdminTarget5rScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.25),
+                  color: Colors.white.withValues(alpha:0.25),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.add_circle_outline_rounded,
@@ -426,7 +425,7 @@ class _State extends State<AdminTarget5rScreen> {
                               : 'Add monthly, daily, or holiday target',
                       style: GoogleFonts.poppins(
                           fontSize: 10,
-                          color: Colors.white.withOpacity(0.85)),
+                          color: Colors.white.withValues(alpha:0.85)),
                     ),
                   ],
                 ),
@@ -459,10 +458,10 @@ class _State extends State<AdminTarget5rScreen> {
                     const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide(color: _kGreen.withOpacity(0.3))),
+                    borderSide: BorderSide(color: _kGreen.withValues(alpha:0.3))),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide(color: _kGreen.withOpacity(0.3))),
+                    borderSide: BorderSide(color: _kGreen.withValues(alpha:0.3))),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: const BorderSide(color: _kGreen, width: 1.5)),
@@ -486,7 +485,7 @@ class _State extends State<AdminTarget5rScreen> {
                   color: _fAktif == null
                       ? Colors.grey.shade300
                       : _fAktif == true
-                          ? _kGreen.withOpacity(0.5)
+                          ? _kGreen.withValues(alpha:0.5)
                           : Colors.red.shade200,
                   width: 1.2,
                 ),
@@ -604,7 +603,7 @@ class _State extends State<AdminTarget5rScreen> {
               color: const Color(0xFFFFF7ED),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                  color: const Color(0xFFFBBF24).withOpacity(0.5)),
+                  color: const Color(0xFFFBBF24).withValues(alpha:0.5)),
             ),
             child: Row(children: [
               const Icon(Icons.info_outline_rounded,
@@ -623,7 +622,7 @@ class _State extends State<AdminTarget5rScreen> {
           ),
         ),
 
-      Container(height: 1, color: Colors.black.withOpacity(0.06)),
+      Container(height: 1, color: Colors.black.withValues(alpha:0.06)),
     ]),
   );
 
@@ -651,7 +650,7 @@ class _State extends State<AdminTarget5rScreen> {
           ),
           boxShadow: sel
               ? [BoxShadow(
-                  color: selBg.withOpacity(0.25),
+                  color: selBg.withValues(alpha:0.25),
                   blurRadius: 6,
                   offset: const Offset(0, 2))]
               : [],
@@ -705,12 +704,12 @@ class _State extends State<AdminTarget5rScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-            color: aktif ? tc.withOpacity(0.3) : Colors.grey.shade200),
+            color: aktif ? tc.withValues(alpha:0.3) : Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
               color: aktif
-                  ? tc.withOpacity(0.08)
-                  : Colors.black.withOpacity(0.03),
+                  ? tc.withValues(alpha:0.08)
+                  : Colors.black.withValues(alpha:0.03),
               blurRadius: 8,
               offset: const Offset(0, 2))
         ],
@@ -725,7 +724,7 @@ class _State extends State<AdminTarget5rScreen> {
               Container(
                   padding: const EdgeInsets.all(7),
                   decoration: BoxDecoration(
-                      color: tc.withOpacity(0.12),
+                      color: tc.withValues(alpha:0.12),
                       borderRadius: BorderRadius.circular(8)),
                   child: Icon(ti, color: tc, size: 16)),
               const SizedBox(width: 10),
@@ -757,7 +756,7 @@ class _State extends State<AdminTarget5rScreen> {
                   color: const Color(0xFFFFF7ED),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                      color: const Color(0xFFFBBF24).withOpacity(0.4)),
+                      color: const Color(0xFFFBBF24).withValues(alpha:0.4)),
                 ),
                 child: Row(children: [
                   const Icon(Icons.beach_access_rounded,
@@ -782,7 +781,7 @@ class _State extends State<AdminTarget5rScreen> {
                         style: GoogleFonts.poppins(
                             fontSize: 11,
                             color: const Color(0xFFD97706)
-                                .withOpacity(0.8),
+                                .withValues(alpha:0.8),
                             fontStyle: FontStyle.italic),
                       ),
                     ]),
@@ -850,13 +849,13 @@ class _State extends State<AdminTarget5rScreen> {
             const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
           color: aktif
-              ? const Color(0xFF22C55E).withOpacity(0.12)
-              : Colors.grey.withOpacity(0.1),
+              ? const Color(0xFF22C55E).withValues(alpha:0.12)
+              : Colors.grey.withValues(alpha:0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
               color: aktif
-                  ? const Color(0xFF22C55E).withOpacity(0.5)
-                  : Colors.grey.withOpacity(0.3)),
+                  ? const Color(0xFF22C55E).withValues(alpha:0.5)
+                  : Colors.grey.withValues(alpha:0.3)),
         ),
         child: Text(
           aktif
@@ -881,9 +880,9 @@ class _State extends State<AdminTarget5rScreen> {
         padding:
             const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-            color: c.withOpacity(0.08),
+            color: c.withValues(alpha:0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: c.withOpacity(0.25))),
+            border: Border.all(color: c.withValues(alpha:0.25))),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 12, color: c),
           const SizedBox(width: 4),
@@ -900,9 +899,9 @@ class _State extends State<AdminTarget5rScreen> {
             padding: const EdgeInsets.symmetric(
                 horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
-                color: c.withOpacity(0.08),
+                color: c.withValues(alpha:0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: c.withOpacity(0.3))),
+                border: Border.all(color: c.withValues(alpha:0.3))),
             child: Icon(icon, size: 16, color: c),
           ));
 
@@ -985,7 +984,7 @@ class _State extends State<AdminTarget5rScreen> {
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
                                       color:
-                                          _kGreen.withOpacity(0.1),
+                                          _kGreen.withValues(alpha:0.1),
                                       borderRadius:
                                           BorderRadius.circular(10)),
                                   child: Icon(
@@ -1073,7 +1072,7 @@ class _State extends State<AdminTarget5rScreen> {
                                         BorderRadius.circular(12),
                                     border: Border.all(
                                         color: const Color(0xFFFBBF24)
-                                            .withOpacity(0.5)),
+                                            .withValues(alpha:0.5)),
                                   ),
                                   child: Row(children: [
                                     const Icon(
@@ -1173,7 +1172,7 @@ class _State extends State<AdminTarget5rScreen> {
                                           fontSize: 15)),
                                   onPressed: () async {
                                     if (!fk.currentState!
-                                        .validate()) return;
+                                        .validate()) { return; }
                                     Navigator.pop(ctx);
                                     await _save(
                                       isEdit: isEdit,
@@ -1213,7 +1212,7 @@ class _State extends State<AdminTarget5rScreen> {
                                         vertical: 16),
                                     elevation: 3,
                                     shadowColor:
-                                        _kGreen.withOpacity(0.4),
+                                        _kGreen.withValues(alpha:0.4),
                                     shape: RoundedRectangleBorder(
                                         borderRadius:
                                             BorderRadius.circular(14)),
@@ -1270,7 +1269,7 @@ class _State extends State<AdminTarget5rScreen> {
                 boxShadow: sel
                     ? [
                         BoxShadow(
-                            color: t.$4.withOpacity(0.3),
+                            color: t.$4.withValues(alpha:0.3),
                             blurRadius: 8,
                             offset: const Offset(0, 3))
                       ]
@@ -1303,7 +1302,7 @@ class _State extends State<AdminTarget5rScreen> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-              color: _kGreen.withOpacity(0.1),
+              color: _kGreen.withValues(alpha:0.1),
               borderRadius: BorderRadius.circular(8)),
           child: Icon(icon, size: 14, color: _kGreen),
         ),
@@ -1376,10 +1375,10 @@ class _State extends State<AdminTarget5rScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _kGreen.withOpacity(0.4), width: 1.5),
+          border: Border.all(color: _kGreen.withValues(alpha:0.4), width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: _kGreen.withOpacity(0.08),
+                color: _kGreen.withValues(alpha:0.08),
                 blurRadius: 6,
                 offset: const Offset(0, 2))
           ],
@@ -1388,7 +1387,7 @@ class _State extends State<AdminTarget5rScreen> {
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-                color: _kGreen.withOpacity(0.1),
+                color: _kGreen.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(8)),
             child: const Icon(Icons.calendar_today_rounded,
                 size: 16, color: _kGreen),
@@ -1463,8 +1462,9 @@ class _State extends State<AdminTarget5rScreen> {
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
       validator: (v) {
-        if (required && (v == null || v.trim().isEmpty))
+        if (required && (v == null || v.trim().isEmpty)) {
           return _t('req');
+        }
         return null;
       },
     );
@@ -1512,13 +1512,13 @@ class _State extends State<AdminTarget5rScreen> {
                 labelStyle: GoogleFonts.poppins(fontSize: 11, color: Colors.black54),
                 prefixIcon: Icon(p.$3, size: 16, color: p.$4),
                 filled: true,
-                fillColor: p.$4.withOpacity(0.04),
+                fillColor: p.$4.withValues(alpha:0.04),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: p.$4.withOpacity(0.3))),
+                    borderSide: BorderSide(color: p.$4.withValues(alpha:0.3))),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: p.$4.withOpacity(0.3))),
+                    borderSide: BorderSide(color: p.$4.withValues(alpha:0.3))),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide(color: p.$4, width: 1.5)),
@@ -1555,10 +1555,10 @@ class _State extends State<AdminTarget5rScreen> {
             Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                    color: _kGreen.withOpacity(0.08),
+                    color: _kGreen.withValues(alpha:0.08),
                     shape: BoxShape.circle),
                 child: Icon(Icons.track_changes_rounded,
-                    size: 48, color: _kGreen.withOpacity(0.5))),
+                    size: 48, color: _kGreen.withValues(alpha:0.5))),
             const SizedBox(height: 12),
             Text(_t('empty'),
                 style: GoogleFonts.poppins(
@@ -1593,10 +1593,10 @@ class _StyledDropdown<T> extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.35), width: 1.5),
+        border: Border.all(color: color.withValues(alpha:0.35), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: color.withOpacity(0.07),
+              color: color.withValues(alpha:0.07),
               blurRadius: 6,
               offset: const Offset(0, 2))
         ],
@@ -1605,7 +1605,7 @@ class _StyledDropdown<T> extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha:0.1),
               borderRadius: BorderRadius.circular(8)),
           child: Icon(icon, size: 14, color: color),
         ),
