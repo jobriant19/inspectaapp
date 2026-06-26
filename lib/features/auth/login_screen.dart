@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui';
 import 'dart:async';
 import '../../core/services/auth_service.dart';
-import '../admin/admin_home_screen.dart';
+import '../admin/home/admin_home_screen.dart';
 import '../user/home/home_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/utils/font_warmup.dart';

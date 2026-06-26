@@ -3,10 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'user/admin_add_user.dart';
-import 'user/admin_delete_user.dart';
-import 'user/admin_detail_user.dart';
-import 'user/admin_edit_user.dart';
+import 'admin_add_user.dart';
+import 'admin_delete_user.dart';
+import 'admin_detail_user.dart';
+import 'admin_edit_user.dart';
 
 class AdminUserScreen extends StatefulWidget {
   final String lang;
