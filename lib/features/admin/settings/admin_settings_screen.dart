@@ -17,7 +17,6 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
   static const _bg = Color(0xFFF8FAFC);
 
   Map<String, dynamic>? _cachedAppInfo;
-  // Cache legal: key = 'terms_conditions' / 'privacy_policy'
   Map<String, List<Map<String, dynamic>>> _cachedLegal = {};
   List<Map<String, dynamic>> _cachedNews = [];
 
@@ -79,7 +78,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    PageRoute<T> _slideRoute<T>(Widget screen) {
+    PageRoute<T> slideRoute<T>(Widget screen) {
       return PageRouteBuilder<T>(
         pageBuilder: (_, animation, __) => screen,
         transitionsBuilder: (_, animation, __, child) {
@@ -112,9 +111,9 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         color: const Color(0xFF1D72F3),
         onTap: () => Navigator.push(
           context,
-          _slideRoute(AdminAboutScreen(
+          slideRoute(AdminAboutScreen(
             lang: widget.lang,
-            initialData: _cachedAppInfo, // ← kirim data cache
+            initialData: _cachedAppInfo,
           )),
         ),
       ),
@@ -133,7 +132,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         color: const Color(0xFF0891B2),
         onTap: () => Navigator.push(
           context,
-          _slideRoute(AdminLegalScreen(
+          slideRoute(AdminLegalScreen(
             lang: widget.lang,
             docType: 'terms_conditions',
             title: widget.lang == 'EN'
@@ -160,7 +159,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         color: const Color(0xFF059669),
         onTap: () => Navigator.push(
           context,
-          _slideRoute(AdminLegalScreen(
+          slideRoute(AdminLegalScreen(
             lang: widget.lang,
             docType: 'privacy_policy',
             title: widget.lang == 'EN'
@@ -168,7 +167,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 : widget.lang == 'ZH'
                     ? '隐私政策'
                     : 'Kebijakan Privasi',
-            initialDocs: _cachedLegal['privacy_policy'], // ← tambah ini
+            initialDocs: _cachedLegal['privacy_policy'],
           )),
         ),
       ),
@@ -187,7 +186,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         color: const Color(0xFFF59E0B),
         onTap: () => Navigator.push(
           context,
-          _slideRoute(AdminNewsScreen(
+          slideRoute(AdminNewsScreen(
             lang: widget.lang,
             initialData: _cachedNews.isEmpty ? null : _cachedNews,
           )),
@@ -206,7 +205,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
           icon: const Icon(Icons.arrow_back_ios_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        shadowColor: Colors.black.withOpacity(0.06),
+        shadowColor: Colors.black.withValues(alpha:0.06),
         title: Text(
           widget.lang == 'EN'
               ? 'App Settings'
@@ -225,7 +224,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header info
+            // HEADER INFO
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -237,7 +236,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFEF4444).withOpacity(0.3),
+                    color: const Color(0xFFEF4444).withValues(alpha:0.3),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -248,7 +247,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha:0.2),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(Icons.settings_rounded,
@@ -279,7 +278,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                                   ? '管理应用内容与信息'
                                   : 'Kelola konten & informasi aplikasi',
                           style: GoogleFonts.poppins(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha:0.8),
                             fontSize: 12,
                           ),
                         ),
@@ -306,7 +305,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Menu cards
+            // MENU CARDS
             ...menus.map((menu) => _buildMenuCard(context, menu)),
           ],
         ),
@@ -323,10 +322,10 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.black.withOpacity(0.06)),
+          border: Border.all(color: Colors.black.withValues(alpha:0.06)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha:0.04),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -337,7 +336,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: menu.color.withOpacity(0.10),
+                color: menu.color.withValues(alpha:0.10),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(menu.icon, color: menu.color, size: 24),
@@ -367,7 +366,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: menu.color.withOpacity(0.08),
+                color: menu.color.withValues(alpha:0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(Icons.arrow_forward_ios_rounded,
