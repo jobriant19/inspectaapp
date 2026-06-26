@@ -71,7 +71,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             .select(
               'id_user, nama, email, poin, gambar_user, is_visitor, phone, '
               'is_verificator, id_jabatan, timestamp, log_login, first_login, '
-              'id_lokasi, id_unit, id_subunit, id_area, '
+              'id_lokasi, id_unit, id_subunit, id_area, bagian_kasie, '
               'jabatan(nama_jabatan), '
               'lokasi!fk_user_lokasi(nama_lokasi), '
               'unit!user_id_unit_fkey(nama_unit), '
@@ -662,7 +662,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     String? selectedSubunitId = user?['id_subunit'] as String?;
     String? selectedAreaId = user?['id_area'] as String?;
     String? selectedSupervisorId = user?['id_supervisor'] as String?;
-    String? _selectedBagianKasie = user?['bagian_kasie'] as String?;
+    String? _selectedBagianKasie = (user?['bagian_kasie'] as String?)?.trim().isEmpty == true ? null : user?['bagian_kasie'] as String?;
     List<Map<String, dynamic>> supervisorList = [];
 
     List<Map<String, dynamic>> lokasiList = [];
@@ -1104,7 +1104,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String?>(
-                                  value: (user?['bagian_kasie'] as String?),
+                                  value: _selectedBagianKasie,   // ← pakai variabel lokal, bukan user['bagian_kasie']
                                   isExpanded: true,
                                   dropdownColor: Colors.white,
                                   icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black45),
@@ -1132,10 +1132,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                             color: const Color(0xFF1E3A8A), fontSize: 13)),
                                     )),
                                   ],
-                                  onChanged: (v) => setDlg(() {
-                                    // Simpan ke variabel lokal — perlu deklarasi di _showUserDialog
-                                    _selectedBagianKasie = v;
-                                  }),
+                                  onChanged: (v) => setDlg(() => _selectedBagianKasie = v),
                                 ),
                               ),
                             ),
