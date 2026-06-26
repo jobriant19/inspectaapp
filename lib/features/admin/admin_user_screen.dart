@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/services/auth_service.dart';
 import 'shared/admin_image_picker_widget.dart';
+import 'user/admin_add_user.dart';
 
 class AdminUserScreen extends StatefulWidget {
   final String lang;
@@ -643,26 +644,42 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     );
   }
 
-  // ─── DIALOG: Tambah / Edit User ───
+  // ─── DIALOG: Edit User saja (Add sudah dipindah ke AdminAddUserScreen) ───
   void _showUserDialog({Map<String, dynamic>? user}) {
-    final isEdit = user != null;
-    final namaCtrl = TextEditingController(text: user?['nama'] ?? '');
-    final emailCtrl = TextEditingController(text: user?['email'] ?? '');
+    // Jika dipanggil tanpa user (Add), arahkan ke screen baru
+    if (user == null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AdminAddUserScreen(
+            lang: widget.lang,
+            jabatanList: _jabatanList,
+            onUserAdded: _loadData,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // ── Mode Edit tetap menggunakan dialog seperti semula ──
+    final isEdit = true;
+    final namaCtrl = TextEditingController(text: user['nama'] ?? '');
+    final emailCtrl = TextEditingController(text: user['email'] ?? '');
     final passCtrl = TextEditingController();
     bool showPasswordField = false;
-    final phoneCtrl = TextEditingController(text: user?['phone'] ?? '');
-    int? selectedJabatan = user?['id_jabatan'] as int?;
-    bool isVisitor = user?['is_visitor'] == true;
-    bool isVerificator = user?['is_verificator'] == true;
+    final phoneCtrl = TextEditingController(text: user['phone'] ?? '');
+    int? selectedJabatan = user['id_jabatan'] as int?;
+    bool isVisitor = user['is_visitor'] == true;
+    bool isVerificator = user['is_verificator'] == true;
     bool isSavingDialog = false;
-    String? gambarUserUrl = user?['gambar_user'] as String?;
+    String? gambarUserUrl = user['gambar_user'] as String?;
 
-    String? selectedLokasiId = user?['id_lokasi'] as String?;
-    String? selectedUnitId = user?['id_unit'] as String?;
-    String? selectedSubunitId = user?['id_subunit'] as String?;
-    String? selectedAreaId = user?['id_area'] as String?;
-    String? selectedSupervisorId = user?['id_supervisor'] as String?;
-    String? _selectedBagianKasie = (user?['bagian_kasie'] as String?)?.trim().isEmpty == true ? null : user?['bagian_kasie'] as String?;
+    String? selectedLokasiId = user['id_lokasi'] as String?;
+    String? selectedUnitId = user['id_unit'] as String?;
+    String? selectedSubunitId = user['id_subunit'] as String?;
+    String? selectedAreaId = user['id_area'] as String?;
+    String? selectedSupervisorId = user['id_supervisor'] as String?;
+    String? _selectedBagianKasie = (user['bagian_kasie'] as String?)?.trim().isEmpty == true ? null : user['bagian_kasie'] as String?;
     List<Map<String, dynamic>> supervisorList = [];
 
     List<Map<String, dynamic>> lokasiList = [];
@@ -720,7 +737,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       });
     }
 
-    // ── Supervisor hanya jabatan 2 (Manager) & 3 (Kasie) ──
     Future<void> loadSupervisors(StateSetter setDlg) async {
       final res = await Supabase.instance.client
           .from('User')
@@ -737,17 +753,15 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         builder: (ctx, setDlg) {
           if (lokasiList.isEmpty) {
             loadLokasi(setDlg).then((_) {
-              if (isEdit && selectedLokasiId != null) {
+              if (selectedLokasiId != null) {
                 loadUnit(selectedLokasiId!, setDlg).then((_) {
                   setDlg(() => selectedUnitId = user['id_unit'] as String?);
                   if (selectedUnitId != null) {
                     loadSubunit(selectedUnitId!, setDlg).then((_) {
-                      setDlg(() =>
-                          selectedSubunitId = user['id_subunit'] as String?);
+                      setDlg(() => selectedSubunitId = user['id_subunit'] as String?);
                       if (selectedSubunitId != null) {
                         loadArea(selectedSubunitId!, setDlg).then((_) {
-                          setDlg(() =>
-                              selectedAreaId = user['id_area'] as String?);
+                          setDlg(() => selectedAreaId = user['id_area'] as String?);
                         });
                       }
                     });
@@ -760,11 +774,8 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
 
           return Dialog(
             backgroundColor: Colors.white,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            insetPadding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            // ── Batasi tinggi dialog agar tidak overflow ──
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 maxHeight: MediaQuery.of(ctx).size.height * 0.88,
@@ -772,15 +783,12 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ══════════════════════════════════════
-                  // STICKY HEADER
-                  // ══════════════════════════════════════
+                  // ══ STICKY HEADER ══
                   Container(
                     padding: const EdgeInsets.fromLTRB(24, 20, 20, 16),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(24)),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.04),
@@ -797,13 +805,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                             color: _primary.withOpacity(0.10),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(
-                            isEdit
-                                ? Icons.edit_rounded
-                                : Icons.person_add_rounded,
-                            color: _primary,
-                            size: 22,
-                          ),
+                          child: const Icon(Icons.edit_rounded, color: _primary, size: 22),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -811,17 +813,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isEdit
-                                    ? (_langCode == 'EN'
-                                        ? 'Edit User'
-                                        : _langCode == 'ZH'
-                                            ? '编辑用户'
-                                            : 'Edit Pengguna')
-                                    : (_langCode == 'EN'
-                                        ? 'Add New User'
-                                        : _langCode == 'ZH'
-                                            ? '添加新用户'
-                                            : 'Tambah Pengguna Baru'),
+                                _langCode == 'EN' ? 'Edit User' : _langCode == 'ZH' ? '编辑用户' : 'Edit Pengguna',
                                 style: GoogleFonts.poppins(
                                   color: const Color(0xFF1E3A8A),
                                   fontWeight: FontWeight.w700,
@@ -829,21 +821,8 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                 ),
                               ),
                               Text(
-                                isEdit
-                                    ? (_langCode == 'EN'
-                                        ? 'Update user information'
-                                        : _langCode == 'ZH'
-                                            ? '更新用户信息'
-                                            : 'Perbarui informasi pengguna')
-                                    : (_langCode == 'EN'
-                                        ? 'Fill in the new user data'
-                                        : _langCode == 'ZH'
-                                            ? '填写新用户数据'
-                                            : 'Isi data pengguna baru'),
-                                style: GoogleFonts.poppins(
-                                  color: Colors.black45,
-                                  fontSize: 11,
-                                ),
+                                _langCode == 'EN' ? 'Update user information' : _langCode == 'ZH' ? '更新用户信息' : 'Perbarui informasi pengguna',
+                                style: GoogleFonts.poppins(color: Colors.black45, fontSize: 11),
                               ),
                             ],
                           ),
@@ -856,17 +835,14 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                               color: Colors.grey.shade100,
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(Icons.close,
-                                size: 18, color: Colors.grey.shade500),
+                            child: Icon(Icons.close, size: 18, color: Colors.grey.shade500),
                           ),
                         ),
                       ],
                     ),
                   ),
 
-                  // ══════════════════════════════════════
-                  // SCROLLABLE BODY
-                  // ══════════════════════════════════════
+                  // ══ SCROLLABLE BODY ══
                   Flexible(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
@@ -874,226 +850,124 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // ── Avatar / Gambar User ──
-                          _buildDlgLabel(_langCode == 'EN'
-                              ? 'Profile Photo'
-                              : _langCode == 'ZH'
-                                  ? '头像'
-                                  : 'Foto Profil'),
+                          // Avatar
+                          _buildDlgLabel(_langCode == 'EN' ? 'Profile Photo' : _langCode == 'ZH' ? '头像' : 'Foto Profil'),
                           const SizedBox(height: 12),
                           AdminImagePickerWidget(
                             currentImageUrl: gambarUserUrl,
                             storageBucket: 'avatars',
                             storageFolder: 'user',
-                            filePrefix: user?['id_user'] ?? 'new-user',
+                            filePrefix: user['id_user'] ?? 'new-user',
                             height: 56,
                             isCircle: true,
                             placeholder: Text(
-                              namaCtrl.text.isNotEmpty
-                                  ? namaCtrl.text[0].toUpperCase()
-                                  : '?',
-                              style: GoogleFonts.poppins(
-                                color: const Color(0xFF6366F1),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 20,
-                              ),
+                              namaCtrl.text.isNotEmpty ? namaCtrl.text[0].toUpperCase() : '?',
+                              style: GoogleFonts.poppins(color: const Color(0xFF6366F1), fontWeight: FontWeight.bold, fontSize: 20),
                             ),
-                            onUploaded: (newUrl) =>
-                                setDlg(() => gambarUserUrl = newUrl),
+                            onUploaded: (newUrl) => setDlg(() => gambarUserUrl = newUrl),
                           ),
                           const SizedBox(height: 20),
 
-                          // ── Section: Informasi Dasar ──
                           _buildDlgSectionLabel(
-                            _langCode == 'EN'
-                                ? 'Basic Information'
-                                : _langCode == 'ZH'
-                                    ? '基本信息'
-                                    : 'Informasi Dasar',
+                            _langCode == 'EN' ? 'Basic Information' : _langCode == 'ZH' ? '基本信息' : 'Informasi Dasar',
                             Icons.person_outline,
                             const Color(0xFF6366F1),
                           ),
                           const SizedBox(height: 12),
 
-                          // ── Nama ──
-                          _buildDlgLabel(_langCode == 'EN'
-                              ? 'Full Name'
-                              : _langCode == 'ZH'
-                                  ? '姓名'
-                                  : 'Nama Lengkap'),
+                          _buildDlgLabel(_langCode == 'EN' ? 'Full Name' : _langCode == 'ZH' ? '姓名' : 'Nama Lengkap'),
                           const SizedBox(height: 6),
-                          _buildDlgTextField(
-                            namaCtrl,
-                            Icons.person_outline,
-                            _langCode == 'EN'
-                                ? 'Enter full name...'
-                                : 'Masukkan nama lengkap...',
-                          ),
+                          _buildDlgTextField(namaCtrl, Icons.person_outline,
+                              _langCode == 'EN' ? 'Enter full name...' : 'Masukkan nama lengkap...'),
                           const SizedBox(height: 14),
 
-                          // ── Email ──
                           _buildDlgLabel('Email'),
                           const SizedBox(height: 6),
-                          _buildDlgTextField(
-                            emailCtrl,
-                            Icons.email_outlined,
-                            'email@example.com',
-                            keyboardType: TextInputType.emailAddress,
-                            enabled: !isEdit,
-                          ),
+                          _buildDlgTextField(emailCtrl, Icons.email_outlined, 'email@example.com',
+                              keyboardType: TextInputType.emailAddress, enabled: false),
                           const SizedBox(height: 14),
 
-                          // ── Phone ──
-                          _buildDlgLabel(_langCode == 'EN'
-                              ? 'Phone'
-                              : _langCode == 'ZH'
-                                  ? '电话'
-                                  : 'Telepon'),
+                          _buildDlgLabel(_langCode == 'EN' ? 'Phone' : _langCode == 'ZH' ? '电话' : 'Telepon'),
                           const SizedBox(height: 6),
-                          _buildDlgTextField(
-                            phoneCtrl,
-                            Icons.phone_outlined,
-                            _langCode == 'EN'
-                                ? 'e.g. 08123456789'
-                                : 'cth. 08123456789',
-                            keyboardType: TextInputType.phone,
-                          ),
+                          _buildDlgTextField(phoneCtrl, Icons.phone_outlined,
+                              _langCode == 'EN' ? 'e.g. 08123456789' : 'cth. 08123456789',
+                              keyboardType: TextInputType.phone),
                           const SizedBox(height: 14),
 
-                          // ── Password (hanya saat tambah) ──
-                          if (!isEdit) ...[
-                            _buildDlgLabel(_langCode == 'EN'
-                                ? 'Password'
-                                : _langCode == 'ZH'
-                                    ? '密码'
-                                    : 'Kata Sandi'),
-                            const SizedBox(height: 6),
-                            _buildDlgTextField(
-                              passCtrl,
-                              Icons.lock_outline,
-                              _langCode == 'EN'
-                                  ? 'Min 6 characters'
-                                  : 'Minimal 6 karakter',
-                              obscure: true,
-                            ),
-                            const SizedBox(height: 14),
-                          ] else ...[
-                            // Tombol toggle ubah password saat edit
-                            GestureDetector(
-                              onTap: () => setDlg(() => showPasswordField = !showPasswordField),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: showPasswordField
-                                      ? const Color(0xFFFFF7ED)
-                                      : const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: showPasswordField
-                                        ? const Color(0xFFF59E0B)
-                                        : Colors.grey.shade200,
-                                    width: showPasswordField ? 1.5 : 1,
-                                  ),
+                          // Toggle ubah password
+                          GestureDetector(
+                            onTap: () => setDlg(() => showPasswordField = !showPasswordField),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: showPasswordField ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: showPasswordField ? const Color(0xFFF59E0B) : Colors.grey.shade200,
+                                  width: showPasswordField ? 1.5 : 1,
                                 ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: showPasswordField
-                                            ? const Color(0xFFF59E0B).withOpacity(0.12)
-                                            : Colors.grey.shade100,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        Icons.lock_reset_rounded,
-                                        size: 16,
-                                        color: showPasswordField
-                                            ? const Color(0xFFF59E0B)
-                                            : Colors.grey.shade500,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        _langCode == 'EN'
-                                            ? 'Change Password'
-                                            : _langCode == 'ZH'
-                                                ? '更改密码'
-                                                : 'Ubah Password',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: showPasswordField
-                                              ? const Color(0xFFF59E0B)
-                                              : Colors.black54,
-                                        ),
-                                      ),
-                                    ),
-                                    Icon(
-                                      showPasswordField
-                                          ? Icons.keyboard_arrow_up_rounded
-                                          : Icons.keyboard_arrow_down_rounded,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
                                       color: showPasswordField
-                                          ? const Color(0xFFF59E0B)
-                                          : Colors.grey.shade400,
-                                      size: 20,
+                                          ? const Color(0xFFF59E0B).withOpacity(0.12)
+                                          : Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                  ],
-                                ),
+                                    child: Icon(Icons.lock_reset_rounded, size: 16,
+                                        color: showPasswordField ? const Color(0xFFF59E0B) : Colors.grey.shade500),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      _langCode == 'EN' ? 'Change Password' : _langCode == 'ZH' ? '更改密码' : 'Ubah Password',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: showPasswordField ? const Color(0xFFF59E0B) : Colors.black54,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    showPasswordField
+                                        ? Icons.keyboard_arrow_up_rounded
+                                        : Icons.keyboard_arrow_down_rounded,
+                                    color: showPasswordField ? const Color(0xFFF59E0B) : Colors.grey.shade400,
+                                    size: 20,
+                                  ),
+                                ],
                               ),
                             ),
-                            if (showPasswordField) ...[
-                              const SizedBox(height: 10),
-                              _buildDlgTextField(
-                                passCtrl,
-                                Icons.lock_outline,
-                                _langCode == 'EN'
-                                    ? 'New password (min 6 characters)'
-                                    : _langCode == 'ZH'
-                                        ? '新密码（最少6个字符）'
-                                        : 'Password baru (minimal 6 karakter)',
-                                obscure: true,
+                          ),
+                          if (showPasswordField) ...[
+                            const SizedBox(height: 10),
+                            _buildDlgTextField(passCtrl, Icons.lock_outline,
+                                _langCode == 'EN' ? 'New password (min 6 characters)' : _langCode == 'ZH' ? '新密码（最少6个字符）' : 'Password baru (minimal 6 karakter)',
+                                obscure: true),
+                            const SizedBox(height: 4),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Text(
+                                _langCode == 'EN' ? 'Leave empty to keep current password' : _langCode == 'ZH' ? '留空则保持当前密码' : 'Kosongkan jika tidak ingin mengubah password',
+                                style: GoogleFonts.poppins(fontSize: 11, color: Colors.black38),
                               ),
-                              const SizedBox(height: 4),
-                              Padding(
-                                padding: const EdgeInsets.only(left: 4),
-                                child: Text(
-                                  _langCode == 'EN'
-                                      ? 'Leave empty to keep current password'
-                                      : _langCode == 'ZH'
-                                          ? '留空则保持当前密码'
-                                          : 'Kosongkan jika tidak ingin mengubah password',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 11,
-                                    color: Colors.black38,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 14),
+                            ),
                           ],
+                          const SizedBox(height: 14),
 
-                          // ── Jabatan ──
-                          _buildDlgLabel(_langCode == 'EN'
-                              ? 'Job Title'
-                              : _langCode == 'ZH'
-                                  ? '职位'
-                                  : 'Jabatan'),
+                          _buildDlgLabel(_langCode == 'EN' ? 'Job Title' : _langCode == 'ZH' ? '职位' : 'Jabatan'),
                           const SizedBox(height: 6),
                           _buildJabatanDropdown(
                             selectedJabatan: selectedJabatan,
-                            onChanged: (v) =>
-                                setDlg(() => selectedJabatan = v),
+                            onChanged: (v) => setDlg(() => selectedJabatan = v),
                           ),
-                          // ── Bagian Kasie (hanya jika jabatan = 3) ──
+
                           if (selectedJabatan == 3) ...[
                             const SizedBox(height: 14),
-                            _buildDlgLabel(widget.lang == 'EN'
-                                ? 'Kasie Section'
-                                : widget.lang == 'ZH'
-                                    ? '科长部门'
-                                    : 'Bagian Kasie'),
+                            _buildDlgLabel(widget.lang == 'EN' ? 'Kasie Section' : widget.lang == 'ZH' ? '科长部门' : 'Bagian Kasie'),
                             const SizedBox(height: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -1104,33 +978,27 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String?>(
-                                  value: _selectedBagianKasie,   // ← pakai variabel lokal, bukan user['bagian_kasie']
+                                  value: _selectedBagianKasie,
                                   isExpanded: true,
                                   dropdownColor: Colors.white,
                                   icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black45),
                                   hint: Text(
-                                    widget.lang == 'EN' ? 'Select section'
-                                        : widget.lang == 'ZH' ? '选择部门' : 'Pilih bagian',
+                                    widget.lang == 'EN' ? 'Select section' : widget.lang == 'ZH' ? '选择部门' : 'Pilih bagian',
                                     style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
                                   ),
                                   items: [
                                     DropdownMenuItem<String?>(
                                       value: null,
                                       child: Text(
-                                        widget.lang == 'EN' ? '— No section —'
-                                            : widget.lang == 'ZH' ? '— 无部门 —' : '— Tanpa bagian —',
+                                        widget.lang == 'EN' ? '— No section —' : widget.lang == 'ZH' ? '— 无部门 —' : '— Tanpa bagian —',
                                         style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
                                       ),
                                     ),
-                                    ...const [
-                                      'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
-                                      'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
-                                    ].map((b) => DropdownMenuItem<String?>(
-                                      value: b,
-                                      child: Text(b,
-                                        style: GoogleFonts.poppins(
-                                            color: const Color(0xFF1E3A8A), fontSize: 13)),
-                                    )),
+                                    ...const ['Laser','Mesin','Spot','Las','Ftw','Cat','Assy','Ekspedisi & Packing','Purchasing','Engineering','PPIC']
+                                        .map((b) => DropdownMenuItem<String?>(
+                                              value: b,
+                                              child: Text(b, style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13)),
+                                            )),
                                   ],
                                   onChanged: (v) => setDlg(() => _selectedBagianKasie = v),
                                 ),
@@ -1142,33 +1010,18 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                           _buildDivider(),
                           const SizedBox(height: 16),
 
-                          // ── Section: Penempatan Lokasi ──
                           _buildDlgSectionLabel(
-                            _langCode == 'EN'
-                                ? 'Location Assignment'
-                                : _langCode == 'ZH'
-                                    ? '位置分配'
-                                    : 'Penempatan Lokasi',
-                            Icons.location_on_outlined,
-                            const Color(0xFF10B981),
+                            _langCode == 'EN' ? 'Location Assignment' : _langCode == 'ZH' ? '位置分配' : 'Penempatan Lokasi',
+                            Icons.location_on_outlined, const Color(0xFF10B981),
                           ),
                           const SizedBox(height: 12),
 
-                          // Lokasi
-                          _buildDlgLabel(_langCode == 'EN'
-                              ? 'Location'
-                              : _langCode == 'ZH'
-                                  ? '位置'
-                                  : 'Lokasi'),
+                          _buildDlgLabel(_langCode == 'EN' ? 'Location' : _langCode == 'ZH' ? '位置' : 'Lokasi'),
                           const SizedBox(height: 6),
                           _buildLocationDropdown<String>(
-                            items: lokasiList,
-                            idKey: 'id_lokasi',
-                            nameKey: 'nama_lokasi',
+                            items: lokasiList, idKey: 'id_lokasi', nameKey: 'nama_lokasi',
                             selectedId: selectedLokasiId,
-                            hint: _langCode == 'EN'
-                                ? 'Select location'
-                                : 'Pilih lokasi',
+                            hint: _langCode == 'EN' ? 'Select location' : 'Pilih lokasi',
                             onChanged: (v) {
                               setDlg(() => selectedLokasiId = v);
                               if (v != null) loadUnit(v, setDlg);
@@ -1176,19 +1029,13 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                           ),
                           const SizedBox(height: 12),
 
-                          // Unit
                           _buildDlgLabel('Unit'),
                           const SizedBox(height: 6),
                           _buildLocationDropdown<String>(
-                            items: unitList,
-                            idKey: 'id_unit',
-                            nameKey: 'nama_unit',
+                            items: unitList, idKey: 'id_unit', nameKey: 'nama_unit',
                             selectedId: selectedUnitId,
-                            hint: _langCode == 'EN'
-                                ? 'Select unit'
-                                : 'Pilih unit',
-                            enabled: selectedLokasiId != null &&
-                                unitList.isNotEmpty,
+                            hint: _langCode == 'EN' ? 'Select unit' : 'Pilih unit',
+                            enabled: selectedLokasiId != null && unitList.isNotEmpty,
                             onChanged: (v) {
                               setDlg(() => selectedUnitId = v);
                               if (v != null) loadSubunit(v, setDlg);
@@ -1196,19 +1043,13 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                           ),
                           const SizedBox(height: 12),
 
-                          // Subunit
                           _buildDlgLabel('Sub-Unit'),
                           const SizedBox(height: 6),
                           _buildLocationDropdown<String>(
-                            items: subunitList,
-                            idKey: 'id_subunit',
-                            nameKey: 'nama_subunit',
+                            items: subunitList, idKey: 'id_subunit', nameKey: 'nama_subunit',
                             selectedId: selectedSubunitId,
-                            hint: _langCode == 'EN'
-                                ? 'Select sub-unit'
-                                : 'Pilih sub-unit',
-                            enabled: selectedUnitId != null &&
-                                subunitList.isNotEmpty,
+                            hint: _langCode == 'EN' ? 'Select sub-unit' : 'Pilih sub-unit',
+                            enabled: selectedUnitId != null && subunitList.isNotEmpty,
                             onChanged: (v) {
                               setDlg(() => selectedSubunitId = v);
                               if (v != null) loadArea(v, setDlg);
@@ -1216,103 +1057,61 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                           ),
                           const SizedBox(height: 12),
 
-                          // Area
                           _buildDlgLabel('Area'),
                           const SizedBox(height: 6),
                           _buildLocationDropdown<String>(
-                            items: areaList,
-                            idKey: 'id_area',
-                            nameKey: 'nama_area',
+                            items: areaList, idKey: 'id_area', nameKey: 'nama_area',
                             selectedId: selectedAreaId,
-                            hint: _langCode == 'EN'
-                                ? 'Select area'
-                                : 'Pilih area',
-                            enabled: selectedSubunitId != null &&
-                                areaList.isNotEmpty,
-                            onChanged: (v) =>
-                                setDlg(() => selectedAreaId = v),
+                            hint: _langCode == 'EN' ? 'Select area' : 'Pilih area',
+                            enabled: selectedSubunitId != null && areaList.isNotEmpty,
+                            onChanged: (v) => setDlg(() => selectedAreaId = v),
                           ),
                           const SizedBox(height: 20),
 
                           _buildDivider(),
                           const SizedBox(height: 16),
 
-                          // ── Section: Supervisor ──
                           _buildDlgSectionLabel(
-                            _langCode == 'EN'
-                                ? 'Supervisor'
-                                : _langCode == 'ZH'
-                                    ? '主管'
-                                    : 'Supervisor',
-                            Icons.manage_accounts_outlined,
-                            const Color(0xFF8B5CF6),
+                            _langCode == 'EN' ? 'Supervisor' : _langCode == 'ZH' ? '主管' : 'Supervisor',
+                            Icons.manage_accounts_outlined, const Color(0xFF8B5CF6),
                           ),
                           const SizedBox(height: 12),
 
-                          _buildDlgLabel(_langCode == 'EN'
-                              ? 'Select Supervisor'
-                              : _langCode == 'ZH'
-                                  ? '选择主管'
-                                  : 'Pilih Supervisor'),
+                          _buildDlgLabel(_langCode == 'EN' ? 'Select Supervisor' : _langCode == 'ZH' ? '选择主管' : 'Pilih Supervisor'),
                           const SizedBox(height: 6),
                           Container(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 14),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF8FAFC),
                               borderRadius: BorderRadius.circular(12),
-                              border:
-                                  Border.all(color: Colors.grey.shade200),
+                              border: Border.all(color: Colors.grey.shade200),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
-                                value: supervisorList.any((e) =>
-                                        e['id_user'] == selectedSupervisorId)
-                                    ? selectedSupervisorId
-                                    : null,
+                                value: supervisorList.any((e) => e['id_user'] == selectedSupervisorId) ? selectedSupervisorId : null,
                                 isExpanded: true,
                                 dropdownColor: Colors.white,
-                                icon: const Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    color: Colors.black45),
+                                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black45),
                                 hint: Text(
-                                  _langCode == 'EN'
-                                      ? 'Select supervisor (optional)'
-                                      : _langCode == 'ZH'
-                                          ? '选择主管（可选）'
-                                          : 'Pilih supervisor (opsional)',
-                                  style: GoogleFonts.poppins(
-                                      color: Colors.black38, fontSize: 13),
+                                  _langCode == 'EN' ? 'Select supervisor (optional)' : _langCode == 'ZH' ? '选择主管（可选）' : 'Pilih supervisor (opsional)',
+                                  style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
                                 ),
                                 items: [
                                   DropdownMenuItem<String>(
                                     value: null,
                                     child: Text(
-                                      _langCode == 'EN'
-                                          ? '— No supervisor —'
-                                          : _langCode == 'ZH'
-                                              ? '— 无主管 —'
-                                              : '— Tanpa supervisor —',
-                                      style: GoogleFonts.poppins(
-                                          color: Colors.black38,
-                                          fontSize: 13),
+                                      _langCode == 'EN' ? '— No supervisor —' : _langCode == 'ZH' ? '— 无主管 —' : '— Tanpa supervisor —',
+                                      style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
                                     ),
                                   ),
-                                  ...supervisorList.map(
-                                    (s) => DropdownMenuItem<String>(
-                                      value: s['id_user'] as String,
-                                      child: Text(
-                                        s['nama'] ?? '-',
-                                        style: GoogleFonts.poppins(
-                                            color: const Color(0xFF1E3A8A),
-                                            fontSize: 13),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ),
+                                  ...supervisorList.map((s) => DropdownMenuItem<String>(
+                                        value: s['id_user'] as String,
+                                        child: Text(s['nama'] ?? '-',
+                                            style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13),
+                                            overflow: TextOverflow.ellipsis),
+                                      )),
                                 ],
-                                onChanged: (v) =>
-                                    setDlg(() => selectedSupervisorId = v),
+                                onChanged: (v) => setDlg(() => selectedSupervisorId = v),
                               ),
                             ),
                           ),
@@ -1321,43 +1120,22 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                           _buildDivider(),
                           const SizedBox(height: 16),
 
-                          // ── Section: Role & Akses ──
                           _buildDlgSectionLabel(
-                            _langCode == 'EN'
-                                ? 'Role & Access'
-                                : _langCode == 'ZH'
-                                    ? '角色与权限'
-                                    : 'Peran & Akses',
-                            Icons.shield_outlined,
-                            const Color(0xFF0891B2),
+                            _langCode == 'EN' ? 'Role & Access' : _langCode == 'ZH' ? '角色与权限' : 'Peran & Akses',
+                            Icons.shield_outlined, const Color(0xFF0891B2),
                           ),
                           const SizedBox(height: 12),
 
-                          // Toggle Visitor
                           _buildToggleRow(
-                            _langCode == 'EN'
-                                ? 'Visitor Mode'
-                                : _langCode == 'ZH'
-                                    ? '访客模式'
-                                    : 'Mode Pengunjung',
-                            Icons.visibility_outlined,
-                            isVisitor,
-                            (v) => setDlg(() => isVisitor = v),
-                            const Color(0xFF0891B2),
+                            _langCode == 'EN' ? 'Visitor Mode' : _langCode == 'ZH' ? '访客模式' : 'Mode Pengunjung',
+                            Icons.visibility_outlined, isVisitor,
+                            (v) => setDlg(() => isVisitor = v), const Color(0xFF0891B2),
                           ),
                           const SizedBox(height: 10),
-
-                          // Toggle Verificator
                           _buildToggleRow(
-                            _langCode == 'EN'
-                                ? 'Verificator'
-                                : _langCode == 'ZH'
-                                    ? '验证员'
-                                    : 'Verifikator',
-                            Icons.verified_user_outlined,
-                            isVerificator,
-                            (v) => setDlg(() => isVerificator = v),
-                            const Color(0xFFF59E0B),
+                            _langCode == 'EN' ? 'Verificator' : _langCode == 'ZH' ? '验证员' : 'Verifikator',
+                            Icons.verified_user_outlined, isVerificator,
+                            (v) => setDlg(() => isVerificator = v), const Color(0xFFF59E0B),
                           ),
                           const SizedBox(height: 24),
                         ],
@@ -1365,15 +1143,12 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                     ),
                   ),
 
-                  // ══════════════════════════════════════
-                  // STICKY FOOTER — ACTION BUTTONS
-                  // ══════════════════════════════════════
+                  // ══ STICKY FOOTER ══
                   Container(
                     padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: const BorderRadius.vertical(
-                          bottom: Radius.circular(24)),
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.05),
@@ -1385,10 +1160,8 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                     child: isSavingDialog
                         ? Center(
                             child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 8),
-                              child: CircularProgressIndicator(
-                                  color: _primary),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: CircularProgressIndicator(color: _primary),
                             ),
                           )
                         : Row(
@@ -1397,23 +1170,14 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                 child: OutlinedButton(
                                   onPressed: () => Navigator.pop(ctx),
                                   style: OutlinedButton.styleFrom(
-                                    side: BorderSide(
-                                        color: Colors.grey.shade300),
+                                    side: BorderSide(color: Colors.grey.shade300),
                                     foregroundColor: Colors.grey.shade600,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
                                   child: Text(
-                                    _langCode == 'EN'
-                                        ? 'Cancel'
-                                        : _langCode == 'ZH'
-                                            ? '取消'
-                                            : 'Batal',
-                                    style: GoogleFonts.poppins(
-                                        fontWeight: FontWeight.w600),
+                                    _langCode == 'EN' ? 'Cancel' : _langCode == 'ZH' ? '取消' : 'Batal',
+                                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                                   ),
                                 ),
                               ),
@@ -1425,7 +1189,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                     setDlg(() => isSavingDialog = true);
                                     await _saveUser(
                                       isEdit: isEdit,
-                                      userId: user?['id_user'],
+                                      userId: user['id_user'],
                                       nama: namaCtrl.text.trim(),
                                       email: emailCtrl.text.trim(),
                                       pass: passCtrl.text.trim(),
@@ -1445,42 +1209,19 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: _primary,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 14),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     elevation: 2,
-                                    shadowColor:
-                                        _primary.withOpacity(0.3),
+                                    shadowColor: _primary.withOpacity(0.3),
                                   ),
                                   child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(
-                                        isEdit
-                                            ? Icons.save_rounded
-                                            : Icons.person_add_rounded,
-                                        color: Colors.white,
-                                        size: 18,
-                                      ),
+                                      const Icon(Icons.save_rounded, color: Colors.white, size: 18),
                                       const SizedBox(width: 8),
                                       Text(
-                                        isEdit
-                                            ? (_langCode == 'EN'
-                                                ? 'Update'
-                                                : _langCode == 'ZH'
-                                                    ? '更新'
-                                                    : 'Perbarui')
-                                            : (_langCode == 'EN'
-                                                ? 'Save & Register'
-                                                : _langCode == 'ZH'
-                                                    ? '保存并注册'
-                                                    : 'Simpan & Daftar'),
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w600),
+                                        _langCode == 'EN' ? 'Update' : _langCode == 'ZH' ? '更新' : 'Perbarui',
+                                        style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600),
                                       ),
                                     ],
                                   ),
