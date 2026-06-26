@@ -7,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 class AdminAboutScreen extends StatefulWidget {
   final String lang;
-  // Data dikirim dari AdminSettingsScreen agar tidak ada loading
   final Map<String, dynamic>? initialData;
 
   const AdminAboutScreen({
@@ -25,15 +24,12 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
   static const _bg = Color(0xFFEFF6FF);
 
   Map<String, dynamic>? _data;
-
-  // Nilai aktif yang ditampilkan dan diedit
   late String _appName;
   late String _appVersion;
   late String _appWebsite;
   late String _appTagline;
   String? _logoUrl;
 
-  // State edit per-field
   bool _editingName    = false;
   bool _editingVersion = false;
   bool _editingWebsite = false;
@@ -41,13 +37,11 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
   bool _isSaving       = false;
   bool _isUploadingLogo = false;
 
-  // Controller per-field
   final _nameCtrl    = TextEditingController();
   final _versionCtrl = TextEditingController();
   final _websiteCtrl = TextEditingController();
   final _taglineCtrl = TextEditingController();
 
-  // FocusNode per-field
   final _nameFocus    = FocusNode();
   final _versionFocus = FocusNode();
   final _websiteFocus = FocusNode();
@@ -58,7 +52,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
   @override
   void initState() {
     super.initState();
-    // Langsung isi dari cache — TIDAK ada loading sama sekali
     _data       = widget.initialData;
     _appName    = widget.initialData?['app_name'] ?? 'Inspecta';
     _appVersion = widget.initialData?['version']  ?? '-';
@@ -71,7 +64,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     _websiteCtrl.text = _appWebsite;
     _taglineCtrl.text = _appTagline;
 
-    // Refresh diam-diam di background kalau data belum ada / perlu update
     if (widget.initialData == null) _loadSilent();
   }
 
@@ -88,7 +80,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     super.dispose();
   }
 
-  // Refresh tanpa loading indicator — hanya update state di background
   Future<void> _loadSilent() async {
     try {
       final res = await Supabase.instance.client
@@ -115,7 +106,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     }
   }
 
-  // ── Simpan satu field ke DB ──────────────────────────────────────────────
   Future<void> _saveField({
     required String field,
     required String value,
@@ -125,7 +115,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     try {
       final payload = {field: value.trim().isEmpty ? null : value.trim()};
       if (_data == null) {
-        // Belum ada row → insert
         final inserted = await Supabase.instance.client
             .from('app_info')
             .insert({
@@ -151,7 +140,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     }
   }
 
-  // ── Upload logo dari galeri ──────────────────────────────────────────────
   Future<void> _pickLogoFromGallery() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
@@ -177,7 +165,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
       };
 
       await Supabase.instance.client.storage
-          .from('avatars') // ← ganti sesuai bucket Anda
+          .from('avatars')
           .uploadBinary(
             filePath,
             bytes,
@@ -188,7 +176,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
           .from('avatars')
           .getPublicUrl(filePath);
 
-      // Simpan ke DB
       if (_data != null) {
         await Supabase.instance.client
             .from('app_info')
@@ -222,7 +209,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     }
   }
 
-  // ── Launch URL ───────────────────────────────────────────────────────────
   Future<void> _launchURL(String url) async {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
@@ -234,7 +220,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     }
   }
 
-  // ── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -254,9 +239,8 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
         ),
         backgroundColor: Colors.white,
         elevation: 1,
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha:0.08),
         centerTitle: true,
-        // Indikator simpan global
         actions: [
           if (_isSaving || _isUploadingLogo)
             const Padding(
@@ -278,11 +262,9 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
         child: Column(
           children: [
-            // ── 1. LOGO ───────────────────────────────────────────────────
             _buildLogoSection(),
             const SizedBox(height: 16),
 
-            // ── 2. APP NAME (editable inline) ─────────────────────────────
             _buildInlineField(
               value: _appName,
               ctrl: _nameCtrl,
@@ -325,7 +307,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
             ),
             const SizedBox(height: 4),
 
-            // ── 3. TAGLINE (editable inline) ──────────────────────────────
             _buildInlineField(
               value: _appTagline,
               ctrl: _taglineCtrl,
@@ -369,7 +350,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
             ),
             const SizedBox(height: 36),
 
-            // ── 4. VERSION CARD (editable inline) ────────────────────────
             _buildEditableCard(
               icon: Icons.info_outline_rounded,
               label: _t('App Version', 'Versi Aplikasi'),
@@ -403,15 +383,13 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
             ),
             const SizedBox(height: 14),
 
-            // ── 5. WEBSITE CARD (editable inline) ────────────────────────
             _buildEditableWebsiteCard(),
             const SizedBox(height: 14),
 
-            // ── 6. BUILT WITH (static) ────────────────────────────────────
             _buildBuiltWithCard(),
             const SizedBox(height: 40),
 
-            // ── 7. COPYRIGHT ──────────────────────────────────────────────
+            // COPYRIGHT
             Text(
               '© ${DateTime.now().year} $_appName',
               style: GoogleFonts.poppins(
@@ -426,7 +404,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     );
   }
 
-  // ── Widget: Logo section ─────────────────────────────────────────────────
   Widget _buildLogoSection() {
     return Stack(
       alignment: Alignment.topRight,
@@ -459,11 +436,11 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                       )),
           ),
         ),
-        // Tombol edit logo — pojok kanan atas
+        // EDIT LOGO BUTTON
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Tombol ganti logo
+            // CHANGE LOGO BUTTON
             GestureDetector(
               onTap: _isUploadingLogo ? null : _pickLogoFromGallery,
               child: Container(
@@ -473,7 +450,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: _primary.withOpacity(0.3),
+                      color: _primary.withValues(alpha:0.3),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     ),
@@ -483,7 +460,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                     color: Colors.white, size: 14),
               ),
             ),
-            // Tombol hapus logo (hanya muncul jika ada logo custom)
+            // DELETE LOGO BUTTON
             if (_logoUrl != null) ...[
               const SizedBox(height: 4),
               GestureDetector(
@@ -495,7 +472,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.red.withOpacity(0.3),
+                        color: Colors.red.withValues(alpha:0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -512,7 +489,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     );
   }
 
-  // ── Widget: Inline field (untuk nama & tagline — tampil sebagai Text) ────
   Widget _buildInlineField({
     required String value,
     required TextEditingController ctrl,
@@ -535,13 +511,13 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
               child: Text(value, style: textStyle, textAlign: textAlign),
             ),
             const SizedBox(width: 6),
-            Icon(Icons.edit_rounded, size: 16, color: _primary.withOpacity(0.5)),
+            Icon(Icons.edit_rounded, size: 16, color: _primary.withValues(alpha:0.5)),
           ],
         ),
       );
     }
 
-    // Mode edit
+    // EDIT MODE
     return Column(
       children: [
         Container(
@@ -549,7 +525,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _primary.withOpacity(0.4), width: 1.5),
+            border: Border.all(color: _primary.withValues(alpha:0.4), width: 1.5),
           ),
           child: TextField(
             controller: ctrl,
@@ -593,7 +569,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     );
   }
 
-  // ── Widget: Card editable (untuk Version) ───────────────────────────────
   Widget _buildEditableCard({
     required IconData icon,
     required String label,
@@ -612,7 +587,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: _primary.withOpacity(0.07),
+            color: _primary.withValues(alpha:0.07),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -668,14 +643,14 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                   ],
                 ),
               ),
-              // Tombol edit / save / cancel
+              // EDIT BUTTON / SAVE / CANCEL
               if (!isEditing)
                 GestureDetector(
                   onTap: onTapEdit,
                   child: Container(
                     padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
-                      color: _primary.withOpacity(0.08),
+                      color: _primary.withValues(alpha:0.08),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child:
@@ -716,7 +691,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     );
   }
 
-  // ── Widget: Website card editable ────────────────────────────────────────
   Widget _buildEditableWebsiteCard() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -725,7 +699,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: _primary.withOpacity(0.07),
+            color: _primary.withValues(alpha:0.07),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -802,7 +776,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                   ],
                 ),
               ),
-              // Tombol
               if (!_editingWebsite) ...[
                 GestureDetector(
                   onTap: () => setState(() {
@@ -816,7 +789,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
-                      color: _primary.withOpacity(0.08),
+                      color: _primary.withValues(alpha:0.08),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(Icons.edit_rounded, color: _primary, size: 16),
@@ -874,7 +847,6 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     );
   }
 
-  // ── Widget: Built With (static) ──────────────────────────────────────────
   Widget _buildBuiltWithCard() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -883,7 +855,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: _primary.withOpacity(0.07),
+            color: _primary.withValues(alpha:0.07),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -987,7 +959,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.35),
+      barrierColor: Colors.black.withValues(alpha:0.35),
       builder: (_) => Center(
         child: Material(
           color: Colors.transparent,
@@ -1005,7 +977,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF10B981).withOpacity(0.2),
+                    color: const Color(0xFF10B981).withValues(alpha:0.2),
                     blurRadius: 24,
                     offset: const Offset(0, 8),
                   ),
@@ -1017,7 +989,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withOpacity(0.12),
+                      color: const Color(0xFF10B981).withValues(alpha:0.12),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -1043,13 +1015,11 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
         ),
       ),
     );
-    // Auto-dismiss setelah 1.5 detik
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
     });
   }
 
-  /// Snackbar merah untuk error saja
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
     if (!isError) {
