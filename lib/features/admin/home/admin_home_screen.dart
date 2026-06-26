@@ -8,18 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:intl/intl.dart';
-import '../../audit/audit_location_screen.dart';
 import '../../user/leaderboard/leaderboard_detail_screen.dart';
-import '../admin_help_reports_screen.dart';
 import '../admin_profile_screen.dart';
-import '../admin_verification_screen.dart';
 import 'admin_home_info_card.dart';
-import '../settings/admin_settings_screen.dart';
-import '../admin_location_screen.dart';
-import '../admin_category_screen.dart';
 import '../../auth/login_screen.dart';
-import '../target/admin_poin_target_screen.dart';
-import '../user/admin_user_screen.dart';
+import 'admin_home_management_menu.dart';
 
 // ============================================================
 // ADMIN HOME SCREEN
@@ -247,53 +240,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     }
   }
 
-  Future<void> _logout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          _lang == 'EN' ? 'Logout' : _lang == 'ZH' ? '退出登录' : 'Keluar',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          _lang == 'EN'
-              ? 'Are you sure you want to logout?'
-              : _lang == 'ZH'
-                  ? '您确定要退出登录吗？'
-                  : 'Apakah Anda yakin ingin keluar?',
-          style: GoogleFonts.poppins(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(_lang == 'EN' ? 'Cancel' : _lang == 'ZH' ? '取消' : 'Batal',
-                  style: const TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: Text(_lang == 'EN' ? 'Logout' : _lang == 'ZH' ? '退出' : 'Keluar',
-                style: const TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      await Supabase.instance.client.auth.signOut();
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (_) => false,
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -369,7 +315,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                                       : 'Menu Manajemen',
                             ),
                             const SizedBox(height: 14),
-                            _buildMenuGrid(),
+                            AdminHomeManagementMenu(
+                              lang: _lang,
+                              onRefreshStats: () => _fetchStats(),
+                            ),
                             const SizedBox(height: 28),
                             _buildSectionLabel(
                               _lang == 'EN'
@@ -666,30 +615,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     );
   }
 
-  Widget _buildStatsShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade200,
-      highlightColor: Colors.grey.shade50,
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.6,
-        ),
-        itemCount: 4,
-        itemBuilder: (_, __) => Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _loadAdminInfo() async {
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -714,11 +639,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   // ══════════════════════════════════════════════════════
   // LEADERBOARD METHODS (sama persis dari leaderboard_detail_screen.dart)
   // ══════════════════════════════════════════════════════
-
-  String _getTxt(String key) =>
-      leaderboardTexts[_lang]?[key] ??
-      leaderboardTexts['ID']![key] ??
-      key;
 
   Widget _buildProModeSettingsCard() {
     return StatefulBuilder(
@@ -785,233 +705,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildMenuGrid() {
-    PageRoute<T> _slideRoute<T>(Widget screen) {
-      return PageRouteBuilder<T>(
-        pageBuilder: (_, animation, __) => screen,
-        transitionsBuilder: (_, animation, __, child) {
-          final slide = Tween<Offset>(
-            begin: const Offset(1.0, 0.0),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeInOut,
-          ));
-          return SlideTransition(position: slide, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 300),
-      );
-    }
-
-    final menus = [
-      _MenuItem(
-        label: _lang == 'EN'
-            ? 'User\nManagement'
-            : _lang == 'ZH'
-                ? '用户\n管理'
-                : 'Kelola\nPengguna',
-        icon: Icons.manage_accounts_rounded,
-        gradient: const [Color(0xFF6366F1), Color(0xFF4F46E5)],
-        shadow: const Color(0xFF6366F1),
-        onTap: () => Navigator.push(
-          context,
-          _slideRoute(AdminUserScreen(lang: _lang)),
-        ).then((_) => _fetchStats()),
-      ),
-      _MenuItem(
-        label: _lang == 'EN'
-            ? 'Location\nManagement'
-            : _lang == 'ZH'
-                ? '位置\n管理'
-                : 'Kelola\nLokasi',
-        icon: Icons.location_on_rounded,
-        gradient: const [Color(0xFF10B981), Color(0xFF059669)],
-        shadow: const Color(0xFF10B981),
-        onTap: () => Navigator.push(
-          context,
-          _slideRoute(AdminLocationScreen(lang: _lang)),
-        ).then((_) => _fetchStats()),
-      ),
-      _MenuItem(
-        label: _lang == 'EN'
-            ? 'Category\nManagement'
-            : _lang == 'ZH'
-                ? '类别\n管理'
-                : 'Kelola\nKategori',
-        icon: Icons.category_rounded,
-        gradient: const [Color(0xFFF59E0B), Color(0xFFD97706)],
-        shadow: const Color(0xFFF59E0B),
-        onTap: () => Navigator.push(
-          context,
-          _slideRoute(AdminCategoryScreen(lang: _lang)),
-        ).then((_) => _fetchStats()),
-      ),
-      _MenuItem(
-        label: _lang == 'EN'
-            ? 'App\nSettings'
-            : _lang == 'ZH'
-                ? '应用\n设置'
-                : 'Pengaturan\nAplikasi',
-        icon: Icons.settings_rounded,
-        gradient: const [Color(0xFFEF4444), Color(0xFFDC2626)],
-        shadow: const Color(0xFFEF4444),
-        onTap: () => Navigator.push(
-          context,
-          _slideRoute(AdminSettingsScreen(lang: _lang)),
-        ).then((_) => _fetchStats()),
-      ),
-      _MenuItem(
-        label: _lang == 'EN'
-            ? 'Points &\n5R Target'
-            : _lang == 'ZH'
-                ? '积分与\n5R目标'
-                : 'Poin &\nTarget 5R',
-        icon: Icons.stars_rounded,
-        gradient: const [Color.fromARGB(255, 245, 229, 11), Color.fromARGB(255, 217, 175, 6)],
-        shadow: const Color.fromARGB(255, 245, 233, 11),
-        onTap: () => Navigator.push(
-          context,
-          _slideRoute(AdminPoinTargetScreen(lang: _lang)),  // ← PAKAI SCREEN BARU
-        ),
-      ),
-      _MenuItem(
-        label: _lang == 'EN'
-            ? 'Help\nReports'
-            : _lang == 'ZH'
-                ? '帮助\n报告'
-                : 'Laporan\nBantuan',
-        icon: Icons.support_agent_rounded,
-        gradient: const [Color(0xFF0EA5E9), Color(0xFF0284C7)],
-        shadow: const Color(0xFF0EA5E9),
-        onTap: () => Navigator.push(
-          context,
-          _slideRoute(AdminHelpReportsScreen(lang: _lang)),
-        ),
-      ),
-      _MenuItem(
-        label: _lang == 'EN'
-            ? 'Audit\nLocation'
-            : _lang == 'ZH'
-                ? '审计\n位置'
-                : 'Audit\nLokasi',
-        icon: Icons.fact_check_rounded,
-        gradient: const [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-        shadow: const Color(0xFF8B5CF6),
-        onTap: () => Navigator.push(
-          context,
-          _slideRoute(AuditLocationScreen(lang: _lang)),
-        ).then((_) => _fetchStats()),
-      ),
-      _MenuItem(
-        label: _lang == 'EN'
-            ? 'Verification\nSettings'
-            : _lang == 'ZH'
-                ? '验证\n设置'
-                : 'Pengaturan\nVerifikasi',
-        icon: Icons.verified_user_rounded,
-        gradient: const [Color(0xFF0F766E), Color(0xFF0D9488)],
-        // Warna ungu — belum dipakai di menu lain, serasi dengan tema
-        shadow: const Color(0xFF0F766E),
-        onTap: () => Navigator.push(
-          context,
-          _slideRoute(AdminVerificationScreen(lang: _lang)),
-        ).then((_) => _fetchStats()),
-      ),
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.25,
-      ),
-      itemCount: menus.length,
-      itemBuilder: (_, i) => _buildMenuCard(menus[i]),
-    );
-  }
-
-  Widget _buildMenuCard(_MenuItem item) {
-    return GestureDetector(
-      onTap: item.onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: item.gradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: item.shadow.withOpacity(0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -10,
-              bottom: -10,
-              child: Icon(item.icon,
-                  size: 70, color: Colors.white.withOpacity(0.15)),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(item.icon, color: Colors.white, size: 22),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.label,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text(
-                            _lang == 'EN' ? 'Manage' : _lang == 'ZH' ? '管理' : 'Kelola',
-                            style: GoogleFonts.poppins(
-                              fontSize: 10,
-                              color: Colors.white.withOpacity(0.75),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(Icons.arrow_forward_ios,
-                              size: 9, color: Colors.white.withOpacity(0.75)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -3972,38 +3665,6 @@ class _PreventiveMaintenanceToggleCardState
       ),
     );
   }
-}
-
-class _MenuItem {
-  final String label;
-  final IconData icon;
-  final List<Color> gradient;
-  final Color shadow;
-  final VoidCallback onTap;
-  const _MenuItem({
-    required this.label,
-    required this.icon,
-    required this.gradient,
-    required this.shadow,
-    required this.onTap,
-  });
-}
-
-// ── Data model untuk stats dalam banner ──
-class _BannerStat {
-  final String label;
-  final int value;
-  final IconData icon;
-  final Color color;
-  final Color iconBg;
-
-  const _BannerStat({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    required this.iconBg,
-  });
 }
 
 class LocationFilter {
