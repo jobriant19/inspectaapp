@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../5/R/admin_5r_screen.dart';
 import '../admin_profile_screen.dart';
 import 'admin_home_button_access.dart';
 import 'admin_home_info_card.dart';
@@ -563,6 +564,41 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     );
   }
 
+  void _onNavTap(int index) {
+    if (index == 0) {
+      setState(() => _activeNavIndex = 0);
+      return;
+    }
+    if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => Admin5RScreen(
+            lang: _lang,
+            adminName: _adminName,
+            adminImage: _adminImage,
+          ),
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 300),
+          transitionsBuilder: (_, animation, __, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeInOut,
+              )),
+              child: child,
+            );
+          },
+        ),
+      );
+      return;
+    }
+    setState(() => _activeNavIndex = index);
+  }
+
   Widget _buildBottomNavBar(double bottomPadding) {
     const activeColor = Color.fromARGB(255, 29, 199, 97);
     const inactiveColor = Color(0xFF94A3B8);
@@ -640,7 +676,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                       : item.labelID;
               return Expanded(
                 child: GestureDetector(
-                  onTap: () => setState(() => _activeNavIndex = item.index),
+                  onTap: () => _onNavTap(item.index),
                   behavior: HitTestBehavior.opaque,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

@@ -149,10 +149,10 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 13),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
+                          color: Colors.black.withValues(alpha:0.6),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.25), width: 1.2),
+                              color: Colors.white.withValues(alpha:0.25), width: 1.2),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -200,7 +200,7 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
                     colors: [
-                      Colors.black.withOpacity(0.75),
+                      Colors.black.withValues(alpha:0.75),
                       Colors.transparent,
                     ],
                   ),
@@ -283,9 +283,9 @@ class _CameraIconButton extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.5),
+          color: Colors.black.withValues(alpha:0.5),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+          border: Border.all(color: Colors.white.withValues(alpha:0.2), width: 1),
         ),
         child: Icon(icon, color: Colors.white, size: size * 0.45),
       ),

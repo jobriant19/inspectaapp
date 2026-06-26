@@ -99,7 +99,7 @@ class HomeNewsPopup {
         context: context,
         barrierDismissible: true,
         barrierLabel: 'news_popup',
-        barrierColor: Colors.black.withOpacity(0.55),
+        barrierColor: Colors.black.withValues(alpha:0.55),
         transitionDuration: const Duration(milliseconds: 350),
         transitionBuilder: (_, anim, __, child) {
           return FadeTransition(
@@ -241,7 +241,7 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: _color(currentItem).withOpacity(0.20),
+                  color: _color(currentItem).withValues(alpha:0.20),
                   blurRadius: 36,
                   spreadRadius: 2,
                   offset: const Offset(0, 12),
@@ -283,7 +283,7 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
             : const Color(0xFFFFFBEB),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border(
-          bottom: BorderSide(color: primary.withOpacity(0.1)),
+          bottom: BorderSide(color: primary.withValues(alpha:0.1)),
         ),
       ),
       child: Row(
@@ -291,7 +291,7 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
           Container(
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-              color: primary.withOpacity(0.13),
+              color: primary.withValues(alpha:0.13),
               borderRadius: BorderRadius.circular(9),
             ),
             child: Icon(_icon(item), color: primary, size: 16),
@@ -348,10 +348,10 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
                   gaplessPlayback: true,
                   errorBuilder: (_, __, ___) => Container(
                     height: 160,
-                    color: primary.withOpacity(0.07),
+                    color: primary.withValues(alpha:0.07),
                     child: Center(
                       child: Icon(_icon(item),
-                          color: primary.withOpacity(0.25), size: 40),
+                          color: primary.withValues(alpha:0.25), size: 40),
                     ),
                   ),
                 ),
@@ -362,7 +362,7 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.48),
+                      color: Colors.black.withValues(alpha:0.48),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(

@@ -177,7 +177,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF3B82F6).withOpacity(0.12),
+                            color: const Color(0xFF3B82F6).withValues(alpha:0.12),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
@@ -246,7 +246,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           elevation: 3,
-                          shadowColor: const Color(0xFF2563EB).withOpacity(0.4),
+                          shadowColor: const Color(0xFF2563EB).withValues(alpha:0.4),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
                         child: Row(
@@ -367,14 +367,14 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isAktif
-              ? primaryColor.withOpacity(0.35)
+              ? primaryColor.withValues(alpha:0.35)
               : Colors.grey.shade200,
         ),
         boxShadow: [
           BoxShadow(
             color: isAktif
-                ? primaryColor.withOpacity(0.10)
-                : Colors.black.withOpacity(0.03),
+                ? primaryColor.withValues(alpha:0.10)
+                : Colors.black.withValues(alpha:0.03),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -400,7 +400,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: isAktif
                     ? [BoxShadow(
-                        color: primaryColor.withOpacity(0.4),
+                        color: primaryColor.withValues(alpha:0.4),
                         blurRadius: 8,
                         offset: const Offset(0, 3))]
                     : [],
@@ -441,13 +441,13 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: isAktif
-                              ? const Color(0xFF22C55E).withOpacity(0.15)
-                              : Colors.grey.withOpacity(0.12),
+                              ? const Color(0xFF22C55E).withValues(alpha:0.15)
+                              : Colors.grey.withValues(alpha:0.12),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: isAktif
-                                ? const Color(0xFF22C55E).withOpacity(0.5)
-                                : Colors.grey.withOpacity(0.3),
+                                ? const Color(0xFF22C55E).withValues(alpha:0.5)
+                                : Colors.grey.withValues(alpha:0.3),
                             width: 1,
                           ),
                         ),
@@ -526,10 +526,10 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 7),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF3B82F6).withOpacity(0.10),
+                            color: const Color(0xFF3B82F6).withValues(alpha:0.10),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                                color: const Color(0xFF3B82F6).withOpacity(0.35)),
+                                color: const Color(0xFF3B82F6).withValues(alpha:0.35)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -571,12 +571,12 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color.fromARGB(255, 251, 255, 6).withOpacity(0.08),
+              color: const Color.fromARGB(255, 251, 255, 6).withValues(alpha:0.08),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.stars_outlined,
                 size: 56,
-                color: const Color.fromARGB(255, 245, 245, 11).withOpacity(0.5)),
+                color: const Color.fromARGB(255, 245, 245, 11).withValues(alpha:0.5)),
           ),
           const SizedBox(height: 12),
           Text(_t('empty'),

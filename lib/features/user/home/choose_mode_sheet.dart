@@ -55,13 +55,13 @@ class ChooseModeButton extends StatelessWidget {
           border: Border.all(
             color: anyActive
                 ? Colors.transparent
-                : const Color(0xFF00C9E4).withOpacity(0.4),
+                : const Color(0xFF00C9E4).withValues(alpha:0.4),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF00C9E4)
-                  .withOpacity(anyActive ? 0.3 : 0.1),
+                  .withValues(alpha:anyActive ? 0.3 : 0.1),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -124,9 +124,9 @@ class _MiniModeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.25),
+        color: color.withValues(alpha:0.25),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.6), width: 1),
+        border: Border.all(color: color.withValues(alpha:0.6), width: 1),
       ),
       child: Text(
         label,
@@ -455,16 +455,16 @@ class _ModeCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isActive ? glowColor.withOpacity(0.06) : Colors.grey.shade50,
+        color: isActive ? glowColor.withValues(alpha:0.06) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isActive ? glowColor.withOpacity(0.4) : Colors.grey.shade200,
+          color: isActive ? glowColor.withValues(alpha:0.4) : Colors.grey.shade200,
           width: 1.5,
         ),
         boxShadow: isActive
             ? [
                 BoxShadow(
-                  color: glowColor.withOpacity(0.15),
+                  color: glowColor.withValues(alpha:0.15),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 )
@@ -484,7 +484,7 @@ class _ModeCard extends StatelessWidget {
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: glowColor.withOpacity(0.4),
+                        color: glowColor.withValues(alpha:0.4),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       )
@@ -522,7 +522,7 @@ class _ModeCard extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: isActive
-                          ? glowColor.withOpacity(0.2)
+                          ? glowColor.withValues(alpha:0.2)
                           : Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -565,7 +565,7 @@ class _ModeCard extends StatelessWidget {
                 boxShadow: isActive
                     ? [
                         BoxShadow(
-                          color: glowColor.withOpacity(0.4),
+                          color: glowColor.withValues(alpha:0.4),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         )

@@ -183,7 +183,7 @@ class AdminHomeManagementMenu extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: item.shadow.withOpacity(0.35),
+              color: item.shadow.withValues(alpha:0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -195,7 +195,7 @@ class AdminHomeManagementMenu extends StatelessWidget {
               right: -10,
               bottom: -10,
               child: Icon(item.icon,
-                  size: 70, color: Colors.white.withOpacity(0.15)),
+                  size: 70, color: Colors.white.withValues(alpha:0.15)),
             ),
             Padding(
               padding: const EdgeInsets.all(18),
@@ -206,7 +206,7 @@ class AdminHomeManagementMenu extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha:0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(item.icon, color: Colors.white, size: 22),
@@ -234,13 +234,13 @@ class AdminHomeManagementMenu extends StatelessWidget {
                                     : 'Kelola',
                             style: GoogleFonts.poppins(
                               fontSize: 10,
-                              color: Colors.white.withOpacity(0.75),
+                              color: Colors.white.withValues(alpha:0.75),
                             ),
                           ),
                           const SizedBox(width: 4),
                           Icon(Icons.arrow_forward_ios,
                               size: 9,
-                              color: Colors.white.withOpacity(0.75)),
+                              color: Colors.white.withValues(alpha:0.75)),
                         ],
                       ),
                     ],

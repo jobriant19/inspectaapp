@@ -387,7 +387,7 @@ class HomeContentState extends State<HomeContent> {
           _buildNavTile(
             icon: Icons.location_on,
             iconColor: Colors.lightBlue,
-            iconBg: Colors.blue.withOpacity(0.1),
+            iconBg: Colors.blue.withValues(alpha:0.1),
             label: _t('lokasi'),
             onTap: () => _push(LocationScreen(
               lang: widget.lang,
@@ -401,7 +401,7 @@ class HomeContentState extends State<HomeContent> {
           _buildNavTile(
             icon: Icons.factory_outlined,
             iconColor: Colors.lightBlue,
-            iconBg: Colors.blue.withOpacity(0.1),
+            iconBg: Colors.blue.withValues(alpha:0.1),
             label: _t('kts_produksi'),
             onTap: () async {
               await Navigator.push(
@@ -416,7 +416,7 @@ class HomeContentState extends State<HomeContent> {
           _buildNavTile(
             icon: Icons.error_outline,
             iconColor: Colors.redAccent,
-            iconBg: Colors.red.withOpacity(0.1),
+            iconBg: Colors.red.withValues(alpha:0.1),
             label: _t('laporan'),
             onTap: () => _push(AccidentReportListScreen(lang: widget.lang)),
           ),
@@ -541,7 +541,7 @@ class HomeContentState extends State<HomeContent> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: const Color(0xFF00C9E4).withOpacity(0.4), width: 1.5,
+                      color: const Color(0xFF00C9E4).withValues(alpha:0.4), width: 1.5,
                     ),
                   ),
                   child: Row(
@@ -610,7 +610,7 @@ class HomeContentState extends State<HomeContent> {
             color: isActive ? const Color(0xFF00C9E4) : Colors.grey.shade300, width: 1.5,
           ),
           boxShadow: isActive
-              ? [BoxShadow(color: const Color(0xFF00C9E4).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3))]
+              ? [BoxShadow(color: const Color(0xFF00C9E4).withValues(alpha:0.25), blurRadius: 8, offset: const Offset(0, 3))]
               : [],
         ),
         child: Center(
@@ -655,7 +655,7 @@ class HomeContentState extends State<HomeContent> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: isActive ? color : const Color(0xFFCBD5E1), width: 1.5),
           boxShadow: isActive
-              ? [BoxShadow(color: color.withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 4))]
+              ? [BoxShadow(color: color.withValues(alpha:0.35), blurRadius: 10, offset: const Offset(0, 4))]
               : [],
         ),
         child: Center(
@@ -697,12 +697,12 @@ class HomeContentState extends State<HomeContent> {
           color: anyActive ? null : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: anyActive ? Colors.transparent : const Color(0xFF00C9E4).withOpacity(0.35),
+            color: anyActive ? Colors.transparent : const Color(0xFF00C9E4).withValues(alpha:0.35),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00C9E4).withOpacity(anyActive ? 0.25 : 0.08),
+              color: const Color(0xFF00C9E4).withValues(alpha:anyActive ? 0.25 : 0.08),
               blurRadius: 12, offset: const Offset(0, 4),
             ),
           ],
@@ -713,7 +713,7 @@ class HomeContentState extends State<HomeContent> {
               duration: const Duration(milliseconds: 300),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: anyActive ? Colors.white.withOpacity(0.2) : const Color(0xFF00C9E4).withOpacity(0.1),
+                color: anyActive ? Colors.white.withValues(alpha:0.2) : const Color(0xFF00C9E4).withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(Icons.tune_rounded, size: 20, color: anyActive ? Colors.white : const Color(0xFF00C9E4)),
@@ -845,13 +845,13 @@ class HomeContentState extends State<HomeContent> {
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: teal.withOpacity(0.30), blurRadius: 12, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: teal.withValues(alpha:0.30), blurRadius: 12, offset: const Offset(0, 4))],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), borderRadius: BorderRadius.circular(10)),
               child: const Icon(Icons.fact_check_rounded, size: 20, color: Colors.white),
             ),
             const SizedBox(width: 12),
@@ -868,7 +868,7 @@ class HomeContentState extends State<HomeContent> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
+                        color: Colors.white.withValues(alpha:0.18),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -918,13 +918,13 @@ class HomeContentState extends State<HomeContent> {
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: const Color(0xFF1E3A8A).withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: const Color(0xFF1E3A8A).withValues(alpha:0.25), blurRadius: 12, offset: const Offset(0, 4))],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.18), borderRadius: BorderRadius.circular(10)),
               child: const Icon(Icons.verified_rounded, size: 20, color: Colors.white),
             ),
             const SizedBox(width: 12),
@@ -963,7 +963,7 @@ class HomeContentState extends State<HomeContent> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: pmColor.withOpacity(0.28),
+              color: pmColor.withValues(alpha:0.28),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -974,7 +974,7 @@ class HomeContentState extends State<HomeContent> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
+                color: Colors.white.withValues(alpha:0.18),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
@@ -1104,9 +1104,9 @@ class _ModeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.25),
+        color: color.withValues(alpha:0.25),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha:0.5)),
       ),
       child: Text(
         label,

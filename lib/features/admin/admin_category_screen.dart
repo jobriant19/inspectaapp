@@ -50,7 +50,7 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
           icon: const Icon(Icons.arrow_back_ios_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha:0.08),
         title: Text(
           widget.lang == 'EN'
               ? 'Category Management'
@@ -216,7 +216,7 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen>
                   border: Border.all(
                     color: _selectedTab == 1
                         ? const Color(0xFFFBBF24)
-                        : const Color(0xFFFBBF24).withOpacity(0.5),
+                        : const Color(0xFFFBBF24).withValues(alpha:0.5),
                     width: 1.5,
                   ),
                 ),
@@ -393,9 +393,9 @@ class _KategoriListState extends State<_KategoriList>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -460,7 +460,7 @@ class _KategoriListState extends State<_KategoriList>
             width: isActive ? 1.5 : 1,
           ),
           boxShadow: isActive
-              ? [BoxShadow(color: color.withOpacity(0.2), blurRadius: 6, offset: const Offset(0, 2))]
+              ? [BoxShadow(color: color.withValues(alpha:0.2), blurRadius: 6, offset: const Offset(0, 2))]
               : [],
         ),
         child: Row(
@@ -585,7 +585,7 @@ class _KategoriListState extends State<_KategoriList>
             await Supabase.instance.client
                 .from('kategoritemuan')
                 .update(data)
-                .eq('id_kategoritemuan', item!['id_kategoritemuan']);
+                .eq('id_kategoritemuan', item['id_kategoritemuan']);
           } else {
             await Supabase.instance.client.from('kategoritemuan').insert(data);
           }
@@ -616,7 +616,7 @@ class _KategoriListState extends State<_KategoriList>
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
               decoration: BoxDecoration(
-                color: widget.color.withOpacity(0.08),
+                color: widget.color.withValues(alpha:0.08),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Column(
@@ -627,7 +627,7 @@ class _KategoriListState extends State<_KategoriList>
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: widget.color.withOpacity(0.15),
+                          color: widget.color.withValues(alpha:0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(Icons.category_rounded, color: widget.color, size: 22),
@@ -684,15 +684,15 @@ class _KategoriListState extends State<_KategoriList>
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
-                            color: widget.color.withOpacity(0.04),
+                            color: widget.color.withValues(alpha:0.04),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: widget.color.withOpacity(0.12)),
+                            border: Border.all(color: widget.color.withValues(alpha:0.12)),
                           ),
                           child: Row(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(color: widget.color.withOpacity(0.10), borderRadius: BorderRadius.circular(8)),
+                                decoration: BoxDecoration(color: widget.color.withValues(alpha:0.10), borderRadius: BorderRadius.circular(8)),
                                 child: Icon(Icons.list_alt_rounded, color: widget.color, size: 14),
                               ),
                               const SizedBox(width: 10),
@@ -700,7 +700,7 @@ class _KategoriListState extends State<_KategoriList>
                                   style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13, fontWeight: FontWeight.w500))),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(color: const Color(0xFFFBBF24).withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                                decoration: BoxDecoration(color: const Color(0xFFFBBF24).withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
                                 child: Text('${sub['poin_subkategoritemuan'] ?? 0} pt',
                                     style: GoogleFonts.poppins(color: const Color(0xFFD97706), fontSize: 11, fontWeight: FontWeight.w600)),
                               ),
@@ -759,9 +759,9 @@ class _KategoriListState extends State<_KategoriList>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
+        color: color.withValues(alpha:0.10),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha:0.25)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 11, color: color),
@@ -803,13 +803,13 @@ class _KategoriListState extends State<_KategoriList>
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [widget.color, widget.color.withOpacity(0.75)],
+                    colors: [widget.color, widget.color.withValues(alpha:0.75)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
-                    BoxShadow(color: widget.color.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4)),
+                    BoxShadow(color: widget.color.withValues(alpha:0.35), blurRadius: 12, offset: const Offset(0, 4)),
                   ],
                 ),
                 child: Row(
@@ -817,7 +817,7 @@ class _KategoriListState extends State<_KategoriList>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
+                        color: Colors.white.withValues(alpha:0.25),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
@@ -829,7 +829,7 @@ class _KategoriListState extends State<_KategoriList>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(addTitle, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                          Text(addSubtitle, style: GoogleFonts.poppins(fontSize: 10, color: Colors.white.withOpacity(0.85))),
+                          Text(addSubtitle, style: GoogleFonts.poppins(fontSize: 10, color: Colors.white.withValues(alpha:0.85))),
                         ],
                       ),
                     ),
@@ -847,7 +847,7 @@ class _KategoriListState extends State<_KategoriList>
               decoration: BoxDecoration(
                 color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.black.withOpacity(0.08)),
+                border: Border.all(color: Colors.black.withValues(alpha:0.08)),
               ),
               child: TextField(
                 onChanged: (v) => setState(() => _search = v),
@@ -918,14 +918,14 @@ class _KategoriListState extends State<_KategoriList>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.black.withOpacity(0.06)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+          border: Border.all(color: Colors.black.withValues(alpha:0.06)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.03), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: widget.color.withOpacity(0.10), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: widget.color.withValues(alpha:0.10), borderRadius: BorderRadius.circular(10)),
               child: Icon(Icons.category_rounded, color: widget.color, size: 20),
             ),
             const SizedBox(width: 14),
@@ -956,7 +956,7 @@ class _KategoriListState extends State<_KategoriList>
                 padding: const EdgeInsets.all(8),
                 margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withOpacity(0.10),
+                  color: const Color(0xFF2563EB).withValues(alpha:0.10),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.edit_outlined, color: Color(0xFF2563EB), size: 16),
@@ -970,7 +970,7 @@ class _KategoriListState extends State<_KategoriList>
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEF4444).withOpacity(0.10),
+                  color: const Color(0xFFEF4444).withValues(alpha:0.10),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 16),
@@ -986,9 +986,9 @@ class _KategoriListState extends State<_KategoriList>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.20)),
+        border: Border.all(color: color.withValues(alpha:0.20)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 10, color: color),
@@ -1018,8 +1018,8 @@ class _KategoriListState extends State<_KategoriList>
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: widget.color.withOpacity(0.06), shape: BoxShape.circle),
-            child: Icon(Icons.category_outlined, size: 48, color: widget.color.withOpacity(0.4)),
+            decoration: BoxDecoration(color: widget.color.withValues(alpha:0.06), shape: BoxShape.circle),
+            child: Icon(Icons.category_outlined, size: 48, color: widget.color.withValues(alpha:0.4)),
           ),
           const SizedBox(height: 12),
           Text(widget.lang == 'EN' ? 'No categories yet' : widget.lang == 'ZH' ? '暂无分类' : 'Belum ada kategori',
@@ -1187,9 +1187,9 @@ class _SubkategoriListState extends State<_SubkategoriList>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Text(label, style: GoogleFonts.poppins(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
@@ -1242,7 +1242,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
           color: isActive ? color : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: isActive ? color : Colors.grey.shade200, width: isActive ? 1.5 : 1),
-          boxShadow: isActive ? [BoxShadow(color: color.withOpacity(0.2), blurRadius: 6, offset: const Offset(0, 2))] : [],
+          boxShadow: isActive ? [BoxShadow(color: color.withValues(alpha:0.2), blurRadius: 6, offset: const Offset(0, 2))] : [],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1354,7 +1354,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
               'poin_subkategoritemuan': int.tryParse(poinCtrl.text.trim()) ?? 0,
             };
             if (isEdit) {
-              await Supabase.instance.client.from('subkategoritemuan').update(data).eq('id_subkategoritemuan', item!['id_subkategoritemuan']);
+              await Supabase.instance.client.from('subkategoritemuan').update(data).eq('id_subkategoritemuan', item['id_subkategoritemuan']);
             } else {
               await Supabase.instance.client.from('subkategoritemuan').insert(data);
             }
@@ -1389,7 +1389,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                 decoration: BoxDecoration(
-                  color: widget.color.withOpacity(0.07),
+                  color: widget.color.withValues(alpha:0.07),
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 child: Column(
@@ -1399,7 +1399,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
                       children: [
                         Container(
                           padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: widget.color.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(color: widget.color.withValues(alpha:0.15), borderRadius: BorderRadius.circular(12)),
                           child: Icon(Icons.list_alt_rounded, color: widget.color, size: 22),
                         ),
                         const Spacer(),
@@ -1438,15 +1438,15 @@ class _SubkategoriListState extends State<_SubkategoriList>
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withOpacity(0.05),
+                    color: const Color(0xFF6366F1).withValues(alpha:0.05),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.15)),
+                    border: Border.all(color: const Color(0xFF6366F1).withValues(alpha:0.15)),
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: const Color(0xFF6366F1).withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(color: const Color(0xFF6366F1).withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
                         child: const Icon(Icons.category_rounded, color: Color(0xFF6366F1), size: 16),
                       ),
                       const SizedBox(width: 12),
@@ -1461,7 +1461,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: const Color(0xFFFBBF24).withOpacity(0.10), borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(color: const Color(0xFFFBBF24).withValues(alpha:0.10), borderRadius: BorderRadius.circular(8)),
                         child: Text('$parentPoin pt',
                             style: GoogleFonts.poppins(color: const Color(0xFFD97706), fontSize: 11, fontWeight: FontWeight.w600)),
                       ),
@@ -1517,9 +1517,9 @@ class _SubkategoriListState extends State<_SubkategoriList>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.10),
+        color: color.withValues(alpha:0.10),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha:0.25)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 11, color: color),
@@ -1561,18 +1561,18 @@ class _SubkategoriListState extends State<_SubkategoriList>
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [widget.color, widget.color.withOpacity(0.75)],
+                    colors: [widget.color, widget.color.withValues(alpha:0.75)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(14),
-                  boxShadow: [BoxShadow(color: widget.color.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))],
+                  boxShadow: [BoxShadow(color: widget.color.withValues(alpha:0.35), blurRadius: 12, offset: const Offset(0, 4))],
                 ),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: Colors.white.withOpacity(0.25), borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.25), borderRadius: BorderRadius.circular(10)),
                       child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
                     ),
                     const SizedBox(width: 12),
@@ -1582,7 +1582,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(addTitle, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                          Text(addSubtitle, style: GoogleFonts.poppins(fontSize: 10, color: Colors.white.withOpacity(0.85))),
+                          Text(addSubtitle, style: GoogleFonts.poppins(fontSize: 10, color: Colors.white.withValues(alpha:0.85))),
                         ],
                       ),
                     ),
@@ -1600,7 +1600,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
               decoration: BoxDecoration(
                 color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.black.withOpacity(0.08)),
+                border: Border.all(color: Colors.black.withValues(alpha:0.08)),
               ),
               child: TextField(
                 onChanged: (v) => setState(() => _search = v),
@@ -1671,14 +1671,14 @@ class _SubkategoriListState extends State<_SubkategoriList>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.black.withOpacity(0.06)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+          border: Border.all(color: Colors.black.withValues(alpha:0.06)),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.03), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: widget.color.withOpacity(0.08), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: widget.color.withValues(alpha:0.08), borderRadius: BorderRadius.circular(10)),
               child: Icon(Icons.list_alt_rounded, color: widget.color, size: 18),
             ),
             const SizedBox(width: 12),
@@ -1702,9 +1702,9 @@ class _SubkategoriListState extends State<_SubkategoriList>
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFBBF24).withOpacity(0.10),
+                      color: const Color(0xFFFBBF24).withValues(alpha:0.10),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFFBBF24).withOpacity(0.25)),
+                      border: Border.all(color: const Color(0xFFFBBF24).withValues(alpha:0.25)),
                     ),
                     child: Text('$poin pt', style: GoogleFonts.poppins(color: const Color(0xFFD97706), fontSize: 10, fontWeight: FontWeight.w600)),
                   ),
@@ -1716,7 +1716,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
               child: Container(
                 padding: const EdgeInsets.all(8),
                 margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(color: const Color(0xFF2563EB).withOpacity(0.10), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: const Color(0xFF2563EB).withValues(alpha:0.10), borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.edit_outlined, color: Color(0xFF2563EB), size: 16),
               ),
             ),
@@ -1727,7 +1727,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
               },
               child: Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: const Color(0xFFEF4444).withOpacity(0.10), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha:0.10), borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 16),
               ),
             ),
@@ -1757,8 +1757,8 @@ class _SubkategoriListState extends State<_SubkategoriList>
         children: [
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: widget.color.withOpacity(0.06), shape: BoxShape.circle),
-            child: Icon(Icons.list_alt_outlined, size: 48, color: widget.color.withOpacity(0.4)),
+            decoration: BoxDecoration(color: widget.color.withValues(alpha:0.06), shape: BoxShape.circle),
+            child: Icon(Icons.list_alt_outlined, size: 48, color: widget.color.withValues(alpha:0.4)),
           ),
           const SizedBox(height: 12),
           Text(widget.lang == 'EN' ? 'No sub-categories yet' : widget.lang == 'ZH' ? '暂无子分类' : 'Belum ada sub-kategori',
@@ -1907,7 +1907,7 @@ class _LightFormDialog extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
+                    color: color.withValues(alpha:0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: color, size: 22),
@@ -1944,9 +1944,9 @@ class _LightFormDialog extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                   horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.08),
+                color: color.withValues(alpha:0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: color.withOpacity(0.20)),
+                border: Border.all(color: color.withValues(alpha:0.20)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -2055,7 +2055,7 @@ class _LightFormDialog extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                       elevation: 2,
-                      shadowColor: color.withOpacity(0.3),
+                      shadowColor: color.withValues(alpha:0.3),
                     ),
                     child: Text(
                       lang == 'EN' ? 'Save' : lang == 'ZH' ? '保存' : 'Simpan',
@@ -2214,7 +2214,7 @@ Widget _buildSortOptionDialog({
         Container(
           padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.04),
+            color: color.withValues(alpha:0.04),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Row(
@@ -2245,7 +2245,7 @@ Widget _buildSortOptionDialog({
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: isSelected ? color.withOpacity(0.08) : Colors.white,
+                    color: isSelected ? color.withValues(alpha:0.08) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: isSelected ? color : Colors.grey.shade200, width: isSelected ? 1.5 : 1),
                   ),

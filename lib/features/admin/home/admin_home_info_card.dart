@@ -36,7 +36,7 @@ class AdminHomeInfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.22),
+            color: Colors.black.withValues(alpha:0.22),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -71,8 +71,8 @@ class AdminHomeInfoCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Colors.black.withOpacity(0.55),
-                      Colors.black.withOpacity(0.0),
+                      Colors.black.withValues(alpha:0.55),
+                      Colors.black.withValues(alpha:0.0),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -87,7 +87,7 @@ class AdminHomeInfoCard extends StatelessWidget {
                 width: 140, height: 140,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha:0.06),
                 ),
               ),
             ),
@@ -113,12 +113,12 @@ class AdminHomeInfoCard extends StatelessWidget {
                                       : lang == 'ZH' ? '你好, '
                                       : 'Halo, ',
                                   style: GoogleFonts.poppins(
-                                    color: Colors.white.withOpacity(0.90),
+                                    color: Colors.white.withValues(alpha:0.90),
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500,
                                     shadows: [
                                       Shadow(
-                                        color: Colors.black.withOpacity(0.6),
+                                        color: Colors.black.withValues(alpha:0.6),
                                         blurRadius: 6,
                                       ),
                                     ],
@@ -133,7 +133,7 @@ class AdminHomeInfoCard extends StatelessWidget {
                                       fontWeight: FontWeight.w800,
                                       shadows: [
                                         Shadow(
-                                          color: Colors.black.withOpacity(0.7),
+                                          color: Colors.black.withValues(alpha:0.7),
                                           blurRadius: 8,
                                         ),
                                       ],
@@ -155,7 +155,7 @@ class AdminHomeInfoCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(height: 1, color: Colors.white.withOpacity(0.18)),
+                Container(height: 1, color: Colors.white.withValues(alpha:0.18)),
                 // STATS
                 isLoadingStats
                     ? _buildStatsShimmer()
@@ -182,7 +182,7 @@ class AdminHomeInfoCard extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 height: 56,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha:0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -234,7 +234,7 @@ class AdminHomeInfoCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: s.color.withOpacity(0.4),
+                    color: s.color.withValues(alpha:0.4),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -243,7 +243,7 @@ class AdminHomeInfoCard extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(s.icon, color: Colors.white.withOpacity(0.90), size: 18),
+                  Icon(s.icon, color: Colors.white.withValues(alpha:0.90), size: 18),
                   const SizedBox(height: 5),
                   Text(
                     '${s.value}',
@@ -258,7 +258,7 @@ class AdminHomeInfoCard extends StatelessWidget {
                   Text(
                     s.label,
                     style: GoogleFonts.poppins(
-                      color: Colors.white.withOpacity(0.88),
+                      color: Colors.white.withValues(alpha:0.88),
                       fontSize: 8,
                       fontWeight: FontWeight.w600,
                     ),
@@ -334,12 +334,12 @@ class _AdminHomeBadgeState extends State<AdminHomeBadge>
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.38),
+            color: Colors.black.withValues(alpha:0.38),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: borderColor, width: 2),
             boxShadow: [
               BoxShadow(
-                color: borderColor.withOpacity(0.35),
+                color: borderColor.withValues(alpha:0.35),
                 blurRadius: 8,
                 spreadRadius: 0,
               ),
@@ -363,7 +363,7 @@ class _AdminHomeBadgeState extends State<AdminHomeBadge>
               letterSpacing: 0.3,
               shadows: [
                 Shadow(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha:0.5),
                   blurRadius: 4,
                 ),
               ],
@@ -387,7 +387,7 @@ class AdminHomeClockWidget extends StatefulWidget {
 class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
   late DateTime _now;
   late Timer _timer;
-  bool _fontReady = true;
+  final bool _fontReady = true;
 
   @override
   void initState() {
@@ -446,7 +446,7 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
         ? GoogleFonts.sourceCodePro(
             color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800,
             letterSpacing: 1.5,
-            shadows: [Shadow(color: Colors.black.withOpacity(0.6), blurRadius: 6)])
+            shadows: [Shadow(color: Colors.black.withValues(alpha:0.6), blurRadius: 6)])
         : const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800,
             letterSpacing: 1.5, fontFamily: 'monospace');
 
@@ -454,24 +454,24 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
         ? GoogleFonts.sourceCodePro(
             color: const Color(0xFF6EE7B7), fontSize: 15, fontWeight: FontWeight.w800,
             letterSpacing: 1,
-            shadows: [Shadow(color: const Color(0xFF059669).withOpacity(0.8), blurRadius: 8)])
+            shadows: [Shadow(color: const Color(0xFF059669).withValues(alpha:0.8), blurRadius: 8)])
         : const TextStyle(color: Color(0xFF6EE7B7), fontSize: 15, fontWeight: FontWeight.w800,
             letterSpacing: 1, fontFamily: 'monospace');
 
     final dateStyle = _fontReady
         ? GoogleFonts.poppins(
-            color: Colors.white.withOpacity(0.85), fontSize: 8.5, fontWeight: FontWeight.w600,
+            color: Colors.white.withValues(alpha:0.85), fontSize: 8.5, fontWeight: FontWeight.w600,
             letterSpacing: 0.3,
-            shadows: [Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 4)])
-        : TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 8.5,
+            shadows: [Shadow(color: Colors.black.withValues(alpha:0.5), blurRadius: 4)])
+        : TextStyle(color: Colors.white.withValues(alpha:0.85), fontSize: 8.5,
             fontWeight: FontWeight.w600, letterSpacing: 0.3);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.38),
+        color: Colors.black.withValues(alpha:0.38),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha:0.25), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -494,9 +494,9 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
                   Text('$h:$m', style: timeStyle),
                   Text(':', style: _fontReady
                       ? GoogleFonts.sourceCodePro(
-                          color: Colors.white.withOpacity(0.70),
+                          color: Colors.white.withValues(alpha:0.70),
                           fontSize: 14, fontWeight: FontWeight.w700)
-                      : TextStyle(color: Colors.white.withOpacity(0.70),
+                      : TextStyle(color: Colors.white.withValues(alpha:0.70),
                           fontSize: 14, fontWeight: FontWeight.w700,
                           fontFamily: 'monospace')),
                   Text(s, style: secStyle),
@@ -526,10 +526,10 @@ class AdminClockPainter extends CustomPainter {
     const pi2 = 6.283185307;
 
     canvas.drawCircle(center, r,
-        Paint()..color = Colors.white.withOpacity(0.10));
+        Paint()..color = Colors.white.withValues(alpha:0.10));
     canvas.drawCircle(center, r,
         Paint()
-          ..color = Colors.white.withOpacity(0.30)
+          ..color = Colors.white.withValues(alpha:0.30)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.2);
 
@@ -543,8 +543,8 @@ class AdminClockPainter extends CustomPainter {
         Offset(cx + outer * _cos(angle), cy + outer * _sin(angle)),
         Paint()
           ..color = isMajor
-              ? Colors.white.withOpacity(0.90)
-              : Colors.white.withOpacity(0.45)
+              ? Colors.white.withValues(alpha:0.90)
+              : Colors.white.withValues(alpha:0.45)
           ..strokeWidth = isMajor ? 1.8 : 1.0
           ..strokeCap = StrokeCap.round,
       );
@@ -559,7 +559,7 @@ class AdminClockPainter extends CustomPainter {
     final minAngle = (now.minute + now.second / 60) / 60 * pi2 - pi2 / 4;
     canvas.drawLine(center,
         Offset(cx + (r * 0.65) * _cos(minAngle), cy + (r * 0.65) * _sin(minAngle)),
-        Paint()..color = Colors.white.withOpacity(0.90)..strokeWidth = 1.8..strokeCap = StrokeCap.round);
+        Paint()..color = Colors.white.withValues(alpha:0.90)..strokeWidth = 1.8..strokeCap = StrokeCap.round);
 
     final secAngle = now.second / 60 * pi2 - pi2 / 4;
     canvas.drawLine(
