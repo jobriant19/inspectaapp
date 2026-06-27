@@ -26,7 +26,7 @@ class AdminHomeButtonAccess extends StatelessWidget {
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                  color: const Color(0xFF059669).withOpacity(0.15)),
+                  color: const Color(0xFF059669).withValues(alpha:0.15)),
             ),
           );
         }
@@ -116,12 +116,12 @@ class _ProModeToggleCardState extends State<_ProModeToggleCard> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _isVisible ? _primary.withOpacity(0.3) : Colors.grey.shade200,
+          color: _isVisible ? _primary.withValues(alpha:0.3) : Colors.grey.shade200,
           width: _isVisible ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: _primary.withOpacity(0.07),
+            color: _primary.withValues(alpha:0.07),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -133,7 +133,7 @@ class _ProModeToggleCardState extends State<_ProModeToggleCard> {
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: _isVisible
-                  ? _primary.withOpacity(0.10)
+                  ? _primary.withValues(alpha:0.10)
                   : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(10),
             ),
@@ -199,7 +199,7 @@ class _ProModeToggleCardState extends State<_ProModeToggleCard> {
                   value: _isVisible,
                   onChanged: _toggle,
                   activeColor: _primary,
-                  activeTrackColor: _primary.withOpacity(0.25),
+                  activeTrackColor: _primary.withValues(alpha:0.25),
                   inactiveThumbColor: Colors.grey.shade400,
                   inactiveTrackColor: Colors.grey.shade200,
                 ),
@@ -278,12 +278,12 @@ class _PreventiveMaintenanceToggleCardState
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _isVisible ? _primary.withOpacity(0.3) : Colors.grey.shade200,
+          color: _isVisible ? _primary.withValues(alpha:0.3) : Colors.grey.shade200,
           width: _isVisible ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: _primary.withOpacity(0.07),
+            color: _primary.withValues(alpha:0.07),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -295,7 +295,7 @@ class _PreventiveMaintenanceToggleCardState
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: _isVisible
-                  ? _primary.withOpacity(0.10)
+                  ? _primary.withValues(alpha:0.10)
                   : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(10),
             ),
@@ -361,7 +361,7 @@ class _PreventiveMaintenanceToggleCardState
                   value: _isVisible,
                   onChanged: _toggle,
                   activeColor: _primary,
-                  activeTrackColor: _primary.withOpacity(0.25),
+                  activeTrackColor: _primary.withValues(alpha:0.25),
                   inactiveThumbColor: Colors.grey.shade400,
                   inactiveTrackColor: Colors.grey.shade200,
                 ),
