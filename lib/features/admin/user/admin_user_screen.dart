@@ -232,7 +232,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           icon: const Icon(Icons.arrow_back_ios_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha:0.08),
         title: Text(
           _langCode == 'EN'
               ? 'User Management'
@@ -281,7 +281,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: _primary.withOpacity(0.35),
+                            color: _primary.withValues(alpha:0.35),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -292,7 +292,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.25),
+                              color: Colors.white.withValues(alpha:0.25),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: const Icon(
@@ -326,7 +326,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                   style: GoogleFonts.poppins(
                                       fontSize: 10,
                                       color:
-                                          Colors.white.withOpacity(0.85)),
+                                          Colors.white.withValues(alpha:0.85)),
                                 ),
                               ],
                             ),
@@ -424,7 +424,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black.withOpacity(0.08)),
+        border: Border.all(color: Colors.black.withValues(alpha:0.08)),
       ),
       child: TextField(
         onChanged: (v) => setState(() {
@@ -488,10 +488,10 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.black.withOpacity(0.06)),
+        border: Border.all(color: Colors.black.withValues(alpha:0.06)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha:0.04),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -504,7 +504,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: roleColor.withOpacity(0.12),
+                backgroundColor: roleColor.withValues(alpha:0.12),
                 backgroundImage: avatarUrl != null
                     ? CachedNetworkImageProvider(avatarUrl)
                     : null,
@@ -635,9 +635,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       padding:
           const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha:0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -664,9 +664,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha:0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.18)),
+          border: Border.all(color: color.withValues(alpha:0.18)),
         ),
         child: Icon(icon, color: color, size: 16),
       ),
@@ -681,11 +681,11 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: _primary.withOpacity(0.06),
+              color: _primary.withValues(alpha:0.06),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.people_outline,
-                size: 56, color: _primary.withOpacity(0.4)),
+                size: 56, color: _primary.withValues(alpha:0.4)),
           ),
           const SizedBox(height: 16),
           Text(
@@ -709,9 +709,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: _primary.withOpacity(0.08),
+        color: _primary.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _primary.withOpacity(0.3)),
+        border: Border.all(color: _primary.withValues(alpha:0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -812,7 +812,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 Container(
                   padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
                   decoration: BoxDecoration(
-                    color: _primary.withOpacity(0.04),
+                    color: _primary.withValues(alpha:0.04),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: Row(
@@ -1099,7 +1099,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? _primary.withOpacity(0.08) : Colors.white,
+          color: isSelected ? _primary.withValues(alpha:0.08) : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? _primary : Colors.grey.shade200,
@@ -1162,7 +1162,7 @@ class _FilterButton extends StatelessWidget {
           boxShadow: isActive
               ? [
                   BoxShadow(
-                    color: primary.withOpacity(0.2),
+                    color: primary.withValues(alpha:0.2),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   )
