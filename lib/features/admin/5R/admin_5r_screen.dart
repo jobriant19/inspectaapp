@@ -488,8 +488,7 @@ class _Admin5RScreenState extends State<Admin5RScreen>
         padding: const EdgeInsets.all(3),
         child: TabBar(
           controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
+          isScrollable: false,
           indicator: BoxDecoration(
             color: activeColor,
             borderRadius: BorderRadius.circular(9),
@@ -503,7 +502,7 @@ class _Admin5RScreenState extends State<Admin5RScreen>
             fontWeight: FontWeight.w600, fontSize: 11.5),
           dividerColor: Colors.transparent,
           overlayColor: WidgetStateProperty.all(Colors.transparent),
-          tabs: tabLabels.map((t) => Tab(child: Text(t))).toList(),
+          tabs: tabLabels.map((t) => Tab(child: Text(t, textAlign: TextAlign.center))).toList(),
         ),
       ),
     );
