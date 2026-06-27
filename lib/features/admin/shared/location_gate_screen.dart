@@ -104,9 +104,9 @@ class _LocationGateScreenState extends State<LocationGateScreen> {
                 width: 120, height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF00C9E4).withOpacity(0.1),
+                  color: const Color(0xFF00C9E4).withValues(alpha:0.1),
                   border: Border.all(
-                    color: const Color(0xFF00C9E4).withOpacity(0.3), width: 2),
+                    color: const Color(0xFF00C9E4).withValues(alpha:0.3), width: 2),
                 ),
                 child: const Icon(
                   Icons.location_on_rounded,
@@ -149,8 +149,8 @@ class _LocationGateScreenState extends State<LocationGateScreen> {
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: _errorReason == 'out_of_range'
-                          ? const Color(0xFFF59E0B).withOpacity(0.4)
-                          : const Color(0xFFDC2626).withOpacity(0.3),
+                          ? const Color(0xFFF59E0B).withValues(alpha:0.4)
+                          : const Color(0xFFDC2626).withValues(alpha:0.3),
                     ),
                   ),
                   child: Column(
