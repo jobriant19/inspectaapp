@@ -2,21 +2,83 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../accident/admin_accident_screen.dart';
 import '../admin_profile_screen.dart';
 import '../home/admin_home_screen.dart';
+import '../5R/admin_5r_screen.dart';
 import '../kts/admin_kts_screen.dart';
-import 'admin_5r_inspection.dart';
-import 'admin_5r_location.dart';
-import 'admin_5r_members.dart';
-import 'admin_5r_recurring.dart';
 
-class Admin5RScreen extends StatefulWidget {
+class AdminAccidentMembersTab extends StatelessWidget {
+  final String lang;
+  const AdminAccidentMembersTab({super.key, required this.lang});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        lang == 'EN'
+            ? 'Members content coming soon'
+            : lang == 'ZH'
+                ? '成员内容即将推出'
+                : 'Konten Anggota segera hadir',
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          color: const Color(0xFF94A3B8),
+        ),
+      ),
+    );
+  }
+}
+
+class AdminAccidentLocationTab extends StatelessWidget {
+  final String lang;
+  const AdminAccidentLocationTab({super.key, required this.lang});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        lang == 'EN'
+            ? 'Location content coming soon'
+            : lang == 'ZH'
+                ? '位置内容即将推出'
+                : 'Konten Lokasi segera hadir',
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          color: const Color(0xFF94A3B8),
+        ),
+      ),
+    );
+  }
+}
+
+class AdminAccidentRecurringTab extends StatelessWidget {
+  final String lang;
+  const AdminAccidentRecurringTab({super.key, required this.lang});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        lang == 'EN'
+            ? 'Recurring Accident content coming soon'
+            : lang == 'ZH'
+                ? '重复事故内容即将推出'
+                : 'Konten Kecelakaan Berulang segera hadir',
+        style: GoogleFonts.poppins(
+          fontSize: 14,
+          color: const Color(0xFF94A3B8),
+        ),
+      ),
+    );
+  }
+}
+
+class AdminAccidentScreen extends StatefulWidget {
   final String lang;
   final String? adminName;
   final String? adminImage;
 
-  const Admin5RScreen({
+  const AdminAccidentScreen({
     super.key,
     required this.lang,
     this.adminName,
@@ -24,15 +86,15 @@ class Admin5RScreen extends StatefulWidget {
   });
 
   @override
-  State<Admin5RScreen> createState() => _Admin5RScreenState();
+  State<AdminAccidentScreen> createState() => _AdminAccidentScreenState();
 }
 
-class _Admin5RScreenState extends State<Admin5RScreen>
+class _AdminAccidentScreenState extends State<AdminAccidentScreen>
     with TickerProviderStateMixin {
   late String _lang;
   String _adminName = 'Admin';
   String? _adminImage;
-  final int _activeNavIndex = 1;
+  final int _activeNavIndex = 3;
   late TabController _tabController;
 
   @override
@@ -41,7 +103,7 @@ class _Admin5RScreenState extends State<Admin5RScreen>
     _lang = widget.lang;
     _adminName = widget.adminName ?? 'Admin';
     _adminImage = widget.adminImage;
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -65,6 +127,20 @@ class _Admin5RScreenState extends State<Admin5RScreen>
       );
       return;
     }
+    if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        _slideRoute(
+          Admin5RScreen(
+            lang: _lang,
+            adminName: _adminName,
+            adminImage: _adminImage,
+          ),
+          fromRight: false,
+        ),
+      );
+      return;
+    }
     if (index == 2) {
       Navigator.pushReplacement(
         context,
@@ -74,21 +150,7 @@ class _Admin5RScreenState extends State<Admin5RScreen>
             adminName: _adminName,
             adminImage: _adminImage,
           ),
-          fromRight: true,
-        ),
-      );
-      return;
-    }
-    if (index == 3) {
-      Navigator.pushReplacement(
-        context,
-        _slideRoute(
-          AdminAccidentScreen(
-            lang: _lang,
-            adminName: _adminName,
-            adminImage: _adminImage,
-          ),
-          fromRight: true,
+          fromRight: false,
         ),
       );
       return;
@@ -105,12 +167,11 @@ class _Admin5RScreenState extends State<Admin5RScreen>
           parent: animation,
           curve: Curves.easeInOut,
         );
-        final begin = fromRight
-            ? const Offset(1.0, 0.0)
-            : const Offset(-1.0, 0.0);
+        final begin =
+            fromRight ? const Offset(1.0, 0.0) : const Offset(-1.0, 0.0);
         return SlideTransition(
-          position: Tween<Offset>(begin: begin, end: Offset.zero)
-              .animate(curved),
+          position:
+              Tween<Offset>(begin: begin, end: Offset.zero).animate(curved),
           child: child,
         );
       },
@@ -126,9 +187,11 @@ class _Admin5RScreenState extends State<Admin5RScreen>
         children: [
           // BACKGROUND BLOBS
           Positioned(
-            top: -80, right: -60,
+            top: -80,
+            right: -60,
             child: Container(
-              width: 300, height: 300,
+              width: 300,
+              height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(colors: [
@@ -139,9 +202,11 @@ class _Admin5RScreenState extends State<Admin5RScreen>
             ),
           ),
           Positioned(
-            bottom: 100, left: -80,
+            bottom: 100,
+            left: -80,
             child: Container(
-              width: 260, height: 260,
+              width: 260,
+              height: 260,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(colors: [
@@ -169,7 +234,8 @@ class _Admin5RScreenState extends State<Admin5RScreen>
                       child: Row(
                         children: [
                           Container(
-                            width: 4, height: 20,
+                            width: 4,
+                            height: 20,
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
                                 colors: [Color(0xFF059669), Color(0xFF34D399)],
@@ -182,10 +248,10 @@ class _Admin5RScreenState extends State<Admin5RScreen>
                           const SizedBox(width: 10),
                           Text(
                             _lang == 'EN'
-                                ? '5R Findings Report'
+                                ? 'Accident Report'
                                 : _lang == 'ZH'
-                                    ? '5R 发现报告'
-                                    : '5R Findings Report',
+                                    ? '事故报告'
+                                    : 'Laporan Kecelakaan',
                             style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -200,15 +266,14 @@ class _Admin5RScreenState extends State<Admin5RScreen>
                     // TAB BAR
                     _buildTabBar(),
 
-                    // CONTENT TAB
+                    // TAB CONTENT
                     Expanded(
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          Admin5RMembersTab(lang: _lang),
-                          Admin5RInspectionTab(lang: _lang),
-                          Admin5RLocationTab(lang: _lang),
-                          Admin5RRecurringTab(lang: _lang),
+                          AdminAccidentMembersTab(lang: _lang),
+                          AdminAccidentLocationTab(lang: _lang),
+                          AdminAccidentRecurringTab(lang: _lang),
                         ],
                       ),
                     ),
@@ -220,7 +285,9 @@ class _Admin5RScreenState extends State<Admin5RScreen>
 
           // BOTTOM NAVBAR
           Positioned(
-            left: 0, right: 0, bottom: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: _buildBottomNavBar(bottomPadding),
           ),
         ],
@@ -228,7 +295,6 @@ class _Admin5RScreenState extends State<Admin5RScreen>
     );
   }
 
-  // HEADER
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
@@ -360,7 +426,8 @@ class _Admin5RScreenState extends State<Admin5RScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 40, height: 4,
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2),
@@ -368,10 +435,14 @@ class _Admin5RScreenState extends State<Admin5RScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  _lang == 'EN' ? 'Select Language'
-                      : _lang == 'ZH' ? '选择语言' : 'Pilih Bahasa',
+                  _lang == 'EN'
+                      ? 'Select Language'
+                      : _lang == 'ZH'
+                          ? '选择语言'
+                          : 'Pilih Bahasa',
                   style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700, fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
                     color: const Color.fromARGB(255, 29, 199, 97),
                   ),
                 ),
@@ -392,7 +463,8 @@ class _Admin5RScreenState extends State<Admin5RScreen>
                     },
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 14),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? const Color(0xFF059669).withValues(alpha: 0.08)
@@ -400,29 +472,35 @@ class _Admin5RScreenState extends State<Admin5RScreen>
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isSelected
-                              ? const Color(0xFF059669) : Colors.grey.shade200,
+                              ? const Color(0xFF059669)
+                              : Colors.grey.shade200,
                           width: isSelected ? 1.5 : 1,
                         ),
                       ),
-                      child: Row(children: [
-                        Text(l['flag']!, style: const TextStyle(fontSize: 24)),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            labels[l['code']]!,
-                            style: GoogleFonts.poppins(
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              fontSize: 15,
-                              color: isSelected
-                                  ? const Color(0xFF059669)
-                                  : const Color.fromARGB(255, 7, 139, 97),
+                      child: Row(
+                        children: [
+                          Text(l['flag']!,
+                              style: const TextStyle(fontSize: 24)),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Text(
+                              labels[l['code']]!,
+                              style: GoogleFonts.poppins(
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                fontSize: 15,
+                                color: isSelected
+                                    ? const Color(0xFF059669)
+                                    : const Color.fromARGB(255, 7, 139, 97),
+                              ),
                             ),
                           ),
-                        ),
-                        if (isSelected)
-                          const Icon(Icons.check_circle_rounded,
-                              color: Color(0xFF059669), size: 20),
-                      ]),
+                          if (isSelected)
+                            const Icon(Icons.check_circle_rounded,
+                                color: Color(0xFF059669), size: 20),
+                        ],
+                      ),
                     ),
                   );
                 }),
@@ -436,20 +514,26 @@ class _Admin5RScreenState extends State<Admin5RScreen>
         decoration: BoxDecoration(
           color: const Color(0xFF059669).withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
+          border: Border.all(
+              color: const Color(0xFF059669).withValues(alpha: 0.25)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _lang == 'ID' ? '🇮🇩' : _lang == 'EN' ? '🇺🇸' : '🇨🇳',
+              _lang == 'ID'
+                  ? '🇮🇩'
+                  : _lang == 'EN'
+                      ? '🇺🇸'
+                      : '🇨🇳',
               style: const TextStyle(fontSize: 14),
             ),
             const SizedBox(width: 4),
             Text(
               _lang,
               style: GoogleFonts.poppins(
-                fontSize: 11, fontWeight: FontWeight.w700,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
                 color: const Color(0xFF059669),
               ),
             ),
@@ -466,10 +550,10 @@ class _Admin5RScreenState extends State<Admin5RScreen>
     const activeColor = Color.fromARGB(255, 29, 199, 97);
 
     final tabLabels = _lang == 'EN'
-        ? ['Members', 'Inspection', 'Location', 'Recurring Findings']
+        ? ['Members', 'Location', 'Recurring Accident']
         : _lang == 'ZH'
-            ? ['成员', '检查', '位置', '重复发现']
-            : ['Anggota', 'Inspeksi', 'Lokasi', 'Temuan Berulang'];
+            ? ['成员', '位置', '重复事故']
+            : ['Anggota', 'Lokasi', 'Kecelakaan Berulang'];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -488,8 +572,7 @@ class _Admin5RScreenState extends State<Admin5RScreen>
         padding: const EdgeInsets.all(3),
         child: TabBar(
           controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
+          isScrollable: false,
           indicator: BoxDecoration(
             color: activeColor,
             borderRadius: BorderRadius.circular(9),
@@ -498,35 +581,58 @@ class _Admin5RScreenState extends State<Admin5RScreen>
           labelColor: Colors.white,
           unselectedLabelColor: activeColor,
           labelStyle: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700, fontSize: 11.5),
+              fontWeight: FontWeight.w700, fontSize: 11.5),
           unselectedLabelStyle: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600, fontSize: 11.5),
+              fontWeight: FontWeight.w600, fontSize: 11.5),
           dividerColor: Colors.transparent,
           overlayColor: WidgetStateProperty.all(Colors.transparent),
-          tabs: tabLabels.map((t) => Tab(child: Text(t))).toList(),
+          tabs: tabLabels.map((t) => Tab(child: Text(t, textAlign: TextAlign.center))).toList(),
         ),
       ),
     );
   }
 
-  // BOTTOM NAVBAR
   Widget _buildBottomNavBar(double bottomPadding) {
     const activeColor = Color.fromARGB(255, 29, 199, 97);
     const inactiveColor = Color(0xFF94A3B8);
     final double safeBottom = bottomPadding > 0 ? bottomPadding : 8;
 
     final items = [
-      _NavItem(index: 0, labelID: 'Beranda', labelEN: 'Home', labelZH: '首页',
-          activeIcon: Icons.home_rounded, inactiveIcon: Icons.home_outlined),
-      _NavItem(index: 1, labelID: '5R', labelEN: '5R', labelZH: '5R',
-          activeIcon: Icons.search_rounded, inactiveIcon: Icons.search_outlined),
-      _NavItem(index: 2, labelID: 'KTS', labelEN: 'KTS', labelZH: 'KTS',
+      _NavItem(
+          index: 0,
+          labelID: 'Beranda',
+          labelEN: 'Home',
+          labelZH: '首页',
+          activeIcon: Icons.home_rounded,
+          inactiveIcon: Icons.home_outlined),
+      _NavItem(
+          index: 1,
+          labelID: '5R',
+          labelEN: '5R',
+          labelZH: '5R',
+          activeIcon: Icons.search_rounded,
+          inactiveIcon: Icons.search_outlined),
+      _NavItem(
+          index: 2,
+          labelID: 'KTS',
+          labelEN: 'KTS',
+          labelZH: 'KTS',
           activeIcon: Icons.precision_manufacturing_rounded,
           inactiveIcon: Icons.precision_manufacturing_outlined),
-      _NavItem(index: 3, labelID: 'Accident', labelEN: 'Accident', labelZH: '事故',
-          activeIcon: Icons.warning_rounded, inactiveIcon: Icons.warning_amber_outlined),
-      _NavItem(index: 4, labelID: 'Preventif', labelEN: 'Preventive', labelZH: '预防',
-          activeIcon: Icons.build_circle_rounded, inactiveIcon: Icons.build_circle_outlined),
+      _NavItem(
+          index: 3,
+          labelID: 'Accident',
+          labelEN: 'Accident',
+          labelZH: '事故',
+          activeIcon: Icons.warning_rounded,
+          inactiveIcon: Icons.warning_amber_outlined),
+      _NavItem(
+          index: 4,
+          labelID: 'Preventif',
+          labelEN: 'Preventive',
+          labelZH: '预防',
+          activeIcon: Icons.build_circle_rounded,
+          inactiveIcon: Icons.build_circle_outlined),
     ];
 
     return Container(

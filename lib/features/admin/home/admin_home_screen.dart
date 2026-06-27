@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../5R/admin_5r_screen.dart';
+import '../accident/admin_accident_screen.dart';
 import '../admin_profile_screen.dart';
 import '../kts/admin_kts_screen.dart';
 import 'admin_home_button_access.dart';
@@ -89,7 +90,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     });
 
     _loadAdminInfo();
-    // Preload bgadmin segera saat widget pertama kali build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       precacheImage(
         const AssetImage('assets/images/bgadmin.png'),
@@ -602,6 +602,33 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         context,
         PageRouteBuilder(
           pageBuilder: (_, __, ___) => AdminKtsScreen(
+            lang: _lang,
+            adminName: _adminName,
+            adminImage: _adminImage,
+          ),
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 300),
+          transitionsBuilder: (_, animation, __, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeInOut,
+              )),
+              child: child,
+            );
+          },
+        ),
+      );
+      return;
+    }
+    if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => AdminAccidentScreen(
             lang: _lang,
             adminName: _adminName,
             adminImage: _adminImage,
