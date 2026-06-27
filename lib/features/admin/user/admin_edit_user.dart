@@ -425,7 +425,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
                               color: _showPasswordField
-                                  ? const Color(0xFFF59E0B).withOpacity(0.12)
+                                  ? const Color(0xFFF59E0B).withValues(alpha:0.12)
                                   : Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -675,7 +675,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
+                  color: Colors.black.withValues(alpha:0.06),
                   blurRadius: 8,
                   offset: const Offset(0, -2),
                 ),
@@ -721,7 +721,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
                             elevation: 2,
-                            shadowColor: _primary.withOpacity(0.3),
+                            shadowColor: _primary.withValues(alpha:0.3),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -757,7 +757,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.10),
+            color: color.withValues(alpha:0.10),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 14, color: color),
@@ -1039,17 +1039,17 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: value ? color.withOpacity(0.06) : Colors.grey.shade50,
+        color: value ? color.withValues(alpha:0.06) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: value ? color.withOpacity(0.25) : Colors.grey.shade200),
+            color: value ? color.withValues(alpha:0.25) : Colors.grey.shade200),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: value ? color.withOpacity(0.12) : Colors.grey.shade100,
+              color: value ? color.withValues(alpha:0.12) : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon,
@@ -1070,7 +1070,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
             value: value,
             onChanged: onChanged,
             activeColor: color,
-            activeTrackColor: color.withOpacity(0.25),
+            activeTrackColor: color.withValues(alpha:0.25),
             inactiveThumbColor: Colors.grey.shade400,
             inactiveTrackColor: Colors.grey.shade200,
           ),
