@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../admin_profile_screen.dart';
-import '../../home/admin_home_screen.dart';
+import '../admin_profile_screen.dart';
+import '../home/admin_home_screen.dart';
 import 'admin_5r_inspection.dart';
+import 'admin_5r_location.dart';
 import 'admin_5r_members.dart';
 
 class Admin5RScreen extends StatefulWidget {
@@ -175,7 +176,7 @@ class _Admin5RScreenState extends State<Admin5RScreen>
                         children: [
                           Admin5RMembersTab(lang: _lang),
                           Admin5RInspectionTab(lang: _lang),
-                          SizedBox.shrink(), // Location
+                          Admin5RLocationTab(lang: _lang),
                           SizedBox.shrink(), // Recurring Findings
                         ],
                       ),

@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../5/R/admin_5r_screen.dart';
+import '../5R/admin_5r_screen.dart';
 import '../admin_profile_screen.dart';
 import 'admin_home_button_access.dart';
 import 'admin_home_info_card.dart';
