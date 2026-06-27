@@ -237,7 +237,7 @@ class AdminUserDetailSheet extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 36,
-                      backgroundColor: _primary.withOpacity(0.12),
+                      backgroundColor: _primary.withValues(alpha:0.12),
                       backgroundImage: avatarUrl != null
                           ? CachedNetworkImageProvider(avatarUrl)
                           : null,
@@ -329,16 +329,16 @@ class AdminUserDetailSheet extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withValues(alpha:0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.15)),
+        border: Border.all(color: color.withValues(alpha:0.15)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-                color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
             child: Icon(icon, size: 16, color: color),
           ),
           const SizedBox(width: 12),
@@ -369,9 +369,9 @@ class AdminUserDetailSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha:0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
