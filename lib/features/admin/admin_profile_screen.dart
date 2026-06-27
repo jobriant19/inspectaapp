@@ -250,7 +250,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.12),
+                color: Colors.black.withValues(alpha:0.12),
                 blurRadius: 30,
                 offset: const Offset(0, 10),
               ),
@@ -303,7 +303,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
+                color: Colors.black.withValues(alpha:0.15),
                 blurRadius: 30,
                 offset: const Offset(0, 10),
               ),
@@ -530,7 +530,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
+                color: Colors.black.withValues(alpha:0.15),
                 blurRadius: 30,
                 offset: const Offset(0, 10),
               ),
@@ -754,7 +754,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           ),
           backgroundColor: Colors.white,
           elevation: 1,
-          shadowColor: Colors.black.withOpacity(0.08),
+          shadowColor: Colors.black.withValues(alpha:0.08),
           actions: [
             if (!_isEditMode && !_isLoading)
               TextButton.icon(
@@ -830,7 +830,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                                           BorderRadius.circular(16)),
                                   elevation: _hasChanges ? 4 : 0,
                                   shadowColor: const Color(0xFF059669)
-                                      .withOpacity(0.35),
+                                      .withValues(alpha:0.35),
                                 ),
                                 onPressed: _hasChanges && !_isSaving
                                     ? _updateProfile
@@ -861,7 +861,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor:
-                                    Colors.red.withOpacity(0.1),
+                                    Colors.red.withValues(alpha:0.1),
                                 elevation: 0,
                                 minimumSize:
                                     const Size(double.infinity, 50),
@@ -914,7 +914,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF059669).withOpacity(0.07),
+                  color: const Color(0xFF059669).withValues(alpha:0.07),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -1026,7 +1026,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
                 elevation: 2,
-                shadowColor: const Color(0xFF059669).withOpacity(0.4),
+                shadowColor: const Color(0xFF059669).withValues(alpha:0.4),
               ),
               onPressed: _isSaving ? null : _updatePassword,
             ),
@@ -1054,7 +1054,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF059669).withOpacity(0.07),
+            color: const Color(0xFF059669).withValues(alpha:0.07),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1168,7 +1168,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF059669).withOpacity(0.07),
+                color: const Color(0xFF059669).withValues(alpha:0.07),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -1233,7 +1233,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF059669).withOpacity(0.07),
+                color: const Color(0xFF059669).withValues(alpha:0.07),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -1337,7 +1337,7 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
                 height: 130,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha:0.06),
                 ),
               ),
             ),
@@ -1349,7 +1349,7 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
                 height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.04),
+                  color: Colors.white.withValues(alpha:0.04),
                 ),
               ),
             ),
@@ -1378,7 +1378,7 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF059669).withOpacity(0.4),
+                                color: const Color(0xFF059669).withValues(alpha:0.4),
                                 blurRadius: 14,
                                 offset: const Offset(0, 5),
                               ),
@@ -1423,7 +1423,7 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
                                     color: const Color(0xFF10B981), width: 2),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.15),
+                                    color: Colors.black.withValues(alpha:0.15),
                                     blurRadius: 6,
                                   ),
                                 ],
