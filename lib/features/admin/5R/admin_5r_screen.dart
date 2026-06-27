@@ -7,6 +7,7 @@ import '../home/admin_home_screen.dart';
 import 'admin_5r_inspection.dart';
 import 'admin_5r_location.dart';
 import 'admin_5r_members.dart';
+import 'admin_5r_recurring.dart';
 
 class Admin5RScreen extends StatefulWidget {
   final String lang;
@@ -177,7 +178,7 @@ class _Admin5RScreenState extends State<Admin5RScreen>
                           Admin5RMembersTab(lang: _lang),
                           Admin5RInspectionTab(lang: _lang),
                           Admin5RLocationTab(lang: _lang),
-                          SizedBox.shrink(), // Recurring Findings
+                          Admin5RRecurringTab(lang: _lang),
                         ],
                       ),
                     ),
