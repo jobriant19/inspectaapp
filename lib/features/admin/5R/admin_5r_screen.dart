@@ -6,6 +6,7 @@ import '../accident/admin_accident_screen.dart';
 import '../admin_profile_screen.dart';
 import '../home/admin_home_screen.dart';
 import '../kts/admin_kts_screen.dart';
+import '../preventif/admin_preventif_screen.dart';
 import 'admin_5r_inspection.dart';
 import 'admin_5r_location.dart';
 import 'admin_5r_members.dart';
@@ -84,6 +85,20 @@ class _Admin5RScreenState extends State<Admin5RScreen>
         context,
         _slideRoute(
           AdminAccidentScreen(
+            lang: _lang,
+            adminName: _adminName,
+            adminImage: _adminImage,
+          ),
+          fromRight: true,
+        ),
+      );
+      return;
+    }
+    if (index == 4) {
+      Navigator.pushReplacement(
+        context,
+        _slideRoute(
+          AdminPreventifScreen(
             lang: _lang,
             adminName: _adminName,
             adminImage: _adminImage,
