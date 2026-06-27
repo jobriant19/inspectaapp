@@ -211,7 +211,7 @@ class _AdminImagePickerWidgetState extends State<AdminImagePickerWidget> {
                 border: Border.all(color: Colors.white, width: 3),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
+                    color: Colors.black.withValues(alpha:0.15),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -219,7 +219,7 @@ class _AdminImagePickerWidgetState extends State<AdminImagePickerWidget> {
               ),
               child: CircleAvatar(
                 radius: widget.height / 2,
-                backgroundColor: _accent.withOpacity(0.12),
+                backgroundColor: _accent.withValues(alpha:0.12),
                 backgroundImage: _previewBytes != null
                     ? MemoryImage(_previewBytes!) as ImageProvider
                     : (widget.currentImageUrl?.isNotEmpty ?? false)
@@ -265,10 +265,10 @@ class _AdminImagePickerWidgetState extends State<AdminImagePickerWidget> {
         height: widget.height,
         width: double.infinity,
         decoration: BoxDecoration(
-          color: _accent.withOpacity(0.05),
+          color: _accent.withValues(alpha:0.05),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: _accent.withOpacity(0.35),
+            color: _accent.withValues(alpha:0.35),
             width: 1.5,
           ),
         ),
@@ -322,7 +322,7 @@ class _AdminImagePickerWidgetState extends State<AdminImagePickerWidget> {
                               begin: Alignment.bottomCenter,
                               end: Alignment.topCenter,
                               colors: [
-                                Colors.black.withOpacity(0.6),
+                                Colors.black.withValues(alpha:0.6),
                                 Colors.transparent,
                               ],
                             ),
@@ -353,7 +353,7 @@ class _AdminImagePickerWidgetState extends State<AdminImagePickerWidget> {
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: _accent.withOpacity(0.10),
+                          color: _accent.withValues(alpha:0.10),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
@@ -366,7 +366,7 @@ class _AdminImagePickerWidgetState extends State<AdminImagePickerWidget> {
                       Text(
                         widget.hint ?? 'Tap untuk pilih gambar',
                         style: GoogleFonts.poppins(
-                          color: _accent.withOpacity(0.7),
+                          color: _accent.withValues(alpha:0.7),
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
@@ -406,16 +406,16 @@ class _SourceButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha:0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.25)),
+          border: Border.all(color: color.withValues(alpha:0.25)),
         ),
         child: Column(
           children: [
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha:0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 28),
