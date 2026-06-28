@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../accident/admin_accident_screen.dart';
 import '../admin_profile_screen.dart';
 import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
+import '../preventif/admin_preventif_screen.dart';
 
 class AdminKtsScreen extends StatefulWidget {
   final String lang;
@@ -47,7 +49,6 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
 
   void _onNavTap(int index) {
     if (index == _activeNavIndex) return;
-
     if (index == 0) {
       Navigator.pushReplacement(
         context,
@@ -61,7 +62,6 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
       );
       return;
     }
-
     if (index == 1) {
       Navigator.pushReplacement(
         context,
@@ -72,6 +72,34 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
             adminImage: _adminImage,
           ),
           fromRight: false,
+        ),
+      );
+      return;
+    }
+    if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        _slideRoute(
+          AdminAccidentScreen(
+            lang: _lang,
+            adminName: _adminName,
+            adminImage: _adminImage,
+          ),
+          fromRight: true,
+        ),
+      );
+      return;
+    }
+    if (index == 4) {
+      Navigator.pushReplacement(
+        context,
+        _slideRoute(
+          AdminPreventifScreen(
+            lang: _lang,
+            adminName: _adminName,
+            adminImage: _adminImage,
+          ),
+          fromRight: true,
         ),
       );
       return;
