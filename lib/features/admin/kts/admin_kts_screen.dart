@@ -8,6 +8,7 @@ import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
 import '../preventif/admin_preventif_screen.dart';
 import 'admin_kts_cause.dart';
+import 'admin_kts_kasie.dart';
 import 'admin_kts_members.dart';
 
 class AdminKtsScreen extends StatefulWidget {
@@ -220,9 +221,7 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
                         children: [
                           AdminKtsMembersTab(lang: _lang),
                           AdminKtsCauseTab(lang: _lang),
-                          _buildPlaceholderTab(
-                            _lang == 'EN' ? 'Kasie' : _lang == 'ZH' ? '部门主管' : 'Kasie',
-                          ),
+                          AdminKtsKasieTab(lang: _lang),
                           _buildPlaceholderTab(
                             _lang == 'EN' ? 'Recurring KTS' : _lang == 'ZH' ? '重复KTS' : 'KTS Berulang',
                           ),
