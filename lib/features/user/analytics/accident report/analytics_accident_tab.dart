@@ -213,8 +213,8 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _C.red.withOpacity(0.4), width: 1.2),
-            boxShadow: [BoxShadow(color: _C.red.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
+            border: Border.all(color: _C.red.withValues(alpha:0.4), width: 1.2),
+            boxShadow: [BoxShadow(color: _C.red.withValues(alpha:0.08), blurRadius: 6, offset: const Offset(0, 2))],
           ),
           child: Row(children: [
             Icon(Icons.bar_chart_rounded, size: 16, color: _C.red),
@@ -332,8 +332,8 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _C.red.withOpacity(0.25)),
-        boxShadow: [BoxShadow(color: _C.red.withOpacity(0.07), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: _C.red.withValues(alpha:0.25)),
+        boxShadow: [BoxShadow(color: _C.red.withValues(alpha:0.07), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -348,7 +348,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: _C.red.withOpacity(0.1),
+              color: _C.red.withValues(alpha:0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -403,14 +403,14 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Row(children: [
         Container(
           padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
+          decoration: BoxDecoration(color: color.withValues(alpha:0.15), shape: BoxShape.circle),
           child: Icon(icon, size: 12, color: color),
         ),
         const SizedBox(width: 8),
@@ -421,7 +421,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: total > 0 ? value / total : 0,
-              backgroundColor: color.withOpacity(0.15),
+              backgroundColor: color.withValues(alpha:0.15),
               valueColor: AlwaysStoppedAnimation<Color>(color),
               minHeight: 3,
             ),
@@ -526,7 +526,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _C.red.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _C.red.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Flexible(child: Text(label,
@@ -949,7 +949,7 @@ class _PieChartPainter extends CustomPainter {
         ..arcTo(Rect.fromCircle(center: center, radius: outerRadius), startAngle, sweepAngle, false)
         ..close();
       canvas.drawPath(path,
-        Paint()..color = color.withOpacity(0.2)
+        Paint()..color = color.withValues(alpha:0.2)
               ..style = PaintingStyle.fill
               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
 
