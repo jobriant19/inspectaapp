@@ -7,6 +7,7 @@ import '../admin_profile_screen.dart';
 import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
 import '../preventif/admin_preventif_screen.dart';
+import 'admin_kts_members.dart';
 
 class AdminKtsScreen extends StatefulWidget {
   final String lang;
@@ -216,9 +217,7 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          _buildPlaceholderTab(
-                            _lang == 'EN' ? 'Members' : _lang == 'ZH' ? '成员' : 'Anggota',
-                          ),
+                          AdminKtsMembersTab(lang: _lang),
                           _buildPlaceholderTab(
                             _lang == 'EN' ? 'Cause' : _lang == 'ZH' ? '原因' : 'Penyebab',
                           ),
