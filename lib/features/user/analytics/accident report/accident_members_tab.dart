@@ -331,7 +331,7 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
         border: const Border(
             top: BorderSide(color: _C.selfHighlightBorder, width: 1.5)),
         boxShadow: [BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha:0.05),
             blurRadius: 6, offset: const Offset(0, -2))],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -433,8 +433,8 @@ class _Avatar extends StatelessWidget {
     return Container(
       width: size, height: size,
       decoration: BoxDecoration(
-        color: bg.withOpacity(0.15), shape: BoxShape.circle,
-        border: Border.all(color: bg.withOpacity(0.3), width: 1)),
+        color: bg.withValues(alpha:0.15), shape: BoxShape.circle,
+        border: Border.all(color: bg.withValues(alpha:0.3), width: 1)),
       child: Center(child: Text(initials,
           style: TextStyle(fontSize: size * 0.35,
               fontWeight: FontWeight.w700, color: bg))),
