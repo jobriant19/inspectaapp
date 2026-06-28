@@ -516,7 +516,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       setState(() {
         _isPreventiveMaintenanceVisible =
-            prefs.getBool('pm_button_visible') ?? true;
+            prefs.getBool('preventive_maintenance_visible') ?? true;
       });
     }
 
@@ -646,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: true, // klik luar = tutup
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withValues(alpha:0.6),
       builder: (ctx) => _LoginPointDialog(
         points: points,
         description: description,
@@ -733,7 +733,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: true, // klik luar = tutup otomatis
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withValues(alpha:0.6),
       builder: (ctx) => _PenaltyDialog(
         absPoints: points.abs(),
         description: description,
@@ -761,7 +761,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: true, // klik luar = tutup
-      barrierColor: Colors.black.withOpacity(0.6),
+      barrierColor: Colors.black.withValues(alpha:0.6),
       builder: (ctx) => _PenaltyDialog(
         absPoints: points.abs(),
         description: description,
@@ -1046,7 +1046,7 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.35),
+      barrierColor: Colors.black.withValues(alpha:0.35),
       builder: (ctx) {
         Future.delayed(const Duration(seconds: 3), () {
           if (ctx.mounted && Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
@@ -1062,7 +1062,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                    color: primary.withOpacity(0.3),
+                    color: primary.withValues(alpha:0.3),
                     blurRadius: 30, spreadRadius: 5, offset: const Offset(0, 10),
                   ),
                 ],
@@ -1074,8 +1074,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: 90, height: 90,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: primary.withOpacity(0.1),
-                      border: Border.all(color: primary.withOpacity(0.3), width: 2),
+                      color: primary.withValues(alpha:0.1),
+                      border: Border.all(color: primary.withValues(alpha:0.3), width: 2),
                     ),
                     child: ClipOval(
                       child: Image.asset(
@@ -1105,8 +1105,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       duration: const Duration(milliseconds: 3000),
                       builder: (_, v, __) => LinearProgressIndicator(
                         value: v, minHeight: 4,
-                        backgroundColor: primary.withOpacity(0.1),
-                        valueColor: AlwaysStoppedAnimation<Color>(primary.withOpacity(0.6)),
+                        backgroundColor: primary.withValues(alpha:0.1),
+                        valueColor: AlwaysStoppedAnimation<Color>(primary.withValues(alpha:0.6)),
                       ),
                     ),
                   ),
@@ -1187,7 +1187,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.12),
+                  color: Colors.orange.withValues(alpha:0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.location_off_rounded,
@@ -1310,7 +1310,7 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: RadialGradient(colors: [
-            const Color(0xFF00C9E4).withOpacity(opacity),
+            const Color(0xFF00C9E4).withValues(alpha:opacity),
             Colors.transparent,
           ]),
         ),
@@ -1327,7 +1327,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00C9E4).withOpacity(0.15),
+            color: const Color(0xFF00C9E4).withValues(alpha:0.15),
             blurRadius: 20, spreadRadius: -2, offset: const Offset(0, 8),
           ),
         ],
@@ -1342,7 +1342,7 @@ class _HomeScreenState extends State<HomeScreen> {
             errorBuilder: (_, __, ___) => Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color(0xFF00C9E4).withOpacity(0.1),
+                color: const Color(0xFF00C9E4).withValues(alpha:0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.shield, color: Color(0xFF00C9E4), size: 26),
@@ -1400,9 +1400,9 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C9E4).withOpacity(0.08),
+              color: const Color(0xFF00C9E4).withValues(alpha:0.08),
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF00C9E4).withOpacity(0.2)),
+              border: Border.all(color: const Color(0xFF00C9E4).withValues(alpha:0.2)),
             ),
             child: const Icon(Icons.mail_outlined, color: Color(0xFF1E3A8A), size: 22),
           ),
@@ -1475,7 +1475,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00C9E4).withOpacity(0.3),
+              color: const Color(0xFF00C9E4).withValues(alpha:0.3),
               blurRadius: 8, offset: const Offset(0, 2),
             ),
           ],
@@ -1517,7 +1517,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00C9E4).withOpacity(0.15),
+                      color: const Color(0xFF00C9E4).withValues(alpha:0.15),
                       blurRadius: 20,
                       offset: const Offset(0, 4),
                     ),
@@ -1547,7 +1547,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00C9E4).withOpacity(0.4),
+                          color: const Color(0xFF00C9E4).withValues(alpha:0.4),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -1616,7 +1616,7 @@ class _HomeScreenState extends State<HomeScreen> {
             duration: const Duration(milliseconds: 300),
             padding: EdgeInsets.all(isActive ? 10 : 0),
             decoration: BoxDecoration(
-              color: isActive ? const Color(0xFF00C9E4).withOpacity(0.15) : Colors.transparent,
+              color: isActive ? const Color(0xFF00C9E4).withValues(alpha:0.15) : Colors.transparent,
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -1825,7 +1825,7 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00C9E4).withOpacity(0.3),
+                color: const Color(0xFF00C9E4).withValues(alpha:0.3),
                 blurRadius: 40, spreadRadius: 5, offset: const Offset(0, 10),
               ),
             ],
@@ -1854,7 +1854,7 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
                 ),
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFF00C9E4).withOpacity(0.4), blurRadius: 20, spreadRadius: 3),
+                  BoxShadow(color: const Color(0xFF00C9E4).withValues(alpha:0.4), blurRadius: 20, spreadRadius: 3),
                 ],
               ),
               child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 46),
@@ -1932,9 +1932,9 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C9E4).withOpacity(0.08),
+              color: const Color(0xFF00C9E4).withValues(alpha:0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF00C9E4).withOpacity(0.3)),
+              border: Border.all(color: const Color(0xFF00C9E4).withValues(alpha:0.3)),
             ),
             child: Row(children: [
               const Icon(Icons.info_outline, color: Color(0xFF00C9E4), size: 16),
@@ -1989,7 +1989,7 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
                                 children: [
                                   CircleAvatar(
                                     radius: 18,
-                                    backgroundColor: const Color(0xFF00C9E4).withOpacity(0.12),
+                                    backgroundColor: const Color(0xFF00C9E4).withValues(alpha:0.12),
                                     child: Text(u['nama'][0].toUpperCase(),
                                         style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
                                   ),
@@ -2012,7 +2012,7 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
                                       return Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF16A34A).withOpacity(0.1),
+                                          color: const Color(0xFF16A34A).withValues(alpha:0.1),
                                           borderRadius: BorderRadius.circular(20),
                                         ),
                                         child: Column(
@@ -2149,9 +2149,9 @@ class _PenaltyDialogState extends State<_PenaltyDialog>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(32),
-              border: Border.all(color: red.withOpacity(0.18), width: 1.5),
+              border: Border.all(color: red.withValues(alpha:0.18), width: 1.5),
               boxShadow: [
-                BoxShadow(color: red.withOpacity(0.18), blurRadius: 40, spreadRadius: 4, offset: const Offset(0, 12)),
+                BoxShadow(color: red.withValues(alpha:0.18), blurRadius: 40, spreadRadius: 4, offset: const Offset(0, 12)),
               ],
             ),
             child: Column(
@@ -2170,8 +2170,8 @@ class _PenaltyDialogState extends State<_PenaltyDialog>
                       child: Container(
                         width: 72, height: 72,
                         decoration: BoxDecoration(
-                          color: red.withOpacity(0.12), shape: BoxShape.circle,
-                          border: Border.all(color: red.withOpacity(0.35), width: 2),
+                          color: red.withValues(alpha:0.12), shape: BoxShape.circle,
+                          border: Border.all(color: red.withValues(alpha:0.35), width: 2),
                         ),
                         child: const Icon(Icons.warning_amber_rounded, color: red, size: 36),
                       ),
@@ -2196,7 +2196,7 @@ class _PenaltyDialogState extends State<_PenaltyDialog>
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: redLight, borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: red.withOpacity(0.12)),
+                        border: Border.all(color: red.withValues(alpha:0.12)),
                       ),
                       child: Text(widget.description, textAlign: TextAlign.center,
                           style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w500,
@@ -2210,8 +2210,8 @@ class _PenaltyDialogState extends State<_PenaltyDialog>
                         duration: const Duration(milliseconds: 6000),
                         builder: (_, v, __) => LinearProgressIndicator(
                           value: v, minHeight: 3,
-                          backgroundColor: red.withOpacity(0.08),
-                          valueColor: AlwaysStoppedAnimation<Color>(red.withOpacity(0.4)),
+                          backgroundColor: red.withValues(alpha:0.08),
+                          valueColor: AlwaysStoppedAnimation<Color>(red.withValues(alpha:0.4)),
                         ),
                       ),
                     ),
@@ -2321,9 +2321,9 @@ class _PointNotifDialogState extends State<_PointNotifDialog>
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: primary.withOpacity(0.2), width: 1.5),
+                border: Border.all(color: primary.withValues(alpha:0.2), width: 1.5),
                 boxShadow: [
-                  BoxShadow(color: primary.withOpacity(0.2), blurRadius: 40, spreadRadius: 4, offset: const Offset(0, 12)),
+                  BoxShadow(color: primary.withValues(alpha:0.2), blurRadius: 40, spreadRadius: 4, offset: const Offset(0, 12)),
                 ],
               ),
               child: Column(
@@ -2333,7 +2333,7 @@ class _PointNotifDialogState extends State<_PointNotifDialog>
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                     decoration: BoxDecoration(
-                      color: primary.withOpacity(0.06),
+                      color: primary.withValues(alpha:0.06),
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
                     ),
                     child: Column(children: [
@@ -2342,8 +2342,8 @@ class _PointNotifDialogState extends State<_PointNotifDialog>
                         child: Container(
                           width: 72, height: 72,
                           decoration: BoxDecoration(
-                            color: primary.withOpacity(0.12), shape: BoxShape.circle,
-                            border: Border.all(color: primary.withOpacity(0.3), width: 2),
+                            color: primary.withValues(alpha:0.12), shape: BoxShape.circle,
+                            border: Border.all(color: primary.withValues(alpha:0.3), width: 2),
                           ),
                           child: Icon(_icon, color: primary, size: 36),
                         ),
@@ -2363,8 +2363,8 @@ class _PointNotifDialogState extends State<_PointNotifDialog>
                       Container(
                         width: double.infinity, padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: primary.withOpacity(0.06), borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: primary.withOpacity(0.12)),
+                          color: primary.withValues(alpha:0.06), borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: primary.withValues(alpha:0.12)),
                         ),
                         child: Text(widget.description, textAlign: TextAlign.center,
                             style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w500,
@@ -2378,8 +2378,8 @@ class _PointNotifDialogState extends State<_PointNotifDialog>
                           duration: const Duration(milliseconds: 4500),
                           builder: (_, v, __) => LinearProgressIndicator(
                             value: v, minHeight: 3,
-                            backgroundColor: primary.withOpacity(0.08),
-                            valueColor: AlwaysStoppedAnimation<Color>(primary.withOpacity(0.45)),
+                            backgroundColor: primary.withValues(alpha:0.08),
+                            valueColor: AlwaysStoppedAnimation<Color>(primary.withValues(alpha:0.45)),
                           ),
                         ),
                       ),
@@ -2442,7 +2442,7 @@ class _PulsingRingState extends State<_PulsingRing> with SingleTickerProviderSta
               width: 88, height: 88,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: widget.color.withOpacity(0.08 * (2.0 - _anim.value)),
+                color: widget.color.withValues(alpha:0.08 * (2.0 - _anim.value)),
               ),
             ),
           ),
@@ -2946,27 +2946,6 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     );
   }
 
-  Widget _buildShimmerHighlight() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFFE8F4FD),
-      highlightColor: const Color(0xFFF5FBFF),
-      period: const Duration(milliseconds: 1200),
-      child: SizedBox(
-        height: 72,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          itemCount: 2,
-          itemBuilder: (_, __) => Container(
-            width: 160, height: 72,
-            margin: const EdgeInsets.only(right: 10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final String parentName = _navHistory.isEmpty
@@ -3070,7 +3049,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                       color: const Color(0xFFF3F8FC),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: const Color(0xFF1D4ED8).withOpacity(0.2)),
+                          color: const Color(0xFF1D4ED8).withValues(alpha:0.2)),
                     ),
                     child: const Icon(Icons.qr_code_scanner,
                         color: Color(0xFF1D4ED8)),
@@ -3195,8 +3174,8 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isMyLoc
-                            ? const Color(0xFF00C9E4).withOpacity(0.5)
-                            : const Color(0xFF16A34A).withOpacity(0.4),
+                            ? const Color(0xFF00C9E4).withValues(alpha:0.5)
+                            : const Color(0xFF16A34A).withValues(alpha:0.4),
                         width: 1.5,
                       ),
                     ),
@@ -3216,12 +3195,12 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                     item.imgUrl!,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => Container(
-                                      color: clr.withOpacity(0.1),
+                                      color: clr.withValues(alpha:0.1),
                                       child: Center(child: Icon(ico, color: clr, size: 28)),
                                     ),
                                   )
                                 : Container(
-                                    color: clr.withOpacity(0.1),
+                                    color: clr.withValues(alpha:0.1),
                                     child: Center(child: Icon(ico, color: clr, size: 28)),
                                   ),
                           ),
@@ -3286,7 +3265,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: Colors.amber.withOpacity(0.15),
+                                  color: Colors.amber.withValues(alpha:0.15),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(
@@ -3305,7 +3284,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                                 margin: const EdgeInsets.only(right: 8),
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF00C9E4).withOpacity(0.15),
+                                  color: const Color(0xFF00C9E4).withValues(alpha:0.15),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: const Icon(Icons.camera_alt,
@@ -3456,7 +3435,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
         decoration: BoxDecoration(
           color: const Color(0xFFF6FAFE),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.blue.withOpacity(0.15), width: 1),
+          border: Border.all(color: Colors.blue.withValues(alpha:0.15), width: 1),
         ),
         child: Column(
           children: [
@@ -3477,14 +3456,14 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                               result.imgUrl!,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Container(
-                                color: levelColor.withOpacity(0.1),
+                                color: levelColor.withValues(alpha:0.1),
                                 child: Center(
                                     child: Icon(levelIcon,
                                         color: levelColor, size: 28)),
                               ),
                             )
                           : Container(
-                              color: levelColor.withOpacity(0.1),
+                              color: levelColor.withValues(alpha:0.1),
                               child: Center(
                                   child: Icon(levelIcon,
                                       color: levelColor, size: 28)),
@@ -3528,7 +3507,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
-                              color: levelColor.withOpacity(0.08),
+                              color: levelColor.withValues(alpha:0.08),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(result.type.toUpperCase(),
@@ -3577,7 +3556,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Colors.amber.withOpacity(0.15),
+                                color: Colors.amber.withValues(alpha:0.15),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Icon(
@@ -3595,7 +3574,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                             child: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF00C9E4).withOpacity(0.15),
+                                color: const Color(0xFF00C9E4).withValues(alpha:0.15),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: const Icon(Icons.camera_alt,
@@ -3644,10 +3623,10 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: badge == _ItemBadge.myLocation
-                ? const Color(0xFF00C9E4).withOpacity(0.5)
+                ? const Color(0xFF00C9E4).withValues(alpha:0.5)
                 : badge == _ItemBadge.pic
-                    ? const Color(0xFF16A34A).withOpacity(0.4)
-                    : Colors.blue.withOpacity(0.15),
+                    ? const Color(0xFF16A34A).withValues(alpha:0.4)
+                    : Colors.blue.withValues(alpha:0.15),
             width: badge != _ItemBadge.none ? 1.5 : 1,
           ),
         ),
@@ -3664,11 +3643,11 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                 child: imgUrl != null
                     ? Image.network(imgUrl, fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
-                          color: levelColor.withOpacity(0.1),
+                          color: levelColor.withValues(alpha:0.1),
                           child: Center(child: Icon(levelIcon, color: levelColor, size: 28)),
                         ))
                     : Container(
-                        color: levelColor.withOpacity(0.1),
+                        color: levelColor.withValues(alpha:0.1),
                         child: Center(child: Icon(levelIcon, color: levelColor, size: 28)),
                       ),
               ),
@@ -3723,7 +3702,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.15),
+                      color: Colors.amber.withValues(alpha:0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
@@ -3741,7 +3720,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                     margin: const EdgeInsets.only(right: 8),
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C9E4).withOpacity(0.15),
+                      color: const Color(0xFF00C9E4).withValues(alpha:0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.camera_alt,
@@ -3761,9 +3740,9 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
         decoration: BoxDecoration(
-          color: const Color(0xFF00C9E4).withOpacity(0.12),
+          color: const Color(0xFF00C9E4).withValues(alpha:0.12),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF00C9E4).withOpacity(0.4)),
+          border: Border.all(color: const Color(0xFF00C9E4).withValues(alpha:0.4)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -3779,9 +3758,9 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
         decoration: BoxDecoration(
-          color: const Color(0xFF16A34A).withOpacity(0.1),
+          color: const Color(0xFF16A34A).withValues(alpha:0.1),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF16A34A).withOpacity(0.4)),
+          border: Border.all(color: const Color(0xFF16A34A).withValues(alpha:0.4)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
