@@ -80,7 +80,7 @@ class KtsFindingCard extends StatelessWidget {
           border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFF59E0B).withOpacity(0.12),
+              color: const Color(0xFFF59E0B).withValues(alpha:0.12),
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),
@@ -98,7 +98,7 @@ class KtsFindingCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                      color: Colors.black.withOpacity(0.15), width: 1.5),
+                      color: Colors.black.withValues(alpha:0.15), width: 1.5),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12.5),
@@ -141,7 +141,7 @@ class KtsFindingCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFBBF24).withOpacity(0.15),
+                            color: const Color(0xFFFBBF24).withValues(alpha:0.15),
                             borderRadius: BorderRadius.circular(9),
                             border: Border.all(color: const Color(0xFFFBBF24), width: 1.2),
                           ),
