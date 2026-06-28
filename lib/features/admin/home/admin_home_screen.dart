@@ -7,6 +7,7 @@ import '../5R/admin_5r_screen.dart';
 import '../accident/admin_accident_screen.dart';
 import '../admin_profile_screen.dart';
 import '../kts/admin_kts_screen.dart';
+import '../preventif/admin_preventif_screen.dart';
 import 'admin_home_button_access.dart';
 import 'admin_home_info_card.dart';
 import 'admin_home_management_menu.dart';
@@ -629,6 +630,33 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
         context,
         PageRouteBuilder(
           pageBuilder: (_, __, ___) => AdminAccidentScreen(
+            lang: _lang,
+            adminName: _adminName,
+            adminImage: _adminImage,
+          ),
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 300),
+          transitionsBuilder: (_, animation, __, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(1.0, 0.0),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeInOut,
+              )),
+              child: child,
+            );
+          },
+        ),
+      );
+      return;
+    }
+    if (index == 4) {
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => AdminPreventifScreen(
             lang: _lang,
             adminName: _adminName,
             adminImage: _adminImage,

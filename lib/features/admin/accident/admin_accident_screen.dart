@@ -6,6 +6,7 @@ import '../admin_profile_screen.dart';
 import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
 import '../kts/admin_kts_screen.dart';
+import '../preventif/admin_preventif_screen.dart';
 
 class AdminAccidentMembersTab extends StatelessWidget {
   final String lang;
@@ -151,6 +152,20 @@ class _AdminAccidentScreenState extends State<AdminAccidentScreen>
             adminImage: _adminImage,
           ),
           fromRight: false,
+        ),
+      );
+      return;
+    }
+    if (index == 4) {
+      Navigator.pushReplacement(
+        context,
+        _slideRoute(
+          AdminPreventifScreen(
+            lang: _lang,
+            adminName: _adminName,
+            adminImage: _adminImage,
+          ),
+          fromRight: true,
         ),
       );
       return;
