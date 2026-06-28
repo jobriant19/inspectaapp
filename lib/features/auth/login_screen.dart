@@ -29,7 +29,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isLoading          = false;
   bool isPasswordVisible  = false;
 
-  // Dictionary
   String selectedLanguage = 'EN';
 
   static const Map<String, Map<String, String>> _translations = {
@@ -117,7 +116,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // Auth listener (Google OAuth)
   void _setupAuthListener() {
     _authStateSubscription =
         Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
@@ -178,8 +176,9 @@ class _LoginScreenState extends State<LoginScreen> {
               Supabase.instance.client.from('temuan').count(),
               Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Belum'),
               Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Selesai'),
+              if (mounted)
               precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
-                  .catchError((_) {}),
+                  .catchError((_) async {}),
             ]);
             sTotalUsers    = stats[0] as int;
             sTotalLokasi   = stats[1] as int;
@@ -188,8 +187,9 @@ class _LoginScreenState extends State<LoginScreen> {
             sTemuanBelum   = stats[4] as int;
             sTemuanSelesai = stats[5] as int;
           } catch (_) {
+            if (!mounted) return;
             await precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
-                .catchError((_) {});
+                .catchError((_) async {});
           }
 
           if (mounted) await warmupAdminFonts(context);
@@ -323,7 +323,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ─── Resolusi nama lokasi ─────────────────────────────────────────────────────
   Future<String> _resolveLocationName(Map<String, dynamic> userData) async {
     final idArea    = userData['id_area'];
     final idSubunit = userData['id_subunit'];
@@ -351,7 +350,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return '...';
   }
 
-  // ─── Submit login ─────────────────────────────────────────────────────────────
   void _submitForm() async {
     final email = _emailController.text.trim();
     final pass  = _passwordController.text.trim();
@@ -448,7 +446,6 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (isAdmin) {
-        // ── Alur Admin ──────────────────────────────────────────────────────
         int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
         int sTotalTemuan = 0, sTemuanBelum = 0, sTemuanSelesai = 0;
         try {
@@ -465,7 +462,7 @@ class _LoginScreenState extends State<LoginScreen> {
               GoogleFonts.sourceCodePro(),
               GoogleFonts.poppins(),
               GoogleFonts.inter()
-            ]).catchError((_) {}),
+            ]).catchError((_) => <void>[]),
           ]);
           sTotalUsers    = stats[0] as int;
           sTotalLokasi   = stats[1] as int;
@@ -474,8 +471,9 @@ class _LoginScreenState extends State<LoginScreen> {
           sTemuanBelum   = stats[4] as int;
           sTemuanSelesai = stats[5] as int;
         } catch (_) {
+          if (!mounted) return;
           await precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
-              .catchError((_) {});
+              .catchError((_) async {});
         }
 
         if (mounted) await warmupAdminFonts(context);
@@ -499,7 +497,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       } else {
-        // ── Alur User biasa ─────────────────────────────────────────────────
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
@@ -535,7 +532,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ─── BUILD ────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -551,7 +547,7 @@ class _LoginScreenState extends State<LoginScreen> {
               width: 280, height: 280,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF1976D2).withOpacity(0.12),
+                color: const Color(0xFF1976D2).withValues(alpha:0.12),
               ),
             ),
           ),
@@ -561,7 +557,7 @@ class _LoginScreenState extends State<LoginScreen> {
               width: 200, height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF42A5F5).withOpacity(0.15),
+                color: const Color(0xFF42A5F5).withValues(alpha:0.15),
               ),
             ),
           ),
@@ -571,7 +567,7 @@ class _LoginScreenState extends State<LoginScreen> {
               width: 300, height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF1565C0).withOpacity(0.08),
+                color: const Color(0xFF1565C0).withValues(alpha:0.08),
               ),
             ),
           ),
@@ -626,7 +622,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF1976D2).withOpacity(0.3),
+                                      color: const Color(0xFF1976D2).withValues(alpha:0.3),
                                       blurRadius: 16,
                                     ),
                                   ],
@@ -647,10 +643,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Container(
                               width: double.infinity,
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.92),
+                                color: Colors.white.withValues(alpha:0.92),
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
                                 border: Border.all(
-                                  color: const Color(0xFF90CAF9).withOpacity(0.6),
+                                  color: const Color(0xFF90CAF9).withValues(alpha:0.6),
                                   width: 1.2,
                                 ),
                               ),
@@ -676,7 +672,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       getTxt('tagline_login'),
                                       style: TextStyle(
                                         fontSize: 12, fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF1565C0).withOpacity(0.75),
+                                        color: const Color(0xFF1565C0).withValues(alpha:0.75),
                                       ),
                                     ),
                                   ),
@@ -763,7 +759,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         elevation: 0,
                                         shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(14)),
-                                        shadowColor: const Color(0xFF1976D2).withOpacity(0.4),
+                                        shadowColor: const Color(0xFF1976D2).withValues(alpha:0.4),
                                       ),
                                       onPressed: isLoading ? null : _submitForm,
                                       child: Text(
@@ -780,7 +776,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   Row(children: [
                                     Expanded(
                                       child: Divider(
-                                          color: const Color(0xFF90CAF9).withOpacity(0.5))),
+                                          color: const Color(0xFF90CAF9).withValues(alpha:0.5))),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 12),
                                       child: Text(
@@ -792,7 +788,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                     Expanded(
                                       child: Divider(
-                                          color: const Color(0xFF90CAF9).withOpacity(0.5))),
+                                          color: const Color(0xFF90CAF9).withValues(alpha:0.5))),
                                   ]),
 
                                   const SizedBox(height: 14),
@@ -844,7 +840,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ─── Language picker ──────────────────────────────────────────────────────────
   void _showLanguagePicker() {
     const langs = [
       {'code': 'EN', 'flag': '🇬🇧', 'label': 'English'},
@@ -891,7 +886,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF1976D2).withOpacity(0.08)
+                        ? const Color(0xFF1976D2).withValues(alpha:0.08)
                         : Colors.grey.shade50,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
@@ -936,7 +931,7 @@ class _LoginScreenState extends State<LoginScreen> {
       height: 34,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.75),
+        color: Colors.white.withValues(alpha:0.75),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFF90CAF9), width: 1),
       ),
@@ -984,10 +979,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return Container(
       height: 52,
       decoration: BoxDecoration(
-        color: const Color(0xFFE3F2FD).withOpacity(0.7),
+        color: const Color(0xFFE3F2FD).withValues(alpha:0.7),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isFilled ? const Color(0xFF1976D2) : const Color(0xFF90CAF9).withOpacity(0.8),
+          color: isFilled ? const Color(0xFF1976D2) : const Color(0xFF90CAF9).withValues(alpha:0.8),
           width: 1.2,
         ),
       ),
@@ -1002,7 +997,7 @@ class _LoginScreenState extends State<LoginScreen> {
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(
-              color: const Color(0xFF90CAF9).withOpacity(0.9),
+              color: const Color(0xFF90CAF9).withValues(alpha:0.9),
               fontSize: 14, fontWeight: FontWeight.w500),
           prefixIcon: Icon(icon,
               color: isFilled ? const Color(0xFF1976D2) : const Color(0xFF90CAF9),
