@@ -7,28 +7,7 @@ import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
 import '../kts/admin_kts_screen.dart';
 import '../preventif/admin_preventif_screen.dart';
-
-class AdminAccidentMembersTab extends StatelessWidget {
-  final String lang;
-  const AdminAccidentMembersTab({super.key, required this.lang});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        lang == 'EN'
-            ? 'Members content coming soon'
-            : lang == 'ZH'
-                ? '成员内容即将推出'
-                : 'Konten Anggota segera hadir',
-        style: GoogleFonts.poppins(
-          fontSize: 14,
-          color: const Color(0xFF94A3B8),
-        ),
-      ),
-    );
-  }
-}
+import 'admin_accident_members.dart';
 
 class AdminAccidentLocationTab extends StatelessWidget {
   final String lang;
