@@ -4,26 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'executive_verification_screen.dart';
 
-// ============================================================
-// VERIFICATION INTRO SCREEN
-// Layar pengantar sebelum masuk ke halaman verifikasi.
-// Menampilkan aturan & informasi verifikasi dalam bentuk
-// slide animatif yang menarik.
-//
-// CARA PAKAI di home_content.dart:
-//   onTap: () {
-//     Navigator.push(
-//       context,
-//       MaterialPageRoute(
-//         builder: (_) => VerificationIntroScreen(
-//           lang: widget.lang,
-//           userJabatanId: widget.userJabatanId,
-//         ),
-//       ),
-//     );
-//   },
-// ============================================================
-
 class VerificationIntroScreen extends StatefulWidget {
   final String lang;
   final int? userJabatanId;
@@ -48,11 +28,6 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
   late AnimationController _bgAnimCtrl;
   late AnimationController _fadeCtrl;
   late Animation<double> _fadeAnim;
-
-  // id_jabatan HRD — sesuaikan dengan data Anda
-  static const int _hrdJabatanId = 5;
-
-  bool get _isHrd => widget.userJabatanId == _hrdJabatanId;
 
   static const Map<String, Map<String, String>> _txt = {
     'EN': {
@@ -221,7 +196,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
         pageBuilder: (_, __, ___) => ExecVerificationScreen(
           lang: widget.lang,
           userJabatanId: widget.userJabatanId,
-          onPointEarned: widget.onPointEarned, // TAMBAH INI
+          onPointEarned: widget.onPointEarned,
         ),
         transitionsBuilder: (_, anim, __, child) => FadeTransition(
           opacity: anim,
@@ -240,17 +215,17 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
         opacity: _fadeAnim,
         child: Stack(
           children: [
-            // ── Animated background ──
+            // ANIMATED BACKGROUND
             _AnimatedBackground(controller: _bgAnimCtrl),
 
-            // ── Main content ──
+            // MAIN CONTENT
             SafeArea(
               child: Column(
                 children: [
-                  // Header
+                  // HEADER
                   _buildHeader(),
 
-                  // Page view
+                  // PAGE VIEW
                   Expanded(
                     child: PageView(
                       controller: _pageController,
@@ -287,10 +262,10 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
             child: Container(
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                color: const Color(0xFF00C9E4).withOpacity(0.12),
+                color: const Color(0xFF00C9E4).withValues(alpha:0.12),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: const Color(0xFF00C9E4).withOpacity(0.3), width: 1),
+                    color: const Color(0xFF00C9E4).withValues(alpha:0.3), width: 1),
               ),
               child: const Icon(Icons.arrow_back_ios_new,
                   size: 16, color: Color(0xFF1E3A8A)),
@@ -339,7 +314,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       child: Column(
         children: [
-          // Page indicator dots
+          // PAGE INDICATORS DOT
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(5, (i) {
@@ -360,7 +335,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           ),
           const SizedBox(height: 20),
 
-          // Next / Start button
+          // NEXT / START BUTTON
           SizedBox(
             width: double.infinity,
             height: 54,
@@ -372,7 +347,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18)),
-                shadowColor: const Color(0xFF00C9E4).withOpacity(0.4),
+                shadowColor: const Color(0xFF00C9E4).withValues(alpha:0.4),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -400,16 +375,11 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
     );
   }
 
-  // ══════════════════════════════════════════
-  // SLIDE 1 — Apa itu Verifikasi?
-  // MODIFIKASI: Tambah 2 kotak (Temuan & Penyelesaian)
-  // ══════════════════════════════════════════
   Widget _buildSlide1() {
     return _SlideWrapper(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Ilustrasi dua kotak: Temuan & Penyelesaian
           _FindingCompletionIllustration(
             findingLabel: t('s1_finding'),
             completionLabel: t('s1_completion'),
@@ -429,9 +399,6 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
     );
   }
 
-  // ══════════════════════════════════════════
-  // SLIDE 2 — Peran Verifier
-  // ══════════════════════════════════════════
   Widget _buildSlide2() {
     return _SlideWrapper(
       child: Column(
@@ -463,15 +430,15 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           ),
           const SizedBox(height: 20),
 
-          // Note 3 verificator
+          // 3 VERIFICATOR NOTE
           Container(
             padding: const EdgeInsets.symmetric(
                 horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF4ADE80).withOpacity(0.12),
+              color: const Color(0xFF4ADE80).withValues(alpha:0.12),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                  color: const Color(0xFF4ADE80).withOpacity(0.3)),
+                  color: const Color(0xFF4ADE80).withValues(alpha:0.3)),
             ),
             child: Row(children: [
               const Icon(Icons.group_rounded,
@@ -494,11 +461,6 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
     );
   }
 
-  // ══════════════════════════════════════════
-  // SLIDE 3 — Cara Voting
-  // MODIFIKASI: Ganti VALID/INVALID → MAYORITAS/MINORITAS
-  // dengan tampilan lebih jelas dan informatif
-  // ══════════════════════════════════════════
   Widget _buildSlide3() {
     return _SlideWrapper(
       child: Column(
@@ -520,7 +482,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           ),
           const SizedBox(height: 20),
 
-          // Mayoritas card
+          // MAJORITY CARD
           _VotingGroupCard(
             label: t('s3_majority'),
             desc: t('s3_majority_desc'),
@@ -535,7 +497,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           ),
           const SizedBox(height: 12),
 
-          // VS divider
+          // VS DIVIDER
           Row(children: [
             Expanded(
               child: Container(
@@ -578,7 +540,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           ]),
           const SizedBox(height: 12),
 
-          // Minoritas card
+          // MINORITY CARD
           _VotingGroupCard(
             label: t('s3_minority'),
             desc: t('s3_minority_desc'),
@@ -596,16 +558,11 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
     );
   }
 
-  // ══════════════════════════════════════════
-  // SLIDE 4 — Poin & Penalti
-  // MODIFIKASI: Tampilan lebih jelas & menarik
-  // ══════════════════════════════════════════
   Widget _buildSlide4() {
     return _SlideWrapper(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Ilustrasi poin yang lebih menarik
           _PointsIllustrationEnhanced(),
           const SizedBox(height: 24),
           _SlideTitle(t('s4_title')),
@@ -624,7 +581,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           ),
           const SizedBox(height: 20),
 
-          // Match — dapat poin (lebih besar & jelas)
+          // MATCH GET POIN
           _PointCardEnhanced(
             icon: Icons.thumb_up_rounded,
             color: const Color(0xFF059669),
@@ -636,7 +593,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           ),
           const SizedBox(height: 12),
 
-          // Mismatch — penalti (lebih besar & jelas)
+          // PENALTY MISMATCH
           _PointCardEnhanced(
             icon: Icons.thumb_down_rounded,
             color: const Color(0xFFDC2626),
@@ -648,15 +605,15 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           ),
           const SizedBox(height: 20),
 
-          // Note dashboard
+          // DASHBOARD NOTE
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E3A8A).withOpacity(0.06),
+              color: const Color(0xFF1E3A8A).withValues(alpha:0.06),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: const Color(0xFF1E3A8A).withOpacity(0.15)),
+                  color: const Color(0xFF1E3A8A).withValues(alpha:0.15)),
             ),
             child: Row(
               children: [
@@ -681,16 +638,11 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
     );
   }
 
-  // ══════════════════════════════════════════
-  // SLIDE 5 — Batas Waktu
-  // MODIFIKASI: Timer animasi lebih menarik
-  // ══════════════════════════════════════════
   Widget _buildSlide5() {
     return _SlideWrapper(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Timer animasi yang jauh lebih menarik
           _TimerIllustrationEnhanced(),
           const SizedBox(height: 24),
           _SlideTitle(t('s5_title')),
@@ -698,7 +650,6 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           _SlideBody(t('s5_body')),
           const SizedBox(height: 24),
 
-          // Badge waktu utama — lebih menarik
           _AnimatedTimerBadge(
             timerLabel: t('s5_timer'),
             subLabel: t('s5_sub'),
@@ -710,11 +661,6 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// SUB-WIDGETS
-// ══════════════════════════════════════════════════════════════
-
-/// Wrapper untuk setiap slide — padding konsisten
 class _SlideWrapper extends StatelessWidget {
   final Widget child;
   const _SlideWrapper({required this.child});
@@ -777,9 +723,9 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha:0.1),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withValues(alpha:0.25)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -803,9 +749,6 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// BARU: Ilustrasi 2 kotak Temuan & Penyelesaian (Slide 1)
-// ══════════════════════════════════════════════════════════════
 class _FindingCompletionIllustration extends StatefulWidget {
   final String findingLabel;
   final String completionLabel;
@@ -851,7 +794,6 @@ class _FindingCompletionIllustrationState
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Verifier avatars di bawah
               Positioned(
                 bottom: 0,
                 child: Row(
@@ -872,7 +814,6 @@ class _FindingCompletionIllustrationState
                 ),
               ),
 
-              // 2 Kotak: Temuan & Penyelesaian — mengambang
               Positioned(
                 top: Transform.translate(
                   offset: Offset(0, _floatAnim.value),
@@ -883,7 +824,7 @@ class _FindingCompletionIllustrationState
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Kotak Temuan
+                      // FINDING
                       Container(
                         width: 120,
                         height: 68,
@@ -896,7 +837,7 @@ class _FindingCompletionIllustrationState
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFFF6B6B).withOpacity(0.4),
+                              color: const Color(0xFFFF6B6B).withValues(alpha:0.4),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -920,16 +861,16 @@ class _FindingCompletionIllustrationState
                         ),
                       ),
 
-                      // Panah connector
+                      // CONNECTOR ARROW
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00C9E4).withOpacity(0.15),
+                            color: const Color(0xFF00C9E4).withValues(alpha:0.15),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF00C9E4).withOpacity(0.4),
+                              color: const Color(0xFF00C9E4).withValues(alpha:0.4),
                             ),
                           ),
                           child: const Icon(
@@ -940,7 +881,7 @@ class _FindingCompletionIllustrationState
                         ),
                       ),
 
-                      // Kotak Penyelesaian
+                      // SOLUTION 
                       Container(
                         width: 120,
                         height: 68,
@@ -953,7 +894,7 @@ class _FindingCompletionIllustrationState
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF4ADE80).withOpacity(0.4),
+                              color: const Color(0xFF4ADE80).withValues(alpha:0.4),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -988,10 +929,6 @@ class _FindingCompletionIllustrationState
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// BARU: Kartu Voting Mayoritas/Minoritas (Slide 3)
-// Lebih jelas dan informatif dibanding versi lama
-// ══════════════════════════════════════════════════════════════
 class _VotingGroupCard extends StatelessWidget {
   final String label;
   final String desc;
@@ -1027,7 +964,7 @@ class _VotingGroupCard extends StatelessWidget {
         border: Border.all(color: borderColor, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha:0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1038,7 +975,7 @@ class _VotingGroupCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Badge label
+              // LABEL BADGE
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -1061,12 +998,12 @@ class _VotingGroupCard extends StatelessWidget {
                 ]),
               ),
               const Spacer(),
-              // Persentase
+              // PERSENTASE
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha:0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -1082,7 +1019,7 @@ class _VotingGroupCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // Voter icons bar
+          // VOTER ICONS BAR
           Row(
             children: List.generate(totalCount, (i) {
               final bool active = i < filledCount;
@@ -1095,7 +1032,7 @@ class _VotingGroupCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: active
-                        ? color.withOpacity(0.15)
+                        ? color.withValues(alpha:0.15)
                         : Colors.grey.shade200,
                     border: Border.all(
                       color: active ? color : Colors.grey.shade300,
@@ -1113,7 +1050,7 @@ class _VotingGroupCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // Deskripsi
+          // DESCRIPTION
           Text(
             desc,
             style: GoogleFonts.poppins(
@@ -1125,7 +1062,7 @@ class _VotingGroupCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
 
-          // Sub-label dengan icon
+          // SUB LABEL WITH ICON
           Row(children: [
             Icon(
               isMajority
@@ -1150,9 +1087,6 @@ class _VotingGroupCard extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// BARU: Point card yang lebih jelas untuk Slide 4
-// ══════════════════════════════════════════════════════════════
 class _PointCardEnhanced extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -1182,7 +1116,7 @@ class _PointCardEnhanced extends StatelessWidget {
         border: Border.all(color: borderColor, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha:0.1),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -1193,7 +1127,7 @@ class _PointCardEnhanced extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha:0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 22),
@@ -1241,7 +1175,7 @@ class _PointCardEnhanced extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.4),
+                  color: color.withValues(alpha:0.4),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
@@ -1262,9 +1196,6 @@ class _PointCardEnhanced extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// BARU: Ilustrasi poin yang lebih menarik untuk Slide 4
-// ══════════════════════════════════════════════════════════════
 class _PointsIllustrationEnhanced extends StatefulWidget {
   @override
   State<_PointsIllustrationEnhanced> createState() =>
@@ -1307,7 +1238,7 @@ class _PointsIllustrationEnhancedState
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Glow ring luar
+              // OUTER GLOW RING
               Container(
                 width: 110,
                 height: 110,
@@ -1315,25 +1246,25 @@ class _PointsIllustrationEnhancedState
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFF00C9E4).withOpacity(0.2),
+                      const Color(0xFF00C9E4).withValues(alpha:0.2),
                       Colors.transparent,
                     ],
                   ),
                 ),
               ),
-              // Ring tengah
+              // CENTER RING
               Container(
                 width: 90,
                 height: 90,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: const Color(0xFF00C9E4).withOpacity(0.3),
+                    color: const Color(0xFF00C9E4).withValues(alpha:0.3),
                     width: 2,
                   ),
                 ),
               ),
-              // Main circle
+              // MAIN CIRCLE
               Container(
                 width: 76,
                 height: 76,
@@ -1346,7 +1277,7 @@ class _PointsIllustrationEnhancedState
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00C9E4).withOpacity(0.5),
+                      color: const Color(0xFF00C9E4).withValues(alpha:0.5),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -1363,9 +1294,6 @@ class _PointsIllustrationEnhancedState
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// BARU: Timer illustration yang jauh lebih menarik (Slide 5)
-// ══════════════════════════════════════════════════════════════
 class _TimerIllustrationEnhanced extends StatefulWidget {
   @override
   State<_TimerIllustrationEnhanced> createState() =>
@@ -1378,7 +1306,7 @@ class _TimerIllustrationEnhancedState
   late AnimationController _rotCtrl;
   late AnimationController _pulseCtrl;
   late Animation<double> _pulse;
-  int _displaySeconds = 300; // 5 menit simulasi
+  int _displaySeconds = 120;
   Timer? _demoTimer;
 
   @override
@@ -1394,12 +1322,11 @@ class _TimerIllustrationEnhancedState
     _pulse = Tween<double>(begin: 1.0, end: 1.08)
         .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
-    // Simulasi countdown untuk ilustrasi
     _demoTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
       setState(() {
-        if (_displaySeconds > 0) _displaySeconds--;
-        else _displaySeconds = 300;
+        if (_displaySeconds > 0) { _displaySeconds--; }
+        else { _displaySeconds = 300; }
       });
     });
   }
@@ -1430,7 +1357,7 @@ class _TimerIllustrationEnhancedState
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // Outermost glow
+              // OUTERMOST GLOW
               Transform.scale(
                 scale: _pulse.value,
                 child: Container(
@@ -1440,7 +1367,7 @@ class _TimerIllustrationEnhancedState
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        mainColor.withOpacity(0.12),
+                        mainColor.withValues(alpha:0.12),
                         Colors.transparent,
                       ],
                     ),
@@ -1448,32 +1375,32 @@ class _TimerIllustrationEnhancedState
                 ),
               ),
 
-              // Outer ring background
+              // OUTER RING BACKGROUND
               Container(
                 width: 140,
                 height: 140,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: mainColor.withOpacity(0.06),
+                  color: mainColor.withValues(alpha:0.06),
                   border: Border.all(
-                      color: mainColor.withOpacity(0.15), width: 2),
+                      color: mainColor.withValues(alpha:0.15), width: 2),
                 ),
               ),
 
-              // Progress arc (spinning)
+              // PROGRESS ARC (SPINNING)
               Transform.rotate(
                 angle: _rotCtrl.value * 2 * math.pi,
                 child: CustomPaint(
                   size: const Size(140, 140),
                   painter: _ArcPainter(
-                    color: mainColor.withOpacity(0.35),
+                    color: mainColor.withValues(alpha:0.35),
                     strokeWidth: 3,
                     sweepAngle: math.pi * 0.8,
                   ),
                 ),
               ),
 
-              // Progress arc (progress-based, static)
+              // PROGRESS ARC (PROGRESS-BASED, STATIC)
               CustomPaint(
                 size: const Size(130, 130),
                 painter: _ProgressArcPainter(
@@ -1483,7 +1410,7 @@ class _TimerIllustrationEnhancedState
                 ),
               ),
 
-              // Inner circle
+              // INNER CIRCLE
               Container(
                 width: 100,
                 height: 100,
@@ -1491,15 +1418,15 @@ class _TimerIllustrationEnhancedState
                   shape: BoxShape.circle,
                   gradient: LinearGradient(
                     colors: [
-                      mainColor.withOpacity(0.9),
-                      mainColor.withOpacity(0.7),
+                      mainColor.withValues(alpha:0.9),
+                      mainColor.withValues(alpha:0.7),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: mainColor.withOpacity(0.5),
+                      color: mainColor.withValues(alpha:0.5),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -1524,7 +1451,6 @@ class _TimerIllustrationEnhancedState
                 ),
               ),
 
-              // Tanda urgent (berkedip) jika <=60 detik
               if (isUrgent)
                 Positioned(
                   top: 8,
@@ -1551,9 +1477,6 @@ class _TimerIllustrationEnhancedState
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// BARU: Badge waktu animatif untuk Slide 5
-// ══════════════════════════════════════════════════════════════
 class _AnimatedTimerBadge extends StatefulWidget {
   final String timerLabel;
   final String subLabel;
@@ -1607,7 +1530,7 @@ class _AnimatedTimerBadgeState extends State<_AnimatedTimerBadge>
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00C9E4).withOpacity(0.45),
+                color: const Color(0xFF00C9E4).withValues(alpha:0.45),
                 blurRadius: 24,
                 offset: const Offset(0, 10),
               ),
@@ -1615,7 +1538,7 @@ class _AnimatedTimerBadgeState extends State<_AnimatedTimerBadge>
           ),
           child: Stack(
             children: [
-              // Shimmer overlay
+              // SHIMMER OVERLAY
               Positioned.fill(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
@@ -1625,9 +1548,9 @@ class _AnimatedTimerBadgeState extends State<_AnimatedTimerBadge>
                         begin: Alignment(_shimmer.value - 1, 0),
                         end: Alignment(_shimmer.value, 0),
                         colors: [
-                          Colors.white.withOpacity(0),
-                          Colors.white.withOpacity(0.12),
-                          Colors.white.withOpacity(0),
+                          Colors.white.withValues(alpha:0),
+                          Colors.white.withValues(alpha:0.12),
+                          Colors.white.withValues(alpha:0),
                         ],
                       ).createShader(bounds);
                     },
@@ -1638,7 +1561,7 @@ class _AnimatedTimerBadgeState extends State<_AnimatedTimerBadge>
                 ),
               ),
 
-              // Content
+              // CONTENT
               Column(
                 children: [
                   Row(
@@ -1667,11 +1590,11 @@ class _AnimatedTimerBadgeState extends State<_AnimatedTimerBadge>
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // Progress bar demo
+                  // PROGRESS BAR DEMO
                   Container(
                     height: 6,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha:0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: FractionallySizedBox(
@@ -1679,7 +1602,7 @@ class _AnimatedTimerBadgeState extends State<_AnimatedTimerBadge>
                       widthFactor: 1.0,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha:0.8),
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
@@ -1690,7 +1613,7 @@ class _AnimatedTimerBadgeState extends State<_AnimatedTimerBadge>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha:0.2),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -1720,11 +1643,6 @@ class _AnimatedTimerBadgeState extends State<_AnimatedTimerBadge>
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// EXISTING WIDGETS (tidak diubah)
-// ══════════════════════════════════════════════════════════════
-
-/// Kartu peran verifier di slide 2
 class _RoleCard extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -1743,14 +1661,14 @@ class _RoleCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.25), width: 1.5),
+        border: Border.all(color: color.withValues(alpha:0.25), width: 1.5),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 22),
@@ -1779,14 +1697,13 @@ class _RoleCard extends StatelessWidget {
             ),
           ),
           Icon(Icons.arrow_forward_ios_rounded,
-              size: 13, color: color.withOpacity(0.5)),
+              size: 13, color: color.withValues(alpha:0.5)),
         ],
       ),
     );
   }
 }
 
-/// Avatar verifier kecil
 class _VerifierAvatar extends StatelessWidget {
   final Color color;
   final double size;
@@ -1799,7 +1716,7 @@ class _VerifierAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha:0.2),
         border: Border.all(color: color, width: 1.5),
       ),
       child: Icon(Icons.person_rounded, size: size * 0.55, color: color),
@@ -1836,7 +1753,6 @@ class _ArcPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-// BARU: Progress arc painter untuk timer ilustrasi
 class _ProgressArcPainter extends CustomPainter {
   final Color color;
   final double strokeWidth;
@@ -1850,9 +1766,9 @@ class _ProgressArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Background arc
+    // BACKGROUND ARC
     final bgPaint = Paint()
-      ..color = color.withOpacity(0.15)
+      ..color = color.withValues(alpha:0.15)
       ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -1880,7 +1796,6 @@ class _ProgressArcPainter extends CustomPainter {
       old.progress != progress || old.color != color;
 }
 
-/// Animated gradient background
 class _AnimatedBackground extends StatelessWidget {
   final AnimationController controller;
   const _AnimatedBackground({required this.controller});
@@ -1903,7 +1818,7 @@ class _AnimatedBackground extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFF00C9E4).withOpacity(0.12),
+                      const Color(0xFF00C9E4).withValues(alpha:0.12),
                       Colors.transparent,
                     ],
                   ),
@@ -1920,7 +1835,7 @@ class _AnimatedBackground extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFF1E3A8A).withOpacity(0.07),
+                      const Color(0xFF1E3A8A).withValues(alpha:0.07),
                       Colors.transparent,
                     ],
                   ),
@@ -1937,7 +1852,7 @@ class _AnimatedBackground extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFF0891B2).withOpacity(0.06 * (1 - t)),
+                      const Color(0xFF0891B2).withValues(alpha:0.06 * (1 - t)),
                       Colors.transparent,
                     ],
                   ),
