@@ -7,29 +7,8 @@ import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
 import '../kts/admin_kts_screen.dart';
 import '../preventif/admin_preventif_screen.dart';
+import 'admin_accident_location.dart';
 import 'admin_accident_members.dart';
-
-class AdminAccidentLocationTab extends StatelessWidget {
-  final String lang;
-  const AdminAccidentLocationTab({super.key, required this.lang});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        lang == 'EN'
-            ? 'Location content coming soon'
-            : lang == 'ZH'
-                ? '位置内容即将推出'
-                : 'Konten Lokasi segera hadir',
-        style: GoogleFonts.poppins(
-          fontSize: 14,
-          color: const Color(0xFF94A3B8),
-        ),
-      ),
-    );
-  }
-}
 
 class AdminAccidentRecurringTab extends StatelessWidget {
   final String lang;
