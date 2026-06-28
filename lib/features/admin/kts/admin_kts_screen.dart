@@ -10,6 +10,7 @@ import '../preventif/admin_preventif_screen.dart';
 import 'admin_kts_cause.dart';
 import 'admin_kts_kasie.dart';
 import 'admin_kts_members.dart';
+import 'admin_kts_recurring.dart';
 
 class AdminKtsScreen extends StatefulWidget {
   final String lang;
@@ -222,9 +223,7 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
                           AdminKtsMembersTab(lang: _lang),
                           AdminKtsCauseTab(lang: _lang),
                           AdminKtsKasieTab(lang: _lang),
-                          _buildPlaceholderTab(
-                            _lang == 'EN' ? 'Recurring KTS' : _lang == 'ZH' ? '重复KTS' : 'KTS Berulang',
-                          ),
+                          AdminKtsRecurringTab(lang: _lang),
                         ],
                       ),
                     ),
@@ -526,40 +525,6 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
               .map((t) => Tab(child: Text(t, textAlign: TextAlign.center)))
               .toList(),
         ),
-      ),
-    );
-  }
-
-  Widget _buildPlaceholderTab(String label) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.precision_manufacturing_rounded,
-              size: 48,
-              color: const Color.fromARGB(255, 29, 199, 97).withValues(alpha: 0.4)),
-          const SizedBox(height: 12),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: const Color.fromARGB(255, 29, 199, 97),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _lang == 'EN'
-                ? 'Content coming soon'
-                : _lang == 'ZH'
-                    ? '内容即将推出'
-                    : 'Konten segera hadir',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: Colors.grey.shade400,
-            ),
-          ),
-        ],
       ),
     );
   }
