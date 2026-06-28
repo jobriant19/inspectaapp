@@ -283,8 +283,6 @@ class _LocationScreenState extends State<LocationScreen>
   String t(String key) => _AppTexts.get(widget.lang, key);
 
   String? get _currentUserId => _supabase.auth.currentUser?.id;
-  bool get _hasFullAccess =>
-      widget.isProMode || widget.userRole == 'Eksekutif';
 
   // ── Init ──────────────────────────────────────────────────────────────────
   @override
@@ -620,22 +618,6 @@ class _LocationScreenState extends State<LocationScreen>
     _performGlobalSearch(query);
   }
 
-  // ── Helper: scope ID berdasarkan user (mode non-pro) ──
-  Map<String, String?> get _userScope => {
-    'lokasi' : _myLocationLokasiId,
-    'unit'   : _myLocationUnitId,
-    'subunit': _myLocationSubunitId,
-    'area'   : _myLocationAreaId,
-  };
-
-  String? get _userScopeType {
-    if (_myLocationAreaId   != null) return 'area';
-    if (_myLocationSubunitId!= null) return 'subunit';
-    if (_myLocationUnitId   != null) return 'unit';
-    if (_myLocationLokasiId != null) return 'lokasi';
-    return null;
-  }
-
   Future<void> _performGlobalSearch(String query) async {
     setState(() { _isGlobalSearch = true; _isGlobalLoading = true; _globalResults = []; });
     try {
@@ -652,10 +634,10 @@ class _LocationScreenState extends State<LocationScreen>
         _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
             .ilike('nama_area', '%$query%').limit(20),
       ]);
-      for (final r in futures[0] as List) results.add(_makeLocResult(r, 'lokasi', 0));
-      for (final r in futures[1] as List) results.add(_makeLocResult(r, 'unit', 1));
-      for (final r in futures[2] as List) results.add(_makeLocResult(r, 'subunit', 2));
-      for (final r in futures[3] as List) results.add(_makeLocResult(r, 'area', 3));
+      for (final r in futures[0] as List) { results.add(_makeLocResult(r, 'lokasi', 0));}
+      for (final r in futures[1] as List) { results.add(_makeLocResult(r, 'unit', 1)); }
+      for (final r in futures[2] as List) { results.add(_makeLocResult(r, 'subunit', 2)); }
+      for (final r in futures[3] as List) { results.add(_makeLocResult(r, 'area', 3)); }
 
       // Jika mode Lokasi Saya aktif, filter berdasarkan scope user
       // Mode pro/non-pro TIDAK membatasi hasil pencarian
