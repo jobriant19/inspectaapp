@@ -420,7 +420,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
                                   ? [
                                       BoxShadow(
                                         color: KTSAppColors.primary
-                                            .withOpacity(0.3),
+                                            .withValues(alpha:0.3),
                                         blurRadius: 6,
                                         offset: const Offset(0, 2),
                                       )
@@ -867,7 +867,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
           ),
           boxShadow: [
             BoxShadow(
-              color: KTSAppColors.primary.withOpacity(0.10),
+              color: KTSAppColors.primary.withValues(alpha:0.10),
               blurRadius: 6,
               offset: const Offset(0, 2),
             )
@@ -1000,7 +1000,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
                 color: KTSAppColors.selfHighlightBorder, width: 1.5)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha:0.05),
               blurRadius: 6,
               offset: const Offset(0, -2))
         ],
@@ -1068,10 +1068,10 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-              color: activeColor.withOpacity(0.4), width: 1.2),
+              color: activeColor.withValues(alpha:0.4), width: 1.2),
           boxShadow: [
             BoxShadow(
-                color: activeColor.withOpacity(0.08),
+                color: activeColor.withValues(alpha:0.08),
                 blurRadius: 6,
                 offset: const Offset(0, 2))
           ],
@@ -1190,10 +1190,10 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: activeColor.withOpacity(0.25)),
+        border: Border.all(color: activeColor.withValues(alpha:0.25)),
         boxShadow: [
           BoxShadow(
-            color: activeColor.withOpacity(0.07),
+            color: activeColor.withValues(alpha:0.07),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1226,7 +1226,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: activeColor.withOpacity(0.1),
+                  color: activeColor.withValues(alpha:0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -1342,16 +1342,16 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha:0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, size: 12, color: color),
@@ -1371,7 +1371,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: total > 0 ? value / total : 0,
-                    backgroundColor: color.withOpacity(0.15),
+                    backgroundColor: color.withValues(alpha:0.15),
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                     minHeight: 3,
                   ),
@@ -1541,9 +1541,9 @@ class _KTSAvatar extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-          color: bg.withOpacity(0.15),
+          color: bg.withValues(alpha:0.15),
           shape: BoxShape.circle,
-          border: Border.all(color: bg.withOpacity(0.3), width: 1)),
+          border: Border.all(color: bg.withValues(alpha:0.3), width: 1)),
       child: Center(child: _buildInitials()),
     );
   }
@@ -1600,7 +1600,7 @@ class KTSAnalyticsPieChartPainter extends CustomPainter {
           (value / total) * 2 * 3.14159265 - gapAngle;
 
       final shadowPaint = Paint()
-        ..color = color.withOpacity(0.2)
+        ..color = color.withValues(alpha:0.2)
         ..style = PaintingStyle.fill
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
 
