@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
 class _C {
-  static const primary       = Color.fromARGB(255, 29, 199, 97);
+  static const primary       = Color(0xFFEF4444);
   static const textPrimary   = Color(0xFF0C4A6E);
   static const textSecondary = Color(0xFF64748B);
   static const textMuted     = Color(0xFFBDBDBD);
@@ -54,7 +54,10 @@ class AdminAccidentLocationTabState
   late List<String> _translatedLocationLevels;
   final _levelBackends = ['Lokasi', 'Unit', 'Subunit', 'Area'];
 
+  // DATA
   Future<List<AdminLocationData>>? _locationFuture;
+
+  // CHART
   bool _isChartExpanded = false;
 
   @override
