@@ -46,16 +46,14 @@ class _UserInfoCardState extends State<UserInfoCard> {
   @override
   void initState() {
     super.initState();
-    // Gunakan initialMonthlyPoin jika ada, lalu langsung fetch terbaru
     _monthlyPoin = widget.initialMonthlyPoin ?? 0;
-    _isLoadingMonthly = _monthlyPoin == 0; // tampilkan loading hanya jika belum ada nilai
+    _isLoadingMonthly = _monthlyPoin == 0;
     _fetchMonthlyPoin();
   }
 
   @override
   void didUpdateWidget(UserInfoCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Fetch ulang setiap kali widget diupdate (termasuk kembali dari explore)
     _fetchMonthlyPoin();
   }
 
@@ -93,7 +91,6 @@ class _UserInfoCardState extends State<UserInfoCard> {
     }
   }
 
-  // ── Warna api berdasarkan poin ──
   Color _getFireColor(int points) {
     if (points >= 1000) return const Color(0xFFEF4444);
     if (points >= 500) return const Color(0xFFF97316);
@@ -131,7 +128,6 @@ class _UserInfoCardState extends State<UserInfoCard> {
   Widget _buildLatestLog() {
     if (widget.latestLogPoin == null) return const SizedBox();
 
-    // Aman: ambil poin sebagai num lalu konversi ke int
     final int poin = (widget.latestLogPoin!['poin'] as num).toInt();
     final String deskripsi = (widget.latestLogPoin!['deskripsi'] ?? '').toString();
     final bool isPositive = poin >= 0;
@@ -185,7 +181,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+        border: Border.all(color: Colors.white.withValues(alpha:0.6), width: 1.5),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -197,7 +193,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.cyan.withOpacity(0.15),
+            color: Colors.cyan.withValues(alpha:0.15),
             blurRadius: 20,
             spreadRadius: -5,
             offset: const Offset(0, 10),
@@ -207,18 +203,18 @@ class _UserInfoCardState extends State<UserInfoCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── BARIS ATAS: Avatar + Nama + Role | Lokasi di kanan ──
+          // TOP LINE: AVATAR + NAME + ROLE | LOCATION AT RIGHT
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Avatar
+              // AVATAR
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2.5),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.cyan.withOpacity(0.3),
+                      color: Colors.cyan.withValues(alpha:0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -237,7 +233,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
               ),
               const SizedBox(width: 12),
 
-              // Nama + Role (mengisi ruang fleksibel)
+              // NAME + ROLE
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -254,7 +250,6 @@ class _UserInfoCardState extends State<UserInfoCard> {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      // Fallback: jika isVerificator true tapi userRole belum terupdate
                       (widget.isVerificator == true &&
                           !widget.userRole.toLowerCase().contains('verif'))
                           ? (widget.lang == 'ZH' ? '验证者' : 'Verificator')
@@ -272,16 +267,15 @@ class _UserInfoCardState extends State<UserInfoCard> {
               ),
               const SizedBox(width: 8),
 
-              // ── LOKASI di sisi kanan nama (sejajar vertikal) ──
               Container(
                 constraints: const BoxConstraints(maxWidth: 130),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.55),
+                  color: Colors.white.withValues(alpha:0.55),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha:0.8),
                     width: 1.2,
                   ),
                 ),
@@ -314,7 +308,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
           ),
           const SizedBox(height: 20),
 
-          // ── PROGRESS BAR POIN ──
+          // POINT PROGRESS BAR
           LayoutBuilder(
             builder: (context, constraints) {
               final double fireIconSize = 26.0;
@@ -327,13 +321,13 @@ class _UserInfoCardState extends State<UserInfoCard> {
               return Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // Track bar
+                  // TRACK BAR
                   Container(
                     margin: EdgeInsets.only(top: totalSize / 2),
                     width: double.infinity,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.2),
+                      color: Colors.grey.withValues(alpha:0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Stack(
@@ -350,7 +344,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
                       ],
                     ),
                   ),
-                  // Fire icon indicator
+                  // FIRE ICON INDICATOR
                   Positioned(
                     left: clampedLeft,
                     top: 0,
@@ -361,14 +355,14 @@ class _UserInfoCardState extends State<UserInfoCard> {
                           height: totalSize,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: fireColor.withOpacity(0.15),
+                            color: fireColor.withValues(alpha:0.15),
                             border: Border.all(
-                              color: fireColor.withOpacity(0.4),
+                              color: fireColor.withValues(alpha:0.4),
                               width: 1.5,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: fireColor.withOpacity(0.3),
+                                color: fireColor.withValues(alpha:0.3),
                                 blurRadius: 8,
                                 spreadRadius: 1,
                               ),
@@ -400,11 +394,11 @@ class _UserInfoCardState extends State<UserInfoCard> {
           ),
           const SizedBox(height: 40),
 
-          // ── BARIS BAWAH: Log terbaru + Tombol View More ──
+          // BOTTOM LINE: NEWEST LOG + VIEW MORE BUTTON
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Kiri: Log aktivitas terbaru
+              // LEFT: NEWEST ACTIVITY LOG
               Expanded(
                 child: widget.isLatestLogLoading
                     ? Row(
@@ -429,7 +423,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
               ),
               const SizedBox(width: 8),
 
-              // Kanan: Tombol View More
+              // RIGHT: VIEW MORE BUTTON
               ElevatedButton(
                 onPressed: widget.onViewMoreTap,
                 style: ElevatedButton.styleFrom(
