@@ -9,28 +9,7 @@ import '../kts/admin_kts_screen.dart';
 import '../preventif/admin_preventif_screen.dart';
 import 'admin_accident_location.dart';
 import 'admin_accident_members.dart';
-
-class AdminAccidentRecurringTab extends StatelessWidget {
-  final String lang;
-  const AdminAccidentRecurringTab({super.key, required this.lang});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        lang == 'EN'
-            ? 'Recurring Accident content coming soon'
-            : lang == 'ZH'
-                ? '重复事故内容即将推出'
-                : 'Konten Kecelakaan Berulang segera hadir',
-        style: GoogleFonts.poppins(
-          fontSize: 14,
-          color: const Color(0xFF94A3B8),
-        ),
-      ),
-    );
-  }
-}
+import 'admin_accident_recurring.dart';
 
 class AdminAccidentScreen extends StatefulWidget {
   final String lang;
