@@ -92,7 +92,7 @@ class _NewsScreenState extends State<NewsScreen> {
           ),
           backgroundColor: Colors.white,
           elevation: 1,
-          shadowColor: Colors.black.withOpacity(0.08),
+          shadowColor: Colors.black.withValues(alpha:0.08),
           iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
           centerTitle: true,
           bottom: PreferredSize(
@@ -219,7 +219,7 @@ class _NewsScreenState extends State<NewsScreen> {
                     : Icons.build_rounded,
                 size: 56,
                 color: (type == 'update' ? _updatePrimary : _maintPrimary)
-                    .withOpacity(0.25),
+                    .withValues(alpha:0.25),
               ),
               const SizedBox(height: 12),
               Text(
@@ -300,10 +300,10 @@ class _NewsScreenState extends State<NewsScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: primary.withOpacity(0.18), width: 1.5),
+          border: Border.all(color: primary.withValues(alpha:0.18), width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: primary.withOpacity(0.08),
+                color: primary.withValues(alpha:0.08),
                 blurRadius: 18,
                 offset: const Offset(0, 6)),
           ],
