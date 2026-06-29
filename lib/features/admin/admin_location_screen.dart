@@ -24,7 +24,6 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
 
   static const _primary = Color(0xFF10B981);
   static const _bg = Color(0xFFF8FAFC);
-  static const _card = Color(0xFFFFFFFF);
 
   final List<IconData> _tabIcons = [
     Icons.location_city_rounded,
@@ -67,7 +66,7 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
           icon: const Icon(Icons.arrow_back_ios_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha:0.08),
         title: Text(
           _lang == 'EN' ? 'Location Management' : _lang == 'ZH' ? '位置管理' : 'Kelola Lokasi',
           style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: _primary),
@@ -263,7 +262,7 @@ class _LokasiTabState extends State<_LokasiTab>
             };
             if (isEdit) {
               await Supabase.instance.client
-                  .from('lokasi').update(data).eq('id_lokasi', item!['id_lokasi']);
+                  .from('lokasi').update(data).eq('id_lokasi', item['id_lokasi']);
             } else {
               await Supabase.instance.client.from('lokasi').insert(data);
             }
@@ -434,9 +433,9 @@ class _UnitTabState extends State<_UnitTab>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -556,7 +555,7 @@ class _UnitTabState extends State<_UnitTab>
             };
             if (isEdit) {
               await Supabase.instance.client
-                  .from('unit').update(data).eq('id_unit', item!['id_unit']);
+                  .from('unit').update(data).eq('id_unit', item['id_unit']);
             } else {
               await Supabase.instance.client.from('unit').insert(data);
             }
@@ -810,9 +809,9 @@ class _SubunitTabState extends State<_SubunitTab>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -932,7 +931,7 @@ class _SubunitTabState extends State<_SubunitTab>
             };
             if (isEdit) {
               await Supabase.instance.client
-                  .from('subunit').update(data).eq('id_subunit', item!['id_subunit']);
+                  .from('subunit').update(data).eq('id_subunit', item['id_subunit']);
             } else {
               await Supabase.instance.client.from('subunit').insert(data);
             }
@@ -1186,9 +1185,9 @@ class _AreaTabState extends State<_AreaTab>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha:0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1308,7 +1307,7 @@ class _AreaTabState extends State<_AreaTab>
             };
             if (isEdit) {
               await Supabase.instance.client
-                  .from('area').update(data).eq('id_area', item!['id_area']);
+                  .from('area').update(data).eq('id_area', item['id_area']);
             } else {
               await Supabase.instance.client.from('area').insert(data);
             }
@@ -1472,7 +1471,7 @@ void _showLocationDetailSheet({
 }) {
   final name = nameFn(item);
   final subtitle = subtitleFn(item);
-  final deskripsi = (item['deskripsi_${nameKey}'] ?? item['deskripsi_lokasi'] ?? item['deskripsi_unit'] ?? item['deskripsi_subunit'] ?? item['deskripsi_area'] ?? '') as String;
+  final deskripsi = (item['deskripsi_$nameKey'] ?? item['deskripsi_lokasi'] ?? item['deskripsi_unit'] ?? item['deskripsi_subunit'] ?? item['deskripsi_area'] ?? '') as String;
   final isStar = (item['is_star'] ?? 0) as int;
   final kategori = item['kategori'] as String?;
   final qrcode = item['qrcode'] as String?;
@@ -1521,7 +1520,7 @@ void _showLocationDetailSheet({
     });
   }
 
-  const _editBlue = Color(0xFF2563EB); // ← biru cerah untuk Edit
+  const editBlue = Color(0xFF2563EB); // ← biru cerah untuk Edit
 
   showModalBottomSheet(
     context: context,
@@ -1559,7 +1558,7 @@ void _showLocationDetailSheet({
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.12),
+                          color: primaryColor.withValues(alpha:0.12),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Icon(icon, color: primaryColor, size: 28),
@@ -1639,9 +1638,9 @@ void _showLocationDetailSheet({
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.05),
+                        color: primaryColor.withValues(alpha:0.05),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: primaryColor.withOpacity(0.15)),
+                        border: Border.all(color: primaryColor.withValues(alpha:0.15)),
                       ),
                       child: Text(
                         deskripsi,
@@ -1682,10 +1681,10 @@ void _showLocationDetailSheet({
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: primaryColor.withOpacity(0.2)),
+                        border: Border.all(color: primaryColor.withValues(alpha:0.2)),
                         boxShadow: [
                           BoxShadow(
-                            color: primaryColor.withOpacity(0.08),
+                            color: primaryColor.withValues(alpha:0.08),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -1831,7 +1830,7 @@ void _showLocationDetailSheet({
                               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               elevation: 2,
-                              shadowColor: primaryColor.withOpacity(0.3),
+                              shadowColor: primaryColor.withValues(alpha:0.3),
                             ),
                           ),
                         ],
@@ -1856,7 +1855,7 @@ void _showLocationDetailSheet({
                             style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.white),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _editBlue,
+                            backgroundColor: editBlue,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             elevation: 0,
@@ -1929,16 +1928,16 @@ Widget _locDetailRow({
     margin: const EdgeInsets.only(bottom: 10),
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.05),
+      color: color.withValues(alpha:0.05),
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: color.withOpacity(0.15)),
+      border: Border.all(color: color.withValues(alpha:0.15)),
     ),
     child: Row(
       children: [
         Container(
           padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
+            color: color.withValues(alpha:0.12),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 16, color: color),
@@ -2016,14 +2015,14 @@ Widget _buildTabContent({
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [primaryColor, primaryColor.withOpacity(0.75)],
+                  colors: [primaryColor, primaryColor.withValues(alpha:0.75)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: primaryColor.withOpacity(0.35),
+                    color: primaryColor.withValues(alpha:0.35),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -2034,7 +2033,7 @@ Widget _buildTabContent({
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha:0.25),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
@@ -2055,7 +2054,7 @@ Widget _buildTabContent({
                         Text(
                           addSubtitle,
                           style: GoogleFonts.poppins(
-                              fontSize: 10, color: Colors.white.withOpacity(0.85)),
+                              fontSize: 10, color: Colors.white.withValues(alpha:0.85)),
                         ),
                       ],
                     ),
@@ -2074,7 +2073,7 @@ Widget _buildTabContent({
             decoration: BoxDecoration(
               color: const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.black.withOpacity(0.08)),
+              border: Border.all(color: Colors.black.withValues(alpha:0.08)),
             ),
             child: TextField(
               onChanged: onSearch,
@@ -2158,10 +2157,10 @@ Widget _buildTabContent({
                               decoration: BoxDecoration(
                                 color: card,
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.black.withOpacity(0.06)),
+                                border: Border.all(color: Colors.black.withValues(alpha:0.06)),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.03),
+                                    color: Colors.black.withValues(alpha:0.03),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
@@ -2172,7 +2171,7 @@ Widget _buildTabContent({
                                   Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: primaryColor.withOpacity(0.10),
+                                      color: primaryColor.withValues(alpha:0.10),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Icon(icon, color: primaryColor, size: 20),
@@ -2218,7 +2217,7 @@ Widget _buildTabContent({
                                       padding: const EdgeInsets.all(8),
                                       margin: const EdgeInsets.only(right: 8),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF2563EB).withOpacity(0.10),
+                                        color: const Color(0xFF2563EB).withValues(alpha:0.10),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: const Icon(Icons.edit_outlined,
@@ -2230,7 +2229,7 @@ Widget _buildTabContent({
                                     child: Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFEF4444).withOpacity(0.10),
+                                        color: const Color(0xFFEF4444).withValues(alpha:0.10),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: const Icon(Icons.delete_outline_rounded,
@@ -2475,7 +2474,7 @@ class _AdminFormDialog extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha:0.04),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -2486,7 +2485,7 @@ class _AdminFormDialog extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.12),
+                      color: color.withValues(alpha:0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(icon, color: color, size: 22),
@@ -2599,7 +2598,7 @@ class _AdminFormDialog extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha:0.05),
                     blurRadius: 6,
                     offset: const Offset(0, -2),
                   ),
@@ -2637,7 +2636,7 @@ class _AdminFormDialog extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12)),
                         elevation: 2,
-                        shadowColor: color.withOpacity(0.3),
+                        shadowColor: color.withValues(alpha:0.3),
                       ),
                       child: Text(
                         lang == 'EN' ? 'Save' : lang == 'ZH' ? '保存' : 'Simpan',
@@ -2693,7 +2692,7 @@ class _LocationFilterButton extends StatelessWidget {
           boxShadow: isActive
               ? [
                   BoxShadow(
-                    color: primaryColor.withOpacity(0.2),
+                    color: primaryColor.withValues(alpha:0.2),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   )
@@ -2756,7 +2755,7 @@ Widget _buildSimpleFilterDialog({
         Container(
           padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
           decoration: BoxDecoration(
-            color: primaryColor.withOpacity(0.04),
+            color: primaryColor.withValues(alpha:0.04),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Row(
@@ -2800,7 +2799,7 @@ Widget _buildSimpleFilterDialog({
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: selectedId == null
-                          ? primaryColor.withOpacity(0.08)
+                          ? primaryColor.withValues(alpha:0.08)
                           : Colors.white,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
@@ -2837,7 +2836,7 @@ Widget _buildSimpleFilterDialog({
                       margin: const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isSelected ? primaryColor.withOpacity(0.08) : Colors.white,
+                        color: isSelected ? primaryColor.withValues(alpha:0.08) : Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected ? primaryColor : Colors.grey.shade200,
@@ -2898,7 +2897,7 @@ Widget _buildSortDialog({
         Container(
           padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
           decoration: BoxDecoration(
-            color: primaryColor.withOpacity(0.04),
+            color: primaryColor.withValues(alpha:0.04),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Row(
@@ -2938,7 +2937,7 @@ Widget _buildSortDialog({
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: isSelected ? primaryColor.withOpacity(0.08) : Colors.white,
+                    color: isSelected ? primaryColor.withValues(alpha:0.08) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isSelected ? primaryColor : Colors.grey.shade200,
