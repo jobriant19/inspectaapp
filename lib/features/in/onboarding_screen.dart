@@ -142,7 +142,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        boxShadow: [BoxShadow(color: Colors.black12.withOpacity(0.05), blurRadius: 10)],
+                        boxShadow: [BoxShadow(color: Colors.black12.withValues(alpha:0.05), blurRadius: 10)],
                       ),
                       child: DropdownButton<String>(
                         value: _selectedLanguage,
@@ -213,7 +213,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF42E27A).withOpacity(0.4),
+                            color: const Color(0xFF42E27A).withValues(alpha:0.4),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
