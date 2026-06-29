@@ -50,6 +50,7 @@ class _AccidentReportFormScreenState
   String? _currentUserAreaId;
   String? _currentUserSubunitId;
   String? _currentUserUnitId;
+  // ignore: unused_field
   bool _isLoadingCurrentUser = true;
   XFile? _imageFile;
   String? _existingImageUrl;
@@ -465,9 +466,9 @@ class _AccidentReportFormScreenState
                 margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.05),
+                  color: color.withValues(alpha:0.05),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: color.withOpacity(0.2)),
+                  border: Border.all(color: color.withValues(alpha:0.2)),
                 ),
                 child: Row(
                   children: [
@@ -942,7 +943,7 @@ class _AccidentReportFormScreenState
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)]),
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
+                  boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withValues(alpha:0.4), blurRadius: 12, offset: const Offset(0, 4))],
                 ),
                 child: ElevatedButton(
                   onPressed: _submit,
@@ -973,7 +974,7 @@ class _AccidentReportFormScreenState
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-              color: const Color(0xFF2563EB).withOpacity(0.12),
+              color: const Color(0xFF2563EB).withValues(alpha:0.12),
               borderRadius: BorderRadius.circular(12)),
           child: Icon(icon, color: const Color(0xFF2563EB), size: 22),
         ),
@@ -994,7 +995,7 @@ class _AccidentReportFormScreenState
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE0E7FF), width: 1),
-        boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withValues(alpha:0.05), blurRadius: 12, offset: const Offset(0, 2))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
     );
@@ -1088,7 +1089,7 @@ class _AccidentReportFormScreenState
       decoration: BoxDecoration(
         color: Colors.white, borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE0E7FF), width: 1),
-        boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withValues(alpha:0.05), blurRadius: 12, offset: const Offset(0, 2))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _buildLabel(label, isRequired: isRequired),
@@ -1180,7 +1181,7 @@ class _AccidentReportFormScreenState
           onTap: _pickImage,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: Colors.black.withValues(alpha:0.6), borderRadius: BorderRadius.circular(20)),
             child: Row(children: [
               const Icon(CupertinoIcons.camera_rotate, color: Colors.white, size: 14),
               const SizedBox(width: 6),
@@ -1195,14 +1196,14 @@ class _AccidentReportFormScreenState
 
   Widget _buildLoadingOverlay() {
     return Container(
-      color: Colors.black.withOpacity(0.45),
+      color: Colors.black.withValues(alpha:0.45),
       child: Center(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 40),
           padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 28),
           decoration: BoxDecoration(
             color: Colors.white, borderRadius: BorderRadius.circular(24),
-            boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withOpacity(0.2), blurRadius: 30, offset: const Offset(0, 10))],
+            boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withValues(alpha:0.2), blurRadius: 30, offset: const Offset(0, 10))],
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Container(
@@ -1732,7 +1733,7 @@ class _AccidentLocationPickerState extends State<_AccidentLocationPicker> {
                           decoration: BoxDecoration(
                             color: Colors.white, borderRadius: BorderRadius.circular(14),
                             border: Border.all(color: const Color(0xFFE0E7FF)),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.04), blurRadius: 6, offset: const Offset(0, 2))],
                           ),
                           child: Material(
                             color: Colors.transparent, borderRadius: BorderRadius.circular(14),
@@ -1853,7 +1854,7 @@ class _AccidentCameraScreenState extends State<AccidentCameraScreen> with Widget
           child: SafeArea(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.black.withOpacity(0.4),
+              color: Colors.black.withValues(alpha:0.4),
               child: Row(children: [
                 IconButton(icon: const Icon(CupertinoIcons.back, color: Colors.white), onPressed: () => Navigator.pop(context)),
                 Expanded(child: Center(child: Text('FOTO BUKTI', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)))),
@@ -1870,7 +1871,7 @@ class _AccidentCameraScreenState extends State<AccidentCameraScreen> with Widget
                 final img = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
                 if (img != null && mounted) Navigator.pop(context, img);
               },
-              child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.photo, color: Colors.white)),
+              child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.photo, color: Colors.white)),
             ),
             GestureDetector(
               onTap: () async {
@@ -1892,7 +1893,7 @@ class _AccidentCameraScreenState extends State<AccidentCameraScreen> with Widget
                 setState(() { _ready = false; _camIndex = (_camIndex + 1) % _cameras!.length; });
                 _setCamera(_camIndex);
               },
-              child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.switch_camera, color: Colors.white)),
+              child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.switch_camera, color: Colors.white)),
             ),
           ]),
         ),
