@@ -140,10 +140,6 @@ class _MiniModeBadge extends StatelessWidget {
   }
 }
 
-// ============================================================
-// MODAL SHEET: CHOOSE MODE (Pro + Visitor)
-// Panggil dengan: showChooseModeSheet(context, ...)
-// ============================================================
 Future<void> showChooseModeSheet({
   required BuildContext context,
   required bool isProMode,
@@ -152,7 +148,6 @@ Future<void> showChooseModeSheet({
   required ValueChanged<bool> onProModeChanged,
   required ValueChanged<bool> onVisitorModeChanged,
 }) async {
-  // Baca setting admin sebelum buka sheet
   final prefs = await SharedPreferences.getInstance();
   final bool proModeVisible = prefs.getBool('pro_mode_button_visible') ?? true;
 
@@ -168,7 +163,7 @@ Future<void> showChooseModeSheet({
       lang: lang,
       onProModeChanged: onProModeChanged,
       onVisitorModeChanged: onVisitorModeChanged,
-      hideProMode: !proModeVisible, // ← TAMBAHAN
+      hideProMode: !proModeVisible,
     ),
   );
 }
@@ -292,7 +287,7 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
+            // HANDLE BAR
             const SizedBox(height: 12),
             Container(
               width: 44,
@@ -304,7 +299,7 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
             ),
             const SizedBox(height: 20),
 
-            // Header
+            // HEADER
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
@@ -347,7 +342,7 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
 
             const SizedBox(height: 24),
 
-            // Pro Mode Card
+            // PRO MODE CARD
             if (!widget.hideProMode) ...[
               _ModeCard(
                 icon: Icons.workspace_premium_rounded,
@@ -369,7 +364,7 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
               const SizedBox(height: 14),
             ],
 
-            // Visitor Mode Card
+            // VISITOR MODE CARD
             _ModeCard(
               icon: Icons.visibility_rounded,
               iconGradient: const LinearGradient(
@@ -390,7 +385,7 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
 
             const SizedBox(height: 24),
 
-            // Done Button
+            // DONE BUTTON
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: SizedBox(
@@ -422,7 +417,6 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
   }
 }
 
-// ── Sub-widget: Kartu mode tunggal ──
 class _ModeCard extends StatelessWidget {
   final IconData icon;
   final LinearGradient iconGradient;
@@ -473,7 +467,7 @@ class _ModeCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Icon container
+          // ICON CONTAINER
           Container(
             width: 52,
             height: 52,
@@ -499,7 +493,7 @@ class _ModeCard extends StatelessWidget {
           ),
           const SizedBox(width: 14),
 
-          // Text
+          // TEXT
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -551,7 +545,7 @@ class _ModeCard extends StatelessWidget {
 
           const SizedBox(width: 10),
 
-          // Toggle Switch
+          // SWITCH TOGGLE
           GestureDetector(
             onTap: () => onChanged(!isActive),
             child: AnimatedContainer(
