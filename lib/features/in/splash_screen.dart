@@ -170,12 +170,12 @@ class _SplashScreenState extends State<SplashScreen> {
             Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Belum'),
             Supabase.instance.client.from('temuan').count().eq('status_temuan', 'Selesai'),
           ]);
-          sTotalUsers    = stats[0] as int;
-          sTotalLokasi   = stats[1] as int;
-          sTotalKategori = stats[2] as int;
-          sTotalTemuan   = stats[3] as int;
-          sTemuanBelum   = stats[4] as int;
-          sTemuanSelesai = stats[5] as int;
+          sTotalUsers    = stats[0];
+          sTotalLokasi   = stats[1];
+          sTotalKategori = stats[2];
+          sTotalTemuan   = stats[3];
+          sTemuanBelum   = stats[4];
+          sTemuanSelesai = stats[5];
         } catch (_) {}
 
         if (mounted) await warmupAdminFonts(context);
@@ -287,7 +287,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 width: 500, height: 500,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha:0.15),
                 ),
               ),
             ),
@@ -296,7 +296,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 width: 300, height: 300,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha:0.2),
                 ),
               ),
             ),
