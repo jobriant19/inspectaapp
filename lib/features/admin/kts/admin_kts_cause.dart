@@ -751,7 +751,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
         padding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: isSel ? color.withOpacity(0.1) : Colors.white,
+          color: isSel ? color.withValues(alpha:0.1) : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSel ? color : const Color(0xFFE2E8F0),
@@ -762,7 +762,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isSel ? color : color.withOpacity(0.1),
+              color: isSel ? color : color.withValues(alpha:0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon,
@@ -1117,7 +1117,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
                 color: _activeFilter != null
-                    ? filterColor.withOpacity(0.1)
+                    ? filterColor.withValues(alpha:0.1)
                     : Colors.white,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
@@ -1128,7 +1128,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: _C.primary.withOpacity(0.08),
+                    color: _C.primary.withValues(alpha:0.08),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -1344,7 +1344,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
           ),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha:0.12),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -1395,10 +1395,10 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-              color: _C.primary.withOpacity(0.45), width: 1.2),
+              color: _C.primary.withValues(alpha:0.45), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: _C.primary.withOpacity(0.07),
+              color: _C.primary.withValues(alpha:0.07),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -1509,7 +1509,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
         border: Border.all(color: _C.primaryLight, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: _C.primary.withOpacity(0.07),
+            color: _C.primary.withValues(alpha:0.07),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -1560,7 +1560,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
                       ? Container(
                           height: 22,
                           decoration: BoxDecoration(
-                            color: color.withOpacity(0.06),
+                            color: color.withValues(alpha:0.06),
                             borderRadius: BorderRadius.circular(4),
                           ),
                         )
@@ -1573,7 +1573,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
                             Container(
                               height: 22,
                               decoration: BoxDecoration(
-                                color: color.withOpacity(0.1),
+                                color: color.withValues(alpha:0.1),
                                 borderRadius:
                                     BorderRadius.circular(4),
                               ),
@@ -1761,10 +1761,10 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: _C.orange.withOpacity(0.08),
+                          color: _C.orange.withValues(alpha:0.08),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: _C.orange.withOpacity(0.3)),
+                              color: _C.orange.withValues(alpha:0.3)),
                         ),
                         child: Text(
                           label,
@@ -1822,7 +1822,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
         border: Border.all(color: _C.primaryLight, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: _C.primary.withOpacity(0.07),
+            color: _C.primary.withValues(alpha:0.07),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -1879,11 +1879,11 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
                       width: barAreaW,
                       child: Stack(
                         clipBehavior: Clip.none,
-                        children:
-                            List.generate(axisVals.length, (i) {
+                        children: List.generate(axisVals.length, (i) {
                           double leftPos = tX[i];
-                          if (i == axisVals.length - 1)
+                          if (i == axisVals.length - 1) {
                             leftPos -= 28;
+                          }
                           return Positioned(
                             left: leftPos,
                             top: 0,
@@ -2076,7 +2076,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
             color: const Color(0xFFBFDBFE), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: _C.blue.withOpacity(0.06),
+            color: _C.blue.withValues(alpha:0.06),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -2154,7 +2154,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
         border: Border.all(color: _C.greenLight, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: _C.green.withOpacity(0.06),
+            color: _C.green.withValues(alpha:0.06),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -2308,7 +2308,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
       padding:
           const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: bg.withOpacity(0.6),
+        color: bg.withValues(alpha:0.6),
         borderRadius: const BorderRadius.vertical(
             bottom: Radius.circular(12)),
       ),
@@ -2343,7 +2343,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
+            color: color.withValues(alpha:0.12),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 14, color: color),
@@ -2405,7 +2405,7 @@ class _AdminKtsCauseTabState extends State<AdminKtsCauseTab> {
       Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha:0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, size: 14, color: color),
