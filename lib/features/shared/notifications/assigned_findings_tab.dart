@@ -94,11 +94,11 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
-                const Color(0xFFDC2626).withOpacity(0.08),
-                const Color(0xFFEF4444).withOpacity(0.05),
+                const Color(0xFFDC2626).withValues(alpha:0.08),
+                const Color(0xFFEF4444).withValues(alpha:0.05),
               ]),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFDC2626).withOpacity(0.2)),
+              border: Border.all(color: const Color(0xFFDC2626).withValues(alpha:0.2)),
             ),
             child: Row(children: [
               const Icon(Icons.pending_actions_rounded, color: Color(0xFFDC2626), size: 20),
@@ -148,9 +148,9 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
             width: 80, height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF00C9E4).withOpacity(0.08),
+              color: const Color(0xFF00C9E4).withValues(alpha:0.08),
             ),
-            child: Icon(icon, size: 36, color: const Color(0xFF00C9E4).withOpacity(0.5)),
+            child: Icon(icon, size: 36, color: const Color(0xFF00C9E4).withValues(alpha:0.5)),
           ),
           const SizedBox(height: 16),
           Text(title,
