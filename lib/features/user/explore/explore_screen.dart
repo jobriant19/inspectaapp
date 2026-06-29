@@ -389,7 +389,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                           end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(20),
-                        boxShadow: [BoxShadow(color: const Color(0xFF0284C7).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))],
+                        boxShadow: [BoxShadow(color: const Color(0xFF0284C7).withValues(alpha:0.3), blurRadius: 8, offset: const Offset(0, 3))],
                       ),
                       child: Row(
                         children: const [
@@ -641,7 +641,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                       ),
                                       boxShadow: tempJenisTemuan == '5r'
                                           ? [BoxShadow(
-                                              color: const Color(0xFF38BDF8).withOpacity(0.25),
+                                              color: const Color(0xFF38BDF8).withValues(alpha:0.25),
                                               blurRadius: 8,
                                               offset: const Offset(0, 3))]
                                           : [],
@@ -682,7 +682,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                       ),
                                       boxShadow: tempJenisTemuan == 'kts'
                                           ? [BoxShadow(
-                                              color: const Color(0xFFFBBF24).withOpacity(0.25),
+                                              color: const Color(0xFFFBBF24).withValues(alpha:0.25),
                                               blurRadius: 8,
                                               offset: const Offset(0, 3))]
                                           : [],
@@ -793,7 +793,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(color: isActive ? color : const Color(0xFFCBD5E1), width: 1.5),
                                       boxShadow: isActive
-                                          ? [BoxShadow(color: color.withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3))]
+                                          ? [BoxShadow(color: color.withValues(alpha:0.25), blurRadius: 8, offset: const Offset(0, 3))]
                                           : [],
                                     ),
                                     child: Center(
@@ -883,7 +883,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFF1F2),
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                                border: Border.all(color: Colors.redAccent.withValues(alpha:0.3)),
                               ),
                               child: Center(
                                 child: Text(
@@ -922,7 +922,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                 borderRadius: BorderRadius.circular(14),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF0284C7).withOpacity(0.3),
+                                    color: const Color(0xFF0284C7).withValues(alpha:0.3),
                                     blurRadius: 10,
                                     offset: const Offset(0, 4),
                                   ),
@@ -987,7 +987,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             width: isActive ? 1.5 : 1,
           ),
           boxShadow: isActive
-              ? [BoxShadow(color: const Color(0xFF0284C7).withOpacity(0.15), blurRadius: 6, offset: const Offset(0, 2))]
+              ? [BoxShadow(color: const Color(0xFF0284C7).withValues(alpha:0.15), blurRadius: 6, offset: const Offset(0, 2))]
               : [],
         ),
         child: Row(
@@ -1117,12 +1117,12 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: const Color(0xFF1E3A8A).withOpacity(0.2),
+            color: const Color(0xFF1E3A8A).withValues(alpha:0.2),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha:0.02),
               blurRadius: 5,
               offset: const Offset(0, 2),
             ),
@@ -1518,7 +1518,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: timeColor.withOpacity(0.08),
+            color: timeColor.withValues(alpha:0.08),
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(18),
               bottomRight: Radius.circular(18),
@@ -1585,7 +1585,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           border: Border.all(color: borderColor, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: borderColor.withOpacity(0.18),
+              color: borderColor.withValues(alpha:0.18),
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),
@@ -1605,7 +1605,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
                       // Stroke hitam transparan agar tidak terlalu keras
-                      border: Border.all(color: Colors.black.withOpacity(0.15), width: 1.5),
+                      border: Border.all(color: Colors.black.withValues(alpha:0.15), width: 1.5),
                     ),
                     child: ClipRRect(
                       // Radius lebih kecil agar border tidak tertutup
@@ -1661,7 +1661,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 7, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: labelColor.withOpacity(0.15),
+                                  color: labelColor.withValues(alpha:0.15),
                                   borderRadius: BorderRadius.circular(9),
                                   border: Border.all(color: labelColor, width: 1.2),
                                 ),
@@ -2063,7 +2063,7 @@ class _FilterLocationBottomSheetState extends State<FilterLocationBottomSheet> {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(color: const Color(0xFFBAE6FD)),
-                              boxShadow: [BoxShadow(color: const Color(0xFF0284C7).withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))],
+                              boxShadow: [BoxShadow(color: const Color(0xFF0284C7).withValues(alpha:0.06), blurRadius: 6, offset: const Offset(0, 2))],
                             ),
                             child: InkWell(
                               onTap: isLastLevel ? () => _select(item) : () => _goDeeper(item),
