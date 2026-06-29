@@ -9,7 +9,6 @@ class ActivityLogDialog extends StatefulWidget {
   final String userRole;
   final String? userImage;
   final int userPoin;
-  // ✅ TAMBAHAN: data log terbaru yang sudah ada di HomeScreen
   final Map<String, dynamic>? initialLatestLog;
 
   const ActivityLogDialog({
@@ -19,7 +18,7 @@ class ActivityLogDialog extends StatefulWidget {
     required this.userRole,
     required this.userPoin,
     this.userImage,
-    this.initialLatestLog, // ✅ opsional
+    this.initialLatestLog,
   });
 
   @override
@@ -35,13 +34,11 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
   void initState() {
     super.initState();
 
-    // ✅ Tampilkan data awal langsung jika tersedia, tanpa tunggu fetch
     if (widget.initialLatestLog != null) {
       _logs = [Map<String, dynamic>.from(widget.initialLatestLog!)];
       _isLoading = false;
     }
 
-    // Tetap fetch data lengkap di background
     _fetchLogs();
     _fetchMonthlyPoin();
   }
@@ -182,7 +179,6 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
   }
 
   Widget _buildLogList() {
-    // ✅ Shimmer hanya muncul jika benar-benar belum ada data sama sekali
     if (_isLoading && _logs.isEmpty) {
       return Shimmer.fromColors(
         baseColor: Colors.grey.shade200,
@@ -286,7 +282,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                 height: 36,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: iconColor.withOpacity(0.1),
+                  color: iconColor.withValues(alpha:0.1),
                 ),
                 child: Icon(icon, color: iconColor, size: 18),
               ),
@@ -322,7 +318,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
+                  color: iconColor.withValues(alpha:0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -354,7 +350,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.12),
+              color: Colors.black.withValues(alpha:0.12),
               blurRadius: 30,
               spreadRadius: 2,
               offset: const Offset(0, 8),
@@ -364,7 +360,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── HEADER ──
+            // HEADER
             Container(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
               decoration: const BoxDecoration(
@@ -379,14 +375,14 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                 children: [
                   Row(
                     children: [
-                      // Avatar — pakai CachedNetworkImage agar dari cache
+                      // AVATAR
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 2.5),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withValues(alpha:0.2),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -394,9 +390,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                         ),
                         child: CircleAvatar(
                           radius: 28,
-                          backgroundColor: Colors.white.withOpacity(0.3),
-                          // ✅ Gunakan NetworkImage biasa — gambar sudah di cache
-                          // oleh precacheImage yang dipanggil sebelum navigasi
+                          backgroundColor: Colors.white.withValues(alpha:0.3),
                           backgroundImage: widget.userImage != null
                               ? NetworkImage(widget.userImage!)
                               : null,
@@ -426,7 +420,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
+                                color: Colors.white.withValues(alpha:0.2),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -434,7 +428,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                                 style: GoogleFonts.poppins(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.white.withOpacity(0.9),
+                                  color: Colors.white.withValues(alpha:0.9),
                                 ),
                               ),
                             ),
@@ -446,10 +440,10 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withValues(alpha:0.15),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.white.withValues(alpha:0.3),
                             width: 1.2,
                           ),
                         ),
@@ -471,7 +465,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                               style: GoogleFonts.poppins(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.white.withOpacity(0.75),
+                                color: Colors.white.withValues(alpha:0.75),
                               ),
                             ),
                           ],
@@ -498,7 +492,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                         '• ${_getTxt('subtitle')}',
                         style: GoogleFonts.poppins(
                           fontSize: 12,
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha:0.7),
                         ),
                       ),
                     ],
@@ -507,10 +501,10 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
               ),
             ),
 
-            // ── DAFTAR LOG ──
+            // LOG LIST
             SizedBox(height: 340, child: _buildLogList()),
 
-            // ── FOOTER ──
+            // FOOTER
             Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -531,7 +525,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                       side: BorderSide(
-                          color: const Color(0xFF1E3A8A).withOpacity(0.2)),
+                          color: const Color(0xFF1E3A8A).withValues(alpha:0.2)),
                     ),
                   ),
                   child: Text(
