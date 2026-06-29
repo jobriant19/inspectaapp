@@ -127,7 +127,7 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
         ),
         backgroundColor: Colors.white,
         elevation: 1,
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha:0.08),
         iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
       ),
@@ -219,7 +219,7 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1D72F3).withOpacity(0.07),
+            color: const Color(0xFF1D72F3).withValues(alpha:0.07),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -275,7 +275,7 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1D72F3).withOpacity(0.07),
+              color: const Color(0xFF1D72F3).withValues(alpha:0.07),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -336,7 +336,7 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1D72F3).withOpacity(0.07),
+            color: const Color(0xFF1D72F3).withValues(alpha:0.07),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
