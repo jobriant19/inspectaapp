@@ -50,7 +50,9 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     return base;
   }
 
+  // ignore: unused_field
   Uint8List? _replyImageBytes;
+  // ignore: unused_field
   String? _replyImageExt;
 
   String _t(String key) {
@@ -263,18 +265,6 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         margin: const EdgeInsets.all(16),
       ),
     );
-  }
-
-  List<Map<String, dynamic>> get _filtered {
-    final all = _t('all');
-    if (_filterStatus == all) return _items;
-    const statusMap = {
-      'Dikirim': 'Dikirim', 'Sent': 'Dikirim', '已发送': 'Dikirim',
-      'Dilihat': 'Dilihat', 'Viewed': 'Dilihat', '已查看': 'Dilihat',
-      'Selesai': 'Selesai', 'Completed': 'Selesai', '已完成': 'Selesai',
-    };
-    final dbStatus = statusMap[_filterStatus] ?? _filterStatus;
-    return _items.where((i) => i['status'] == dbStatus).toList();
   }
 
   Future<void> _updateStatus(String id, String newStatus) async {
@@ -566,7 +556,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: isSelected ? color : color.withOpacity(0.1),
+                                  color: isSelected ? color : color.withValues(alpha:0.1),
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(color: color),
                                 ),
@@ -625,9 +615,9 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0EA5E9).withOpacity(0.06),
+                              color: const Color(0xFF0EA5E9).withValues(alpha:0.06),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF0EA5E9).withOpacity(0.3), style: BorderStyle.solid),
+                              border: Border.all(color: const Color(0xFF0EA5E9).withValues(alpha:0.3), style: BorderStyle.solid),
                             ),
                             child: localImageBytes != null
                                 ? Column(
@@ -776,7 +766,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
-              height: 1, color: Colors.white.withOpacity(0.15)),
+              height: 1, color: Colors.white.withValues(alpha:0.15)),
         ),
       ),
       body: Column(
@@ -791,7 +781,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                 color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: Colors.black.withOpacity(0.08)),
+                    color: Colors.black.withValues(alpha:0.08)),
               ),
               child: TextField(
                 onChanged: (v) => setState(() => _searchQuery = v),
@@ -851,18 +841,18 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                       decoration: BoxDecoration(
                         color: isActive
                             ? tabColor
-                            : tabColor.withOpacity(0.08),
+                            : tabColor.withValues(alpha:0.08),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: isActive
                               ? tabColor
-                              : tabColor.withOpacity(0.25),
+                              : tabColor.withValues(alpha:0.25),
                           width: 1.5,
                         ),
                         boxShadow: isActive
                             ? [
                                 BoxShadow(
-                                  color: tabColor.withOpacity(0.25),
+                                  color: tabColor.withValues(alpha:0.25),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 )
@@ -957,7 +947,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.06), blurRadius: 12, offset: const Offset(0, 4))],
           border: Border(left: BorderSide(color: _statusColor(status), width: 4)),
         ),
         child: Padding(
@@ -1043,7 +1033,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444).withOpacity(0.10),
+                    color: const Color(0xFFEF4444).withValues(alpha:0.10),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.delete_rounded, size: 20, color: Color(0xFFEF4444)),
@@ -1068,7 +1058,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   Widget _tag(String text, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(
-      color: color.withOpacity(0.12),
+      color: color.withValues(alpha:0.12),
       borderRadius: BorderRadius.circular(20),
     ),
     child: Text(
@@ -1084,12 +1074,12 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF0EA5E9).withOpacity(0.06),
+            color: const Color(0xFF0EA5E9).withValues(alpha:0.06),
             shape: BoxShape.circle,
           ),
           child: Icon(Icons.inbox_outlined,
               size: 56,
-              color: const Color(0xFF0EA5E9).withOpacity(0.4)),
+              color: const Color(0xFF0EA5E9).withValues(alpha:0.4)),
         ),
         const SizedBox(height: 12),
         Text(
