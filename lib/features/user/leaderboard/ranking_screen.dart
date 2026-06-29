@@ -362,10 +362,11 @@ class _RankingScreenState extends State<RankingScreen> {
       try {
         foundSelf = members.firstWhere((m) => m.isSelf);
       } catch (_) {}
-      if (mounted)
+      if (mounted) {
         setState(() {
           _selfData = foundSelf;
         });
+      }
 
       return members;
     } catch (e) {
@@ -1327,7 +1328,7 @@ class _RankingScreenState extends State<RankingScreen> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0EA5E9).withOpacity(0.4),
+            color: const Color(0xFF0EA5E9).withValues(alpha:0.4),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -1364,8 +1365,8 @@ class _RankingScreenState extends State<RankingScreen> {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      Colors.white.withOpacity(0.35),
-                      Colors.white.withOpacity(0.12),
+                      Colors.white.withValues(alpha:0.35),
+                      Colors.white.withValues(alpha:0.12),
                       Colors.transparent,
                     ],
                     stops: const [0.0, 0.5, 1.0],
@@ -1418,9 +1419,9 @@ class _RankingScreenState extends State<RankingScreen> {
                   gradient: LinearGradient(
                     colors: [
                       Colors.transparent,
-                      Colors.white.withOpacity(0.3),
-                      Colors.white.withOpacity(0.5),
-                      Colors.white.withOpacity(0.3),
+                      Colors.white.withValues(alpha:0.3),
+                      Colors.white.withValues(alpha:0.5),
+                      Colors.white.withValues(alpha:0.3),
                       Colors.transparent,
                     ],
                   ),
@@ -1705,7 +1706,7 @@ class _RankingScreenState extends State<RankingScreen> {
           color: m.isSelf
               ? _AppColors.selfHighlight
               : isTop3
-              ? m.medalColor.withOpacity(0.04)
+              ? m.medalColor.withValues(alpha:0.04)
               : Colors.white,
           border: Border(
             bottom: BorderSide(color: _AppColors.divider, width: 1),
@@ -1800,7 +1801,7 @@ class _RankingScreenState extends State<RankingScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha:0.05),
             blurRadius: 6,
             offset: const Offset(0, -2),
           ),
@@ -1885,10 +1886,10 @@ class _PodiumMember extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFD700).withOpacity(0.25),
+                color: const Color(0xFFFFD700).withValues(alpha:0.25),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFFFFD700).withOpacity(0.6),
+                  color: const Color(0xFFFFD700).withValues(alpha:0.6),
                   width: 1,
                 ),
               ),
@@ -1915,7 +1916,7 @@ class _PodiumMember extends StatelessWidget {
                 height: _avatarSize + 14,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _platformColor.withOpacity(isFirst ? 0.25 : 0.18),
+                  color: _platformColor.withValues(alpha:isFirst ? 0.25 : 0.18),
                 ),
               ),
               // Ring border medali
@@ -1977,33 +1978,33 @@ class _PodiumMember extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  _platformColor.withOpacity(0.70),
-                  _platformColor.withOpacity(0.45),
-                  _platformColor.withOpacity(0.25),
+                  _platformColor.withValues(alpha:0.70),
+                  _platformColor.withValues(alpha:0.45),
+                  _platformColor.withValues(alpha:0.25),
                 ],
               ),
               border: Border(
                 top: BorderSide(
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha:0.7),
                   width: 1.5,
                 ),
                 left: BorderSide(
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha:0.3),
                   width: 1,
                 ),
                 right: BorderSide(
-                  color: _platformColor.withOpacity(0.5),
+                  color: _platformColor.withValues(alpha:0.5),
                   width: 1,
                 ),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: _platformColor.withOpacity(0.45),
+                  color: _platformColor.withValues(alpha:0.45),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
+                  color: Colors.black.withValues(alpha:0.15),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -2018,7 +2019,7 @@ class _PodiumMember extends StatelessWidget {
                   child: Container(
                     width: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.35),
+                      color: Colors.white.withValues(alpha:0.35),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -2036,7 +2037,7 @@ class _PodiumMember extends StatelessWidget {
                           height: 1.0,
                           shadows: [
                             Shadow(
-                              color: Colors.black.withOpacity(0.35),
+                              color: Colors.black.withValues(alpha:0.35),
                               blurRadius: 6,
                               offset: const Offset(0, 3),
                             ),
@@ -2050,10 +2051,10 @@ class _PodiumMember extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.22),
+                          color: Colors.white.withValues(alpha:0.22),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.45),
+                            color: Colors.white.withValues(alpha:0.45),
                             width: 0.8,
                           ),
                         ),
@@ -2085,8 +2086,8 @@ class _PodiumShimmerPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: _AppColors.primaryDark.withOpacity(0.5),
-      highlightColor: _AppColors.primary.withOpacity(0.5),
+      baseColor: _AppColors.primaryDark.withValues(alpha:0.5),
+      highlightColor: _AppColors.primary.withValues(alpha:0.5),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: Row(
@@ -2184,12 +2185,15 @@ class _RankBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (member.rank == 1)
+    if (member.rank == 1) {
       return const Text('🥇', style: TextStyle(fontSize: 24));
-    if (member.rank == 2)
+    }
+    if (member.rank == 2) {
       return const Text('🥈', style: TextStyle(fontSize: 24));
-    if (member.rank == 3)
+    }
+    if (member.rank == 3) {
       return const Text('🥉', style: TextStyle(fontSize: 24));
+    }
     return Text(
       '${member.rank}',
       textAlign: TextAlign.center,
@@ -2229,12 +2233,12 @@ class _Avatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: showRing
-            ? Border.all(color: (ringColor ?? bg).withOpacity(0.6), width: 2)
+            ? Border.all(color: (ringColor ?? bg).withValues(alpha:0.6), width: 2)
             : null,
         boxShadow: showRing
             ? [
                 BoxShadow(
-                  color: (ringColor ?? bg).withOpacity(0.25),
+                  color: (ringColor ?? bg).withValues(alpha:0.25),
                   blurRadius: 6,
                 ),
               ]
@@ -2245,7 +2249,7 @@ class _Avatar extends StatelessWidget {
         backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
             ? NetworkImage(avatarUrl!)
             : null,
-        backgroundColor: bg.withOpacity(0.15),
+        backgroundColor: bg.withValues(alpha:0.15),
         onBackgroundImageError: avatarUrl != null ? (_, __) {} : null,
         child: (avatarUrl == null || avatarUrl!.isEmpty)
             ? Text(
