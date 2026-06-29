@@ -529,7 +529,7 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
           ),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.12),
+              color: color.withValues(alpha:0.12),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -590,10 +590,10 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-              color: _C.primary.withOpacity(0.45), width: 1.2),
+              color: _C.primary.withValues(alpha:0.45), width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: _C.primary.withOpacity(0.07),
+              color: _C.primary.withValues(alpha:0.07),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -665,7 +665,7 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
         border: Border.all(color: _C.primaryLight, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: _C.primary.withOpacity(0.07),
+            color: _C.primary.withValues(alpha:0.07),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -924,7 +924,7 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
                     height: 26,
                     decoration: BoxDecoration(
                       color: val > 0
-                          ? _C.barColor.withOpacity(0.15)
+                          ? _C.barColor.withValues(alpha:0.15)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(6),
                     ),
@@ -1047,7 +1047,7 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
         border: Border.all(color: _C.primaryLight, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: _C.primary.withOpacity(0.06),
+            color: _C.primary.withValues(alpha:0.06),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -1116,7 +1116,7 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: _C.barColor.withOpacity(0.12),
+                      color: _C.barColor.withValues(alpha:0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
