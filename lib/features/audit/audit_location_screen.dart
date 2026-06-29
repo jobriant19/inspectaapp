@@ -119,7 +119,6 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
 
   // ✅ State untuk item yang sedang dipilih (untuk tombol di atas TabBar)
   _LocationItem? _selectedItem;
-  String? _selectedLevel;
 
   static const _levels = ['lokasi', 'unit', 'subunit', 'area'];
 
@@ -569,144 +568,16 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
     }
   }
 
-  Future<void> _showQuestionPicker() async {
-  final level = _levels[_tabCtrl.index];
-  final items = _data[level]!;
-  if (items.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(_t('No locations available.', 'Tidak ada lokasi tersedia.', '暂无位置数据。')),
-      backgroundColor: _C.primary,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      margin: const EdgeInsets.all(16),
-    ));
-    return;
+  void _showQuestionPicker() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AuditQuestionManagerScreen(
+          lang: widget.lang,
+        ),
+      ),
+    );
   }
-
-  await showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (ctx) {
-      final search = ValueNotifier<String>('');
-      return Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.75),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 10),
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-              child: Text(
-                _t('Select Location — Questions', 'Pilih Lokasi — Pertanyaan', '选择位置 — 问题'),
-                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: _C.textMain),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: TextField(
-                autofocus: true,
-                onChanged: (v) => search.value = v.toLowerCase(),
-                style: GoogleFonts.poppins(fontSize: 14, color: _C.textMain),
-                decoration: InputDecoration(
-                  hintText: _t('Search…', 'Cari…', '搜索…'),
-                  hintStyle: GoogleFonts.poppins(fontSize: 13, color: _C.textSub),
-                  prefixIcon: const Icon(Icons.search_rounded, color: _C.primary, size: 20),
-                  filled: true,
-                  fillColor: _C.surface,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: const BorderSide(color: _C.divider)),
-                  enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: const BorderSide(color: _C.divider)),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: const BorderSide(color: _C.primary, width: 1.5)),
-                ),
-              ),
-            ),
-            Expanded(
-              child: ValueListenableBuilder<String>(
-                valueListenable: search,
-                builder: (_, q, __) {
-                  final filtered = q.isEmpty
-                      ? items
-                      : items.where((i) => i.name.toLowerCase().contains(q)).toList();
-                  if (filtered.isEmpty) {
-                    return Center(
-                      child: Text(_t('No data found', 'Tidak ada data', '没有数据'),
-                          style: GoogleFonts.poppins(fontSize: 13, color: _C.textSub)),
-                    );
-                  }
-                  return ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    itemCount: filtered.length,
-                    itemBuilder: (_, i) {
-                      final loc = filtered[i];
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: loc.imageUrl != null && loc.imageUrl!.isNotEmpty
-                              ? Image.network(loc.imageUrl!, width: 44, height: 44, fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => _buildInitial(loc.name))
-                              : _buildInitial(loc.name),
-                        ),
-                        title: Text(loc.name,
-                            style: GoogleFonts.poppins(
-                                fontSize: 13, fontWeight: FontWeight.w600, color: _C.textMain)),
-                        subtitle: loc.picName != null
-                            ? Text(loc.picName!,
-                                style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub))
-                            : null,
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _C.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: _C.primary.withValues(alpha: 0.3)),
-                          ),
-                          child: Text(
-                            _t('Select', 'Pilih', '选择'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 11, fontWeight: FontWeight.w700, color: _C.primary),
-                          ),
-                        ),
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AuditQuestionManagerScreen(
-                                lang: widget.lang,
-                                levelType: level,
-                                idRef: loc.id,
-                                locationName: loc.name,
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
 
   // ✅ BARU: Tampilkan bottom sheet filter untuk tab tertentu
   Future<void> _showFilterSheet(String level) async {
@@ -1336,7 +1207,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                                           fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
                                     ),
                                     Text(
-                                      _t('Select location', 'Pilih lokasi', '选择位置'),
+                                      _t('Manage by audit type', 'Kelola per jenis audit', '按审计类型管理'),
                                       style: GoogleFonts.poppins(
                                           fontSize: 9, color: Colors.white.withValues(alpha: 0.82)),
                                       maxLines: 1,

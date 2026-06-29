@@ -10,16 +10,10 @@ import 'audit_type_settings.dart';
 
 class AuditQuestionManagerScreen extends StatefulWidget {
   final String lang;
-  final String levelType;
-  final String idRef;
-  final String locationName;
 
   const AuditQuestionManagerScreen({
     super.key,
     required this.lang,
-    required this.levelType,
-    required this.idRef,
-    required this.locationName,
   });
 
   @override
@@ -38,7 +32,8 @@ class _C {
 }
 
 class _AuditQuestionManagerScreenState
-    extends State<AuditQuestionManagerScreen> with SingleTickerProviderStateMixin {
+    extends State<AuditQuestionManagerScreen>
+    with SingleTickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
 
   List<Map<String, dynamic>> _jenisAuditList = [];
@@ -218,7 +213,8 @@ class _AuditQuestionManagerScreenState
                   labelColor: Colors.white,
                   unselectedLabelColor: _C.primary,
                   dividerColor: Colors.transparent,
-                  overlayColor: WidgetStateProperty.all(Colors.transparent),
+                  overlayColor:
+                      WidgetStateProperty.all(Colors.transparent),
                   isScrollable: _jenisAuditList.length > 4,
                   tabAlignment: _jenisAuditList.length > 4
                       ? TabAlignment.start
@@ -230,9 +226,10 @@ class _AuditQuestionManagerScreenState
                     final label = _jenisLabel(j);
                     final words = label.trim().split(RegExp(r'\s+'));
                     final isOneWord = words.length == 1;
-                    final displayText = isOneWord ? label : words.join('\n');
-                    // Lebar fixed saat scroll agar ukuran konsisten dengan mode 4 tab
-                    final screenWidth = MediaQuery.of(context).size.width;
+                    final displayText =
+                        isOneWord ? label : words.join('\n');
+                    final screenWidth =
+                        MediaQuery.of(context).size.width;
                     final tabWidth = _jenisAuditList.length > 4
                         ? (screenWidth - 32 - 6) / 4
                         : null;
@@ -274,9 +271,8 @@ class _AuditQuestionManagerScreenState
                 children: _jenisAuditList
                     .map((j) => _QuestionTabView(
                           lang: widget.lang,
-                          levelType: widget.levelType,
-                          idRef: widget.idRef,
-                          idJenisAudit: j['id_jenis_audit'].toString(),
+                          idJenisAudit:
+                              j['id_jenis_audit'].toString(),
                         ))
                     .toList(),
               ),
@@ -287,16 +283,15 @@ class _AuditQuestionManagerScreenState
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab view per jenis audit — tanpa level_type & id_ref
+// ─────────────────────────────────────────────────────────────────────────────
 class _QuestionTabView extends StatefulWidget {
   final String lang;
-  final String levelType;
-  final String idRef;
   final String idJenisAudit;
 
   const _QuestionTabView({
     required this.lang,
-    required this.levelType,
-    required this.idRef,
     required this.idJenisAudit,
   });
 
@@ -307,7 +302,7 @@ class _QuestionTabView extends StatefulWidget {
 class _QuestionTabViewState extends State<_QuestionTabView>
     with AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
-  List<Map<String, dynamic>> _temas = [];
+  List<Map<String, dynamic>> _temas     = [];
   List<Map<String, dynamic>> _questions = [];
   bool _loading = true;
 
@@ -327,8 +322,12 @@ class _QuestionTabViewState extends State<_QuestionTabView>
   }
 
   String _questionText(Map<String, dynamic> q) {
-    if (widget.lang == 'EN') return q['pertanyaan_en']?.toString() ?? q['pertanyaan']?.toString() ?? '';
-    if (widget.lang == 'ZH') return q['pertanyaan_zh']?.toString() ?? q['pertanyaan']?.toString() ?? '';
+    if (widget.lang == 'EN')
+      return q['pertanyaan_en']?.toString() ??
+          q['pertanyaan']?.toString() ?? '';
+    if (widget.lang == 'ZH')
+      return q['pertanyaan_zh']?.toString() ??
+          q['pertanyaan']?.toString() ?? '';
     return q['pertanyaan']?.toString() ?? '';
   }
 
@@ -342,11 +341,14 @@ class _QuestionTabViewState extends State<_QuestionTabView>
         'https://api.mymemory.translated.net/get'
         '?q=${Uri.encodeComponent(text)}&langpair=$normalized',
       );
-      final res = await http.get(uri).timeout(const Duration(seconds: 20));
+      final res =
+          await http.get(uri).timeout(const Duration(seconds: 20));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        final t = data['responseData']?['translatedText']?.toString() ?? '';
-        if (t.isEmpty || t.toUpperCase().startsWith('MYMEMORY WARNING') ||
+        final t =
+            data['responseData']?['translatedText']?.toString() ?? '';
+        if (t.isEmpty ||
+            t.toUpperCase().startsWith('MYMEMORY WARNING') ||
             t.toUpperCase().startsWith('PLEASE')) return text;
         return t;
       }
@@ -381,27 +383,34 @@ class _QuestionTabViewState extends State<_QuestionTabView>
       barrierColor: Colors.black.withValues(alpha: 0.45),
       transitionDuration: const Duration(milliseconds: 280),
       transitionBuilder: (_, anim, __, child) => FadeTransition(
-        opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+        opacity:
+            CurvedAnimation(parent: anim, curve: Curves.easeOut),
         child: ScaleTransition(
           scale: Tween<double>(begin: 0.82, end: 1.0).animate(
-            CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+            CurvedAnimation(
+                parent: anim, curve: Curves.easeOutBack),
           ),
           child: child,
         ),
       ),
       pageBuilder: (ctx, _, __) {
-        final color =
-            isSuccess ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-        final bgLight =
-            isSuccess ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2);
-        final icon =
-            isSuccess ? Icons.check_circle_rounded : Icons.error_rounded;
+        final color = isSuccess
+            ? const Color(0xFF16A34A)
+            : const Color(0xFFDC2626);
+        final bgLight = isSuccess
+            ? const Color(0xFFF0FDF4)
+            : const Color(0xFFFEF2F2);
+        final icon = isSuccess
+            ? Icons.check_circle_rounded
+            : Icons.error_rounded;
         return Center(
           child: Material(
             color: Colors.transparent,
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 36),
-              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              margin:
+                  const EdgeInsets.symmetric(horizontal: 36),
+              padding:
+                  const EdgeInsets.fromLTRB(24, 28, 24, 24),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(24),
@@ -424,7 +433,8 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                       color: bgLight,
                       shape: BoxShape.circle,
                       border: Border.all(
-                          color: color.withValues(alpha: 0.25), width: 2),
+                          color: color.withValues(alpha: 0.25),
+                          width: 2),
                     ),
                     child: Icon(icon, color: color, size: 38),
                   ),
@@ -453,9 +463,11 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: color,
                         elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                            borderRadius:
+                                BorderRadius.circular(12)),
                       ),
                       child: Text(
                         _t('Close', 'Tutup', '关闭'),
@@ -485,24 +497,25 @@ class _QuestionTabViewState extends State<_QuestionTabView>
     setState(() => _loading = true);
     try {
       final results = await Future.wait([
+        // Fetch tema sesuai jenis audit
         _supabase
             .from('audit_tema')
             .select()
             .eq('id_jenis_audit', widget.idJenisAudit)
             .order('urutan'),
+        // Fetch pertanyaan global — hanya filter id_jenis_audit,
+        // TANPA level_type & id_ref
         _supabase
             .from('audit_question')
             .select()
-            .eq('level_type', widget.levelType)
-            .eq('id_ref', widget.idRef)
             .eq('id_jenis_audit', widget.idJenisAudit)
             .order('urutan'),
       ]);
       if (mounted) {
         setState(() {
-          _temas = List<Map<String, dynamic>>.from(results[0] as List);
+          _temas     = List<Map<String, dynamic>>.from(results[0] as List);
           _questions = List<Map<String, dynamic>>.from(results[1] as List);
-          _loading = false;
+          _loading   = false;
         });
       }
     } catch (e) {
@@ -512,11 +525,16 @@ class _QuestionTabViewState extends State<_QuestionTabView>
   }
 
   // ADD / EDIT QUESTION
-  Future<void> _showForm({Map<String, dynamic>? existing, String? defaultTemaId}) async {
+  Future<void> _showForm({
+    Map<String, dynamic>? existing,
+    String? defaultTemaId,
+  }) async {
     final idCtrl = TextEditingController(
         text: existing?['pertanyaan'] as String? ?? '');
     final activeCtrl = ValueNotifier<bool>(
-        existing == null ? true : (existing['is_active'] as bool? ?? true));
+        existing == null
+            ? true
+            : (existing['is_active'] as bool? ?? true));
     final urutanCtrl = TextEditingController(
         text: existing == null
             ? '${_questions.length + 1}'
@@ -531,16 +549,18 @@ class _QuestionTabViewState extends State<_QuestionTabView>
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: Container(
             constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(ctx).size.height * 0.88),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                maxHeight:
+                    MediaQuery.of(ctx).size.height * 0.88),
+            padding:
+                const EdgeInsets.fromLTRB(20, 16, 20, 32),
             decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(24)),
             ),
             child: SingleChildScrollView(
               child: Column(
@@ -554,7 +574,8 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                       height: 4,
                       decoration: BoxDecoration(
                           color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2)),
+                          borderRadius:
+                              BorderRadius.circular(2)),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -567,20 +588,23 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                         color: _C.primaryLt,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.help_outline_rounded,
-                          color: _C.primary, size: 18),
+                      child: const Icon(
+                          Icons.help_outline_rounded,
+                          color: _C.primary,
+                          size: 18),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
                           Text(
                             existing == null
-                                ? _t('Add Question', 'Tambah Pertanyaan',
-                                    '添加问题')
-                                : _t('Edit Question', 'Edit Pertanyaan',
-                                    '编辑问题'),
+                                ? _t('Add Question',
+                                    'Tambah Pertanyaan', '添加问题')
+                                : _t('Edit Question',
+                                    'Edit Pertanyaan', '编辑问题'),
                             style: GoogleFonts.poppins(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -593,7 +617,8 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                               '用印尼语输入，自动翻译为 EN 和 ZH。',
                             ),
                             style: GoogleFonts.poppins(
-                                fontSize: 10.5, color: _C.textSub),
+                                fontSize: 10.5,
+                                color: _C.textSub),
                           ),
                         ],
                       ),
@@ -611,8 +636,8 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                   Row(children: [
                     Expanded(
                       child: Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12),
                         decoration: BoxDecoration(
                           color: _C.surface,
                           borderRadius: BorderRadius.circular(12),
@@ -623,21 +648,26 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                             value: selectedTemaId,
                             isExpanded: true,
                             hint: Text(
-                                _t('Select theme', 'Pilih tema', '选择主题'),
+                                _t('Select theme', 'Pilih tema',
+                                    '选择主题'),
                                 style: GoogleFonts.poppins(
                                     fontSize: 13,
                                     color: Colors.black38)),
                             items: _temas
-                                .map((t) => DropdownMenuItem<String>(
-                                      value: t['id_tema'].toString(),
-                                      child: Text(_temaLabel(t),
+                                .map((t) =>
+                                    DropdownMenuItem<String>(
+                                      value: t['id_tema']
+                                          .toString(),
+                                      child: Text(
+                                          _temaLabel(t),
                                           style: GoogleFonts.poppins(
                                               fontSize: 13,
-                                              color: _C.textMain)),
+                                              color:
+                                                  _C.textMain)),
                                     ))
                                 .toList(),
-                            onChanged: (v) =>
-                                setSheet(() => selectedTemaId = v),
+                            onChanged: (v) => setSheet(
+                                () => selectedTemaId = v),
                           ),
                         ),
                       ),
@@ -648,9 +678,11 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => AuditThemeSettingsScreen(
+                            builder: (_) =>
+                                AuditThemeSettingsScreen(
                               lang: widget.lang,
-                              idJenisAudit: widget.idJenisAudit,
+                              idJenisAudit:
+                                  widget.idJenisAudit,
                               onChanged: _fetchAll,
                             ),
                           ),
@@ -660,10 +692,12 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: _C.primary.withValues(alpha: 0.1),
+                          color: _C.primary
+                              .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                              color: _C.primary.withValues(alpha: 0.4)),
+                              color: _C.primary
+                                  .withValues(alpha: 0.4)),
                         ),
                         child: const Icon(Icons.add_rounded,
                             color: _C.primary, size: 18),
@@ -674,7 +708,9 @@ class _QuestionTabViewState extends State<_QuestionTabView>
 
                   // QUESTION
                   Text(
-                    _t('Question (Indonesian)', 'Pertanyaan (Indonesia)',
+                    _t(
+                        'Question (Indonesian)',
+                        'Pertanyaan (Indonesia)',
                         '问题（印尼语）'),
                     style: GoogleFonts.poppins(
                         fontSize: 12,
@@ -703,18 +739,20 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                             fontSize: 12,
                             color: Colors.grey.shade400),
                         border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
+                        contentPadding:
+                            const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
                       ),
                     ),
                   ),
                   const SizedBox(height: 14),
 
-                  // ORDERED & ACTIVE
+                  // ORDER & ACTIVE
                   Row(children: [
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
                           Text(_t('Order', 'Urutan', '顺序'),
                               style: GoogleFonts.poppins(
@@ -725,18 +763,25 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                           Container(
                             decoration: BoxDecoration(
                               color: _C.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: _C.divider),
+                              borderRadius:
+                                  BorderRadius.circular(12),
+                              border:
+                                  Border.all(color: _C.divider),
                             ),
                             child: TextField(
                               controller: urutanCtrl,
-                              keyboardType: TextInputType.number,
+                              keyboardType:
+                                  TextInputType.number,
                               style: GoogleFonts.poppins(
-                                  fontSize: 14, color: _C.textMain),
-                              decoration: const InputDecoration(
+                                  fontSize: 14,
+                                  color: _C.textMain),
+                              decoration:
+                                  const InputDecoration(
                                 border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 12),
+                                contentPadding:
+                                    EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 12),
                               ),
                             ),
                           ),
@@ -745,7 +790,8 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                     ),
                     const SizedBox(width: 14),
                     Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Text(_t('Active', 'Aktif', '活跃'),
                             style: GoogleFonts.poppins(
@@ -757,7 +803,8 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                           valueListenable: activeCtrl,
                           builder: (_, v, __) => Switch(
                             value: v,
-                            onChanged: (val) => activeCtrl.value = val,
+                            onChanged: (val) =>
+                                activeCtrl.value = val,
                             activeColor: _C.primary,
                           ),
                         ),
@@ -773,25 +820,31 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                       onPressed: isTranslating
                           ? null
                           : () async {
-                              final text = idCtrl.text.trim();
-                              if (text.isEmpty || selectedTemaId == null) {
+                              final text =
+                                  idCtrl.text.trim();
+                              if (text.isEmpty ||
+                                  selectedTemaId == null) {
                                 return;
                               }
-                              setSheet(() => isTranslating = true);
+                              setSheet(
+                                  () => isTranslating = true);
                               try {
-                                final t = await _translateAll(text);
+                                final t =
+                                    await _translateAll(text);
                                 final urutan = int.tryParse(
-                                        urutanCtrl.text.trim()) ??
+                                        urutanCtrl.text
+                                            .trim()) ??
                                     _questions.length + 1;
+
+                                // ── Payload tanpa level_type & id_ref ──
                                 final payload = {
-                                  'level_type': widget.levelType,
-                                  'id_ref': widget.idRef,
-                                  'id_jenis_audit': widget.idJenisAudit,
+                                  'id_jenis_audit':
+                                      widget.idJenisAudit,
                                   'id_tema': selectedTemaId,
-                                  'pertanyaan': t['id'],
+                                  'pertanyaan':    t['id'],
                                   'pertanyaan_en': t['en'],
                                   'pertanyaan_zh': t['zh'],
-                                  'urutan': urutan,
+                                  'urutan':    urutan,
                                   'is_active': activeCtrl.value,
                                 };
                                 final isAdd = existing == null;
@@ -806,25 +859,36 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                                       .eq('id_question',
                                           existing['id_question']);
                                 }
-                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (ctx.mounted)
+                                  Navigator.pop(ctx);
                                 _fetchAll();
                                 _showSuccessPopup(
                                   isSuccess: true,
-                                  titleEn: isAdd ? 'Question Added!' : 'Question Updated!',
-                                  titleId: isAdd ? 'Pertanyaan Ditambahkan!' : 'Pertanyaan Diperbarui!',
-                                  titleZh: isAdd ? '问题已添加！' : '问题已更新！',
+                                  titleEn: isAdd
+                                      ? 'Question Added!'
+                                      : 'Question Updated!',
+                                  titleId: isAdd
+                                      ? 'Pertanyaan Ditambahkan!'
+                                      : 'Pertanyaan Diperbarui!',
+                                  titleZh: isAdd
+                                      ? '问题已添加！'
+                                      : '问题已更新！',
                                   msgEn: isAdd
                                       ? 'New question has been saved successfully.'
                                       : 'Question has been updated successfully.',
                                   msgId: isAdd
                                       ? 'Pertanyaan baru berhasil disimpan.'
                                       : 'Pertanyaan berhasil diperbarui.',
-                                  msgZh: isAdd ? '新问题已成功保存。' : '问题已成功更新。',
+                                  msgZh: isAdd
+                                      ? '新问题已成功保存。'
+                                      : '问题已成功更新。',
                                 );
                               } catch (e) {
-                                debugPrint('Error save question: $e');
+                                debugPrint(
+                                    'Error save question: $e');
                                 if (ctx.mounted) {
-                                  setSheet(() => isTranslating = false);
+                                  setSheet(() =>
+                                      isTranslating = false);
                                 }
                               }
                             },
@@ -833,29 +897,34 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                            borderRadius:
+                                BorderRadius.circular(14)),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14),
                       ),
                       child: isTranslating
                           ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
                               children: [
                                 const SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2),
                                 ),
                                 const SizedBox(width: 10),
                                 Text(
-                                  _t('Translating & Saving...',
+                                  _t(
+                                      'Translating & Saving...',
                                       'Menerjemahkan & Menyimpan...',
                                       '翻译并保存中...'),
                                   style: GoogleFonts.poppins(
                                       fontSize: 13,
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight:
+                                          FontWeight.w600,
                                       color: Colors.white),
                                 ),
                               ],
@@ -882,13 +951,15 @@ class _QuestionTabViewState extends State<_QuestionTabView>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(_t('Delete Question', 'Hapus Pertanyaan', '删除问题'),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: Text(
+            _t('Delete Question', 'Hapus Pertanyaan', '删除问题'),
+            style:
+                GoogleFonts.poppins(fontWeight: FontWeight.w700)),
         content: Text(
-            _t('This cannot be undone.', 'Ini tidak dapat dibatalkan.',
-                '此操作无法撤销。'),
+            _t('This cannot be undone.',
+                'Ini tidak dapat dibatalkan.', '此操作无法撤销。'),
             style: GoogleFonts.poppins()),
         actions: [
           TextButton(
@@ -902,7 +973,8 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10))),
               child: Text(_t('Delete', 'Hapus', '删除'),
-                  style: const TextStyle(color: Colors.white))),
+                  style:
+                      const TextStyle(color: Colors.white))),
         ],
       ),
     );
@@ -937,7 +1009,9 @@ class _QuestionTabViewState extends State<_QuestionTabView>
           itemBuilder: (_, __) => Container(
             margin: const EdgeInsets.only(bottom: 10),
             height: 64,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12)),
           ),
         ),
       );
@@ -961,7 +1035,7 @@ class _QuestionTabViewState extends State<_QuestionTabView>
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          // ADD THEME BUTTON
+          // THEME SETTINGS BUTTON
           GestureDetector(
             onTap: () async {
               await Navigator.push(
@@ -980,15 +1054,22 @@ class _QuestionTabViewState extends State<_QuestionTabView>
               decoration: BoxDecoration(
                 color: _C.primaryLt,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.primary.withValues(alpha: 0.3)),
+                border: Border.all(
+                    color: _C.primary.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.tune_rounded, color: _C.primary, size: 16),
+                  const Icon(Icons.tune_rounded,
+                      color: _C.primary, size: 16),
                   const SizedBox(width: 6),
-                  Text(_t('Theme Settings', 'Pengaturan Tema', '主题设置'),
-                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _C.primary)),
+                  Text(
+                      _t('Theme Settings', 'Pengaturan Tema',
+                          '主题设置'),
+                      style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _C.primary)),
                 ],
               ),
             ),
@@ -1000,12 +1081,17 @@ class _QuestionTabViewState extends State<_QuestionTabView>
               padding: const EdgeInsets.symmetric(vertical: 60),
               child: Column(
                 children: [
-                  Icon(Icons.help_outline_rounded, size: 56, color: Colors.grey.shade300),
+                  Icon(Icons.help_outline_rounded,
+                      size: 56, color: Colors.grey.shade300),
                   const SizedBox(height: 12),
-                  Text(_t('No themes yet. Add a theme first.',
-                      'Belum ada tema. Tambahkan tema terlebih dahulu.', '暂无主题，请先添加主题。'),
+                  Text(
+                      _t(
+                          'No themes yet. Add a theme first.',
+                          'Belum ada tema. Tambahkan tema terlebih dahulu.',
+                          '暂无主题，请先添加主题。'),
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(fontSize: 13, color: _C.textSub)),
+                      style: GoogleFonts.poppins(
+                          fontSize: 13, color: _C.textSub)),
                 ],
               ),
             ),
@@ -1014,18 +1100,23 @@ class _QuestionTabViewState extends State<_QuestionTabView>
           ..._temas.map((tema) {
             final temaId = tema['id_tema'].toString();
             final qs = grouped[temaId] ?? [];
-            return _buildTemaSection(_temaLabel(tema), temaId, qs);
+            return _buildTemaSection(
+                _temaLabel(tema), temaId, qs);
           }),
 
           // NO THEME
           if (noTema.isNotEmpty)
-            _buildTemaSection(_t('Other', 'Lainnya', '其他'), null, noTema),
+            _buildTemaSection(
+                _t('Other', 'Lainnya', '其他'), null, noTema),
         ],
       ),
     );
   }
 
-  Widget _buildTemaSection(String title, String? temaId, List<Map<String, dynamic>> qs) {
+  Widget _buildTemaSection(
+      String title,
+      String? temaId,
+      List<Map<String, dynamic>> qs) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -1042,23 +1133,37 @@ class _QuestionTabViewState extends State<_QuestionTabView>
               children: [
                 Expanded(
                   child: Text(title,
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _C.textMain)),
+                      style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _C.textMain)),
                 ),
                 GestureDetector(
-                  onTap: () => _showForm(defaultTemaId: temaId),
+                  onTap: () =>
+                      _showForm(defaultTemaId: temaId),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: _C.primary.withValues(alpha:0.1),
+                      color: _C.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _C.primary.withValues(alpha:0.4)),
+                      border: Border.all(
+                          color:
+                              _C.primary.withValues(alpha: 0.4)),
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.add_rounded, size: 13, color: _C.primary),
-                      const SizedBox(width: 3),
-                      Text(_t('Add', 'Tambah', '添加'),
-                          style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: _C.primary)),
-                    ]),
+                    child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.add_rounded,
+                              size: 13, color: _C.primary),
+                          const SizedBox(width: 3),
+                          Text(
+                              _t('Add', 'Tambah', '添加'),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: _C.primary)),
+                        ]),
                   ),
                 ),
               ],
@@ -1066,62 +1171,92 @@ class _QuestionTabViewState extends State<_QuestionTabView>
           ),
           if (qs.isEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: Text(_t('No questions yet', 'Belum ada pertanyaan', '暂无问题'),
-                  style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
+              padding:
+                  const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Text(
+                  _t('No questions yet',
+                      'Belum ada pertanyaan', '暂无问题'),
+                  style: GoogleFonts.poppins(
+                      fontSize: 12, color: Colors.grey)),
             )
           else
             ...qs.map((q) {
-              final isActive = q['is_active'] as bool? ?? true;
+              final isActive =
+                  q['is_active'] as bool? ?? true;
               return Container(
-                margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                margin: const EdgeInsets.fromLTRB(
+                    14, 0, 14, 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: _C.surface,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: isActive ? _C.primaryLt : Colors.grey.shade200),
+                  border: Border.all(
+                      color: isActive
+                          ? _C.primaryLt
+                          : Colors.grey.shade200),
                 ),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     Container(
-                      width: 24, height: 24,
+                      width: 24,
+                      height: 24,
                       decoration: BoxDecoration(
-                        color: isActive ? _C.primary.withValues(alpha:0.12) : Colors.grey.shade200,
+                        color: isActive
+                            ? _C.primary.withValues(alpha: 0.12)
+                            : Colors.grey.shade200,
                         shape: BoxShape.circle,
                       ),
                       child: Center(
                         child: Text('${q['urutan']}',
-                            style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w800,
-                                color: isActive ? _C.primary : Colors.grey)),
+                            style: GoogleFonts.poppins(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: isActive
+                                    ? _C.primary
+                                    : Colors.grey)),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
                         children: [
                           Text(_questionText(q),
-                              style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w500,
-                                  color: isActive ? _C.textMain : Colors.grey)),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: isActive
+                                      ? _C.textMain
+                                      : Colors.grey)),
                           if (!isActive)
                             Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: Text(_t('Inactive', 'Nonaktif', '未激活'),
-                                  style: GoogleFonts.poppins(fontSize: 10, color: Colors.grey)),
+                              padding: const EdgeInsets.only(
+                                  top: 2),
+                              child: Text(
+                                  _t('Inactive', 'Nonaktif',
+                                      '未激活'),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 10,
+                                      color: Colors.grey)),
                             ),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 16, color: _C.primary),
-                      onPressed: () => _showForm(existing: q),
+                      icon: const Icon(Icons.edit_outlined,
+                          size: 16, color: _C.primary),
+                      onPressed: () =>
+                          _showForm(existing: q),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                     const SizedBox(width: 6),
                     IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 16, color: _C.red),
+                      icon: const Icon(Icons.delete_outline,
+                          size: 16, color: _C.red),
                       onPressed: () => _delete(q),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
