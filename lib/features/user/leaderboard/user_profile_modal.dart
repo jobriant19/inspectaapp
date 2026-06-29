@@ -103,7 +103,7 @@ class _UserProfileModalState extends State<UserProfileModal>
       ),
       child: Column(
         children: [
-          // ── Handle ──
+          // HANDLE
           Container(
             margin: const EdgeInsets.only(top: 12, bottom: 4),
             width: 40, height: 5,
@@ -112,7 +112,7 @@ class _UserProfileModalState extends State<UserProfileModal>
               borderRadius: BorderRadius.circular(10),
             ),
           ),
-          // ── Header user ──
+          // USER HEADER
           FutureBuilder<Map<String, dynamic>>(
             future: _fetchUserDetail(widget.userId),
             builder: (context, snap) {
@@ -121,7 +121,7 @@ class _UserProfileModalState extends State<UserProfileModal>
               return _buildHeader(poin, jabatan);
             },
           ),
-          // ── Tab bar ──
+          // TAB BAR
           Container(
             margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             decoration: BoxDecoration(
@@ -151,7 +151,7 @@ class _UserProfileModalState extends State<UserProfileModal>
             ),
           ),
           const SizedBox(height: 4),
-          // ── Tab content ──
+          // CONTENT TAB
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -185,21 +185,21 @@ class _UserProfileModalState extends State<UserProfileModal>
         ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isTop3 ? medalColor.withOpacity(0.5) : _border,
+          color: isTop3 ? medalColor.withValues(alpha:0.5) : _border,
           width: isTop3 ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: isTop3
-                ? medalColor.withOpacity(0.25)
-                : Colors.black.withOpacity(0.05),
+                ? medalColor.withValues(alpha:0.25)
+                : Colors.black.withValues(alpha:0.05),
             blurRadius: 16, offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
         children: [
-          // Avatar
+          // AVATAR
           Stack(
             children: [
               Container(
@@ -211,14 +211,14 @@ class _UserProfileModalState extends State<UserProfileModal>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: (isTop3 ? medalColor : _primary).withOpacity(0.3),
+                      color: (isTop3 ? medalColor : _primary).withValues(alpha:0.3),
                       blurRadius: 10,
                     ),
                   ],
                 ),
                 child: CircleAvatar(
                   radius: 30,
-                  backgroundColor: _primary.withOpacity(0.15),
+                  backgroundColor: _primary.withValues(alpha:0.15),
                   backgroundImage: widget.userAvatarUrl != null
                       ? NetworkImage(widget.userAvatarUrl!)
                       : null,
@@ -234,7 +234,7 @@ class _UserProfileModalState extends State<UserProfileModal>
                       : null,
                 ),
               ),
-              // Medali badge
+              // MEDAL BADGE
               Positioned(
                 bottom: 0, right: 0,
                 child: Container(
@@ -258,7 +258,7 @@ class _UserProfileModalState extends State<UserProfileModal>
             ],
           ),
           const SizedBox(width: 14),
-          // Info
+          // INFO
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,19 +282,19 @@ class _UserProfileModalState extends State<UserProfileModal>
                   ),
                 ],
                 const SizedBox(height: 6),
-                // Poin badge
+                // POINT BADGE
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: isTop3
-                        ? Colors.white.withOpacity(0.2)
-                        : _primary.withOpacity(0.1),
+                        ? Colors.white.withValues(alpha:0.2)
+                        : _primary.withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isTop3
-                          ? Colors.white.withOpacity(0.4)
-                          : _primary.withOpacity(0.3),
+                          ? Colors.white.withValues(alpha:0.4)
+                          : _primary.withValues(alpha:0.3),
                     ),
                   ),
                   child: Row(
@@ -317,16 +317,16 @@ class _UserProfileModalState extends State<UserProfileModal>
               ],
             ),
           ),
-          // Rank besar
+          // RANK
           Container(
             width: 48, height: 48,
             decoration: BoxDecoration(
               color: isTop3
-                  ? medalColor.withOpacity(0.25)
+                  ? medalColor.withValues(alpha:0.25)
                   : _surface,
               shape: BoxShape.circle,
               border: Border.all(
-                color: isTop3 ? medalColor.withOpacity(0.6) : _border,
+                color: isTop3 ? medalColor.withValues(alpha:0.6) : _border,
               ),
             ),
             child: Center(
@@ -345,7 +345,6 @@ class _UserProfileModalState extends State<UserProfileModal>
     );
   }
 
-  // ── Tab Log Aktivitas — sinkron dengan NotificationScreen ────────────────
   Widget _buildActivityTab() {
     return FutureBuilder<List<dynamic>>(
       future: Supabase.instance.client
@@ -363,7 +362,6 @@ class _UserProfileModalState extends State<UserProfileModal>
         }
 
         final logs = snapshot.data!;
-        // ✅ Total poin dari User.poin — fetch terpisah
         return FutureBuilder<int>(
           future: Supabase.instance.client
               .from('User')
@@ -376,7 +374,6 @@ class _UserProfileModalState extends State<UserProfileModal>
 
             return Column(
               children: [
-                // ✅ Summary card — sama persis dengan NotificationScreen
                 Container(
                   margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
                   padding: const EdgeInsets.symmetric(
@@ -390,7 +387,7 @@ class _UserProfileModalState extends State<UserProfileModal>
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1E3A8A).withOpacity(0.25),
+                        color: const Color(0xFF1E3A8A).withValues(alpha:0.25),
                         blurRadius: 12, offset: const Offset(0, 4),
                       ),
                     ],
@@ -414,7 +411,7 @@ class _UserProfileModalState extends State<UserProfileModal>
                             fontSize: 11, color: Colors.white60)),
                   ]),
                 ),
-                // List log
+                // LOG LIST
                 Expanded(
                   child: ListView.separated(
                     controller: widget.controller,
@@ -432,7 +429,6 @@ class _UserProfileModalState extends State<UserProfileModal>
     );
   }
 
-  // ── Log card — format sinkron dengan NotificationScreen ──────────────────
   Widget _buildLogCard(Map<String, dynamic> log) {
     final int poin      = (log['poin'] as num).toInt();
     final bool isPos    = poin >= 0;
@@ -447,9 +443,9 @@ class _UserProfileModalState extends State<UserProfileModal>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.15)),
+        border: Border.all(color: color.withValues(alpha:0.15)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03),
+          BoxShadow(color: Colors.black.withValues(alpha:0.03),
               blurRadius: 6, offset: const Offset(0, 2)),
         ],
       ),
@@ -459,7 +455,7 @@ class _UserProfileModalState extends State<UserProfileModal>
             width: 40, height: 40,
             decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: color.withOpacity(0.1)),
+                color: color.withValues(alpha:0.1)),
             child: Icon(icon, color: color, size: 20),
           ),
           const SizedBox(width: 10),
@@ -483,7 +479,7 @@ class _UserProfileModalState extends State<UserProfileModal>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(16)),
             child: Text(
               isPos ? '+$poin' : '$poin',
@@ -496,7 +492,6 @@ class _UserProfileModalState extends State<UserProfileModal>
     );
   }
 
-  // ── Tab Temuan & Penyelesaian ─────────────────────────────────────────────
   Widget _buildListTab(String type) {
     late final Future<List<dynamic>> future;
 
@@ -590,15 +585,15 @@ class _UserProfileModalState extends State<UserProfileModal>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withOpacity(0.15)),
+        border: Border.all(color: accent.withValues(alpha:0.15)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04),
+          BoxShadow(color: Colors.black.withValues(alpha:0.04),
               blurRadius: 8, offset: const Offset(0, 3)),
         ],
       ),
       child: Row(
         children: [
-          // Gambar
+          // IMAGE
           ClipRRect(
             borderRadius: const BorderRadius.horizontal(
                 left: Radius.circular(15)),
@@ -611,7 +606,7 @@ class _UserProfileModalState extends State<UserProfileModal>
                   : _imagePlaceholder(accent),
             ),
           ),
-          // Info
+          // INFO
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -643,7 +638,7 @@ class _UserProfileModalState extends State<UserProfileModal>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
-                        color: accent.withOpacity(0.1),
+                        color: accent.withValues(alpha:0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
@@ -681,9 +676,9 @@ class _UserProfileModalState extends State<UserProfileModal>
 
   Widget _imagePlaceholder(Color accent) {
     return Container(
-      color: accent.withOpacity(0.08),
+      color: accent.withValues(alpha:0.08),
       child: Icon(Icons.image_outlined,
-          color: accent.withOpacity(0.4), size: 28),
+          color: accent.withValues(alpha:0.4), size: 28),
     );
   }
 
@@ -696,9 +691,9 @@ class _UserProfileModalState extends State<UserProfileModal>
             width: 64, height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _primary.withOpacity(0.08),
+              color: _primary.withValues(alpha:0.08),
             ),
-            child: Icon(icon, color: _primary.withOpacity(0.4), size: 30),
+            child: Icon(icon, color: _primary.withValues(alpha:0.4), size: 30),
           ),
           const SizedBox(height: 12),
           Text(text,
