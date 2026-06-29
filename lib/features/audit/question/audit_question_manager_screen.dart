@@ -99,28 +99,18 @@ class _AuditQuestionManagerScreenState
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: _C.textMain, size: 20),
+              color: _C.primary, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _t('Audit Questions', 'Pertanyaan Audit', '审计问题'),
-              style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: _C.textMain),
-            ),
-            Text(
-              widget.locationName,
-              style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+        title: Text(
+          _t('Audit Questions', 'Pertanyaan Audit', '审计问题'),
+          style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _C.primary),
         ),
       ),
       body: Column(

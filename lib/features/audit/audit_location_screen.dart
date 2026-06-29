@@ -117,6 +117,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
   List<Map<String, dynamic>> _allSubunit  = [];
   bool _filterDataLoaded = false;
 
+  // ✅ State untuk item yang sedang dipilih (untuk tombol di atas TabBar)
+  _LocationItem? _selectedItem;
+  String? _selectedLevel;
+
   static const _levels = ['lokasi', 'unit', 'subunit', 'area'];
 
   String _t(String en, String id, String zh) {
@@ -153,7 +157,6 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
   void _onTab() {
     if (_tabCtrl.indexIsChanging) return;
     final level = _levels[_tabCtrl.index];
-    // Hanya fetch jika data benar-benar belum pernah dimuat
     if (_data[level]!.isEmpty && _loading[level] == true) {
       _fetchLevel(level);
     }
@@ -326,7 +329,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
           border: Border.all(color: _C.divider, width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha:0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -372,15 +375,14 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                                     overflow: TextOverflow.ellipsis)),
                           ]),
                         ],
-                        // ✅ BARU: Badge jenis audit
                         if (item.scheduleJenisAuditName != null) ...[
                           const SizedBox(height: 5),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: _C.primary.withValues(alpha:0.1),
+                              color: _C.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _C.primary.withValues(alpha:0.35)),
+                              border: Border.all(color: _C.primary.withValues(alpha: 0.35)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -400,24 +402,19 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                             ),
                           ),
                         ],
-
-                        // Badge periode schedule
                         if (item.schedulePeriode != null) ...[
                           const SizedBox(height: 5),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: _C.blue.withValues(alpha:0.1),
+                              color: _C.blue.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                  color: _C.blue.withValues(alpha:0.35)),
+                              border: Border.all(color: _C.blue.withValues(alpha: 0.35)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.event_rounded,
-                                    size: 11, color: _C.blue),
+                                const Icon(Icons.event_rounded, size: 11, color: _C.blue),
                                 const SizedBox(width: 4),
                                 Flexible(
                                   child: Text(
@@ -441,18 +438,14 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: scoreColor.withValues(alpha:0.12),
+                          color: scoreColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: scoreColor.withValues(alpha:0.4), width: 1),
+                          border: Border.all(color: scoreColor.withValues(alpha: 0.4), width: 1),
                         ),
                         child: Text(
-                          score != null
-                              ? '${score.toStringAsFixed(0)}%'
-                              : '-',
+                          score != null ? '${score.toStringAsFixed(0)}%' : '-',
                           style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -474,24 +467,20 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
               decoration: BoxDecoration(
                 color: _C.surface,
-                borderRadius:
-                    const BorderRadius.vertical(bottom: Radius.circular(16)),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ✅ BARU: Assign auditor info jika ada schedule
                   if (item.scheduleAuditorName != null) ...[
                     Row(
                       children: [
-                        const Icon(Icons.assignment_ind_outlined,
-                            size: 12, color: _C.blue),
+                        const Icon(Icons.assignment_ind_outlined, size: 12, color: _C.blue),
                         const SizedBox(width: 5),
                         Expanded(
                           child: Text(
                             '${_t('Auditor', 'Auditor', '审计员')}: ${item.scheduleAuditorName!}',
-                            style: GoogleFonts.poppins(
-                                fontSize: 11, color: _C.blue),
+                            style: GoogleFonts.poppins(fontSize: 11, color: _C.blue),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -502,40 +491,15 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                   ],
                   Row(
                     children: [
-                      Icon(Icons.calendar_today_rounded,
-                          size: 12, color: _C.textSub),
+                      const Icon(Icons.calendar_today_rounded, size: 12, color: _C.textSub),
                       const SizedBox(width: 5),
                       Expanded(
                         child: Text(
                           item.latestAuditDate != null
                               ? '${_t('Last audit', 'Terakhir diaudit', '上次审计')}: ${_formatDate(item.latestAuditDate!)}'
                               : _t('Never audited', 'Belum pernah diaudit', '从未审计'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 11, color: _C.textSub),
+                          style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub),
                         ),
-                      ),
-                      _SmallButton(
-                        label: _t('Questions', 'Pertanyaan', '问题'),
-                        color: _C.primary,
-                        icon: Icons.help_outline_rounded,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AuditQuestionManagerScreen(
-                              lang: widget.lang,
-                              levelType: level,
-                              idRef: item.id,
-                              locationName: item.name,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _SmallButton(
-                        label: _t('Audit', 'Audit', '审计'),
-                        color: _C.green,
-                        icon: Icons.assignment_turned_in_outlined,
-                        onTap: () => _openAuditForm(item, level),
                       ),
                     ],
                   ),
@@ -568,129 +532,6 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
     final dt = DateTime.tryParse(raw);
     if (dt == null) return raw;
     return DateFormat('dd MMM yyyy').format(dt);
-  }
-
-  Future<void> _openAuditForm(_LocationItem item, String level) async {
-    final qRows = await _supabase
-        .from('audit_question')
-        .select('id_question')
-        .eq('level_type', level)
-        .eq('id_ref', item.id)
-        .eq('is_active', true)
-        .limit(1);
-    final qCount = (qRows as List).length;
-
-    if (!mounted) return;
-
-    if (qCount == 0) {
-      // Popup dialog jika belum ada pertanyaan aktif
-      await showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          contentPadding: const EdgeInsets.all(24),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64, height: 64,
-                decoration: BoxDecoration(
-                  color: _C.amber.withValues(alpha:0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.help_outline_rounded,
-                    color: _C.amber, size: 32),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _t('No Questions', 'Belum Ada Pertanyaan', '暂无问题'),
-                style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _C.textMain),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _t(
-                  'No active questions found.\nPlease add questions first via the Questions button.',
-                  'Belum ada pertanyaan aktif.\nSilakan tambahkan pertanyaan terlebih dahulu melalui tombol Pertanyaan.',
-                  '尚无活动问题。\n请先通过"问题"按钮添加问题。',
-                ),
-                style: GoogleFonts.poppins(fontSize: 13, color: _C.textSub),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _C.primary),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        _t('Cancel', 'Batal', '取消'),
-                        style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600, color: _C.primary),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AuditQuestionManagerScreen(
-                              lang: widget.lang,
-                              levelType: level,
-                              idRef: item.id,
-                              locationName: item.name,
-                            ),
-                          ),
-                        ).then((_) => _fetchLevel(level));
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _C.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        _t('Add Now', 'Tambah Sekarang', '立即添加'),
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-      return;
-    }
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AuditScheduleScreen(
-          lang: widget.lang,
-          levelType: level,
-          idRef: item.id,
-          locationName: item.name,
-        ),
-      ),
-    );
-    // Auto-refresh setelah kembali
-    _fetchLevel(level);
   }
 
   void _showDetail(_LocationItem item, String level) {
@@ -727,6 +568,145 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
       debugPrint('Error loading filter data: $e');
     }
   }
+
+  Future<void> _showQuestionPicker() async {
+  final level = _levels[_tabCtrl.index];
+  final items = _data[level]!;
+  if (items.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(_t('No locations available.', 'Tidak ada lokasi tersedia.', '暂无位置数据。')),
+      backgroundColor: _C.primary,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.all(16),
+    ));
+    return;
+  }
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) {
+      final search = ValueNotifier<String>('');
+      return Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.75),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 10),
+              width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+              child: Text(
+                _t('Select Location — Questions', 'Pilih Lokasi — Pertanyaan', '选择位置 — 问题'),
+                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: _C.textMain),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: TextField(
+                autofocus: true,
+                onChanged: (v) => search.value = v.toLowerCase(),
+                style: GoogleFonts.poppins(fontSize: 14, color: _C.textMain),
+                decoration: InputDecoration(
+                  hintText: _t('Search…', 'Cari…', '搜索…'),
+                  hintStyle: GoogleFonts.poppins(fontSize: 13, color: _C.textSub),
+                  prefixIcon: const Icon(Icons.search_rounded, color: _C.primary, size: 20),
+                  filled: true,
+                  fillColor: _C.surface,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: const BorderSide(color: _C.divider)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: const BorderSide(color: _C.divider)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                      borderSide: const BorderSide(color: _C.primary, width: 1.5)),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ValueListenableBuilder<String>(
+                valueListenable: search,
+                builder: (_, q, __) {
+                  final filtered = q.isEmpty
+                      ? items
+                      : items.where((i) => i.name.toLowerCase().contains(q)).toList();
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: Text(_t('No data found', 'Tidak ada data', '没有数据'),
+                          style: GoogleFonts.poppins(fontSize: 13, color: _C.textSub)),
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final loc = filtered[i];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: loc.imageUrl != null && loc.imageUrl!.isNotEmpty
+                              ? Image.network(loc.imageUrl!, width: 44, height: 44, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => _buildInitial(loc.name))
+                              : _buildInitial(loc.name),
+                        ),
+                        title: Text(loc.name,
+                            style: GoogleFonts.poppins(
+                                fontSize: 13, fontWeight: FontWeight.w600, color: _C.textMain)),
+                        subtitle: loc.picName != null
+                            ? Text(loc.picName!,
+                                style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub))
+                            : null,
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _C.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: _C.primary.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            _t('Select', 'Pilih', '选择'),
+                            style: GoogleFonts.poppins(
+                                fontSize: 11, fontWeight: FontWeight.w700, color: _C.primary),
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AuditQuestionManagerScreen(
+                                lang: widget.lang,
+                                levelType: level,
+                                idRef: loc.id,
+                                locationName: loc.name,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
 
   // ✅ BARU: Tampilkan bottom sheet filter untuk tab tertentu
   Future<void> _showFilterSheet(String level) async {
@@ -1301,37 +1281,196 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               color: _C.primary),   // ← ungu
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50),
-          child: Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Container(
-              decoration: BoxDecoration(
-                color: _C.surface,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.all(3),
-              child: TabBar(
-                controller: _tabCtrl,
-                indicator: BoxDecoration(
-                  color: _C.primary,   // ← ungu
-                  borderRadius: BorderRadius.circular(8),
+          preferredSize: const Size.fromHeight(112),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Action bar (selalu tampil) ──
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    // ── Tombol Questions ──
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _showQuestionPicker(),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [_C.primary, _C.primary.withValues(alpha: 0.78)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(13),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _C.primary.withValues(alpha: 0.22),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.22),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.help_outline_rounded, color: Colors.white, size: 15),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _t('Questions', 'Pertanyaan', '问题'),
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                                    ),
+                                    Text(
+                                      _t('Select location', 'Pilih lokasi', '选择位置'),
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 9, color: Colors.white.withValues(alpha: 0.82)),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // ── Tombol Audit Schedule ──
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          final level = _levels[_tabCtrl.index];
+                          // Navigasi ke AuditScheduleScreen tanpa perlu pilih card
+                          // Kirim null jika tidak ada item dipilih (screen akan handle)
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AuditScheduleScreen(
+                                lang: widget.lang,
+                                levelType: level,
+                                idRef: _selectedItem?.id ?? '',
+                                locationName: _selectedItem?.name ?? '',
+                              ),
+                            ),
+                          ).then((_) => _fetchLevel(level));
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                _C.green,
+                                _C.green.withValues(alpha: 0.78),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(13),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _C.green.withValues(alpha: 0.22),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.22),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.event_note_rounded,
+                                  color: Colors.white,
+                                  size: 15,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _t('Schedule', 'Jadwal Audit', '审计计划'),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      _t('Assign auditors', 'Atur penjadwalan', '分配审计员'),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 9,
+                                        color: Colors.white.withValues(alpha: 0.82),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: Colors.white,
-                unselectedLabelColor: _C.primary,   // ← ungu
-                labelStyle: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700, fontSize: 11.5),
-                unselectedLabelStyle:
-                    GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 11.5),
-                dividerColor: Colors.transparent,
-                overlayColor:
-                    WidgetStateProperty.all(Colors.transparent),
-                tabs: _tabLabels
-                    .map((l) => Tab(child: Text(l)))
-                    .toList(),
               ),
-            ),
+              // ── TabBar ──
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _C.surface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.all(3),
+                  child: TabBar(
+                    controller: _tabCtrl,
+                    indicator: BoxDecoration(
+                      color: _C.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: _C.primary,
+                    labelStyle: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700, fontSize: 11.5),
+                    unselectedLabelStyle: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600, fontSize: 11.5),
+                    dividerColor: Colors.transparent,
+                    overlayColor: WidgetStateProperty.all(Colors.transparent),
+                    tabs: _tabLabels.map((l) => Tab(child: Text(l))).toList(),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1427,46 +1566,6 @@ class _StatChip extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
         ],
-      ),
-    );
-  }
-}
-
-// ─── Small action button ──────────────────────────────────────────────────────
-class _SmallButton extends StatelessWidget {
-  final String label;
-  final Color color;
-  final IconData icon;
-  final VoidCallback onTap;
-  const _SmallButton(
-      {required this.label,
-      required this.color,
-      required this.icon,
-      required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha:0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha:0.4)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: color),
-            const SizedBox(width: 4),
-            Text(label,
-                style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: color)),
-          ],
-        ),
       ),
     );
   }
