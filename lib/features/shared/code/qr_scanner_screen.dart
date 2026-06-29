@@ -175,7 +175,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         ),
       ));
     } catch (e) {
-      _showError("${getTxt('location_not_found')}");
+      _showError(getTxt('location_not_found'));
     }
   }
 
@@ -233,7 +233,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               width: 250,
               height: 250,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.white.withOpacity(0.8), width: 3),
+                border: Border.all(color: Colors.white.withValues(alpha:0.8), width: 3),
                 borderRadius: BorderRadius.circular(20),
               ),
             ),
@@ -251,7 +251,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           ),
           if (_isProcessing)
             Container(
-              color: Colors.black.withOpacity(0.6),
+              color: Colors.black.withValues(alpha:0.6),
               child: const Center(child: CircularProgressIndicator(color: Colors.white)),
             ),
         ],
