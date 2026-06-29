@@ -188,7 +188,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
     if (_status != _CamStatus.ready ||
         c == null ||
         !c.value.isInitialized ||
-        c.value.isTakingPicture) return;
+        c.value.isTakingPicture) { return; }
     try {
       final XFile picture = await c.takePicture();
       await _uploadAndReturn(picture);
@@ -369,10 +369,10 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 13),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
+                          color: Colors.black.withValues(alpha:0.6),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.25),
+                              color: Colors.white.withValues(alpha:0.25),
                               width: 1.2),
                         ),
                         child: Row(
@@ -423,7 +423,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
                 padding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha:0.5),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -449,7 +449,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
                     colors: [
-                      Colors.black.withOpacity(0.75),
+                      Colors.black.withValues(alpha:0.75),
                       Colors.transparent
                     ],
                   ),
@@ -492,7 +492,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
           // ── Loading overlay saat upload ──
           if (_isUploading)
             Container(
-              color: Colors.black.withOpacity(0.6),
+              color: Colors.black.withValues(alpha:0.6),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -544,13 +544,13 @@ class _IconBtn extends StatelessWidget {
           width: 52, height: 52,
           decoration: BoxDecoration(
             color: highlight
-                ? Colors.yellow.withOpacity(0.2)
-                : Colors.black.withOpacity(0.5),
+                ? Colors.yellow.withValues(alpha:0.2)
+                : Colors.black.withValues(alpha:0.5),
             shape: BoxShape.circle,
             border: Border.all(
               color: highlight
                   ? Colors.yellow
-                  : Colors.white.withOpacity(0.2),
+                  : Colors.white.withValues(alpha:0.2),
               width: highlight ? 1.5 : 1,
             ),
           ),
