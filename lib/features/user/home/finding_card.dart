@@ -43,12 +43,12 @@ class FindingCard extends StatelessWidget {
     final isEksekutif = data['is_eksekutif'] == true;
     final s = status.toLowerCase();
     final isFinished = ['selesai', 'done', 'completed', 'closed'].any((e) => s.contains(e));
-    final Map<String, List<String>> _statusLabels = {
+    final Map<String, List<String>> statusLabels = {
       'ID': ['Selesai', 'Belum Selesai'],
       'EN': ['Finished', 'Unfinished'],
       'ZH': ['已完成', '未完成'],
     };
-    final labels = _statusLabels[lang] ?? _statusLabels['ID']!;
+    final labels = statusLabels[lang] ?? statusLabels['ID']!;
     final String statusText = isFinished ? labels[0] : labels[1];
 
     late Color statusColor;
@@ -95,7 +95,7 @@ class FindingCard extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: borderColor, width: 1.5),
-          boxShadow: [BoxShadow(color: borderColor.withOpacity(0.18), blurRadius: 14, offset: const Offset(0, 6))],
+          boxShadow: [BoxShadow(color: borderColor.withValues(alpha:0.18), blurRadius: 14, offset: const Offset(0, 6))],
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
@@ -104,7 +104,7 @@ class FindingCard extends StatelessWidget {
             children: [
               Container(
                 width: 92, height: 92,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withOpacity(0.15), width: 1.5)),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withValues(alpha:0.15), width: 1.5)),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12.5),
                   child: imageUrl.isNotEmpty
@@ -131,7 +131,7 @@ class FindingCard extends StatelessWidget {
                           return Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                             decoration: BoxDecoration(
-                              color: labelColor.withOpacity(0.15),
+                              color: labelColor.withValues(alpha:0.15),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(color: labelColor, width: 1.2),
                             ),
