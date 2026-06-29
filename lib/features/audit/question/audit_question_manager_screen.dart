@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'audit_theme_settings.dart';
 import 'audit_type_settings.dart';
 
 class AuditQuestionManagerScreen extends StatefulWidget {
@@ -69,18 +70,24 @@ class _AuditQuestionManagerScreenState
   }
 
   Future<void> _fetchJenisAudit() async {
+    final oldCtrl = _tabCtrl;
+    _tabCtrl = null;
     try {
       final rows = await _supabase.from('jenis_audit').select().order('urutan');
       final list = List<Map<String, dynamic>>.from(rows);
       if (mounted) {
+        oldCtrl?.dispose();
         setState(() {
           _jenisAuditList = list;
           _tabCtrl = TabController(length: list.length, vsync: this);
           _loadingJenis = false;
         });
+      } else {
+        oldCtrl?.dispose();
       }
     } catch (e) {
       debugPrint('Error fetch jenis_audit: $e');
+      oldCtrl?.dispose();
       if (mounted) setState(() => _loadingJenis = false);
     }
   }
@@ -514,198 +521,6 @@ class _QuestionTabViewState extends State<_QuestionTabView>
     }
   }
 
-  // ADD NEW THEME
-  Future<void> _showAddTemaDialog() async {
-    final ctrl = TextEditingController();
-    bool isTranslating = false;
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22)),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _C.primaryLt,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.folder_outlined,
-                        color: _C.primary, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _t('Add Theme', 'Tambah Tema', '添加主题'),
-                      style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: _C.textMain),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 6),
-                Text(
-                  _t(
-                    'Name will be auto-translated to ID / EN / ZH.',
-                    'Nama akan diterjemahkan otomatis ke ID / EN / ZH.',
-                    '名称将自动翻译为 ID / EN / ZH。',
-                  ),
-                  style: GoogleFonts.poppins(
-                      fontSize: 11, color: _C.textSub),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  _t('Theme Name (Indonesian)', 'Nama Tema (Indonesia)',
-                      '主题名称（印尼语）'),
-                  style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _C.textSub),
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: ctrl,
-                  decoration: InputDecoration(
-                    hintText: _t('e.g. Target Achievement',
-                        'cth. Target Pencapaian', '例如：目标达成'),
-                    hintStyle: GoogleFonts.poppins(
-                        fontSize: 13, color: Colors.grey.shade400),
-                    filled: true,
-                    fillColor: _C.surface,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          const BorderSide(color: _C.divider),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          const BorderSide(color: _C.divider),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                  ),
-                  style: GoogleFonts.poppins(
-                      fontSize: 14, color: _C.textMain),
-                ),
-                const SizedBox(height: 22),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed:
-                          isTranslating ? null : () => Navigator.pop(ctx),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _C.divider),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      child: Text(
-                        _t('Cancel', 'Batal', '取消'),
-                        style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: _C.textSub),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: isTranslating
-                          ? null
-                          : () async {
-                              final text = ctrl.text.trim();
-                              if (text.isEmpty) return;
-                              setDlg(() => isTranslating = true);
-                              try {
-                                final t = await _translateAll(text);
-                                await _supabase.from('audit_tema').insert({
-                                  'id_jenis_audit': widget.idJenisAudit,
-                                  'nama_tema_id': t['id'],
-                                  'nama_tema_en': t['en'],
-                                  'nama_tema_zh': t['zh'],
-                                  'urutan': _temas.length + 1,
-                                });
-                                if (ctx.mounted) Navigator.pop(ctx);
-                                _fetchAll();
-                                _showSuccessPopup(
-                                  isSuccess: true,
-                                  titleEn: 'Theme Added!',
-                                  titleId: 'Tema Ditambahkan!',
-                                  titleZh: '主题已添加！',
-                                  msgEn: 'New theme has been saved successfully.',
-                                  msgId: 'Tema baru berhasil disimpan.',
-                                  msgZh: '新主题已成功保存。',
-                                );
-                              } catch (e) {
-                                debugPrint('Error add tema: $e');
-                                if (ctx.mounted) {
-                                  setDlg(() => isTranslating = false);
-                                }
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _C.primary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      child: isTranslating
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _t('Saving...', 'Menyimpan...',
-                                      '保存中...'),
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white),
-                                ),
-                              ],
-                            )
-                          : Text(
-                              _t('Save', 'Simpan', '保存'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white),
-                            ),
-                    ),
-                  ),
-                ]),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // ADD / EDIT QUESTION
   Future<void> _showForm({Map<String, dynamic>? existing, String? defaultTemaId}) async {
     final idCtrl = TextEditingController(
@@ -840,7 +655,16 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () async {
-                        await _showAddTemaDialog();
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AuditThemeSettingsScreen(
+                              lang: widget.lang,
+                              idJenisAudit: widget.idJenisAudit,
+                              onChanged: _fetchAll,
+                            ),
+                          ),
+                        );
                         setSheet(() {});
                       },
                       child: Container(
@@ -1149,20 +973,31 @@ class _QuestionTabViewState extends State<_QuestionTabView>
         children: [
           // ADD THEME BUTTON
           GestureDetector(
-            onTap: _showAddTemaDialog,
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AuditThemeSettingsScreen(
+                    lang: widget.lang,
+                    idJenisAudit: widget.idJenisAudit,
+                    onChanged: _fetchAll,
+                  ),
+                ),
+              );
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
                 color: _C.primaryLt,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.primary.withValues(alpha:0.3)),
+                border: Border.all(color: _C.primary.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.add_circle_outline_rounded, color: _C.primary, size: 16),
+                  const Icon(Icons.tune_rounded, color: _C.primary, size: 16),
                   const SizedBox(width: 6),
-                  Text(_t('Add Theme', 'Tambah Tema', '添加主题'),
+                  Text(_t('Theme Settings', 'Pengaturan Tema', '主题设置'),
                       style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _C.primary)),
                 ],
               ),
