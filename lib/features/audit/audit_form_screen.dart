@@ -72,7 +72,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   void dispose() {
     _scrollCtrl.dispose();
     _finalNoteCtrl.dispose();
-    for (final c in _noteCtrls.values) c.dispose();
+    for (final c in _noteCtrls.values) { c.dispose(); }
     super.dispose();
   }
 
@@ -613,7 +613,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                 Container(
                   width: 80, height: 80,
                   decoration: BoxDecoration(
-                      color: color.withOpacity(0.12), shape: BoxShape.circle),
+                      color: color.withValues(alpha:0.12), shape: BoxShape.circle),
                   child: Center(
                     child: Text(
                       '${score.toStringAsFixed(0)}%',
@@ -650,7 +650,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                       // ── PERUBAHAN: background dibuat putih saja ──
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _amber.withOpacity(0.3)),
+                      border: Border.all(color: _amber.withValues(alpha:0.3)),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -928,9 +928,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       margin: const EdgeInsets.only(bottom: 10, top: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isDone ? _green.withOpacity(0.08) : _primary.withOpacity(0.07),
+        color: isDone ? _green.withValues(alpha:0.08) : _primary.withValues(alpha:0.07),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDone ? _green.withOpacity(0.3) : _primary.withOpacity(0.2)),
+        border: Border.all(color: isDone ? _green.withValues(alpha:0.3) : _primary.withValues(alpha:0.2)),
       ),
       child: Row(
         children: [
@@ -968,9 +968,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       margin: const EdgeInsets.only(bottom: 10, top: 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: _textSub.withOpacity(0.06),
+        color: _textSub.withValues(alpha:0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _textSub.withOpacity(0.2)),
+        border: Border.all(color: _textSub.withValues(alpha:0.2)),
       ),
       child: Row(
         children: [
@@ -1015,11 +1015,11 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
           border: Border.all(
             color: answer == null
                 ? _divider
-                : (isYes ? _green : _red).withOpacity(0.5),
+                : (isYes ? _green : _red).withValues(alpha:0.5),
             width: 1.5,
           ),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2)),
+            BoxShadow(color: Colors.black.withValues(alpha:0.03), blurRadius: 6, offset: const Offset(0, 2)),
           ],
         ),
         child: Column(
@@ -1036,7 +1036,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                     decoration: BoxDecoration(
                       color: answer == null
                           ? const Color(0xFFEDE9FE)
-                          : (isYes ? _green : _red).withOpacity(0.12),
+                          : (isYes ? _green : _red).withValues(alpha:0.12),
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -1073,7 +1073,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                         duration: const Duration(milliseconds: 180),
                         padding: const EdgeInsets.symmetric(vertical: 11),
                         decoration: BoxDecoration(
-                          color: isYes ? _green.withOpacity(0.12) : Colors.white,
+                          color: isYes ? _green.withValues(alpha:0.12) : Colors.white,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                               color: isYes ? _green : Colors.grey.shade300,
@@ -1103,7 +1103,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                         duration: const Duration(milliseconds: 180),
                         padding: const EdgeInsets.symmetric(vertical: 11),
                         decoration: BoxDecoration(
-                          color: isNo ? _red.withOpacity(0.10) : Colors.white,
+                          color: isNo ? _red.withValues(alpha:0.10) : Colors.white,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                               color: isNo ? _red : Colors.grey.shade300,
@@ -1135,9 +1135,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                 margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _red.withOpacity(0.04),
+                  color: _red.withValues(alpha:0.04),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _red.withOpacity(0.2)),
+                  border: Border.all(color: _red.withValues(alpha:0.2)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1161,7 +1161,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: _red.withOpacity(0.35)),
+                            border: Border.all(color: _red.withValues(alpha:0.35)),
                           ),
                           child: Column(children: [
                             const Icon(Icons.add_a_photo_rounded, color: _red, size: 24),
@@ -1196,7 +1196,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(5),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.5),
+                                color: Colors.black.withValues(alpha:0.5),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(Icons.refresh_rounded, color: Colors.white, size: 16),
@@ -1281,7 +1281,7 @@ class _SelfieEvidenceBanner extends StatelessWidget {
               errorBuilder: (_, __, ___) => Container(
                 width: 52, height: 52,
                 decoration: BoxDecoration(
-                  color: teal.withOpacity(0.15),
+                  color: teal.withValues(alpha:0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.broken_image_outlined, color: teal, size: 24),
