@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'preventif_add_report.dart';
+import 'preventif_edit_report.dart';
 
 const List<String> kPmBagianList = [
   'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
@@ -847,7 +848,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                 GestureDetector(
                   onTap: () async {
                     final result = await Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => PmFormScreen(lang: widget.lang, existingData: r)));
+                        builder: (_) => PmEditScreen(lang: widget.lang, existingData: r)));
                     if (result == true) _loadAll();
                   },
                   child: Container(width: 32, height: 32, decoration: BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.circular(10), border: Border.all(color: _PC.primary.withValues(alpha:0.25), width: 1)),
