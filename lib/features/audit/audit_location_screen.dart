@@ -203,13 +203,13 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
       ]);
 
       final Map<String, Map<String, dynamic>> auditMap = {};
-      for (final a in futures[0] as List<dynamic>) {
+      for (final a in futures[0]) {
         final ref = a['id_ref'].toString();
         if (!auditMap.containsKey(ref)) auditMap[ref] = a as Map<String, dynamic>;
       }
 
       final Map<String, String> picMap = {};
-      for (final p in futures[1] as List<dynamic>) {
+      for (final p in futures[1]) {
         picMap[p['id_user'].toString()] = p['nama'] ?? '-';
       }
 
@@ -228,7 +228,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
           : <dynamic>[];
 
       final Map<String, Map<String, dynamic>> scheduleMap = {};
-      for (final s in scheduleRows as List<dynamic>) {
+      for (final s in scheduleRows) {
         final ref = s['id_ref'].toString();
         if (!scheduleMap.containsKey(ref)) scheduleMap[ref] = s as Map<String, dynamic>;
       }
@@ -326,7 +326,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
           border: Border.all(color: _C.divider, width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha:0.04),
               blurRadius: 10,
               offset: const Offset(0, 3),
             ),
@@ -378,9 +378,9 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: _C.primary.withOpacity(0.1),
+                              color: _C.primary.withValues(alpha:0.1),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _C.primary.withOpacity(0.35)),
+                              border: Border.all(color: _C.primary.withValues(alpha:0.35)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -408,10 +408,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: _C.blue.withOpacity(0.1),
+                              color: _C.blue.withValues(alpha:0.1),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                  color: _C.blue.withOpacity(0.35)),
+                                  color: _C.blue.withValues(alpha:0.35)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -444,10 +444,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: scoreColor.withOpacity(0.12),
+                          color: scoreColor.withValues(alpha:0.12),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: scoreColor.withOpacity(0.4), width: 1),
+                              color: scoreColor.withValues(alpha:0.4), width: 1),
                         ),
                         child: Text(
                           score != null
@@ -595,7 +595,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               Container(
                 width: 64, height: 64,
                 decoration: BoxDecoration(
-                  color: _C.amber.withOpacity(0.12),
+                  color: _C.amber.withValues(alpha:0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.help_outline_rounded,
@@ -1188,9 +1188,9 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                color: _C.primary.withOpacity(0.08),
+                color: _C.primary.withValues(alpha:0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _C.primary.withOpacity(0.3)),
+                border: Border.all(color: _C.primary.withValues(alpha:0.3)),
               ),
               child: Row(
                 children: [
@@ -1408,9 +1408,9 @@ class _StatChip extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.09),
+        color: color.withValues(alpha:0.09),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha:0.3)),
       ),
       child: Column(
         children: [
@@ -1422,7 +1422,7 @@ class _StatChip extends StatelessWidget {
           const SizedBox(height: 2),
           Text(label,
               style: GoogleFonts.poppins(
-                  fontSize: 10, color: color.withOpacity(0.8)),
+                  fontSize: 10, color: color.withValues(alpha:0.8)),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
@@ -1451,9 +1451,9 @@ class _SmallButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha:0.1),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.4)),
+          border: Border.all(color: color.withValues(alpha:0.4)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1568,7 +1568,7 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: _scoreColor(widget.item.latestScore)
-                            .withOpacity(0.12),
+                            .withValues(alpha:0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
@@ -1647,17 +1647,17 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
                               child: Container(
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
-                                  color: color.withOpacity(0.05),
+                                  color: color.withValues(alpha:0.05),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                      color: color.withOpacity(0.3)),
+                                      color: color.withValues(alpha:0.3)),
                                 ),
                                 child: Row(
                                   children: [
                                     Container(
                                       width: 52, height: 52,
                                       decoration: BoxDecoration(
-                                        color: color.withOpacity(0.12),
+                                        color: color.withValues(alpha:0.12),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Center(
@@ -1708,11 +1708,11 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 10, vertical: 6),
                                       decoration: BoxDecoration(
-                                        color: _C.primary.withOpacity(0.1),
+                                        color: _C.primary.withValues(alpha:0.1),
                                         borderRadius:
                                             BorderRadius.circular(8),
                                         border: Border.all(
-                                            color: _C.primary.withOpacity(0.3)),
+                                            color: _C.primary.withValues(alpha:0.3)),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
@@ -1738,74 +1738,6 @@ class _AuditDetailSheetState extends State<_AuditDetailSheet> {
                             );
                           },
                         ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Date Picker Field Helper ─────────────────────────────────────────────────
-class _DatePickerField extends StatelessWidget {
-  final String label;
-  final String? value;
-  final String placeholder;
-  final VoidCallback onTap;
-  final bool enabled;
-
-  const _DatePickerField({
-    required this.label,
-    required this.value,
-    required this.placeholder,
-    required this.onTap,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: enabled ? Colors.white : _C.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: value != null ? _C.primary : _C.divider,
-            width: value != null ? 1.5 : 1,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label,
-                style: GoogleFonts.poppins(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: _C.textSub)),
-            const SizedBox(height: 3),
-            Row(
-              children: [
-                Icon(Icons.calendar_today_rounded,
-                    size: 12,
-                    color: value != null ? _C.primary : Colors.grey),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    value ?? placeholder,
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: value != null
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                      color: value != null ? _C.textMain : Colors.grey,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
             ),
           ],
         ),

@@ -682,7 +682,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     color: (answeredCorrectly
                             ? const Color(0xFF16A34A)
                             : const Color(0xFFF59E0B))
-                        .withOpacity(0.25),
+                        .withValues(alpha:0.25),
                     blurRadius: 30,
                     offset: const Offset(0, 10),
                   ),
@@ -700,7 +700,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                         color: (answeredCorrectly
                                 ? const Color(0xFF16A34A)
                                 : const Color(0xFFF59E0B))
-                            .withOpacity(0.12),
+                            .withValues(alpha:0.12),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -901,7 +901,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.55),
+      barrierColor: Colors.black.withValues(alpha:0.55),
       builder: (dialogContext) {
         Future.delayed(const Duration(milliseconds: 4500), () {
           if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
@@ -933,10 +933,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(32),
                   border: Border.all(
-                      color: primary.withOpacity(0.2), width: 1.5),
+                      color: primary.withValues(alpha:0.2), width: 1.5),
                   boxShadow: [
                     BoxShadow(
-                        color: primary.withOpacity(0.2),
+                        color: primary.withValues(alpha:0.2),
                         blurRadius: 40,
                         spreadRadius: 4,
                         offset: const Offset(0, 12)),
@@ -949,7 +949,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                       decoration: BoxDecoration(
-                        color: primary.withOpacity(0.06),
+                        color: primary.withValues(alpha:0.06),
                         borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(32)),
                       ),
@@ -958,10 +958,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           width: 72,
                           height: 72,
                           decoration: BoxDecoration(
-                            color: primary.withOpacity(0.12),
+                            color: primary.withValues(alpha:0.12),
                             shape: BoxShape.circle,
                             border: Border.all(
-                                color: primary.withOpacity(0.3), width: 2),
+                                color: primary.withValues(alpha:0.3), width: 2),
                           ),
                           child: Icon(icon, color: primary, size: 36),
                         ),
@@ -990,10 +990,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           width: double.infinity,
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: primary.withOpacity(0.06),
+                            color: primary.withValues(alpha:0.06),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                                color: primary.withOpacity(0.12), width: 1),
+                                color: primary.withValues(alpha:0.12), width: 1),
                           ),
                           child: Text(
                             description,
@@ -1014,9 +1014,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                             builder: (_, v, __) => LinearProgressIndicator(
                               value: v,
                               minHeight: 3,
-                              backgroundColor: primary.withOpacity(0.08),
+                              backgroundColor: primary.withValues(alpha:0.08),
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                  primary.withOpacity(0.45)),
+                                  primary.withValues(alpha:0.45)),
                             ),
                             child: null,
                           ),
@@ -1254,7 +1254,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         _temuanData?['penyelesaian']?['gambar_penyelesaian']?.toString() ?? '';
 
     return Container(
-      color: Colors.black.withOpacity(0.65),
+      color: Colors.black.withValues(alpha:0.65),
       child: Center(
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.7, end: 1.0),
@@ -1267,10 +1267,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: primary.withOpacity(0.3), width: 2),
+              border: Border.all(color: primary.withValues(alpha:0.3), width: 2),
               boxShadow: [
                 BoxShadow(
-                    color: primary.withOpacity(0.25),
+                    color: primary.withValues(alpha:0.25),
                     blurRadius: 40,
                     spreadRadius: 4,
                     offset: const Offset(0, 12)),
@@ -1284,7 +1284,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                   decoration: BoxDecoration(
-                    color: primary.withOpacity(0.08),
+                    color: primary.withValues(alpha:0.08),
                     borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(26)),
                   ),
@@ -1293,10 +1293,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                       width: 72,
                       height: 72,
                       decoration: BoxDecoration(
-                        color: primary.withOpacity(0.12),
+                        color: primary.withValues(alpha:0.12),
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: primary.withOpacity(0.4), width: 2.5),
+                            color: primary.withValues(alpha:0.4), width: 2.5),
                       ),
                       child: Icon(icon, color: primary, size: 38),
                     ),
@@ -1437,9 +1437,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withValues(alpha:0.05),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha:0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1448,7 +1448,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               style: GoogleFonts.poppins(
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
-                  color: color.withOpacity(0.8))),
+                  color: color.withValues(alpha:0.8))),
           const SizedBox(height: 3),
           Text(
             text.isEmpty ? '-' : text,
@@ -1723,7 +1723,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: headerColors.last.withOpacity(0.3),
+                  color: headerColors.last.withValues(alpha:0.3),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -1734,7 +1734,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha:0.2),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.health_and_safety_outlined,
@@ -1776,7 +1776,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha:0.25),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.edit_rounded,
@@ -1818,7 +1818,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: sevColor.withOpacity(0.4),
+                            color: sevColor.withValues(alpha:0.4),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -1855,7 +1855,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               border: Border.all(color: Colors.grey.shade200),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha:0.04),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -1878,9 +1878,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: sevColor.withOpacity(0.1),
+                      color: sevColor.withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: sevColor.withOpacity(0.3)),
+                      border: Border.all(color: sevColor.withValues(alpha:0.3)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -2053,7 +2053,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               border: Border.all(color: Colors.grey.shade200),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha:0.04),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -2068,12 +2068,12 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                       horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
                     color: canSwipe
-                        ? headerColors.first.withOpacity(0.08)
+                        ? headerColors.first.withValues(alpha:0.08)
                         : Colors.orange.shade50,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: canSwipe
-                          ? headerColors.first.withOpacity(0.3)
+                          ? headerColors.first.withValues(alpha:0.3)
                           : Colors.orange.shade200,
                     ),
                   ),
@@ -2240,7 +2240,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFDC2626).withOpacity(0.1),
+                        color: const Color(0xFFDC2626).withValues(alpha:0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(Icons.edit_rounded,
@@ -2570,7 +2570,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 gradient: const LinearGradient(colors: [Color(0xFF16A34A), Color(0xFF15803D)]),
                 shape: BoxShape.circle,
                 boxShadow: [BoxShadow(
-                    color: const Color(0xFF16A34A).withOpacity(0.4),
+                    color: const Color(0xFF16A34A).withValues(alpha:0.4),
                     blurRadius: 20, spreadRadius: 4)],
               ),
               child: const Icon(Icons.check_rounded, color: Colors.white, size: 54),
@@ -2611,11 +2611,11 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
   // Form penyelesaian accident report (setelah HRD vote)
   Widget _buildResolutionForm() {
-    final _judulCtrl = TextEditingController();
-    final _descCtrl = TextEditingController();
-    final _korektifCtrl = TextEditingController();
-    final _preventifCtrl = TextEditingController();
-    bool _isSavingResolution = false;
+    final judulCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final korektifCtrl = TextEditingController();
+    final preventifCtrl = TextEditingController();
+    bool isSavingResolution = false;
 
     return StatefulBuilder(
       builder: (context, setInner) {
@@ -2664,7 +2664,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               const SizedBox(height: 20),
 
               _buildResFormField(
-                ctrl: _judulCtrl,
+                ctrl: judulCtrl,
                 label: _lang == 'ID' ? 'Judul Penyelesaian *'
                     : _lang == 'ZH' ? '解决方案标题 *' : 'Resolution Title *',
                 hint: _lang == 'ID' ? 'Contoh: Penanganan Insiden Gudang'
@@ -2673,7 +2673,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               ),
               const SizedBox(height: 14),
               _buildResFormField(
-                ctrl: _descCtrl,
+                ctrl: descCtrl,
                 label: _lang == 'ID' ? 'Deskripsi Penyelesaian *'
                     : _lang == 'ZH' ? '解决方案描述 *' : 'Resolution Description *',
                 hint: _lang == 'ID' ? 'Jelaskan penyelesaian secara rinci...'
@@ -2683,7 +2683,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               ),
               const SizedBox(height: 14),
               _buildResFormField(
-                ctrl: _korektifCtrl,
+                ctrl: korektifCtrl,
                 label: _lang == 'ID' ? 'Tindakan Korektif'
                     : _lang == 'ZH' ? '纠正措施' : 'Corrective Action',
                 hint: _lang == 'ID' ? 'Tindakan untuk mengatasi masalah...'
@@ -2694,7 +2694,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               ),
               const SizedBox(height: 14),
               _buildResFormField(
-                ctrl: _preventifCtrl,
+                ctrl: preventifCtrl,
                 label: _lang == 'ID' ? 'Tindakan Preventif'
                     : _lang == 'ZH' ? '预防措施' : 'Preventive Action',
                 hint: _lang == 'ID' ? 'Tindakan untuk mencegah terulang...'
@@ -2730,9 +2730,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
-                      onPressed: _isSavingResolution ? null : () async {
-                        if (_judulCtrl.text.trim().isEmpty ||
-                            _descCtrl.text.trim().isEmpty) {
+                      onPressed: isSavingResolution ? null : () async {
+                        if (judulCtrl.text.trim().isEmpty ||
+                            descCtrl.text.trim().isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                             content: Text(_lang == 'ID'
                                 ? 'Judul dan deskripsi wajib diisi!'
@@ -2741,18 +2741,18 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           ));
                           return;
                         }
-                        setInner(() => _isSavingResolution = true);
+                        setInner(() => isSavingResolution = true);
                         try {
                           final userId = _client.auth.currentUser!.id;
                           await _client.from('resolution_accident').insert({
                             'id_laporan': _accidentData!['id_laporan'],
                             'id_hrd': userId,
-                            'judul_resolusi': _judulCtrl.text.trim(),
-                            'deskripsi_resolusi': _descCtrl.text.trim(),
-                            'tindakan_korektif': _korektifCtrl.text.trim().isEmpty
-                                ? null : _korektifCtrl.text.trim(),
-                            'tindakan_preventif': _preventifCtrl.text.trim().isEmpty
-                                ? null : _preventifCtrl.text.trim(),
+                            'judul_resolusi': judulCtrl.text.trim(),
+                            'deskripsi_resolusi': descCtrl.text.trim(),
+                            'tindakan_korektif': korektifCtrl.text.trim().isEmpty
+                                ? null : korektifCtrl.text.trim(),
+                            'tindakan_preventif': preventifCtrl.text.trim().isEmpty
+                                ? null : preventifCtrl.text.trim(),
                             'tanggal_resolusi': DateTime.now()
                                 .toIso8601String().substring(0, 10),
                           });
@@ -2769,7 +2769,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           }
                         } catch (e) {
                           debugPrint('Save resolution error: $e');
-                          setInner(() => _isSavingResolution = false);
+                          setInner(() => isSavingResolution = false);
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -2779,7 +2779,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                             borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: _isSavingResolution
+                      child: isSavingResolution
                           ? const SizedBox(width: 20, height: 20,
                               child: CircularProgressIndicator(
                                   color: Colors.white, strokeWidth: 2))
@@ -2831,7 +2831,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 borderSide: BorderSide.none),
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: color.withOpacity(0.3), width: 1)),
+                borderSide: BorderSide(color: color.withValues(alpha:0.3), width: 1)),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: color, width: 1.5)),
@@ -2908,10 +2908,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
+          border: Border.all(color: accent.withValues(alpha:0.25), width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: accent.withOpacity(0.08),
+                color: accent.withValues(alpha:0.08),
                 blurRadius: 14,
                 offset: const Offset(0, 4))
           ],
@@ -2970,10 +2970,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: sevColor.withOpacity(0.1),
+                              color: sevColor.withValues(alpha:0.1),
                               borderRadius: BorderRadius.circular(5),
                               border: Border.all(
-                                  color: sevColor.withOpacity(0.4), width: 1),
+                                  color: sevColor.withValues(alpha:0.4), width: 1),
                             ),
                             child: Text(severity,
                                 style: GoogleFonts.poppins(
@@ -3030,11 +3030,11 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color:
-                                const Color(0xFF1E3A8A).withOpacity(0.06),
+                                const Color(0xFF1E3A8A).withValues(alpha:0.06),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                                 color: const Color(0xFF1E3A8A)
-                                    .withOpacity(0.12)),
+                                    .withValues(alpha:0.12)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -3068,7 +3068,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: accent.withOpacity(0.4),
+                              color: accent.withValues(alpha:0.4),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -3148,10 +3148,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           padding:
                               const EdgeInsets.fromLTRB(6, 5, 10, 5),
                           decoration: BoxDecoration(
-                            color: badgeColor.withOpacity(0.07),
+                            color: badgeColor.withValues(alpha:0.07),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                                color: badgeColor.withOpacity(0.25),
+                                color: badgeColor.withValues(alpha:0.25),
                                 width: 1),
                           ),
                           child: Row(
@@ -3162,9 +3162,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                                 height: 28,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: badgeColor.withOpacity(0.15),
+                                  color: badgeColor.withValues(alpha:0.15),
                                   border: Border.all(
-                                      color: badgeColor.withOpacity(0.4),
+                                      color: badgeColor.withValues(alpha:0.4),
                                       width: 1.5),
                                 ),
                                 child: ClipOval(
@@ -3194,7 +3194,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                                         style: GoogleFonts.poppins(
                                             fontSize: 9,
                                             color:
-                                                badgeColor.withOpacity(0.7),
+                                                badgeColor.withValues(alpha:0.7),
                                             fontWeight: FontWeight.w500)),
                                 ],
                               ),
@@ -3316,7 +3316,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha:0.2),
                           borderRadius: BorderRadius.circular(8)),
                       child: const Icon(Icons.health_and_safety_outlined,
                           color: Colors.white, size: 20),
@@ -3351,10 +3351,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                         color: accent,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: Colors.white.withOpacity(0.4), width: 1.5),
+                            color: Colors.white.withValues(alpha:0.4), width: 1.5),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
+                            color: Colors.black.withValues(alpha:0.2),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -3579,7 +3579,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E3A8A).withOpacity(0.07),
+              color: const Color(0xFF1E3A8A).withValues(alpha:0.07),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, size: 14, color: const Color(0xFF1E3A8A)),
@@ -3615,7 +3615,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         _isAccidentVoteValid ? t('verif_popup_valid') : t('verif_popup_invalid');
 
     return Container(
-      color: Colors.black.withOpacity(0.65),
+      color: Colors.black.withValues(alpha:0.65),
       child: Center(
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.7, end: 1.0),
@@ -3629,9 +3629,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: primary.withOpacity(0.3), width: 2),
+              border: Border.all(color: primary.withValues(alpha:0.3), width: 2),
               boxShadow: [
-                BoxShadow(color: primary.withOpacity(0.25),
+                BoxShadow(color: primary.withValues(alpha:0.25),
                     blurRadius: 40, spreadRadius: 4, offset: const Offset(0, 12)),
               ],
             ),
@@ -3641,9 +3641,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 Container(
                   width: 72, height: 72,
                   decoration: BoxDecoration(
-                    color: primary.withOpacity(0.12),
+                    color: primary.withValues(alpha:0.12),
                     shape: BoxShape.circle,
-                    border: Border.all(color: primary.withOpacity(0.4), width: 2.5),
+                    border: Border.all(color: primary.withValues(alpha:0.4), width: 2.5),
                   ),
                   child: Icon(icon, color: primary, size: 38),
                 ),
@@ -3735,7 +3735,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: badgeColors.first.withOpacity(0.15),
+            color: badgeColors.first.withValues(alpha:0.15),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -3777,7 +3777,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: badgeColors.first.withOpacity(0.4),
+                  color: badgeColors.first.withValues(alpha:0.4),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -3832,7 +3832,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     boxShadow: _tabIndex == 0
                         ? [
                             BoxShadow(
-                              color: const Color(0xFF0EA5E9).withOpacity(0.3),
+                              color: const Color(0xFF0EA5E9).withValues(alpha:0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             )
@@ -3887,7 +3887,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     boxShadow: _tabIndex == 1
                         ? [
                             BoxShadow(
-                              color: const Color(0xFF0EA5E9).withOpacity(0.3),
+                              color: const Color(0xFF0EA5E9).withValues(alpha:0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             )
@@ -4076,12 +4076,12 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: canSwipe
-                  ? const Color(0xFF00C9E4).withOpacity(0.1)
+                  ? const Color(0xFF00C9E4).withValues(alpha:0.1)
                   : Colors.orange.shade50,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: canSwipe
-                    ? const Color(0xFF00C9E4).withOpacity(0.3)
+                    ? const Color(0xFF00C9E4).withValues(alpha:0.3)
                     : Colors.orange.shade200,
               ),
             ),
@@ -4160,9 +4160,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFFF59E0B).withOpacity(0.12),
+              color: const Color(0xFFF59E0B).withValues(alpha:0.12),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.5)),
+              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha:0.5)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -4189,9 +4189,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: timerColor.withOpacity(0.08),
+            color: timerColor.withValues(alpha:0.08),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: timerColor.withOpacity(0.3)),
+            border: Border.all(color: timerColor.withValues(alpha:0.3)),
           ),
           child: Column(children: [
             Row(
@@ -4220,7 +4220,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                             : 'Auto-valid after $_verifikasiDurasiHari days',
                         style: GoogleFonts.poppins(
                             fontSize: 9.5,
-                            color: timerColor.withOpacity(0.7)),
+                            color: timerColor.withValues(alpha:0.7)),
                       ),
                     ],
                   ),
@@ -4240,7 +4240,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 5,
-                backgroundColor: timerColor.withOpacity(0.12),
+                backgroundColor: timerColor.withValues(alpha:0.12),
                 valueColor: AlwaysStoppedAnimation<Color>(timerColor),
               ),
             ),
@@ -4267,7 +4267,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF4ADE80).withOpacity(0.1),
+                      color: const Color(0xFF4ADE80).withValues(alpha:0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.task_alt_rounded,
@@ -4316,10 +4316,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   width: 100,
                   height: 100,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00C9E4).withOpacity(0.08),
+                    color: const Color(0xFF00C9E4).withValues(alpha:0.08),
                     shape: BoxShape.circle,
                     border: Border.all(
-                        color: const Color(0xFF00C9E4).withOpacity(0.3),
+                        color: const Color(0xFF00C9E4).withValues(alpha:0.3),
                         width: 2),
                   ),
                   child: const Icon(Icons.how_to_vote_rounded,
@@ -4422,7 +4422,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                      color: const Color(0xFF00C9E4).withOpacity(0.4),
+                      color: const Color(0xFF00C9E4).withValues(alpha:0.4),
                       blurRadius: 20,
                       spreadRadius: 4)
                 ],
@@ -4605,10 +4605,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
+        border: Border.all(color: accent.withValues(alpha:0.25), width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: accent.withOpacity(0.08),
+              color: accent.withValues(alpha:0.08),
               blurRadius: 12,
               offset: const Offset(0, 4))
         ],
@@ -4693,10 +4693,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: accent.withOpacity(0.1),
+                        color: accent.withValues(alpha:0.1),
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: accent.withOpacity(0.3), width: 1.5),
+                            color: accent.withValues(alpha:0.3), width: 1.5),
                       ),
                       child: Icon(statusIcon, color: accent, size: 22),
                     ),
@@ -4714,7 +4714,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           Container(
               margin: const EdgeInsets.symmetric(horizontal: 12),
               height: 1,
-              color: accent.withOpacity(0.12)),
+              color: accent.withValues(alpha:0.12)),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
             child: Column(
@@ -4725,7 +4725,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     Row(children: [
                       Icon(Icons.how_to_vote_rounded,
                           size: 13,
-                          color: const Color(0xFF1E3A8A).withOpacity(0.7)),
+                          color: const Color(0xFF1E3A8A).withValues(alpha:0.7)),
                       const SizedBox(width: 5),
                       Text(t('vote_breakdown'),
                           style: GoogleFonts.poppins(
@@ -4738,13 +4738,13 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: isFinalized
-                            ? const Color(0xFF16A34A).withOpacity(0.1)
-                            : Colors.orange.withOpacity(0.1),
+                            ? const Color(0xFF16A34A).withValues(alpha:0.1)
+                            : Colors.orange.withValues(alpha:0.1),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isFinalized
-                              ? const Color(0xFF16A34A).withOpacity(0.3)
-                              : Colors.orange.withOpacity(0.3),
+                              ? const Color(0xFF16A34A).withValues(alpha:0.3)
+                              : Colors.orange.withValues(alpha:0.3),
                         ),
                       ),
                       child: Row(children: [
@@ -4800,7 +4800,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                       Container(
                           height: 8,
                           width: double.infinity,
-                          color: const Color(0xFFDC2626).withOpacity(0.18)),
+                          color: const Color(0xFFDC2626).withValues(alpha:0.18)),
                       FractionallySizedBox(
                         widthFactor: validRatio.clamp(0.0, 1.0),
                         child: Container(
@@ -4823,17 +4823,17 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
                         color: finalOutcome == null
-                            ? Colors.orange.withOpacity(0.07)
+                            ? Colors.orange.withValues(alpha:0.07)
                             : finalOutcome
-                                ? const Color(0xFF16A34A).withOpacity(0.07)
-                                : const Color(0xFFDC2626).withOpacity(0.07),
+                                ? const Color(0xFF16A34A).withValues(alpha:0.07)
+                                : const Color(0xFFDC2626).withValues(alpha:0.07),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: finalOutcome == null
-                              ? Colors.orange.withOpacity(0.2)
+                              ? Colors.orange.withValues(alpha:0.2)
                               : finalOutcome
-                                  ? const Color(0xFF16A34A).withOpacity(0.2)
-                                  : const Color(0xFFDC2626).withOpacity(0.2),
+                                  ? const Color(0xFF16A34A).withValues(alpha:0.2)
+                                  : const Color(0xFFDC2626).withValues(alpha:0.2),
                         ),
                       ),
                       child: Column(
@@ -4888,13 +4888,13 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                               horizontal: 10, vertical: 7),
                           decoration: BoxDecoration(
                             color: displayPoint >= 0
-                                ? const Color(0xFF1E3A8A).withOpacity(0.05)
-                                : const Color(0xFFDC2626).withOpacity(0.05),
+                                ? const Color(0xFF1E3A8A).withValues(alpha:0.05)
+                                : const Color(0xFFDC2626).withValues(alpha:0.05),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: displayPoint >= 0
-                                  ? const Color(0xFF1E3A8A).withOpacity(0.15)
-                                  : const Color(0xFFDC2626).withOpacity(0.15),
+                                  ? const Color(0xFF1E3A8A).withValues(alpha:0.15)
+                                  : const Color(0xFFDC2626).withValues(alpha:0.15),
                             ),
                           ),
                           child: Column(
@@ -4987,7 +4987,7 @@ class _ImageBox extends StatelessWidget {
               width: double.infinity,
               decoration: BoxDecoration(
                   color: Colors.grey.shade100,
-                  border: Border.all(color: color.withOpacity(0.3)),
+                  border: Border.all(color: color.withValues(alpha:0.3)),
                   borderRadius: BorderRadius.circular(14)),
               child: (url != null && url!.isNotEmpty)
                   ? Image.network(url!,
@@ -5024,15 +5024,15 @@ class _NoteCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.05),
+          color: color.withValues(alpha:0.05),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.2))),
+          border: Border.all(color: color.withValues(alpha:0.2))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label,
             style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: color.withOpacity(0.8))),
+                color: color.withValues(alpha:0.8))),
         const SizedBox(height: 4),
         Text((text != null && text!.isNotEmpty) ? text! : '-',
             style: GoogleFonts.poppins(
@@ -5146,12 +5146,12 @@ class _SwipeButtonState extends State<_SwipeButton>
           height: 54,
           decoration: BoxDecoration(
             color: widget.enabled
-                ? widget.color.withOpacity(0.08)
+                ? widget.color.withValues(alpha:0.08)
                 : Colors.grey.shade100,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: widget.enabled
-                  ? widget.color.withOpacity(0.4)
+                  ? widget.color.withValues(alpha:0.4)
                   : Colors.grey.shade300,
               width: 1.5,
             ),
@@ -5190,7 +5190,7 @@ class _SwipeButtonState extends State<_SwipeButton>
                     boxShadow: widget.enabled
                         ? [
                             BoxShadow(
-                                color: widget.color.withOpacity(0.4),
+                                color: widget.color.withValues(alpha:0.4),
                                 blurRadius: 8,
                                 offset: const Offset(0, 2))
                           ]
@@ -5305,9 +5305,9 @@ class _VotePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha:0.1),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withOpacity(0.3), width: 1)),
+          border: Border.all(color: color.withValues(alpha:0.3), width: 1)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 9, color: color),
         const SizedBox(width: 3),
