@@ -256,10 +256,10 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [scoreColor.withOpacity(0.12), scoreColor.withOpacity(0.04)],
+              colors: [scoreColor.withValues(alpha:0.12), scoreColor.withValues(alpha:0.04)],
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: scoreColor.withOpacity(0.35), width: 1.5),
+            border: Border.all(color: scoreColor.withValues(alpha:0.35), width: 1.5),
           ),
           child: Column(
             children: [
@@ -267,7 +267,7 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
                 Container(
                   width: 64, height: 64,
                   decoration: BoxDecoration(
-                      color: scoreColor.withOpacity(0.15), shape: BoxShape.circle),
+                      color: scoreColor.withValues(alpha:0.15), shape: BoxShape.circle),
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -425,11 +425,11 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: LinearGradient(colors: [
-                _green.withOpacity(0.08),
-                _primary.withOpacity(0.05),
+                _green.withValues(alpha:0.08),
+                _primary.withValues(alpha:0.05),
               ]),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _green.withOpacity(0.3)),
+              border: Border.all(color: _green.withValues(alpha:0.3)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -480,7 +480,7 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: roleColor.withOpacity(0.12),
+                          color: roleColor.withValues(alpha:0.12),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(roleLabel,
@@ -492,8 +492,8 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: isPos
-                              ? _green.withOpacity(0.12)
-                              : _red.withOpacity(0.12),
+                              ? _green.withValues(alpha:0.12)
+                              : _red.withValues(alpha:0.12),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(isPos ? '+$p' : '$p',
@@ -551,13 +551,13 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: is100
-                      ? _green.withOpacity(0.08)
-                      : _primary.withOpacity(0.07),
+                      ? _green.withValues(alpha:0.08)
+                      : _primary.withValues(alpha:0.07),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: is100
-                        ? _green.withOpacity(0.3)
-                        : _primary.withOpacity(0.2),
+                        ? _green.withValues(alpha:0.3)
+                        : _primary.withValues(alpha:0.2),
                   ),
                 ),
                 child: Row(children: [
@@ -584,7 +584,6 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
 
               // Pertanyaan
               ...answers.asMap().entries.map((e) {
-                final idx = e.key;
                 final ans = e.value;
                 final q = ans['Question'] as Map<String, dynamic>?;
                 final isYes = ans['jawaban'] == true;
@@ -601,13 +600,13 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isYes
-                          ? _green.withOpacity(0.35)
-                          : _red.withOpacity(0.35),
+                          ? _green.withValues(alpha:0.35)
+                          : _red.withValues(alpha:0.35),
                       width: 1.2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
+                          color: Colors.black.withValues(alpha:0.03),
                           blurRadius: 6,
                           offset: const Offset(0, 2)),
                     ],
@@ -624,8 +623,8 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
                               width: 24, height: 24,
                               decoration: BoxDecoration(
                                 color: isYes
-                                    ? _green.withOpacity(0.12)
-                                    : _red.withOpacity(0.1),
+                                    ? _green.withValues(alpha:0.12)
+                                    : _red.withValues(alpha:0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
@@ -670,9 +669,9 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
                               width: double.infinity,
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: _red.withOpacity(0.05),
+                                color: _red.withValues(alpha:0.05),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: _red.withOpacity(0.2)),
+                                border: Border.all(color: _red.withValues(alpha:0.2)),
                               ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -720,13 +719,13 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
                                       color: confirmed
-                                          ? _green.withOpacity(0.07)
-                                          : const Color(0xFF6366F1).withOpacity(0.05),
+                                          ? _green.withValues(alpha:0.07)
+                                          : const Color(0xFF6366F1).withValues(alpha:0.05),
                                       borderRadius: BorderRadius.circular(10),
                                       border: Border.all(
                                         color: confirmed
-                                            ? _green.withOpacity(0.3)
-                                            : const Color(0xFF6366F1).withOpacity(0.2),
+                                            ? _green.withValues(alpha:0.3)
+                                            : const Color(0xFF6366F1).withValues(alpha:0.2),
                                       ),
                                     ),
                                     child: Column(
@@ -772,7 +771,7 @@ class _AuditResultDetailScreenState extends State<AuditResultDetailScreen> {
                                           Container(
                                             padding: const EdgeInsets.all(8),
                                             decoration: BoxDecoration(
-                                              color: _green.withOpacity(0.08),
+                                              color: _green.withValues(alpha:0.08),
                                               borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: Column(
