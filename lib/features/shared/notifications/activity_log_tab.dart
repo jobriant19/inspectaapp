@@ -410,7 +410,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1E3A8A).withOpacity(0.3),
+              color: const Color(0xFF1E3A8A).withValues(alpha:0.3),
               blurRadius: 16,
               offset: const Offset(0, 6),
             )
@@ -556,11 +556,11 @@ class _ActivityLogTabState extends State<ActivityLogTab>
                         height: 72,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: const Color(0xFF00C9E4).withOpacity(0.08),
+                          color: const Color(0xFF00C9E4).withValues(alpha:0.08),
                         ),
                         child: Icon(Icons.history_rounded,
                             size: 36,
-                            color: const Color(0xFF00C9E4).withOpacity(0.5)),
+                            color: const Color(0xFF00C9E4).withValues(alpha:0.5)),
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -600,10 +600,10 @@ class _ActivityLogTabState extends State<ActivityLogTab>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.15)),
+        border: Border.all(color: color.withValues(alpha:0.15)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha:0.03),
               blurRadius: 8,
               offset: const Offset(0, 3))
         ],
@@ -614,7 +614,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
           height: 44,
           decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: color.withOpacity(0.1)),
+              color: color.withValues(alpha:0.1)),
           child: Icon(icon, color: color, size: 22),
         ),
         const SizedBox(width: 12),
@@ -642,7 +642,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
           padding:
               const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha:0.1),
               borderRadius: BorderRadius.circular(20)),
           child: Text(
             isPositive ? '+$poin' : '$poin',
