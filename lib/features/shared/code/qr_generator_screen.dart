@@ -129,7 +129,7 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
+                      color: Colors.grey.withValues(alpha:0.2),
                       spreadRadius: 2,
                       blurRadius: 8,
                       offset: const Offset(0, 4),
