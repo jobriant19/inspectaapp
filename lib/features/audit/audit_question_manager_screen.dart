@@ -396,9 +396,9 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: _C.primary.withOpacity(0.1),
+                            color: _C.primary.withValues(alpha:0.1),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _C.primary.withOpacity(0.4)),
+                            border: Border.all(color: _C.primary.withValues(alpha:0.4)),
                           ),
                           child: const Icon(Icons.add_rounded, color: _C.primary, size: 18),
                         ),
@@ -602,7 +602,7 @@ class _QuestionTabViewState extends State<_QuestionTabView>
               decoration: BoxDecoration(
                 color: _C.primaryLt,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.primary.withOpacity(0.3)),
+                border: Border.all(color: _C.primary.withValues(alpha:0.3)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -671,9 +671,9 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: _C.primary.withOpacity(0.1),
+                      color: _C.primary.withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _C.primary.withOpacity(0.4)),
+                      border: Border.all(color: _C.primary.withValues(alpha:0.4)),
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       const Icon(Icons.add_rounded, size: 13, color: _C.primary),
@@ -709,7 +709,7 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                     Container(
                       width: 24, height: 24,
                       decoration: BoxDecoration(
-                        color: isActive ? _C.primary.withOpacity(0.12) : Colors.grey.shade200,
+                        color: isActive ? _C.primary.withValues(alpha:0.12) : Colors.grey.shade200,
                         shape: BoxShape.circle,
                       ),
                       child: Center(
