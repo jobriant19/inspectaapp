@@ -149,7 +149,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1D72F3).withOpacity(0.35),
+              color: const Color(0xFF1D72F3).withValues(alpha:0.35),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -160,7 +160,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha:0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(Icons.support_agent,
@@ -184,7 +184,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                     getTxt('report_subtitle'),
                     style: TextStyle(
                         fontSize: 13,
-                        color: Colors.white.withOpacity(0.85)),
+                        color: Colors.white.withValues(alpha:0.85)),
                   ),
                 ],
               ),
@@ -304,7 +304,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha:0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 4))
           ],
@@ -384,7 +384,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFEFF6FF),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF1D72F3).withOpacity(0.3)),
+                    border: Border.all(color: const Color(0xFF1D72F3).withValues(alpha:0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,7 +448,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha:0.1),
           borderRadius: BorderRadius.circular(20)),
       child: Text(text,
           style: TextStyle(
@@ -476,7 +476,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         ),
         backgroundColor: Colors.white,
         elevation: 1,
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha:0.08),
         iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
       ),
