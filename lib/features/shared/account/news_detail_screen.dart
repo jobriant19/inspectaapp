@@ -95,7 +95,7 @@ class NewsDetailScreen extends StatelessWidget {
           icon: Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha:0.2),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.arrow_back_ios_new,
@@ -117,7 +117,7 @@ class NewsDetailScreen extends StatelessWidget {
           child: Container(
             height: 3,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.25),
+              color: Colors.white.withValues(alpha:0.25),
             ),
           ),
         ),
@@ -142,13 +142,13 @@ class NewsDetailScreen extends StatelessWidget {
                     errorBuilder: (_, __, ___) => Container(
                       height: 200,
                       decoration: BoxDecoration(
-                        color: _primary.withOpacity(0.12),
+                        color: _primary.withValues(alpha:0.12),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Center(
                         child: Icon(
                           _typeIcon,
-                          color: _primary.withOpacity(0.3),
+                          color: _primary.withValues(alpha:0.3),
                           size: 60,
                         ),
                       ),
@@ -158,7 +158,7 @@ class NewsDetailScreen extends StatelessWidget {
                       return Container(
                         height: 200,
                         decoration: BoxDecoration(
-                          color: _primary.withOpacity(0.08),
+                          color: _primary.withValues(alpha:0.08),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Center(
@@ -178,10 +178,10 @@ class NewsDetailScreen extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                    color: _primary.withOpacity(0.14), width: 1.5),
+                    color: _primary.withValues(alpha:0.14), width: 1.5),
                 boxShadow: [
                   BoxShadow(
-                      color: _primary.withOpacity(0.09),
+                      color: _primary.withValues(alpha:0.09),
                       blurRadius: 20,
                       offset: const Offset(0, 6)),
                 ],
@@ -262,7 +262,7 @@ class NewsDetailScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                _primary.withOpacity(0.3),
+                                _primary.withValues(alpha:0.3),
                                 Colors.transparent,
                               ],
                             ),
