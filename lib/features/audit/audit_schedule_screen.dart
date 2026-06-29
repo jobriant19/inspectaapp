@@ -193,7 +193,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
         .limit(1);
 
     if ((rows as List).isEmpty) return null;
-    final r          = rows.first as Map<String, dynamic>;
+    final r          = rows.first;
     final auditorData = r['User_Auditor'] as Map<String, dynamic>?;
     final jabatanData = auditorData?['jabatan'] as Map<String, dynamic>?;
 
@@ -579,7 +579,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                  color: _SC.primary.withOpacity(0.5),
+                                  color: _SC.primary.withValues(alpha:0.5),
                                   width: 1.5),
                             ),
                             child: Row(
@@ -710,9 +710,9 @@ class _SelectedAuditorChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF8B5CF6).withOpacity(0.06),
+        color: const Color(0xFF8B5CF6).withValues(alpha:0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF8B5CF6).withOpacity(0.3)),
+        border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha:0.3)),
       ),
       child: Row(
         children: [
@@ -768,7 +768,7 @@ class _AuditorTile extends StatelessWidget {
             const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF8B5CF6).withOpacity(0.08)
+              ? const Color(0xFF8B5CF6).withValues(alpha:0.08)
               : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
