@@ -69,27 +69,44 @@ class PreventifMaintenanceScreen extends StatefulWidget {
 class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen> {
   final _db = Supabase.instance.client;
   String? _currentUserId;
+  int? _currentUserJabatan;
 
-  // ── State chart & filter ──
+  // CHART & FILTER STATE
   bool _chartExpanded  = false;
   _PmRange _range      = _PmRange.threeMonths;
   String? _filterBagian;
 
-  // ── State data ──
+  // DATA STATE
   bool _loadingTable    = false;
   bool _loadingRecords  = false;
   List<_PmKasieRow> _tableRows  = [];
   List<String>      _bulanLabels = [];
-  List<Map<String, dynamic>> _myRecords = []; // semua record milik user
+  List<Map<String, dynamic>> _myRecords = [];
 
   @override
   void initState() {
     super.initState();
     _currentUserId = _db.auth.currentUser?.id;
+    _loadUserJabatan();
     _loadAll();
   }
 
-  // ── i18n ──
+  Future<void> _loadUserJabatan() async {
+    if (_currentUserId == null) return;
+    try {
+      final res = await _db
+          .from('User')
+          .select('id_jabatan')
+          .eq('id_user', _currentUserId!)
+          .single();
+      if (mounted) {
+        setState(() => _currentUserJabatan = res['id_jabatan'] as int?);
+      }
+    } catch (e) {
+      debugPrint('PM loadUserJabatan error: $e');
+    }
+  }
+
   String _t(String k) => _i18n[widget.lang]?[k] ?? _i18n['ID']![k] ?? k;
   static const _i18n = {
     'ID': {
@@ -154,9 +171,6 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     },
   };
 
-  // ────────────────────────────────────────────────────────────
-  // FETCH
-  // ────────────────────────────────────────────────────────────
   Future<void> _loadAll() async {
     await Future.wait([_loadTableData(), _loadMyRecords()]);
   }
@@ -177,7 +191,6 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
       final locale = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
       _bulanLabels = months.map((m) => DateFormat('MMM yy', locale).format(m)).toList();
 
-      // Ambil semua kasie (id_jabatan = 3)
       dynamic kasieQuery = _db.from('User').select('id_user, nama, bagian_kasie').eq('id_jabatan', 3);
       if (_filterBagian != null) kasieQuery = kasieQuery.eq('bagian_kasie', _filterBagian!);
       final kasieRes  = List<Map<String, dynamic>>.from(await kasieQuery);
@@ -186,7 +199,6 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
       final start = months.first;
       final end   = DateTime(months.last.year, months.last.month + 1, 0, 23, 59, 59);
 
-      // Ambil semua PM dalam range
       final pmRes = List<Map<String, dynamic>>.from(
         await _db.from('preventif_maintenance')
             .select('id_user, bagian, created_at')
@@ -194,7 +206,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
             .lte('created_at', end.toIso8601String()),
       );
 
-      // Buat mapping: bagian → set bulan index yang ada PM
+      // MAPPING: SECTION → SET MONTH INDEX
       final Map<String, Set<int>> bagianMonthSet = {};
       for (final row in pmRes) {
         final bagian    = (row['bagian'] as String?)?.trim() ?? '';
@@ -274,7 +286,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 24, offset: const Offset(0, 8))]),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.12), blurRadius: 24, offset: const Offset(0, 8))]),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Container(padding: const EdgeInsets.all(16), decoration: const BoxDecoration(color: Color(0xFFFFF1F2), shape: BoxShape.circle),
               child: const Icon(CupertinoIcons.trash_fill, color: Color(0xFFEF4444), size: 32)),
@@ -293,7 +305,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
               Expanded(child: GestureDetector(onTap: () => Navigator.pop(context, true),
                 child: Container(padding: const EdgeInsets.symmetric(vertical: 13),
                   decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFEF4444), Color(0xFFDC2626)]), borderRadius: BorderRadius.circular(14),
-                    boxShadow: [BoxShadow(color: const Color(0xFFEF4444).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))]),
+                    boxShadow: [BoxShadow(color: const Color(0xFFEF4444).withValues(alpha:0.3), blurRadius: 8, offset: const Offset(0, 3))]),
                   child: Center(child: Text(_t('delete'), style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white)))))),
             ]),
           ]),
@@ -310,9 +322,6 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     } catch (e) { debugPrint('PM delete error: $e'); }
   }
 
-  // ────────────────────────────────────────────────────────────
-  // PICKERS
-  // ────────────────────────────────────────────────────────────
   void _showRangePicker() async {
     await showDialog(context: context, builder: (ctx) => Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -397,11 +406,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     ));
   }
 
-  // ────────────────────────────────────────────────────────────
-  // SHOW DETAIL POPUP (klik nama kasie di tabel)
-  // ────────────────────────────────────────────────────────────
   void _showKasieDetail(String kasieId, String kasieNama, String bagian) async {
-    // Ambil semua record PM dari bagian tersebut
     final months = _getMonths();
     final start  = months.first;
     final end    = DateTime(months.last.year, months.last.month + 1, 0, 23, 59, 59);
@@ -458,7 +463,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                       return Container(
                         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: _PC.border, width: 1.2),
-                          boxShadow: [BoxShadow(color: _PC.primary.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2))]),
+                          boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 2))]),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           if (r['file_pm'] != null && r['file_name_pm'] != null)
                             GestureDetector(
@@ -519,11 +524,8 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     } catch (e) { debugPrint('PM kasie detail error: $e'); }
   }
 
-  // ────────────────────────────────────────────────────────────
-  // WIDGETS
-  // ────────────────────────────────────────────────────────────
-
   Widget _buildAddButton() {
+    if (_currentUserJabatan != 3) return const SizedBox.shrink();
     return GestureDetector(
       onTap: () async {
         final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => PmFormScreen(lang: widget.lang)));
@@ -534,15 +536,15 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
         decoration: BoxDecoration(
           gradient: const LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: const Color(0xFF2563EB).withOpacity(0.4), blurRadius: 16, offset: const Offset(0, 6))]),
+          boxShadow: [BoxShadow(color: const Color(0xFF2563EB).withValues(alpha:0.4), blurRadius: 16, offset: const Offset(0, 6))]),
         child: Row(children: [
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white.withOpacity(0.25), borderRadius: BorderRadius.circular(14)),
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.25), borderRadius: BorderRadius.circular(14)),
             child: const Icon(Icons.engineering_rounded, color: Colors.white, size: 30)),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_t('add'), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
             const SizedBox(height: 4),
-            Text(_t('add_sub'), style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withOpacity(0.85))),
+            Text(_t('add_sub'), style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha:0.85))),
           ])),
           const Icon(CupertinoIcons.chevron_right, color: Colors.white, size: 18),
         ]),
@@ -564,8 +566,8 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _PC.primary.withOpacity(0.45), width: 1.2),
-          boxShadow: [BoxShadow(color: _PC.primary.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 2))]),
+          border: Border.all(color: _PC.primary.withValues(alpha:0.45), width: 1.2),
+          boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.07), blurRadius: 6, offset: const Offset(0, 2))]),
         child: Row(children: [
           const Icon(Icons.bar_chart_rounded, size: 16, color: _PC.primary),
           const SizedBox(width: 8),
@@ -596,7 +598,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _PC.primaryLight, width: 1.2),
-        boxShadow: [BoxShadow(color: _PC.primary.withOpacity(0.07), blurRadius: 10, offset: const Offset(0, 3))]),
+        boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.07), blurRadius: 10, offset: const Offset(0, 3))]),
       child: LayoutBuilder(builder: (_, constraints) {
         final barAreaW = constraints.maxWidth - labelW - 8;
         final List<double> tickX = xTicks.map((v) => xMax > 0 ? (v / xMax) * barAreaW : 0.0).toList();
@@ -654,7 +656,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
         decoration: BoxDecoration(
           color: active ? _PC.primary : Colors.white, borderRadius: BorderRadius.circular(10),
           border: Border.all(color: active ? _PC.primary : _PC.primaryLight, width: 1.5),
-          boxShadow: [BoxShadow(color: _PC.primary.withOpacity(0.12), blurRadius: 6, offset: const Offset(0, 2))]),
+          boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))]),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 14, color: active ? Colors.white : _PC.primary),
           const SizedBox(width: 6),
@@ -692,7 +694,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _PC.primaryLight, width: 1.5),
-        boxShadow: [BoxShadow(color: _PC.primary.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))]),
+        boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 3))]),
       child: Column(children: [
         // HEADER
         Container(
@@ -715,22 +717,28 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
               // BAGIAN
               Expanded(flex: flexSection, child: Text(row.bagian.isEmpty ? '-' : row.bagian,
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: row.total > 0 ? _PC.textPrimary : const Color(0xFFCBD5E1)), overflow: TextOverflow.ellipsis)),
-              // KASIE — klik → popup
+              // KASIE — CLICK → POPUP (id_jabatan = 1)
               Expanded(flex: flexKasie, child: GestureDetector(
-                onTap: () => _showKasieDetail(row.kasieId, row.kasieNama, row.bagian),
+                onTap: _currentUserJabatan == 1
+                    ? () => _showKasieDetail(row.kasieId, row.kasieNama, row.bagian)
+                    : null,
                 child: Text(row.kasieNama,
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                    color: row.total > 0 ? _PC.primary : const Color(0xFFCBD5E1),
-                    decoration: row.total > 0 ? TextDecoration.underline : TextDecoration.none),
+                    color: row.total > 0
+                        ? (_currentUserJabatan == 1 ? _PC.primary : _PC.textPrimary)
+                        : const Color(0xFFCBD5E1),
+                    decoration: row.total > 0 && _currentUserJabatan == 1
+                        ? TextDecoration.underline
+                        : TextDecoration.none),
                   overflow: TextOverflow.ellipsis),
               )),
-              // PER BULAN
+              // PER MONTH
               ...List.generate(_bulanLabels.length, (mi) {
                 final val = row.bulanan[mi] ?? 0;
                 final isNull = val == 0;
                 return Expanded(flex: flexMonth, child: Center(child: Container(
                   width: 26, height: 26,
-                  decoration: BoxDecoration(color: !isNull ? _PC.barColor.withOpacity(0.15) : Colors.transparent, borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: !isNull ? _PC.barColor.withValues(alpha:0.15) : Colors.transparent, borderRadius: BorderRadius.circular(6)),
                   child: Center(child: Text(isNull ? '?' : '$val',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: !isNull ? _PC.barColor : const Color(0xFFCBD5E1)))))));
               }),
@@ -774,7 +782,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     final locale = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: _PC.barColor.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+        Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: _PC.barColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
           child: const Icon(Icons.list_alt_rounded, size: 14, color: _PC.barColor)),
         const SizedBox(width: 8),
         Text(_t('my_records'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _PC.barColor)),
@@ -787,7 +795,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           margin: const EdgeInsets.only(bottom: 14),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18),
             border: Border.all(color: _PC.border, width: 1.4),
-            boxShadow: [BoxShadow(color: _PC.primary.withOpacity(0.07), blurRadius: 12, offset: const Offset(0, 4))]),
+            boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.07), blurRadius: 12, offset: const Offset(0, 4))]),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (r['file_pm'] != null && r['file_name_pm'] != null)
               GestureDetector(
@@ -834,21 +842,21 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                 const SizedBox(width: 4),
                 Text(dateStr, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
                 const Spacer(),
-                // TOMBOL EDIT
+                // EDIT BUTTON
                 GestureDetector(
                   onTap: () async {
                     final result = await Navigator.push(context, MaterialPageRoute(
                         builder: (_) => PmFormScreen(lang: widget.lang, existingData: r)));
                     if (result == true) _loadAll();
                   },
-                  child: Container(width: 32, height: 32, decoration: BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.circular(10), border: Border.all(color: _PC.primary.withOpacity(0.25), width: 1)),
+                  child: Container(width: 32, height: 32, decoration: BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.circular(10), border: Border.all(color: _PC.primary.withValues(alpha:0.25), width: 1)),
                     child: const Icon(CupertinoIcons.pencil_ellipsis_rectangle, size: 15, color: _PC.primary)),
                 ),
                 const SizedBox(width: 8),
-                // TOMBOL DELETE
+                // DELETE BUTTON
                 GestureDetector(
                   onTap: () => _deleteRecord(r['id_pm'].toString()),
-                  child: Container(width: 32, height: 32, decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.25), width: 1)),
+                  child: Container(width: 32, height: 32, decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFEF4444).withValues(alpha:0.25), width: 1)),
                     child: const Icon(CupertinoIcons.trash, size: 15, color: Color(0xFFEF4444))),
                 ),
               ]),
@@ -871,9 +879,6 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     );
   }
 
-  // ────────────────────────────────────────────────────────────
-  // BUILD
-  // ────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -893,25 +898,25 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // 1. TOMBOL ADD
+            // ADD BUTTON
             _buildAddButton(),
             const SizedBox(height: 20),
 
-            // 2. CHART TOGGLE
+            // CHART TOGGLE
             _buildChartToggle(),
             const SizedBox(height: 8),
 
-            // 3. CHART (collapsible)
+            // COLLAPSIBLE CHART
             AnimatedSize(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut,
               child: _chartExpanded ? Padding(padding: const EdgeInsets.only(bottom: 8), child: _buildChart()) : const SizedBox.shrink()),
 
-            // 4. FILTER BAR
+            // FILTER BAR
             _buildFilterBar(),
             const SizedBox(height: 14),
 
-            // 5. TABEL KASIE
+            // KASIE TABLE
             Row(children: [
-              Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: _PC.barColor.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+              Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: _PC.barColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.engineering_outlined, size: 14, color: _PC.barColor)),
               const SizedBox(width: 8),
               Text('${_t('title')} – ${_t('kasie')}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _PC.barColor)),
@@ -920,7 +925,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
             _buildTable(),
             const SizedBox(height: 24),
 
-            // 6. CARD MILIK USER
+            // RECORD USER CARD
             _buildMyRecords(),
           ]),
         ),
@@ -929,9 +934,6 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
   }
 }
 
-// ============================================================
-// FORM SCREEN (CREATE & EDIT) — FILE UPLOAD VERSION
-// ============================================================
 class PmFormScreen extends StatefulWidget {
   final String lang;
   final Map<String, dynamic>? existingData;
@@ -949,10 +951,9 @@ class _PmFormScreenState extends State<PmFormScreen> {
   final _descCtrl  = TextEditingController();
   String? _selectedBagian;
 
-  // ── File state (ganti dari XFile/image ke PlatformFile) ──
-  PlatformFile? _pickedFile;          // file baru yang dipilih
-  String? _existingFileUrl;           // URL file lama (edit mode)
-  String? _existingFileName;          // nama file lama (edit mode)
+  PlatformFile? _pickedFile;
+  String? _existingFileUrl;
+  String? _existingFileName;
 
   Map<String, String> get t => _txt[widget.lang] ?? _txt['ID']!;
   static const _txt = {
@@ -1055,7 +1056,6 @@ class _PmFormScreenState extends State<PmFormScreen> {
       margin: const EdgeInsets.all(16),
     ));
 
-  // ── Helper: ikon berdasar ekstensi file ──
   IconData _fileIcon(String? name) {
     final ext = (name ?? '').split('.').last.toLowerCase();
     switch (ext) {
@@ -1089,19 +1089,17 @@ class _PmFormScreenState extends State<PmFormScreen> {
     }
   }
 
-  // ── Pilih file menggunakan file_picker ──
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
       allowMultiple: false,
-      withData: true,   // wajib untuk web & upload bytes
+      withData: true,
     );
     if (result != null && result.files.isNotEmpty) {
       setState(() => _pickedFile = result.files.first);
     }
   }
 
-  // ── Upload file ke Supabase Storage bucket pm_files ──
   Future<String?> _uploadFile(PlatformFile file, String userId) async {
     final sb        = Supabase.instance.client;
     final bytes     = file.bytes;
@@ -1128,7 +1126,6 @@ class _PmFormScreenState extends State<PmFormScreen> {
       final user = sb.auth.currentUser;
       if (user == null) throw Exception('Not logged in');
 
-      // Upload file baru jika ada
       String? fileUrl  = _existingFileUrl;
       String? fileName = _existingFileName;
 
@@ -1186,14 +1183,14 @@ class _PmFormScreenState extends State<PmFormScreen> {
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-            // ── JUDUL ──
+            // TITLE
             _sectionCard(children: [
               _label(t['judul']!, required: true),
               _textField(_judulCtrl, t['judul_hint']!, CupertinoIcons.text_cursor),
             ]),
             const SizedBox(height: 16),
 
-            // ── BAGIAN ──
+            // SECTION
             _sectionCard(children: [
               _label(t['bagian']!, required: true),
               Container(
@@ -1236,26 +1233,26 @@ class _PmFormScreenState extends State<PmFormScreen> {
             ]),
             const SizedBox(height: 16),
 
-            // ── FILE LAMPIRAN ──
+            // FILE
             _sectionCard(children: [
               _label(t['file']!, required: false),
               _fileWidget(),
             ]),
             const SizedBox(height: 16),
 
-            // ── DESKRIPSI ──
+            // DESCRIPTION
             _sectionCard(children: [
               _label(t['desc']!, required: false),
               _textField(_descCtrl, t['desc_hint']!, CupertinoIcons.doc_text, maxLines: 4),
             ]),
             const SizedBox(height: 24),
 
-            // ── SUBMIT ──
+            // SUBMIT
             Container(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)]),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: const Color(0xFF2563EB).withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))]),
+                boxShadow: [BoxShadow(color: const Color(0xFF2563EB).withValues(alpha:0.4), blurRadius: 12, offset: const Offset(0, 4))]),
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _submit,
                 style: ElevatedButton.styleFrom(
@@ -1270,10 +1267,10 @@ class _PmFormScreenState extends State<PmFormScreen> {
           ]),
         ),
 
-        // ── SAVING OVERLAY ──
+        // SAVING OVERLAY
         if (_isSaving)
           Container(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withValues(alpha:0.4),
             child: Center(child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 40),
               padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
@@ -1287,14 +1284,11 @@ class _PmFormScreenState extends State<PmFormScreen> {
     );
   }
 
-  // ── Widget pemilih & preview file ──
   Widget _fileWidget() {
-    // Tentukan nama tampilan: file baru diprioritaskan, fallback ke file lama
     final displayName = _pickedFile?.name ?? _existingFileName;
     final hasFile     = displayName != null;
 
     if (!hasFile) {
-      // ── Belum ada file: tampilkan tombol pilih ──
       return GestureDetector(
         onTap: _pickFile,
         child: Container(
@@ -1317,7 +1311,6 @@ class _PmFormScreenState extends State<PmFormScreen> {
       );
     }
 
-    // ── Sudah ada file: tampilkan preview + tombol ganti/hapus ──
     final fileColor = _fileColor(displayName);
     final fileIcon  = _fileIcon(displayName);
 
@@ -1328,15 +1321,15 @@ class _PmFormScreenState extends State<PmFormScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _PC.border, width: 1.5)),
       child: Row(children: [
-        // Ikon file
+        // FILE ICON
         Container(
           width: 48, height: 48,
           decoration: BoxDecoration(
-            color: fileColor.withOpacity(0.12),
+            color: fileColor.withValues(alpha:0.12),
             borderRadius: BorderRadius.circular(12)),
           child: Icon(fileIcon, color: fileColor, size: 24)),
         const SizedBox(width: 12),
-        // Nama file
+        // FILE NAME
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(displayName, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)), maxLines: 2, overflow: TextOverflow.ellipsis),
           if (_pickedFile?.size != null) ...[
@@ -1345,20 +1338,20 @@ class _PmFormScreenState extends State<PmFormScreen> {
           ],
         ])),
         const SizedBox(width: 8),
-        // Tombol ganti
+        // CHANGE BUTTON
         GestureDetector(
           onTap: _pickFile,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.circular(8), border: Border.all(color: _PC.primary.withOpacity(0.25))),
+            decoration: BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.circular(8), border: Border.all(color: _PC.primary.withValues(alpha:0.25))),
             child: Text(t['change_file']!, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: _PC.primary)))),
         const SizedBox(width: 6),
-        // Tombol hapus
+        // DELETE BUTTON
         GestureDetector(
           onTap: () => setState(() { _pickedFile = null; _existingFileUrl = null; _existingFileName = null; }),
           child: Container(
             padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.25))),
+            decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFEF4444).withValues(alpha:0.25))),
             child: const Icon(CupertinoIcons.trash, size: 14, color: Color(0xFFEF4444)))),
       ]),
     );
@@ -1375,7 +1368,7 @@ class _PmFormScreenState extends State<PmFormScreen> {
     decoration: BoxDecoration(
       color: Colors.white, borderRadius: BorderRadius.circular(16),
       border: Border.all(color: _PC.border, width: 1),
-      boxShadow: [BoxShadow(color: _PC.primary.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 2))]),
+      boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.05), blurRadius: 12, offset: const Offset(0, 2))]),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children));
 
   Widget _label(String label, {bool required = false}) => Padding(
@@ -1398,9 +1391,6 @@ class _PmFormScreenState extends State<PmFormScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16)));
 }
 
-// ============================================================
-// CUSTOM PAINTER — HORIZONTAL BAR BIRU
-// ============================================================
 class _PmBarPainter extends CustomPainter {
   final List<double> tickX;
   final double barWidth;
@@ -1412,7 +1402,7 @@ class _PmBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()..color = const Color(0xFFE2E8F0)..strokeWidth = 1;
-    for (int i = 1; i < tickX.length; i++) canvas.drawLine(Offset(tickX[i], 0), Offset(tickX[i], size.height), gridPaint);
+    for (int i = 1; i < tickX.length; i++) { canvas.drawLine(Offset(tickX[i], 0), Offset(tickX[i], size.height), gridPaint); }
     if (!isZero && barWidth > 0) {
       canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, barVPad, barWidth, size.height - barVPad * 2), const Radius.circular(4)),
         Paint()..color = _PC.barColor);
