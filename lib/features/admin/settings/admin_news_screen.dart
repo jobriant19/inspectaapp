@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -201,19 +200,24 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     };
 
     try {
+      dynamic savedId;
+
       if (existing == null) {
         final insertResult = await Supabase.instance.client
             .from('latest_news')
             .insert(payload)
             .select();
         debugPrint('INSERT result: $insertResult');
+        savedId = (insertResult as List?)?.isNotEmpty == true
+            ? insertResult.first['id']
+            : null;
       } else {
-        final recordId = existing['id'];
-        debugPrint('UPDATE id=$recordId payload=$payload');
+        savedId = existing['id'];
+        debugPrint('UPDATE id=$savedId payload=$payload');
         final updateResult = await Supabase.instance.client
             .from('latest_news')
             .update(payload)
-            .eq('id', recordId)
+            .eq('id', savedId)
             .select();
         debugPrint('UPDATE result: $updateResult');
       }
@@ -231,7 +235,8 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         );
       }
 
-      await _clearSeenNewsCache();
+      // Hapus seen record news ini agar semua user melihat popup lagi
+      if (savedId != null) await _clearSeenNewsCache(newsId: savedId);
 
       // Reload list
       _load();
@@ -269,14 +274,15 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     }
   }
 
-  // ── Hapus cache seen news agar popup muncul kembali setelah add/edit ──
-  Future<void> _clearSeenNewsCache() async {
+  Future<void> _clearSeenNewsCache({required dynamic newsId}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('seen_news_ids');
-      debugPrint('🗑️ Seen news cache cleared — popup will show again');
+      await Supabase.instance.client
+          .from('news_seen')
+          .delete()
+          .eq('id_news', newsId);
+      debugPrint('🗑️ news_seen cleared for news id=$newsId');
     } catch (e) {
-      debugPrint('Error clearing seen news cache: $e');
+      debugPrint('Error clearing news_seen: $e');
     }
   }
 

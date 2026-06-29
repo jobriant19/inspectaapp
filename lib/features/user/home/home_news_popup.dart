@@ -1,39 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/account/news_detail_screen.dart';
 
 class HomeNewsPopup {
-  // ── Key SharedPreferences ──
-  static const _kSeenNewsKey = 'seen_news_ids';
+  static final _sb = Supabase.instance.client;
 
-  // ── Ambil set ID yang sudah dilihat ──
-  static Future<Set<String>> _getSeenIds() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_kSeenNewsKey) ?? [];
-    return list.toSet();
-  }
-
-  // ── Tandai semua item sebagai sudah dilihat ──
-  static Future<void> _markAsSeen(List<Map<String, dynamic>> items) async {
-    final prefs = await SharedPreferences.getInstance();
-    final existing = (prefs.getStringList(_kSeenNewsKey) ?? []).toSet();
-    for (final item in items) {
-      existing.add(item['id'].toString());
+  static Future<Set<String>> _getSeenIds(String userId) async {
+    try {
+      final res = await _sb
+          .from('news_seen')
+          .select('id_news')
+          .eq('id_user', userId);
+      return (res as List)
+          .map((r) => r['id_news'].toString())
+          .toSet();
+    } catch (e) {
+      debugPrint('HomeNewsPopup _getSeenIds error: $e');
+      return {};
     }
-    await prefs.setStringList(_kSeenNewsKey, existing.toList());
   }
 
-  // ── Dipanggil dari admin setelah add/edit news ──
-  // Hapus ID yang baru ditambah/diedit dari seen list
-  // agar popup muncul kembali untuk user
-  static Future<void> markNewsAsNew(dynamic newsId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final existing = (prefs.getStringList(_kSeenNewsKey) ?? []).toSet();
-    existing.remove(newsId.toString());
-    await prefs.setStringList(_kSeenNewsKey, existing.toList());
-    debugPrint('🆕 News $newsId marked as new (removed from seen list)');
+  static Future<void> _markAsSeen(
+      String userId, List<Map<String, dynamic>> items) async {
+    try {
+      final rows = items
+          .map((item) => {
+                'id_user': userId,
+                'id_news': item['id'],
+              })
+          .toList();
+      await _sb.from('news_seen').upsert(rows,
+          onConflict: 'id_user,id_news', ignoreDuplicates: true);
+      debugPrint(
+          '✅ Marked as seen for user $userId: ${items.map((e) => e['id']).toList()}');
+    } catch (e) {
+      debugPrint('HomeNewsPopup _markAsSeen error: $e');
+    }
+  }
+
+  static Future<void> markNewsAsUnseen(dynamic newsId) async {
+    try {
+      await _sb.from('news_seen').delete().eq('id_news', newsId);
+      debugPrint('🗑️ news_seen cleared for news id=$newsId');
+    } catch (e) {
+      debugPrint('HomeNewsPopup markNewsAsUnseen error: $e');
+    }
   }
 
   static Future<void> showIfNeeded(
@@ -41,9 +53,12 @@ class HomeNewsPopup {
     required String lang,
   }) async {
     try {
+      final userId = _sb.auth.currentUser?.id;
+      if (userId == null) return;
+
       final now = DateTime.now();
 
-      final res = await Supabase.instance.client
+      final res = await _sb
           .from('latest_news')
           .select()
           .order('published_at', ascending: false)
@@ -52,7 +67,6 @@ class HomeNewsPopup {
       final List<Map<String, dynamic>> allItems =
           List<Map<String, dynamic>>.from(res);
 
-      // ── Filter berdasarkan durasi tayang ──
       final List<Map<String, dynamic>> activeItems = allItems.where((item) {
         try {
           final rawDate = item['published_at'];
@@ -80,26 +94,28 @@ class HomeNewsPopup {
 
       if (activeItems.isEmpty) return;
 
-      // ── Filter hanya yang belum dilihat ──
-      final seenIds = await _getSeenIds();
+      final seenIds = await _getSeenIds(userId);
       final List<Map<String, dynamic>> unseenItems = activeItems
           .where((item) => !seenIds.contains(item['id'].toString()))
           .toList();
 
       debugPrint(
-        'HomeNewsPopup: total=${allItems.length}, active=${activeItems.length}, '
-        'unseen=${unseenItems.length}',
+        'HomeNewsPopup [$userId]: total=${allItems.length}, '
+        'active=${activeItems.length}, unseen=${unseenItems.length}',
       );
 
-      // Jika semua sudah dilihat → tidak tampilkan popup
       if (unseenItems.isEmpty) return;
+      if (!context.mounted) return;
+
+      await _markAsSeen(userId, unseenItems);
+
       if (!context.mounted) return;
 
       showGeneralDialog(
         context: context,
         barrierDismissible: true,
         barrierLabel: 'news_popup',
-        barrierColor: Colors.black.withValues(alpha:0.55),
+        barrierColor: Colors.black.withValues(alpha: 0.55),
         transitionDuration: const Duration(milliseconds: 350),
         transitionBuilder: (_, anim, __, child) {
           return FadeTransition(
@@ -115,10 +131,6 @@ class HomeNewsPopup {
         pageBuilder: (ctx, _, __) => _HomeNewsPopupWidget(
           items: unseenItems,
           lang: lang,
-          onDismiss: () async {
-            // Tandai semua item yang ditampilkan sebagai sudah dilihat
-            await _markAsSeen(unseenItems);
-          },
         ),
       );
     } catch (e) {
@@ -130,12 +142,10 @@ class HomeNewsPopup {
 class _HomeNewsPopupWidget extends StatefulWidget {
   final List<Map<String, dynamic>> items;
   final String lang;
-  final Future<void> Function() onDismiss;
 
   const _HomeNewsPopupWidget({
     required this.items,
     required this.lang,
-    required this.onDismiss,
   });
 
   @override
@@ -147,7 +157,7 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
   int _currentPage = 0;
 
   static const _updateColor = Color(0xFF1D72F3);
-  static const _maintColor  = Color(0xFFF59E0B);
+  static const _maintColor = Color(0xFFF59E0B);
 
   @override
   void initState() {
@@ -192,15 +202,11 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
         : _t('Pemberitahuan', 'Notice', '通知');
   }
 
-  // ── Tutup + tandai sudah dilihat ──
-  Future<void> _dismiss() async {
-    await widget.onDismiss();
+  void _dismiss() {
     if (mounted) Navigator.of(context).pop();
   }
 
-  void _openDetail(Map<String, dynamic> item) async {
-    await widget.onDismiss();
-    if (!mounted) return;
+  void _openDetail(Map<String, dynamic> item) {
     Navigator.of(context).pop();
     Navigator.push(
       context,
@@ -221,50 +227,40 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
     final currentItem = widget.items[_currentPage];
     final double popupMaxH = MediaQuery.of(context).size.height * 0.62;
 
-    // Intercept barrier tap → tandai sudah dilihat
-    return WillPopScope(
-      onWillPop: () async {
-        await widget.onDismiss();
-        return true;
-      },
-      child: Center(
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            constraints: BoxConstraints(
-              maxHeight: popupMaxH,
-              maxWidth: 420,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: _color(currentItem).withValues(alpha:0.20),
-                  blurRadius: 36,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 12),
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          constraints: BoxConstraints(maxHeight: popupMaxH, maxWidth: 420),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: _color(currentItem).withValues(alpha: 0.20),
+                blurRadius: 36,
+                spreadRadius: 2,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildHeader(currentItem),
+              SizedBox(
+                height: _calcContentHeight(context),
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: widget.items.length,
+                  onPageChanged: (i) => setState(() => _currentPage = i),
+                  itemBuilder: (_, index) =>
+                      _buildPageContent(widget.items[index]),
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildHeader(currentItem),
-                SizedBox(
-                  height: _calcContentHeight(context),
-                  child: PageView.builder(
-                    controller: _pageController,
-                    itemCount: widget.items.length,
-                    onPageChanged: (i) => setState(() => _currentPage = i),
-                    itemBuilder: (_, index) =>
-                        _buildPageContent(widget.items[index]),
-                  ),
-                ),
-                _buildFooter(currentItem),
-              ],
-            ),
+              ),
+              _buildFooter(currentItem),
+            ],
           ),
         ),
       ),
@@ -278,20 +274,16 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
       decoration: BoxDecoration(
-        color: isUpdate
-            ? const Color(0xFFEFF6FF)
-            : const Color(0xFFFFFBEB),
+        color: isUpdate ? const Color(0xFFEFF6FF) : const Color(0xFFFFFBEB),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border(
-          bottom: BorderSide(color: primary.withValues(alpha:0.1)),
-        ),
+        border: Border(bottom: BorderSide(color: primary.withValues(alpha: 0.1))),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
-              color: primary.withValues(alpha:0.13),
+              color: primary.withValues(alpha: 0.13),
               borderRadius: BorderRadius.circular(9),
             ),
             child: Icon(_icon(item), color: primary, size: 16),
@@ -348,10 +340,10 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
                   gaplessPlayback: true,
                   errorBuilder: (_, __, ___) => Container(
                     height: 160,
-                    color: primary.withValues(alpha:0.07),
+                    color: primary.withValues(alpha: 0.07),
                     child: Center(
                       child: Icon(_icon(item),
-                          color: primary.withValues(alpha:0.25), size: 40),
+                          color: primary.withValues(alpha: 0.25), size: 40),
                     ),
                   ),
                 ),
@@ -362,7 +354,7 @@ class _HomeNewsPopupWidgetState extends State<_HomeNewsPopupWidget> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha:0.48),
+                      color: Colors.black.withValues(alpha: 0.48),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(

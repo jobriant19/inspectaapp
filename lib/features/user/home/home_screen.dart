@@ -2552,10 +2552,10 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
       ]);
 
       final Set<String> picIds = {};
-      for (final r in picResults[0] as List) picIds.add(r['id_lokasi'].toString());
-      for (final r in picResults[1] as List) picIds.add(r['id_unit'].toString());
-      for (final r in picResults[2] as List) picIds.add(r['id_subunit'].toString());
-      for (final r in picResults[3] as List) picIds.add(r['id_area'].toString());
+      for (final r in picResults[0] as List) { picIds.add(r['id_lokasi'].toString()); }
+      for (final r in picResults[1] as List) { picIds.add(r['id_unit'].toString()); }
+      for (final r in picResults[2] as List) { picIds.add(r['id_subunit'].toString()); }
+      for (final r in picResults[3] as List) { picIds.add(r['id_area'].toString()); }
 
       if (mounted) setState(() => _userPicIds = picIds);
 
