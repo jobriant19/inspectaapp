@@ -87,10 +87,10 @@ class _AuditNotifTabState extends State<AuditNotifTab>
       ]);
 
       final List<Map<String, String>> picRefs = [];
-      for (final r in picLevels[0] as List) picRefs.add({'level': 'lokasi', 'id': r['id_lokasi'].toString()});
-      for (final r in picLevels[1] as List) picRefs.add({'level': 'unit', 'id': r['id_unit'].toString()});
-      for (final r in picLevels[2] as List) picRefs.add({'level': 'subunit', 'id': r['id_subunit'].toString()});
-      for (final r in picLevels[3] as List) picRefs.add({'level': 'area', 'id': r['id_area'].toString()});
+      for (final r in picLevels[0] as List) { picRefs.add({'level': 'lokasi', 'id': r['id_lokasi'].toString()}); }
+      for (final r in picLevels[1] as List) { picRefs.add({'level': 'unit', 'id': r['id_unit'].toString()}); }
+      for (final r in picLevels[2] as List) { picRefs.add({'level': 'subunit', 'id': r['id_subunit'].toString()}); }
+      for (final r in picLevels[3] as List) { picRefs.add({'level': 'area', 'id': r['id_area'].toString()}); }
 
       for (final ref in picRefs) {
         final picRows = await _supabase
@@ -259,7 +259,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             decoration: BoxDecoration(
               color: _blueLt,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _blue.withOpacity(0.3)),
+              border: Border.all(color: _blue.withValues(alpha:0.3)),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<int>(
@@ -284,7 +284,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             decoration: BoxDecoration(
               color: _blueLt,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _blue.withOpacity(0.3)),
+              border: Border.all(color: _blue.withValues(alpha:0.3)),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<int>(
@@ -313,7 +313,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _blue.withOpacity(0.2), width: 1.5),
+              border: Border.all(color: _blue.withValues(alpha:0.2), width: 1.5),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -384,7 +384,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _blue.withOpacity(0.25)),
+                  border: Border.all(color: _blue.withValues(alpha:0.25)),
                 ),
                 child: Row(children: [
                   Icon(Icons.search, color: _blue, size: 18),
@@ -457,9 +457,9 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                             width: 80, height: 80,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: _blue.withOpacity(0.08),
+                              color: _blue.withValues(alpha:0.08),
                             ),
-                            child: Icon(Icons.fact_check_outlined, size: 36, color: _blue.withOpacity(0.4)),
+                            child: Icon(Icons.fact_check_outlined, size: 36, color: _blue.withValues(alpha:0.4)),
                           ),
                           const SizedBox(height: 16),
                           Text(widget.t('empty_audit'),
@@ -541,13 +541,13 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: showScore
-                ? scoreColor.withOpacity(0.25)
-                : const Color(0xFFF59E0B).withOpacity(0.4),
+                ? scoreColor.withValues(alpha:0.25)
+                : const Color(0xFFF59E0B).withValues(alpha:0.4),
             width: 1.2,
           ),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha:0.04),
                 blurRadius: 10,
                 offset: const Offset(0, 3)),
           ],
@@ -564,8 +564,8 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                     width: 54, height: 54,
                     decoration: BoxDecoration(
                       color: showScore
-                          ? effectiveScoreColor.withOpacity(0.12)
-                          : const Color(0xFFF59E0B).withOpacity(0.1),
+                          ? effectiveScoreColor.withValues(alpha:0.12)
+                          : const Color(0xFFF59E0B).withValues(alpha:0.1),
                       shape: BoxShape.circle,
                     ),
                     child: showScore
@@ -617,8 +617,8 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: isPic
-                                  ? const Color(0xFF10B981).withOpacity(0.12)
-                                  : _blue.withOpacity(0.10),
+                                  ? const Color(0xFF10B981).withValues(alpha:0.12)
+                                  : _blue.withValues(alpha:0.10),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -633,7 +633,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: _blue.withOpacity(0.08),
+                              color: _blue.withValues(alpha:0.08),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(levelType.toUpperCase(),
@@ -677,8 +677,8 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
                                 color: totalPoin > 0
-                                    ? const Color(0xFF10B981).withOpacity(0.12)
-                                    : const Color(0xFFEF4444).withOpacity(0.12),
+                                    ? const Color(0xFF10B981).withValues(alpha:0.12)
+                                    : const Color(0xFFEF4444).withValues(alpha:0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -697,10 +697,10 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF59E0B).withOpacity(0.15),
+                                color: const Color(0xFFF59E0B).withValues(alpha:0.15),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                    color: const Color(0xFFF59E0B).withOpacity(0.4)),
+                                    color: const Color(0xFFF59E0B).withValues(alpha:0.4)),
                               ),
                               child: Text(
                                 _t('Perlu Perbaikan', 'Needs Fix', '需要修复'),
@@ -737,11 +737,11 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(colors: [
-                      const Color(0xFF10B981).withOpacity(0.08),
-                      _blue.withOpacity(0.05),
+                      const Color(0xFF10B981).withValues(alpha:0.08),
+                      _blue.withValues(alpha:0.05),
                     ]),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha:0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,8 +772,8 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                 color: isPos
-                                    ? const Color(0xFF10B981).withOpacity(0.12)
-                                    : const Color(0xFFEF4444).withOpacity(0.12),
+                                    ? const Color(0xFF10B981).withValues(alpha:0.12)
+                                    : const Color(0xFFEF4444).withValues(alpha:0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(isPos ? '+$p' : '$p',
@@ -882,13 +882,13 @@ class _AuditNotifTabState extends State<AuditNotifTab>
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isFullyConfirmed
-            ? const Color(0xFF10B981).withOpacity(0.05)
+            ? const Color(0xFF10B981).withValues(alpha:0.05)
             : const Color(0xFFFFF7ED),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isFullyConfirmed
-              ? const Color(0xFF10B981).withOpacity(0.3)
-              : const Color(0xFFEF4444).withOpacity(0.2),
+              ? const Color(0xFF10B981).withValues(alpha:0.3)
+              : const Color(0xFFEF4444).withValues(alpha:0.2),
         ),
       ),
       child: Column(
@@ -902,8 +902,8 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                 width: 20, height: 20,
                 decoration: BoxDecoration(
                   color: isFullyConfirmed
-                      ? const Color(0xFF10B981).withOpacity(0.1)
-                      : const Color(0xFFEF4444).withOpacity(0.1),
+                      ? const Color(0xFF10B981).withValues(alpha:0.1)
+                      : const Color(0xFFEF4444).withValues(alpha:0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -948,7 +948,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withOpacity(0.05),
+                color: const Color(0xFFEF4444).withValues(alpha:0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(catatan,
@@ -977,13 +977,13 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: confirmed
-                      ? const Color(0xFF10B981).withOpacity(0.07)
-                      : const Color(0xFF6366F1).withOpacity(0.06),
+                      ? const Color(0xFF10B981).withValues(alpha:0.07)
+                      : const Color(0xFF6366F1).withValues(alpha:0.06),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: confirmed
-                        ? const Color(0xFF10B981).withOpacity(0.3)
-                        : const Color(0xFF6366F1).withOpacity(0.2),
+                        ? const Color(0xFF10B981).withValues(alpha:0.3)
+                        : const Color(0xFF6366F1).withValues(alpha:0.2),
                   ),
                 ),
                 child: Column(
@@ -1018,7 +1018,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                           child: Container(
                             padding: const EdgeInsets.all(5),
                             decoration: BoxDecoration(
-                              color: _blue.withOpacity(0.08),
+                              color: _blue.withValues(alpha:0.08),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Icon(Icons.edit_rounded,
@@ -1031,7 +1031,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                           child: Container(
                             padding: const EdgeInsets.all(5),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444).withOpacity(0.08),
+                              color: const Color(0xFFEF4444).withValues(alpha:0.08),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Icon(Icons.delete_outline_rounded,
@@ -1145,10 +1145,10 @@ class _AuditNotifTabState extends State<AuditNotifTab>
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withOpacity(0.06),
+                color: const Color(0xFFF59E0B).withValues(alpha:0.06),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                    color: const Color(0xFFF59E0B).withOpacity(0.25)),
+                    color: const Color(0xFFF59E0B).withValues(alpha:0.25)),
               ),
               child: Row(children: [
                 const Icon(Icons.hourglass_top_rounded,
@@ -1214,7 +1214,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withOpacity(0.1),
+                      color: const Color(0xFF6366F1).withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.reply_rounded,
@@ -1282,8 +1282,8 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: photoUrl == null
-                            ? const Color(0xFFEF4444).withOpacity(0.4)
-                            : const Color(0xFF6366F1).withOpacity(0.5),
+                            ? const Color(0xFFEF4444).withValues(alpha:0.4)
+                            : const Color(0xFF6366F1).withValues(alpha:0.5),
                       ),
                     ),
                     child: photoUrl == null
@@ -1324,7 +1324,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                                 child: Container(
                                   padding: const EdgeInsets.all(5),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.5),
+                                    color: Colors.black.withValues(alpha:0.5),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(Icons.close_rounded,
@@ -1509,7 +1509,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: _blue.withOpacity(0.1),
+                      color: _blue.withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(Icons.edit_rounded, color: _blue, size: 20),
@@ -1561,8 +1561,8 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: photoUrl == null
-                            ? const Color(0xFFEF4444).withOpacity(0.4)
-                            : const Color(0xFF6366F1).withOpacity(0.5),
+                            ? const Color(0xFFEF4444).withValues(alpha:0.4)
+                            : const Color(0xFF6366F1).withValues(alpha:0.5),
                       ),
                     ),
                     child: photoUrl == null
@@ -1597,7 +1597,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                                 child: Container(
                                   padding: const EdgeInsets.all(5),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.5),
+                                    color: Colors.black.withValues(alpha:0.5),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(Icons.close_rounded,
@@ -1821,7 +1821,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: _blue.withOpacity(0.1),
+                      color: _blue.withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(Icons.reply_rounded, color: _blue, size: 20),
@@ -1870,7 +1870,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _blue.withOpacity(0.3)),
+                      border: Border.all(color: _blue.withValues(alpha:0.3)),
                     ),
                     child: photoUrl == null
                         ? Padding(
@@ -1903,7 +1903,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                                 child: Container(
                                   padding: const EdgeInsets.all(5),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.5),
+                                    color: Colors.black.withValues(alpha:0.5),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(Icons.close_rounded,
@@ -2320,10 +2320,10 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           margin: const EdgeInsets.fromLTRB(14, 6, 14, 0),
           decoration: BoxDecoration(
             color: is100
-                ? const Color(0xFF10B981).withOpacity(0.04)
+                ? const Color(0xFF10B981).withValues(alpha:0.04)
                 : const Color(0xFFFFF7ED),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: temaColor.withOpacity(0.2)),
+            border: Border.all(color: temaColor.withValues(alpha:0.2)),
           ),
           child: Column(
             children: [
