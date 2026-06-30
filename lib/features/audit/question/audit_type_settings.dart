@@ -90,7 +90,7 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
         final t = data['responseData']?['translatedText']?.toString() ?? '';
         if (t.isEmpty ||
             t.toUpperCase().startsWith('MYMEMORY WARNING') ||
-            t.toUpperCase().startsWith('PLEASE')) return text;
+            t.toUpperCase().startsWith('PLEASE')) { return text; }
         return t;
       }
       return text;
