@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const List<String> kPmBagianList = [
@@ -31,7 +32,10 @@ class _PmFormScreenState extends State<PmFormScreen> {
 
   final _judulCtrl = TextEditingController();
   final _descCtrl  = TextEditingController();
+  final _alasanCtrl = TextEditingController();
   String? _selectedBagian;
+  DateTime _tanggalPm = DateTime.now();
+  bool get _isLate => _tanggalPm.day > 10;
 
   PlatformFile? _pickedFile;
   String? _existingFileUrl;
@@ -62,6 +66,11 @@ class _PmFormScreenState extends State<PmFormScreen> {
       'fail'         : 'Gagal menyimpan laporan',
       'saving'       : 'Menyimpan...',
       'cancel'       : 'Batal',
+      'tanggal_pm'      : 'Tanggal Laporan PM',
+      'status_terlambat': 'Terlambat',
+      'alasan_terlambat': 'Alasan Keterlambatan',
+      'alasan_hint'     : 'Jelaskan alasan laporan terlambat...',
+      'err_alasan'      : 'Alasan keterlambatan wajib diisi!',
     },
     'EN': {
       'create_title' : 'Create PM Report',
@@ -86,6 +95,11 @@ class _PmFormScreenState extends State<PmFormScreen> {
       'fail'         : 'Failed to save',
       'saving'       : 'Saving...',
       'cancel'       : 'Cancel',
+      'tanggal_pm'      : 'PM Report Date',
+      'status_terlambat': 'Late',
+      'alasan_terlambat': 'Reason for Delay',
+      'alasan_hint'     : 'Explain why this report is late...',
+      'err_alasan'      : 'Reason for delay is required!',
     },
     'ZH': {
       'create_title' : '创建PM报告',
@@ -110,6 +124,11 @@ class _PmFormScreenState extends State<PmFormScreen> {
       'fail'         : '保存失败',
       'saving'       : '保存中...',
       'cancel'       : '取消',
+      'tanggal_pm'      : 'PM报告日期',
+      'status_terlambat': '迟到',
+      'alasan_terlambat': '延迟原因',
+      'alasan_hint'     : '说明延迟报告的原因...',
+      'err_alasan'      : '延迟原因为必填项！',
     },
   };
 
@@ -123,6 +142,12 @@ class _PmFormScreenState extends State<PmFormScreen> {
       _selectedBagian   = d['bagian'];
       _existingFileUrl  = d['file_pm'];
       _existingFileName = d['file_name_pm'];
+      final tglRaw = d['tanggal_pm'];
+      if (tglRaw != null) {
+        final parsed = DateTime.tryParse(tglRaw.toString());
+        if (parsed != null) _tanggalPm = parsed;
+      }
+      _alasanCtrl.text = d['alasan_terlambat'] ?? '';
     }
   }
 
@@ -130,7 +155,21 @@ class _PmFormScreenState extends State<PmFormScreen> {
   void dispose() {
     _judulCtrl.dispose();
     _descCtrl.dispose();
+    _alasanCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickTanggalPm() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _tanggalPm,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(colorScheme: const ColorScheme.light(primary: _PC.primary)),
+        child: child!),
+    );
+    if (picked != null) setState(() => _tanggalPm = picked);
   }
 
   void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(
@@ -202,6 +241,7 @@ class _PmFormScreenState extends State<PmFormScreen> {
   Future<void> _submit() async {
     if (_judulCtrl.text.trim().isEmpty) return _showError(t['err_judul']!);
     if (_selectedBagian == null)        return _showError(t['err_bagian']!);
+    if (_isLate && _alasanCtrl.text.trim().isEmpty) return _showError(t['err_alasan']!);
     setState(() => _isSaving = true);
 
     try {
@@ -223,7 +263,8 @@ class _PmFormScreenState extends State<PmFormScreen> {
         'deskripsi_pm' : _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         'file_pm'      : fileUrl,
         'file_name_pm' : fileName,
-        'tanggal_pm'   : DateTime.now().toIso8601String().split('T').first,
+        'tanggal_pm'      : DateFormat('yyyy-MM-dd').format(_tanggalPm),
+        'alasan_terlambat': _isLate ? _alasanCtrl.text.trim() : null,
       };
 
       if (_isEdit) {
@@ -441,6 +482,43 @@ class _PmFormScreenState extends State<PmFormScreen> {
                       ]),
                     ),
                   ),
+                ]),
+                const SizedBox(height: 16),
+
+                // TANGGAL LAPORAN PM
+                _sectionCard(children: [
+                  _label(t['tanggal_pm']!, required: true),
+                  GestureDetector(
+                    onTap: _pickTanggalPm,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _isLate ? const Color(0xFFEF4444) : _PC.primary, width: 1.5)),
+                      child: Row(children: [
+                        Icon(Icons.calendar_today_rounded, size: 16, color: _isLate ? const Color(0xFFEF4444) : _PC.primary),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(
+                          DateFormat('dd MMMM yyyy').format(_tanggalPm),
+                          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
+                        if (_isLate)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(8)),
+                            child: Text(t['status_terlambat']!,
+                              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFFEF4444)))),
+                        const SizedBox(width: 8),
+                        Icon(CupertinoIcons.chevron_down, size: 15, color: _isLate ? const Color(0xFFEF4444) : _PC.primary),
+                      ]),
+                    ),
+                  ),
+                  if (_isLate) ...[
+                    const SizedBox(height: 12),
+                    _label(t['alasan_terlambat']!, required: true),
+                    _textField(_alasanCtrl, t['alasan_hint']!, CupertinoIcons.exclamationmark_bubble, maxLines: 3),
+                  ],
                 ]),
                 const SizedBox(height: 16),
 

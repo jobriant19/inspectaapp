@@ -26,7 +26,7 @@ class _PC {
   static const textSec      = Color(0xFF3730A3);
 }
 
-enum _PmRange { thisMonth, threeMonths, sixMonths }
+enum _PmRange { thisMonth, threeMonths, sixMonths, oneYear, custom }
 
 extension _PmRangeExt on _PmRange {
   String label(String lang) {
@@ -34,6 +34,8 @@ extension _PmRangeExt on _PmRange {
       case _PmRange.thisMonth:    return lang == 'EN' ? 'This Month'  : lang == 'ZH' ? '本月'  : 'Bulan Ini';
       case _PmRange.threeMonths:  return lang == 'EN' ? '3 Months'    : lang == 'ZH' ? '3个月' : '3 Bulan';
       case _PmRange.sixMonths:    return lang == 'EN' ? '6 Months'    : lang == 'ZH' ? '6个月' : '6 Bulan';
+      case _PmRange.oneYear:      return lang == 'EN' ? '1 Year'      : lang == 'ZH' ? '1年'   : '1 Tahun';
+      case _PmRange.custom:       return lang == 'EN' ? 'Custom'      : lang == 'ZH' ? '自定义' : 'Kustom';
     }
   }
   int get monthCount {
@@ -41,6 +43,22 @@ extension _PmRangeExt on _PmRange {
       case _PmRange.thisMonth:   return 1;
       case _PmRange.threeMonths: return 3;
       case _PmRange.sixMonths:   return 6;
+      case _PmRange.oneYear:     return 12;
+      case _PmRange.custom:      return 12; // di-override dinamis oleh _customStart/_customEnd
+    }
+  }
+}
+
+enum _PmStatus { none, onTime, late }
+enum _PmLateFilter { all, onTime, late, notReported }
+
+extension _PmLateFilterExt on _PmLateFilter {
+  String label(String lang) {
+    switch (this) {
+      case _PmLateFilter.all:         return lang == 'EN' ? 'All Status'   : lang == 'ZH' ? '全部状态' : 'Semua Status';
+      case _PmLateFilter.onTime:      return lang == 'EN' ? 'On Time'      : lang == 'ZH' ? '准时'    : 'Tepat Waktu';
+      case _PmLateFilter.late:        return lang == 'EN' ? 'Late'         : lang == 'ZH' ? '迟到'    : 'Terlambat';
+      case _PmLateFilter.notReported: return lang == 'EN' ? 'Not Reported' : lang == 'ZH' ? '未报告'  : 'Tidak Lapor';
     }
   }
 }
@@ -49,14 +67,18 @@ class _PmKasieRow {
   final String kasieId;
   final String kasieNama;
   final String bagian;
-  final Map<int, int> bulanan;
+  final Map<int, _PmStatus> bulanan;
+  final Map<int, String?> alasan;
   final int total;
+  final int lateCount;
   const _PmKasieRow({
     required this.kasieId,
     required this.kasieNama,
     required this.bagian,
     required this.bulanan,
+    required this.alasan,
     required this.total,
+    required this.lateCount,
   });
 }
 
@@ -77,11 +99,15 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
   bool _chartExpanded  = false;
   _PmRange _range      = _PmRange.threeMonths;
   String? _filterBagian;
+  _PmLateFilter _lateFilter = _PmLateFilter.all;
+  DateTime? _customStart; 
+  DateTime? _customEnd;
 
   // DATA STATE
   bool _loadingTable    = false;
   bool _loadingRecords  = false;
   List<_PmKasieRow> _tableRows  = [];
+  // ignore: unused_field
   List<String>      _bulanLabels = [];
   List<Map<String, dynamic>> _myRecords = [];
 
@@ -178,6 +204,16 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
   }
 
   List<DateTime> _getMonths() {
+    if (_range == _PmRange.custom && _customStart != null && _customEnd != null) {
+      final List<DateTime> months = [];
+      DateTime cursor = DateTime(_customStart!.year, _customStart!.month, 1);
+      final last = DateTime(_customEnd!.year, _customEnd!.month, 1);
+      while (!cursor.isAfter(last) && months.length < 12) {
+        months.add(cursor);
+        cursor = DateTime(cursor.year, cursor.month + 1, 1);
+      }
+      return months;
+    }
     final now   = DateTime.now();
     final count = _range.monthCount;
     return List.generate(count, (i) {
@@ -199,40 +235,62 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
       if (kasieRes.isEmpty) { setState(() { _tableRows = []; _loadingTable = false; }); return; }
 
       final start = months.first;
-      final end   = DateTime(months.last.year, months.last.month + 1, 0, 23, 59, 59);
+      final end   = DateTime(months.last.year, months.last.month + 1, 0);
 
+      // PERIODE SEKARANG BERBASIS tanggal_pm (BUKAN created_at)
       final pmRes = List<Map<String, dynamic>>.from(
         await _db.from('preventif_maintenance')
-            .select('id_user, bagian, created_at')
-            .gte('created_at', start.toIso8601String())
-            .lte('created_at', end.toIso8601String()),
+            .select('id_user, bagian, tanggal_pm, alasan_terlambat')
+            .gte('tanggal_pm', DateFormat('yyyy-MM-dd').format(start))
+            .lte('tanggal_pm', DateFormat('yyyy-MM-dd').format(end)),
       );
 
-      // MAPPING: SECTION → SET MONTH INDEX
-      final Map<String, Set<int>> bagianMonthSet = {};
+      // MAPPING: BAGIAN -> INDEX BULAN -> STATUS / ALASAN
+      final Map<String, Map<int, _PmStatus>> bagianMonthStatus = {};
+      final Map<String, Map<int, String?>>  bagianMonthAlasan  = {};
       for (final row in pmRes) {
-        final bagian    = (row['bagian'] as String?)?.trim() ?? '';
+        final bagian = (row['bagian'] as String?)?.trim() ?? '';
         if (bagian.isEmpty) continue;
-        final createdAt = DateTime.tryParse(row['created_at']?.toString() ?? '');
-        if (createdAt == null) continue;
+        final tgl = DateTime.tryParse(row['tanggal_pm']?.toString() ?? '');
+        if (tgl == null) continue;
         for (int i = 0; i < months.length; i++) {
           final m = months[i];
-          if (createdAt.year == m.year && createdAt.month == m.month) {
-            bagianMonthSet.putIfAbsent(bagian, () => {}).add(i);
+          if (tgl.year == m.year && tgl.month == m.month) {
+            final isLate = tgl.day > 10; // LAPOR DI ATAS TANGGAL 10 = TERLAMBAT
+            final statusMap = bagianMonthStatus.putIfAbsent(bagian, () => {});
+            final alasanMap = bagianMonthAlasan.putIfAbsent(bagian, () => {});
+            if (statusMap[i] != _PmStatus.late) {
+              statusMap[i] = isLate ? _PmStatus.late : _PmStatus.onTime;
+              if (isLate) alasanMap[i] = row['alasan_terlambat']?.toString();
+            }
             break;
           }
         }
       }
 
-      final rows = kasieRes.map((k) {
+      var rows = kasieRes.map((k) {
         final kasieId   = k['id_user']?.toString() ?? '';
         final kasieNama = k['nama']?.toString() ?? '-';
         final bagian    = (k['bagian_kasie'] as String?)?.trim() ?? '';
-        final monthSet  = bagianMonthSet[bagian] ?? {};
-        final bulanan   = <int, int>{for (int i = 0; i < months.length; i++) i: monthSet.contains(i) ? 1 : 0};
-        return _PmKasieRow(kasieId: kasieId, kasieNama: kasieNama, bagian: bagian, bulanan: bulanan, total: monthSet.length);
-      }).toList()
-        ..sort((a, b) => b.total.compareTo(a.total));
+        final statusMap = bagianMonthStatus[bagian] ?? {};
+        final alasanMap = bagianMonthAlasan[bagian] ?? {};
+        final bulanan   = <int, _PmStatus>{ for (int i = 0; i < months.length; i++) i: statusMap[i] ?? _PmStatus.none };
+        final alasan    = <int, String?>{ for (int i = 0; i < months.length; i++) i: alasanMap[i] };
+        final total     = bulanan.values.where((s) => s != _PmStatus.none).length;
+        final lateCount = bulanan.values.where((s) => s == _PmStatus.late).length;
+        return _PmKasieRow(kasieId: kasieId, kasieNama: kasieNama, bagian: bagian, bulanan: bulanan, alasan: alasan, total: total, lateCount: lateCount);
+      }).toList();
+
+      // FILTER STATUS LAPORAN (BERLAKU UNTUK CHART & TABLE)
+      if (_lateFilter == _PmLateFilter.late) {
+        rows = rows.where((r) => r.lateCount > 0).toList();
+      } else if (_lateFilter == _PmLateFilter.onTime) {
+        rows = rows.where((r) => r.bulanan.values.any((s) => s == _PmStatus.onTime)).toList();
+      } else if (_lateFilter == _PmLateFilter.notReported) {
+        rows = rows.where((r) => r.bulanan.values.any((s) => s == _PmStatus.none)).toList();
+      }
+
+      rows.sort((a, b) => b.total.compareTo(a.total));
 
       setState(() { _tableRows = rows; _loadingTable = false; });
     } catch (e) {
@@ -342,7 +400,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
             ]),
           ),
           const SizedBox(height: 8),
-          ..._PmRange.values.map((r) {
+          ..._PmRange.values.where((r) => r != _PmRange.custom).map((r) {
             final sel = _range == r;
             return GestureDetector(onTap: () { Navigator.pop(ctx); setState(() => _range = r); _loadTableData(); },
               child: Container(
@@ -358,10 +416,113 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                 ]),
               ));
           }),
+          GestureDetector(
+            onTap: () { Navigator.pop(ctx); _showCustomRangePicker(); },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: _range == _PmRange.custom ? _PC.primaryLight : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _range == _PmRange.custom ? _PC.primary : const Color(0xFFE2E8F0), width: _range == _PmRange.custom ? 1.8 : 1)),
+              child: Row(children: [
+                const Icon(Icons.edit_calendar_rounded, size: 16, color: _PC.primary),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  _range == _PmRange.custom && _customStart != null && _customEnd != null
+                      ? '${DateFormat('MMM yyyy').format(_customStart!)} – ${DateFormat('MMM yyyy').format(_customEnd!)}'
+                      : (widget.lang == 'EN' ? 'Custom (Start – End)' : widget.lang == 'ZH' ? '自定义（开始-结束）' : 'Kustom (Mulai – Selesai)'),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _range == _PmRange.custom ? _PC.primaryDark : const Color(0xFF1E293B)))),
+                if (_range == _PmRange.custom) const Icon(Icons.check_circle_rounded, color: _PC.primary, size: 20),
+              ]),
+            ),
+          ),
           const SizedBox(height: 12),
         ]),
       ),
     ));
+  }
+
+  void _showCustomRangePicker() async {
+    final now = DateTime.now();
+    DateTime tempStart = _customStart ?? DateTime(now.year, now.month, 1);
+    DateTime tempEnd   = _customEnd   ?? DateTime(now.year, now.month, 1);
+
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      Widget monthYearPicker(String title, DateTime value, ValueChanged<DateTime> onChanged) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0xFFF8FAFF), borderRadius: BorderRadius.circular(12), border: Border.all(color: _PC.border)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _PC.textSec)),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: DropdownButton<int>(
+                isExpanded: true, value: value.month, underline: const SizedBox.shrink(),
+                items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(value: m,
+                  child: Text(DateFormat('MMMM').format(DateTime(2024, m, 1)), style: const TextStyle(fontSize: 13)))).toList(),
+                onChanged: (m) { if (m != null) onChanged(DateTime(value.year, m, 1)); },
+              )),
+              const SizedBox(width: 8),
+              Expanded(child: DropdownButton<int>(
+                isExpanded: true, value: value.year, underline: const SizedBox.shrink(),
+                items: List.generate(6, (i) => now.year - 4 + i).map((y) => DropdownMenuItem(value: y,
+                  child: Text('$y', style: const TextStyle(fontSize: 13)))).toList(),
+                onChanged: (y) { if (y != null) onChanged(DateTime(y, value.month, 1)); },
+              )),
+            ]),
+          ]),
+        );
+      }
+
+      final monthsDiff = (tempEnd.year - tempStart.year) * 12 + (tempEnd.month - tempStart.month);
+      final isValid = monthsDiff >= 0 && monthsDiff < 12;
+
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+              decoration: const BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              child: Row(children: [
+                const Icon(Icons.edit_calendar_rounded, color: _PC.primary, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(widget.lang == 'EN' ? 'Custom Period' : widget.lang == 'ZH' ? '自定义期间' : 'Periode Kustom',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _PC.textPrimary))),
+                IconButton(icon: const Icon(Icons.close, size: 18, color: _PC.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            monthYearPicker(widget.lang == 'EN' ? 'Start' : widget.lang == 'ZH' ? '开始' : 'Mulai', tempStart, (d) => setLocal(() => tempStart = d)),
+            monthYearPicker(widget.lang == 'EN' ? 'End' : widget.lang == 'ZH' ? '结束' : 'Selesai', tempEnd, (d) => setLocal(() => tempEnd = d)),
+            if (!isValid)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  widget.lang == 'EN' ? 'Range must be between 0–12 months' : widget.lang == 'ZH' ? '范围必须在0-12个月之间' : 'Rentang maksimal 12 bulan',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFFEF4444))),
+              ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(width: double.infinity, child: ElevatedButton(
+                onPressed: isValid ? () {
+                  Navigator.pop(ctx);
+                  setState(() { _range = _PmRange.custom; _customStart = tempStart; _customEnd = tempEnd; });
+                  _loadTableData();
+                } : null,
+                style: ElevatedButton.styleFrom(backgroundColor: _PC.primary, foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: Text(widget.lang == 'EN' ? 'Apply' : widget.lang == 'ZH' ? '应用' : 'Terapkan'),
+              )),
+            ),
+          ]),
+        ),
+      );
+    }));
   }
 
   void _showBagianPicker() async {
@@ -582,15 +743,21 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     );
   }
 
+  Widget _legendDot(Color color, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+    const SizedBox(width: 4),
+    Text(label, style: const TextStyle(fontSize: 9, color: Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
+  ]);
+
   Widget _buildChart() {
     if (_loadingTable) {
       return Shimmer.fromColors(baseColor: Colors.grey[200]!, highlightColor: Colors.grey[50]!,
         child: Container(height: 200, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))));
     }
-    final filtered = _filterBagian != null ? _tableRows.where((r) => r.bagian == _filterBagian).toList() : _tableRows;
+    final filtered = _tableRows; // SUDAH DIFILTER (bagian + status) DI _loadTableData
     if (filtered.isEmpty) return _emptyBox();
 
-    final xMax = _range.monthCount;
+    final xMax = _getMonths().length;
     final xTicks = List.generate(xMax + 1, (i) => i);
     const double labelW = 72.0;
     const double barH   = 22.0;
@@ -607,6 +774,15 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             SizedBox(width: labelW + 8),
+            Expanded(child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+              _legendDot(_PC.barColor, widget.lang == 'EN' ? 'On time' : widget.lang == 'ZH' ? '准时' : 'Tepat waktu'),
+              const SizedBox(width: 10),
+              _legendDot(const Color(0xFFEF4444), widget.lang == 'EN' ? 'Late' : widget.lang == 'ZH' ? '迟到' : 'Terlambat'),
+            ])),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            SizedBox(width: labelW + 8),
             SizedBox(width: barAreaW, height: 16,
               child: Stack(clipBehavior: Clip.none, children: List.generate(xTicks.length, (i) {
                 double left = tickX[i];
@@ -619,9 +795,12 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           Row(children: [SizedBox(width: labelW + 8), Container(width: barAreaW, height: 1, color: const Color(0xFFE2E8F0))]),
           const SizedBox(height: 4),
           ...filtered.map((row) {
-            final frac     = xMax > 0 ? row.total / xMax : 0.0;
-            final barWidth = (barAreaW * frac).clamp(0.0, barAreaW);
-            final isZero   = row.total == 0;
+            final onTimeCount = row.total - row.lateCount;
+            final onTimeFrac  = xMax > 0 ? onTimeCount / xMax : 0.0;
+            final lateFrac    = xMax > 0 ? row.lateCount / xMax : 0.0;
+            final onTimeWidth = (barAreaW * onTimeFrac).clamp(0.0, barAreaW);
+            final lateWidth   = (barAreaW * lateFrac).clamp(0.0, barAreaW);
+            final isZero      = row.total == 0;
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: rowVPad),
               child: SizedBox(height: barH, child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -630,7 +809,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                   overflow: TextOverflow.ellipsis, textAlign: TextAlign.right)),
                 const SizedBox(width: 8),
                 Expanded(child: CustomPaint(
-                  painter: _PmBarPainter(tickX: tickX, barWidth: barWidth, barH: barH, barVPad: rowVPad * 0.5, isZero: isZero),
+                  painter: _PmBarPainter(tickX: tickX, onTimeWidth: onTimeWidth, lateWidth: lateWidth, barH: barH, barVPad: rowVPad * 0.5, isZero: isZero),
                   child: const SizedBox.expand())),
               ])),
             );
@@ -643,11 +822,74 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
   }
 
   Widget _buildFilterBar() {
-    return Row(children: [
-      _filterBtn(label: _range.label(widget.lang), active: true, icon: Icons.date_range_rounded, onTap: _showRangePicker),
-      const SizedBox(width: 8),
-      Expanded(child: _filterBtn(label: _filterBagian ?? _t('semua_bagian'), active: _filterBagian != null, icon: Icons.grid_view_rounded, onTap: _showBagianPicker)),
+    String rangeLabel = _range.label(widget.lang);
+    if (_range == _PmRange.custom && _customStart != null && _customEnd != null) {
+      rangeLabel = '${DateFormat('MMM yy').format(_customStart!)}–${DateFormat('MMM yy').format(_customEnd!)}';
+    }
+    return Column(children: [
+      Row(children: [
+        Expanded(child: _filterBtn(label: rangeLabel, active: true, icon: Icons.date_range_rounded, onTap: _showRangePicker)),
+        const SizedBox(width: 8),
+        Expanded(child: _filterBtn(label: _filterBagian ?? _t('semua_bagian'), active: _filterBagian != null, icon: Icons.grid_view_rounded, onTap: _showBagianPicker)),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: _filterBtn(
+          label: _lateFilter.label(widget.lang),
+          active: _lateFilter != _PmLateFilter.all,
+          icon: Icons.flag_circle_rounded,
+          onTap: _showLateFilterPicker)),
+      ]),
     ]);
+  }
+
+  void _showLateFilterPicker() async {
+    await showDialog(context: context, builder: (ctx) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _PC.primaryLight, width: 1.5)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+            decoration: const BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+            child: Row(children: [
+              const Icon(Icons.flag_circle_rounded, color: _PC.primary, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text(widget.lang == 'EN' ? 'Report Status' : widget.lang == 'ZH' ? '报告状态' : 'Status Laporan',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _PC.textPrimary))),
+              IconButton(icon: const Icon(Icons.close, size: 18, color: _PC.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          ..._PmLateFilter.values.map((f) {
+            final sel = _lateFilter == f;
+            Color dot;
+            switch (f) {
+              case _PmLateFilter.late:        dot = const Color(0xFFEF4444); break;
+              case _PmLateFilter.onTime:      dot = _PC.barColor; break;
+              case _PmLateFilter.notReported: dot = const Color(0xFFCBD5E1); break;
+              case _PmLateFilter.all:         dot = _PC.primary; break;
+            }
+            return GestureDetector(onTap: () { Navigator.pop(ctx); setState(() => _lateFilter = f); _loadTableData(); },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: sel ? _PC.primaryLight : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: sel ? _PC.primary : const Color(0xFFE2E8F0), width: sel ? 1.8 : 1)),
+                child: Row(children: [
+                  Container(width: 10, height: 10, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(f.label(widget.lang), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: sel ? _PC.primaryDark : const Color(0xFF1E293B)))),
+                  if (sel) const Icon(Icons.check_circle_rounded, color: _PC.primary, size: 20),
+                ]),
+              ));
+          }),
+          const SizedBox(height: 12),
+        ]),
+      ),
+    ));
   }
 
   Widget _filterBtn({required String label, required VoidCallback onTap, bool active = false, IconData icon = Icons.keyboard_arrow_down_rounded}) {
@@ -670,106 +912,168 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     );
   }
 
+  void _showLateReason(_PmKasieRow row, int monthIdx, DateTime month) async {
+    final locale = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
+    final reason = row.alasan[monthIdx];
+    await showDialog(context: context, builder: (ctx) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.priority_high_rounded, color: Color(0xFFEF4444), size: 18)),
+            const SizedBox(width: 10),
+            Expanded(child: Text(
+              '${row.kasieNama} • ${DateFormat('MMMM yyyy', locale).format(month)}',
+              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)))),
+          ]),
+          const SizedBox(height: 6),
+          Text(widget.lang == 'EN' ? 'Reported late' : widget.lang == 'ZH' ? '逾期报告' : 'Laporan terlambat',
+            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFEF4444), fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0xFFFFF1F2), borderRadius: BorderRadius.circular(12)),
+            child: Text(
+              (reason == null || reason.isEmpty)
+                  ? (widget.lang == 'EN' ? 'No reason provided' : widget.lang == 'ZH' ? '未提供原因' : 'Tidak ada alasan')
+                  : reason,
+              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569))),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, child: TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(widget.lang == 'EN' ? 'Close' : widget.lang == 'ZH' ? '关闭' : 'Tutup'))),
+        ]),
+      ),
+    ));
+  }
+
   Widget _buildTable() {
     if (_loadingTable) {
       return Shimmer.fromColors(baseColor: Colors.grey[200]!, highlightColor: Colors.grey[50]!,
         child: Container(height: 200, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))));
     }
-    final rows = _filterBagian != null ? _tableRows.where((r) => r.bagian == _filterBagian).toList() : _tableRows;
+    final rows = _tableRows; // SUDAH DIFILTER (bagian + status) DI _loadTableData
     if (rows.isEmpty) return _emptyBox();
 
     final months = _getMonths();
     final locale  = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
     final bulanLabels3 = months.map((m) => DateFormat('MMM', locale).format(m)).toList();
-    final List<int> colTotals = List.generate(_bulanLabels.length, (i) => rows.fold(0, (s, r) => s + (r.bulanan[i] ?? 0)));
     final int grandTotal = rows.fold(0, (s, r) => s + r.total);
 
-    const int flexSection = 3;
-    const int flexKasie   = 4;
-    const int flexMonth   = 2;
-    const int flexTotal   = 2;
+    const double leftW   = 150.0;
+    const double monthW  = 46.0;
+    const double totalW  = 56.0;
+    const double rowH    = 40.0;
 
-    Widget hCell(String text, {int flex = 2, TextAlign align = TextAlign.left, Color? color}) =>
-      Expanded(flex: flex, child: Text(text, textAlign: align,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color ?? _PC.textSec), overflow: TextOverflow.ellipsis));
+    Color statusColor(_PmStatus s) {
+      switch (s) {
+        case _PmStatus.late:    return const Color(0xFFEF4444);
+        case _PmStatus.onTime:  return _PC.barColor;
+        case _PmStatus.none:    return const Color(0xFFCBD5E1);
+      }
+    }
 
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _PC.primaryLight, width: 1.5),
         boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 3))]),
-      child: Column(children: [
-        // HEADER
-        Container(
-          decoration: const BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(children: [
-            hCell(_t('bagian'), flex: flexSection),
-            hCell(_t('kasie'),  flex: flexKasie),
-            ...bulanLabels3.map((lbl) => hCell(lbl, flex: flexMonth, align: TextAlign.center)),
-            hCell(_t('total'), flex: flexTotal, align: TextAlign.center, color: _PC.primaryDark),
-          ]),
-        ),
-        // ROWS
-        ...rows.asMap().entries.map((e) {
-          final idx = e.key; final row = e.value;
-          return Container(
-            decoration: BoxDecoration(border: idx > 0 ? const Border(top: BorderSide(color: _PC.divider)) : null),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(children: [
-              // BAGIAN
-              Expanded(flex: flexSection, child: Text(row.bagian.isEmpty ? '-' : row.bagian,
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: row.total > 0 ? _PC.textPrimary : const Color(0xFFCBD5E1)), overflow: TextOverflow.ellipsis)),
-              // KASIE — CLICK → POPUP (id_jabatan = 1)
-              Expanded(flex: flexKasie, child: GestureDetector(
-                onTap: _currentUserJabatan == 1
-                    ? () => _showKasieDetail(row.kasieId, row.kasieNama, row.bagian)
-                    : null,
-                child: Text(row.kasieNama,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                    color: row.total > 0
-                        ? (_currentUserJabatan == 1 ? _PC.primary : _PC.textPrimary)
-                        : const Color(0xFFCBD5E1),
-                    decoration: row.total > 0 && _currentUserJabatan == 1
-                        ? TextDecoration.underline
-                        : TextDecoration.none),
-                  overflow: TextOverflow.ellipsis),
-              )),
-              // PER MONTH
-              ...List.generate(_bulanLabels.length, (mi) {
-                final val = row.bulanan[mi] ?? 0;
-                final isNull = val == 0;
-                return Expanded(flex: flexMonth, child: Center(child: Container(
-                  width: 26, height: 26,
-                  decoration: BoxDecoration(color: !isNull ? _PC.barColor.withValues(alpha:0.15) : Colors.transparent, borderRadius: BorderRadius.circular(6)),
-                  child: Center(child: Text(isNull ? '?' : '$val',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: !isNull ? _PC.barColor : const Color(0xFFCBD5E1)))))));
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // KOLOM KIRI TETAP (BAGIAN + KASIE) — SELALU TERLIHAT
+          SizedBox(width: leftW, child: Column(children: [
+            Container(height: rowH, color: _PC.primaryLight, padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(children: [
+                Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft, child: Text(_t('bagian'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec)))),
+                Expanded(flex: 6, child: Align(alignment: Alignment.centerLeft, child: Text(_t('kasie'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec)))),
+              ])),
+            ...rows.asMap().entries.map((e) {
+              final idx = e.key; final row = e.value;
+              return Container(
+                height: rowH,
+                decoration: BoxDecoration(border: idx > 0 ? const Border(top: BorderSide(color: _PC.divider)) : null),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(children: [
+                  Expanded(flex: 5, child: Text(row.bagian.isEmpty ? '-' : row.bagian,
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? _PC.textPrimary : const Color(0xFFCBD5E1)), overflow: TextOverflow.ellipsis)),
+                  Expanded(flex: 6, child: GestureDetector(
+                    onTap: _currentUserJabatan == 1 ? () => _showKasieDetail(row.kasieId, row.kasieNama, row.bagian) : null,
+                    child: Text(row.kasieNama,
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                        color: row.total > 0 ? (_currentUserJabatan == 1 ? _PC.primary : _PC.textPrimary) : const Color(0xFFCBD5E1),
+                        decoration: row.total > 0 && _currentUserJabatan == 1 ? TextDecoration.underline : TextDecoration.none),
+                      overflow: TextOverflow.ellipsis))),
+                ]),
+              );
+            }),
+            Container(height: rowH, decoration: const BoxDecoration(color: Color(0xFFEFF6FF), border: Border(top: BorderSide(color: _PC.divider, width: 1.5))),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Align(alignment: Alignment.centerLeft, child: Text(widget.lang == 'EN' ? 'Total' : widget.lang == 'ZH' ? '合计' : 'Total',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: _PC.textPrimary)))),
+          ])),
+          Container(width: 1, color: _PC.divider),
+          // KOLOM KANAN BISA DI-SCROLL HORIZONTAL (BULAN + TOTAL)
+          Expanded(child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(width: monthW * months.length + totalW, child: Column(children: [
+              Container(height: rowH, color: _PC.primaryLight,
+                child: Row(children: [
+                  ...bulanLabels3.map((lbl) => SizedBox(width: monthW, child: Center(child: Text(lbl, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec))))),
+                  SizedBox(width: totalW, child: Center(child: Text(_t('total'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.primaryDark)))),
+                ])),
+              ...rows.asMap().entries.map((e) {
+                final idx = e.key; final row = e.value;
+                return Container(
+                  height: rowH,
+                  decoration: BoxDecoration(border: idx > 0 ? const Border(top: BorderSide(color: _PC.divider)) : null),
+                  child: Row(children: [
+                    ...List.generate(months.length, (mi) {
+                      final status = row.bulanan[mi] ?? _PmStatus.none;
+                      final isLate = status == _PmStatus.late;
+                      return SizedBox(width: monthW, child: Center(child: GestureDetector(
+                        onTap: isLate ? () => _showLateReason(row, mi, months[mi]) : null,
+                        child: Container(
+                          width: 28, height: 28,
+                          decoration: BoxDecoration(
+                            color: status != _PmStatus.none ? statusColor(status).withValues(alpha: 0.15) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                            border: isLate ? Border.all(color: const Color(0xFFEF4444), width: 1.2) : null),
+                          child: Center(child: status == _PmStatus.none
+                            ? const Text('?', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFCBD5E1)))
+                            : Icon(isLate ? Icons.priority_high_rounded : Icons.check_rounded, size: 15, color: statusColor(status))),
+                        ))));
+                    }),
+                    SizedBox(width: totalW, child: Center(child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(color: row.total > 0 ? _PC.primary : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                      child: Text('${row.total}', textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: row.total > 0 ? Colors.white : const Color(0xFFCBD5E1)))))),
+                  ]),
+                );
               }),
-              // TOTAL
-              Expanded(flex: flexTotal, child: Center(child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(color: row.total > 0 ? _PC.primary : Colors.transparent, borderRadius: BorderRadius.circular(8)),
-                child: Text('${row.total}', textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: row.total > 0 ? Colors.white : const Color(0xFFCBD5E1)))))),
-            ]),
-          );
-        }),
-        // FOOTER
-        Container(
-          decoration: const BoxDecoration(color: Color(0xFFEFF6FF), borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
-            border: Border(top: BorderSide(color: _PC.divider, width: 1.5))),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(children: [
-            Expanded(flex: flexSection + flexKasie, child: Text(widget.lang == 'EN' ? 'Total' : widget.lang == 'ZH' ? '合计' : 'Total',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _PC.textPrimary))),
-            ...List.generate(_bulanLabels.length, (mi) => Expanded(flex: flexMonth, child: Center(child: Text('${colTotals[mi]}', textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _PC.primaryDark))))),
-            Expanded(flex: flexTotal, child: Center(child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              decoration: BoxDecoration(color: _PC.primary, borderRadius: BorderRadius.circular(8)),
-              child: Text('$grandTotal', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white))))),
-          ]),
-        ),
-      ]),
+              Container(height: rowH, decoration: const BoxDecoration(color: Color(0xFFEFF6FF), border: Border(top: BorderSide(color: _PC.divider, width: 1.5))),
+                child: Row(children: [
+                  ...List.generate(months.length, (mi) {
+                    final colLate   = rows.fold(0, (s, r) => s + ((r.bulanan[mi] ?? _PmStatus.none) == _PmStatus.late ? 1 : 0));
+                    final colOnTime = rows.fold(0, (s, r) => s + ((r.bulanan[mi] ?? _PmStatus.none) == _PmStatus.onTime ? 1 : 0));
+                    final colTotal  = colLate + colOnTime;
+                    return SizedBox(width: monthW, child: Center(child: Text('$colTotal',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: colLate > 0 ? const Color(0xFFEF4444) : _PC.primaryDark))));
+                  }),
+                  SizedBox(width: totalW, child: Center(child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    decoration: BoxDecoration(color: _PC.primary, borderRadius: BorderRadius.circular(8)),
+                    child: Text('$grandTotal', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white))))),
+                ])),
+            ])),
+          )),
+        ]),
+      ),
     );
   }
 
@@ -938,22 +1242,29 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
 
 class _PmBarPainter extends CustomPainter {
   final List<double> tickX;
-  final double barWidth;
+  final double onTimeWidth;
+  final double lateWidth;
   final double barH;
   final double barVPad;
   final bool isZero;
-  const _PmBarPainter({required this.tickX, required this.barWidth, required this.barH, required this.barVPad, required this.isZero});
+  const _PmBarPainter({required this.tickX, required this.onTimeWidth, required this.lateWidth, required this.barH, required this.barVPad, required this.isZero});
 
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()..color = const Color(0xFFE2E8F0)..strokeWidth = 1;
     for (int i = 1; i < tickX.length; i++) { canvas.drawLine(Offset(tickX[i], 0), Offset(tickX[i], size.height), gridPaint); }
-    if (!isZero && barWidth > 0) {
-      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, barVPad, barWidth, size.height - barVPad * 2), const Radius.circular(4)),
-        Paint()..color = _PC.barColor);
+    if (!isZero) {
+      if (onTimeWidth > 0) {
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, barVPad, onTimeWidth, size.height - barVPad * 2), const Radius.circular(4)),
+          Paint()..color = _PC.barColor);
+      }
+      if (lateWidth > 0) {
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(onTimeWidth, barVPad, lateWidth, size.height - barVPad * 2), const Radius.circular(4)),
+          Paint()..color = const Color(0xFFEF4444));
+      }
     }
   }
 
   @override
-  bool shouldRepaint(_PmBarPainter old) => old.barWidth != barWidth || old.isZero != isZero;
+  bool shouldRepaint(_PmBarPainter old) => old.onTimeWidth != onTimeWidth || old.lateWidth != lateWidth || old.isZero != isZero;
 }
