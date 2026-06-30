@@ -322,12 +322,14 @@ class _QuestionTabViewState extends State<_QuestionTabView>
   }
 
   String _questionText(Map<String, dynamic> q) {
-    if (widget.lang == 'EN')
+    if (widget.lang == 'EN') {
       return q['pertanyaan_en']?.toString() ??
           q['pertanyaan']?.toString() ?? '';
-    if (widget.lang == 'ZH')
+    }
+    if (widget.lang == 'ZH') {
       return q['pertanyaan_zh']?.toString() ??
           q['pertanyaan']?.toString() ?? '';
+    }
     return q['pertanyaan']?.toString() ?? '';
   }
 
