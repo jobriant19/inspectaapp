@@ -237,32 +237,30 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
       final start = months.first;
       final end   = DateTime(months.last.year, months.last.month + 1, 0);
 
-      // PERIODE SEKARANG BERBASIS tanggal_pm (BUKAN created_at)
+      // PERIODE SEKARANG BERBASIS bulan_pm (BUKAN created_at)
       final pmRes = List<Map<String, dynamic>>.from(
         await _db.from('preventif_maintenance')
-            .select('id_user, bagian, tanggal_pm, alasan_terlambat')
-            .gte('tanggal_pm', DateFormat('yyyy-MM-dd').format(start))
-            .lte('tanggal_pm', DateFormat('yyyy-MM-dd').format(end)),
+            .select('id_user, bagian, bulan_pm, alasan_terlambat, is_late')
+            .gte('bulan_pm', DateFormat('yyyy-MM-dd').format(start))
+            .lte('bulan_pm', DateFormat('yyyy-MM-dd').format(end)),
       );
 
-      // MAPPING: BAGIAN -> INDEX BULAN -> STATUS / ALASAN
+      // MAPPING: BAGIAN -> INDEX BULAN -> STATUS / ALASAN (is_late LANGSUNG DARI DB)
       final Map<String, Map<int, _PmStatus>> bagianMonthStatus = {};
       final Map<String, Map<int, String?>>  bagianMonthAlasan  = {};
       for (final row in pmRes) {
         final bagian = (row['bagian'] as String?)?.trim() ?? '';
         if (bagian.isEmpty) continue;
-        final tgl = DateTime.tryParse(row['tanggal_pm']?.toString() ?? '');
-        if (tgl == null) continue;
+        final bln = DateTime.tryParse(row['bulan_pm']?.toString() ?? '');
+        if (bln == null) continue;
+        final isLate = row['is_late'] == true;
         for (int i = 0; i < months.length; i++) {
           final m = months[i];
-          if (tgl.year == m.year && tgl.month == m.month) {
-            final isLate = tgl.day > 10; // LAPOR DI ATAS TANGGAL 10 = TERLAMBAT
+          if (bln.year == m.year && bln.month == m.month) {
             final statusMap = bagianMonthStatus.putIfAbsent(bagian, () => {});
             final alasanMap = bagianMonthAlasan.putIfAbsent(bagian, () => {});
-            if (statusMap[i] != _PmStatus.late) {
-              statusMap[i] = isLate ? _PmStatus.late : _PmStatus.onTime;
-              if (isLate) alasanMap[i] = row['alasan_terlambat']?.toString();
-            }
+            statusMap[i] = isLate ? _PmStatus.late : _PmStatus.onTime;
+            if (isLate) alasanMap[i] = row['alasan_terlambat']?.toString();
             break;
           }
         }
@@ -687,6 +685,35 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
     } catch (e) { debugPrint('PM kasie detail error: $e'); }
   }
 
+  String _deadlineInfoText() {
+    final now = DateTime.now();
+    final locale = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
+    final bulanNow = DateFormat('MMMM yyyy', locale).format(now);
+    if (widget.lang == 'EN') {
+      return 'PM report deadline for $bulanNow is the 10th. After that, it will be marked as late.';
+    } else if (widget.lang == 'ZH') {
+      return '$bulanNow 的PM报告截止日期是10日，之后将自动标记为迟到。';
+    }
+    return 'Batas pelaporan PM bulan $bulanNow adalah tanggal 10. Lewat dari tanggal itu otomatis tercatat terlambat.';
+  }
+
+  Widget _buildDeadlineInfo() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFDE68A), width: 1.2)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.info_rounded, size: 18, color: Color(0xFFD97706)),
+        const SizedBox(width: 10),
+        Expanded(child: Text(_deadlineInfoText(),
+          style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF92400E), height: 1.4))),
+      ]),
+    );
+  }
+
   Widget _buildAddButton() {
     if (_currentUserJabatan != 3) return const SizedBox.shrink();
     return GestureDetector(
@@ -1017,13 +1044,21 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: _PC.textPrimary)))),
           ])),
           Container(width: 1, color: _PC.divider),
-          // KOLOM KANAN BISA DI-SCROLL HORIZONTAL (BULAN + TOTAL)
-          Expanded(child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(width: monthW * months.length + totalW, child: Column(children: [
+          // KOLOM KANAN: FILL JIKA RUANG TERSISA MASIH LEBAR, SCROLL JIKA SEMPIT
+          Expanded(child: LayoutBuilder(builder: (_, rightConstraints) {
+            final availW = rightConstraints.maxWidth;
+            final neededW = monthW * months.length + totalW;
+            final effMonthW = neededW < availW && months.isNotEmpty
+                ? (availW - totalW) / months.length
+                : monthW;
+            final totalContentW = neededW < availW ? availW : neededW;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: neededW < availW ? const NeverScrollableScrollPhysics() : const ClampingScrollPhysics(),
+              child: SizedBox(width: totalContentW, child: Column(children: [
               Container(height: rowH, color: _PC.primaryLight,
                 child: Row(children: [
-                  ...bulanLabels3.map((lbl) => SizedBox(width: monthW, child: Center(child: Text(lbl, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec))))),
+                  ...bulanLabels3.map((lbl) => SizedBox(width: effMonthW, child: Center(child: Text(lbl, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec))))),
                   SizedBox(width: totalW, child: Center(child: Text(_t('total'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.primaryDark)))),
                 ])),
               ...rows.asMap().entries.map((e) {
@@ -1035,7 +1070,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                     ...List.generate(months.length, (mi) {
                       final status = row.bulanan[mi] ?? _PmStatus.none;
                       final isLate = status == _PmStatus.late;
-                      return SizedBox(width: monthW, child: Center(child: GestureDetector(
+                      return SizedBox(width: effMonthW, child: Center(child: GestureDetector(
                         onTap: isLate ? () => _showLateReason(row, mi, months[mi]) : null,
                         child: Container(
                           width: 28, height: 28,
@@ -1062,7 +1097,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                     final colLate   = rows.fold(0, (s, r) => s + ((r.bulanan[mi] ?? _PmStatus.none) == _PmStatus.late ? 1 : 0));
                     final colOnTime = rows.fold(0, (s, r) => s + ((r.bulanan[mi] ?? _PmStatus.none) == _PmStatus.onTime ? 1 : 0));
                     final colTotal  = colLate + colOnTime;
-                    return SizedBox(width: monthW, child: Center(child: Text('$colTotal',
+                    return SizedBox(width: effMonthW, child: Center(child: Text('$colTotal',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: colLate > 0 ? const Color(0xFFEF4444) : _PC.primaryDark))));
                   }),
                   SizedBox(width: totalW, child: Center(child: Container(
@@ -1071,7 +1106,8 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
                     child: Text('$grandTotal', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white))))),
                 ])),
             ])),
-          )),
+            );
+          })),
         ]),
       ),
     );
@@ -1204,6 +1240,9 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // INFO DEADLINE
+            _buildDeadlineInfo(),
+
             // ADD BUTTON
             _buildAddButton(),
             const SizedBox(height: 20),

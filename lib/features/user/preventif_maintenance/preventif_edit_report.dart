@@ -37,8 +37,16 @@ class _PmEditScreenState extends State<PmEditScreen> {
   final _descCtrl  = TextEditingController();
   final _alasanCtrl = TextEditingController();
   String? _selectedBagian;
-  DateTime _tanggalPm = DateTime.now();
-  bool get _isLate => _tanggalPm.day > 10;
+  DateTime _bulanPm = DateTime(DateTime.now().year, DateTime.now().month, 1);
+
+  bool get _isLate {
+    final now = DateTime.now();
+    final selected = DateTime(_bulanPm.year, _bulanPm.month, 1);
+    final current  = DateTime(now.year, now.month, 1);
+    if (selected.isBefore(current)) return true;
+    if (selected.isAtSameMomentAs(current)) return now.day > 10;
+    return false;
+  }
 
   PlatformFile? _pickedFile;
   String? _existingFileUrl;
@@ -67,6 +75,8 @@ class _PmEditScreenState extends State<PmEditScreen> {
       'saving'       : 'Menyimpan...',
       'cancel'       : 'Batal',
       'tanggal_pm'      : 'Tanggal Laporan PM',
+      'bulan_pm'        : 'Bulan Pengajuan PM',
+      'pilih_bulan'     : 'Pilih Bulan',
       'status_terlambat': 'Terlambat',
       'alasan_terlambat': 'Alasan Keterlambatan',
       'alasan_hint'     : 'Jelaskan alasan laporan terlambat...',
@@ -93,6 +103,8 @@ class _PmEditScreenState extends State<PmEditScreen> {
       'saving'       : 'Saving...',
       'cancel'       : 'Cancel',
       'tanggal_pm'      : 'PM Report Date',
+      'bulan_pm'        : 'PM Submission Month',
+      'pilih_bulan'     : 'Select Month',
       'status_terlambat': 'Late',
       'alasan_terlambat': 'Reason for Delay',
       'alasan_hint'     : 'Explain why this report is late...',
@@ -119,6 +131,8 @@ class _PmEditScreenState extends State<PmEditScreen> {
       'saving'       : '保存中...',
       'cancel'       : '取消',
       'tanggal_pm'      : 'PM报告日期',
+      'bulan_pm'        : 'PM提交月份',
+      'pilih_bulan'     : '选择月份',
       'status_terlambat': '迟到',
       'alasan_terlambat': '延迟原因',
       'alasan_hint'     : '说明延迟报告的原因...',
@@ -135,10 +149,10 @@ class _PmEditScreenState extends State<PmEditScreen> {
     _selectedBagian   = d['bagian'];
     _existingFileUrl  = d['file_pm'];
     _existingFileName = d['file_name_pm'];
-    final tglRaw = d['tanggal_pm'];
-    if (tglRaw != null) {
-      final parsed = DateTime.tryParse(tglRaw.toString());
-      if (parsed != null) _tanggalPm = parsed;
+    final blnRaw = d['bulan_pm'];
+    if (blnRaw != null) {
+      final parsed = DateTime.tryParse(blnRaw.toString());
+      if (parsed != null) _bulanPm = DateTime(parsed.year, parsed.month, 1);
     }
     _alasanCtrl.text = d['alasan_terlambat'] ?? '';
   }
@@ -149,19 +163,6 @@ class _PmEditScreenState extends State<PmEditScreen> {
     _descCtrl.dispose();
     _alasanCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickTanggalPm() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _tanggalPm,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(colorScheme: const ColorScheme.light(primary: _EPC.primary)),
-        child: child!),
-    );
-    if (picked != null) setState(() => _tanggalPm = picked);
   }
 
   void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(
@@ -255,7 +256,8 @@ class _PmEditScreenState extends State<PmEditScreen> {
         'deskripsi_pm' : _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         'file_pm'      : fileUrl,
         'file_name_pm' : fileName,
-        'tanggal_pm'      : DateFormat('yyyy-MM-dd').format(_tanggalPm),
+        'bulan_pm'        : DateFormat('yyyy-MM-dd').format(DateTime(_bulanPm.year, _bulanPm.month, 1)),
+        'is_late'         : _isLate,
         'alasan_terlambat': _isLate ? _alasanCtrl.text.trim() : null,
       };
 
@@ -386,6 +388,61 @@ class _PmEditScreenState extends State<PmEditScreen> {
     );
   }
 
+  void _showBulanPicker() async {
+    final now = DateTime.now();
+    DateTime temp = DateTime(_bulanPm.year, _bulanPm.month, 1);
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+              decoration: const BoxDecoration(color: _EPC.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              child: Row(children: [
+                const Icon(Icons.calendar_month_rounded, color: _EPC.primary, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(t['pilih_bulan']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _EPC.primary))),
+                IconButton(icon: const Icon(Icons.close, size: 18, color: _EPC.primary), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(children: [
+                Expanded(child: DropdownButton<int>(
+                  isExpanded: true, value: temp.month, underline: const SizedBox.shrink(),
+                  items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(value: m,
+                    child: Text(DateFormat('MMMM').format(DateTime(2024, m, 1)), style: const TextStyle(fontSize: 14)))).toList(),
+                  onChanged: (m) { if (m != null) setLocal(() => temp = DateTime(temp.year, m, 1)); },
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: DropdownButton<int>(
+                  isExpanded: true, value: temp.year, underline: const SizedBox.shrink(),
+                  items: List.generate(4, (i) => now.year - 3 + i).map((y) => DropdownMenuItem(value: y,
+                    child: Text('$y', style: const TextStyle(fontSize: 14)))).toList(),
+                  onChanged: (y) { if (y != null) setLocal(() => temp = DateTime(y, temp.month, 1)); },
+                )),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(width: double.infinity, child: ElevatedButton(
+                onPressed: temp.isAfter(DateTime(now.year, now.month, 1)) ? null : () {
+                  Navigator.pop(ctx);
+                  setState(() => _bulanPm = temp);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: _EPC.primary, foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: Text(t['pilih_bulan']!),
+              )),
+            ),
+          ]),
+        ),
+      );
+    }));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -469,11 +526,11 @@ class _PmEditScreenState extends State<PmEditScreen> {
                 ]),
                 const SizedBox(height: 16),
 
-                // TANGGAL LAPORAN PM
+                // BULAN PENGAJUAN PM
                 _sectionCard(children: [
-                  _label(t['tanggal_pm']!, required: true),
+                  _label(t['bulan_pm']!, required: true),
                   GestureDetector(
-                    onTap: _pickTanggalPm,
+                    onTap: _showBulanPicker,
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
@@ -482,10 +539,10 @@ class _PmEditScreenState extends State<PmEditScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: _isLate ? const Color(0xFFEF4444) : _EPC.primary, width: 1.5)),
                       child: Row(children: [
-                        Icon(Icons.calendar_today_rounded, size: 16, color: _isLate ? const Color(0xFFEF4444) : _EPC.primary),
+                        Icon(Icons.calendar_month_rounded, size: 16, color: _isLate ? const Color(0xFFEF4444) : _EPC.primary),
                         const SizedBox(width: 10),
                         Expanded(child: Text(
-                          DateFormat('dd MMMM yyyy').format(_tanggalPm),
+                          DateFormat('MMMM yyyy').format(_bulanPm),
                           style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
                         if (_isLate)
                           Container(

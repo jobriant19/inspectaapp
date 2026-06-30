@@ -33,9 +33,17 @@ class _PmFormScreenState extends State<PmFormScreen> {
   final _judulCtrl = TextEditingController();
   final _descCtrl  = TextEditingController();
   final _alasanCtrl = TextEditingController();
-  String? _selectedBagian;
-  DateTime _tanggalPm = DateTime.now();
-  bool get _isLate => _tanggalPm.day > 10;
+  String? _selectedBagian; // diisi otomatis dari bagian_kasie user login
+  DateTime _bulanPm = DateTime(DateTime.now().year, DateTime.now().month, 1);
+
+  bool get _isLate {
+    final now = DateTime.now();
+    final selected = DateTime(_bulanPm.year, _bulanPm.month, 1);
+    final current  = DateTime(now.year, now.month, 1);
+    if (selected.isBefore(current)) return true;       // bulan pengajuan sudah lewat
+    if (selected.isAtSameMomentAs(current)) return now.day > 10; // bulan ini, cek tgl 10
+    return false; // bulan depan (seharusnya tidak bisa dipilih)
+  }
 
   PlatformFile? _pickedFile;
   String? _existingFileUrl;
@@ -71,6 +79,11 @@ class _PmFormScreenState extends State<PmFormScreen> {
       'alasan_terlambat': 'Alasan Keterlambatan',
       'alasan_hint'     : 'Jelaskan alasan laporan terlambat...',
       'err_alasan'      : 'Alasan keterlambatan wajib diisi!',
+      'bulan_pm'        : 'Bulan Pengajuan PM',
+      'pilih_bulan'     : 'Pilih Bulan',
+      'sudah_lapor_title': 'Sudah Melaporkan',
+      'sudah_lapor_desc' : 'Anda sudah membuat laporan PM untuk bulan ini. Silakan edit laporan yang sudah ada jika ingin mengubahnya.',
+      'ok'              : 'Mengerti',
     },
     'EN': {
       'create_title' : 'Create PM Report',
@@ -100,6 +113,11 @@ class _PmFormScreenState extends State<PmFormScreen> {
       'alasan_terlambat': 'Reason for Delay',
       'alasan_hint'     : 'Explain why this report is late...',
       'err_alasan'      : 'Reason for delay is required!',
+      'bulan_pm'        : 'PM Submission Month',
+      'pilih_bulan'     : 'Select Month',
+      'sudah_lapor_title': 'Already Reported',
+      'sudah_lapor_desc' : 'You have already created a PM report for this month. Please edit the existing report instead.',
+      'ok'              : 'Got it',
     },
     'ZH': {
       'create_title' : '创建PM报告',
@@ -129,12 +147,18 @@ class _PmFormScreenState extends State<PmFormScreen> {
       'alasan_terlambat': '延迟原因',
       'alasan_hint'     : '说明延迟报告的原因...',
       'err_alasan'      : '延迟原因为必填项！',
+      'bulan_pm'        : 'PM提交月份',
+      'pilih_bulan'     : '选择月份',
+      'sudah_lapor_title': '已报告',
+      'sudah_lapor_desc' : '您本月已创建PM报告。请编辑现有报告。',
+      'ok'              : '知道了',
     },
   };
 
   @override
   void initState() {
     super.initState();
+    if (!_isEdit) _loadUserBagian();
     if (_isEdit) {
       final d = widget.existingData!;
       _judulCtrl.text   = d['judul_pm'] ?? '';
@@ -142,10 +166,10 @@ class _PmFormScreenState extends State<PmFormScreen> {
       _selectedBagian   = d['bagian'];
       _existingFileUrl  = d['file_pm'];
       _existingFileName = d['file_name_pm'];
-      final tglRaw = d['tanggal_pm'];
-      if (tglRaw != null) {
-        final parsed = DateTime.tryParse(tglRaw.toString());
-        if (parsed != null) _tanggalPm = parsed;
+      final blnRaw = d['bulan_pm'];
+      if (blnRaw != null) {
+        final parsed = DateTime.tryParse(blnRaw.toString());
+        if (parsed != null) _bulanPm = DateTime(parsed.year, parsed.month, 1);
       }
       _alasanCtrl.text = d['alasan_terlambat'] ?? '';
     }
@@ -159,17 +183,96 @@ class _PmFormScreenState extends State<PmFormScreen> {
     super.dispose();
   }
 
-  Future<void> _pickTanggalPm() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _tanggalPm,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(colorScheme: const ColorScheme.light(primary: _PC.primary)),
-        child: child!),
-    );
-    if (picked != null) setState(() => _tanggalPm = picked);
+  Future<void> _loadUserBagian() async {
+    final sb   = Supabase.instance.client;
+    final user = sb.auth.currentUser;
+    if (user == null) return;
+    try {
+      final res = await sb.from('User').select('bagian_kasie').eq('id_user', user.id).single();
+      if (mounted) setState(() => _selectedBagian = res['bagian_kasie'] as String?);
+    } catch (e) {
+      debugPrint('PM load bagian_kasie error: $e');
+    }
+  }
+
+  void _showBulanPicker() async {
+    final now = DateTime.now();
+    DateTime temp = DateTime(_bulanPm.year, _bulanPm.month, 1);
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+              decoration: const BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              child: Row(children: [
+                const Icon(Icons.calendar_month_rounded, color: _PC.primary, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(t['pilih_bulan']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _PC.primary))),
+                IconButton(icon: const Icon(Icons.close, size: 18, color: _PC.primary), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(children: [
+                Expanded(child: DropdownButton<int>(
+                  isExpanded: true, value: temp.month, underline: const SizedBox.shrink(),
+                  items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(value: m,
+                    child: Text(DateFormat('MMMM').format(DateTime(2024, m, 1)), style: const TextStyle(fontSize: 14)))).toList(),
+                  onChanged: (m) { if (m != null) setLocal(() => temp = DateTime(temp.year, m, 1)); },
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: DropdownButton<int>(
+                  isExpanded: true, value: temp.year, underline: const SizedBox.shrink(),
+                  items: List.generate(4, (i) => now.year - 3 + i).map((y) => DropdownMenuItem(value: y,
+                    child: Text('$y', style: const TextStyle(fontSize: 14)))).toList(),
+                  onChanged: (y) { if (y != null) setLocal(() => temp = DateTime(y, temp.month, 1)); },
+                )),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(width: double.infinity, child: ElevatedButton(
+                onPressed: temp.isAfter(DateTime(now.year, now.month, 1)) ? null : () {
+                  Navigator.pop(ctx);
+                  setState(() => _bulanPm = temp);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: _PC.primary, foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: Text(t['pilih_bulan']!),
+              )),
+            ),
+          ]),
+        ),
+      );
+    }));
+  }
+
+  Future<void> _showAlreadyReportedDialog() async {
+    await showDialog(context: context, builder: (ctx) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(padding: const EdgeInsets.all(16), decoration: const BoxDecoration(color: Color(0xFFFFFBEB), shape: BoxShape.circle),
+            child: const Icon(Icons.info_rounded, color: Color(0xFFD97706), size: 32)),
+          const SizedBox(height: 16),
+          Text(t['sudah_lapor_title']!, style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A)), textAlign: TextAlign.center),
+          const SizedBox(height: 8),
+          Text(t['sudah_lapor_desc']!, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B)), textAlign: TextAlign.center),
+          const SizedBox(height: 20),
+          SizedBox(width: double.infinity, child: ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(backgroundColor: _PC.primary, foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            child: Text(t['ok']!),
+          )),
+        ]),
+      ),
+    ));
   }
 
   void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(
@@ -249,6 +352,20 @@ class _PmFormScreenState extends State<PmFormScreen> {
       final user = sb.auth.currentUser;
       if (user == null) throw Exception('Not logged in');
 
+      // CEK DUPLIKAT: SUDAH LAPOR DI BULAN INI?
+      if (!_isEdit) {
+        final dup = await sb.from('preventif_maintenance')
+            .select('id_pm')
+            .eq('id_user', user.id)
+            .eq('bulan_pm', DateFormat('yyyy-MM-dd').format(DateTime(_bulanPm.year, _bulanPm.month, 1)))
+            .maybeSingle();
+        if (dup != null) {
+          setState(() => _isSaving = false);
+          await _showAlreadyReportedDialog();
+          return;
+        }
+      }
+
       String? fileUrl  = _existingFileUrl;
       String? fileName = _existingFileName;
 
@@ -263,7 +380,8 @@ class _PmFormScreenState extends State<PmFormScreen> {
         'deskripsi_pm' : _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         'file_pm'      : fileUrl,
         'file_name_pm' : fileName,
-        'tanggal_pm'      : DateFormat('yyyy-MM-dd').format(_tanggalPm),
+        'bulan_pm'        : DateFormat('yyyy-MM-dd').format(DateTime(_bulanPm.year, _bulanPm.month, 1)),
+        'is_late'         : _isLate,
         'alasan_terlambat': _isLate ? _alasanCtrl.text.trim() : null,
       };
 
@@ -293,114 +411,6 @@ class _PmFormScreenState extends State<PmFormScreen> {
         setState(() => _isSaving = false);
       }
     }
-  }
-
-  void _showBagianSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.65,
-        ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // HANDLE
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
-                borderRadius: BorderRadius.circular(2)),
-            ),
-            // HEADER
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _PC.primaryLight,
-                    borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.grid_view_rounded,
-                      color: _PC.primary, size: 18)),
-                const SizedBox(width: 12),
-                Expanded(child: Text(
-                  t['pick_bagian']!,
-                  style: GoogleFonts.inter(
-                      fontSize: 15, fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1E293B)))),
-                GestureDetector(
-                  onTap: () => Navigator.pop(ctx),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(8)),
-                    child: const Icon(Icons.close, size: 18,
-                        color: Color(0xFF64748B)))),
-              ]),
-            ),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            // SECTION LIST
-            Flexible(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                itemCount: kPmBagianList.length,
-                itemBuilder: (_, i) {
-                  final b   = kPmBagianList[i];
-                  final sel = _selectedBagian == b;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() => _selectedBagian = b);
-                      Navigator.pop(ctx);
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 13),
-                      decoration: BoxDecoration(
-                        color: sel ? _PC.primaryLight : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: sel ? _PC.primary : const Color(0xFFE2E8F0),
-                          width: sel ? 1.5 : 1)),
-                      child: Row(children: [
-                        Container(
-                          width: 34, height: 34,
-                          decoration: BoxDecoration(
-                            color: sel ? _PC.primary : _PC.primaryLight,
-                            borderRadius: BorderRadius.circular(9)),
-                          child: Center(child: Text(
-                            b[0].toUpperCase(),
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14,
-                              color: sel ? Colors.white : _PC.primary)))),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text(b,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                            color: sel ? _PC.primary : const Color(0xFF1E293B)))),
-                        if (sel)
-                          const Icon(Icons.check_circle_rounded,
-                              color: _PC.primary, size: 20),
-                      ]),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -441,55 +451,30 @@ class _PmFormScreenState extends State<PmFormScreen> {
 
                 _sectionCard(children: [
                   _label(t['bagian']!, required: true),
-                  GestureDetector(
-                    onTap: _showBagianSheet,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 15),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFF),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _selectedBagian != null
-                              ? _PC.primary
-                              : _PC.border,
-                          width: _selectedBagian != null ? 1.5 : 1)),
-                      child: Row(children: [
-                        Icon(
-                          Icons.grid_view_rounded,
-                          size: 16,
-                          color: _selectedBagian != null
-                              ? _PC.primary
-                              : const Color(0xFFBFDBFE)),
-                        const SizedBox(width: 10),
-                        Expanded(child: Text(
-                          _selectedBagian ?? t['pick_bagian']!,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: _selectedBagian != null
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: _selectedBagian != null
-                                ? const Color(0xFF1E293B)
-                                : const Color(0xFFCBD5E1)))),
-                        Icon(
-                          CupertinoIcons.chevron_down,
-                          size: 15,
-                          color: _selectedBagian != null
-                              ? _PC.primary
-                              : const Color(0xFFBFDBFE)),
-                      ]),
-                    ),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _PC.border, width: 1)),
+                    child: Row(children: [
+                      const Icon(Icons.grid_view_rounded, size: 16, color: _PC.primary),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(
+                        _selectedBagian ?? '-',
+                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
+                      const Icon(CupertinoIcons.lock_fill, size: 13, color: Color(0xFF94A3B8)),
+                    ]),
                   ),
                 ]),
                 const SizedBox(height: 16),
 
-                // TANGGAL LAPORAN PM
+                // BULAN PENGAJUAN PM
                 _sectionCard(children: [
-                  _label(t['tanggal_pm']!, required: true),
+                  _label(t['bulan_pm']!, required: true),
                   GestureDetector(
-                    onTap: _pickTanggalPm,
+                    onTap: _showBulanPicker,
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
@@ -498,10 +483,10 @@ class _PmFormScreenState extends State<PmFormScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: _isLate ? const Color(0xFFEF4444) : _PC.primary, width: 1.5)),
                       child: Row(children: [
-                        Icon(Icons.calendar_today_rounded, size: 16, color: _isLate ? const Color(0xFFEF4444) : _PC.primary),
+                        Icon(Icons.calendar_month_rounded, size: 16, color: _isLate ? const Color(0xFFEF4444) : _PC.primary),
                         const SizedBox(width: 10),
                         Expanded(child: Text(
-                          DateFormat('dd MMMM yyyy').format(_tanggalPm),
+                          DateFormat('MMMM yyyy').format(_bulanPm),
                           style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
                         if (_isLate)
                           Container(
