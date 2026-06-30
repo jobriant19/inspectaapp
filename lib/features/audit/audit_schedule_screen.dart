@@ -59,16 +59,10 @@ class _AuditorAssignment {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 class AuditScheduleScreen extends StatefulWidget {
   final String lang;
-  final String levelType;
-  final String idRef;
-  final String locationName;
 
   const AuditScheduleScreen({
     super.key,
     required this.lang,
-    required this.levelType,
-    required this.idRef,
-    required this.locationName,
   });
 
   @override
@@ -193,7 +187,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       final rows = await _supabase
           .from('audit_schedule')
           .select('periode_mulai, periode_selesai, id_jenis_audit, notif_time')
-          .eq('level_type', widget.levelType)
           .eq('status', 'pending')
           .order('created_at', ascending: false)
           .limit(1);
@@ -229,7 +222,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
             'periode_selesai, catatan, id_jenis_audit, notif_time, '
             'User_Auditor:User!fk_audit_schedule_auditor(id_user, nama, gambar_user, '
             'jabatan!User_id_jabatan_fkey(nama_jabatan))')
-        .eq('level_type', widget.levelType)
         .eq('status', 'pending')
         .order('created_at', ascending: false);
 

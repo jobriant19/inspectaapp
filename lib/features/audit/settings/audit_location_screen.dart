@@ -3,9 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import 'question/audit_question_manager_screen.dart';
-import 'audit_result_detail_screen.dart';
-import 'audit_schedule_screen.dart';
+import '../audit_result_detail_screen.dart';
+import 'audit_unit_screen.dart';
 
 // ─── Colour constants ────────────────────────────────────────────────────────
 class _C {
@@ -116,9 +115,6 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
   List<Map<String, dynamic>> _allUnit     = [];
   List<Map<String, dynamic>> _allSubunit  = [];
   bool _filterDataLoaded = false;
-
-  // ✅ State untuk item yang sedang dipilih (untuk tombol di atas TabBar)
-  _LocationItem? _selectedItem;
 
   static const _levels = ['lokasi', 'unit', 'subunit', 'area'];
 
@@ -566,17 +562,6 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
     } catch (e) {
       debugPrint('Error loading filter data: $e');
     }
-  }
-
-  void _showQuestionPicker() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AuditQuestionManagerScreen(
-          lang: widget.lang,
-        ),
-      ),
-    );
   }
 
   // ✅ BARU: Tampilkan bottom sheet filter untuk tab tertentu
@@ -1133,221 +1118,55 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _C.surface,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: _C.primary, size: 20),   // ← ungu
-          onPressed: () => Navigator.pop(context),
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(
+        children: [
+          // ── TabBar lokasi/unit/subunit/area ──
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+            child: Container(
+              decoration: BoxDecoration(
+                color: _C.surface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.all(3),
+              child: TabBar(
+                controller: _tabCtrl,
+              indicator: BoxDecoration(
+                color: _C.primary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelColor: Colors.white,
+              unselectedLabelColor: _C.primary,
+              labelStyle: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700, fontSize: 11.5),
+              unselectedLabelStyle: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600, fontSize: 11.5),
+              dividerColor: Colors.transparent,
+              overlayColor: WidgetStateProperty.all(Colors.transparent),
+              tabs: _tabLabels.map((l) => Tab(child: Text(l))).toList(),
+            ),
+          ),
         ),
-        title: Text(
-          _t('Audit Location', 'Audit Lokasi', '审计位置'),
-          style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: _C.primary),   // ← ungu
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(112),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        // ── Konten tab (search, filter, stats card, list) ──
+        Expanded(
+          child: TabBarView(
+            controller: _tabCtrl,
             children: [
-              // ── Action bar (selalu tampil) ──
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Row(
-                  children: [
-                    // ── Tombol Questions ──
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => _showQuestionPicker(),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [_C.primary, _C.primary.withValues(alpha: 0.78)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(13),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _C.primary.withValues(alpha: 0.22),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.22),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.help_outline_rounded, color: Colors.white, size: 15),
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _t('Questions', 'Pertanyaan', '问题'),
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
-                                    ),
-                                    Text(
-                                      _t('Manage by audit type', 'Kelola per jenis audit', '按审计类型管理'),
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 9, color: Colors.white.withValues(alpha: 0.82)),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // ── Tombol Audit Schedule ──
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          final level = _levels[_tabCtrl.index];
-                          // Navigasi ke AuditScheduleScreen tanpa perlu pilih card
-                          // Kirim null jika tidak ada item dipilih (screen akan handle)
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => AuditScheduleScreen(
-                                lang: widget.lang,
-                                levelType: level,
-                                idRef: _selectedItem?.id ?? '',
-                                locationName: _selectedItem?.name ?? '',
-                              ),
-                            ),
-                          ).then((_) => _fetchLevel(level));
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                _C.green,
-                                _C.green.withValues(alpha: 0.78),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(13),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _C.green.withValues(alpha: 0.22),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.22),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.event_note_rounded,
-                                  color: Colors.white,
-                                  size: 15,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _t('Schedule', 'Jadwal Audit', '审计计划'),
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    Text(
-                                      _t('Assign auditors', 'Atur penjadwalan', '分配审计员'),
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 9,
-                                        color: Colors.white.withValues(alpha: 0.82),
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              _buildTab('lokasi'),
+              AuditUnitScreen(
+                lang: widget.lang,
+                onScheduleChanged: () => _fetchLevel('lokasi'),
               ),
-              // ── TabBar ──
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: _C.surface,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.all(3),
-                  child: TabBar(
-                    controller: _tabCtrl,
-                    indicator: BoxDecoration(
-                      color: _C.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: _C.primary,
-                    labelStyle: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700, fontSize: 11.5),
-                    unselectedLabelStyle: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600, fontSize: 11.5),
-                    dividerColor: Colors.transparent,
-                    overlayColor: WidgetStateProperty.all(Colors.transparent),
-                    tabs: _tabLabels.map((l) => Tab(child: Text(l))).toList(),
-                  ),
-                ),
-              ),
+              _buildTab('subunit'),
+              _buildTab('area'),
             ],
           ),
         ),
-      ),
-      body: TabBarView(
-        controller: _tabCtrl,
-        children: _levels.map((l) => _buildTab(l)).toList(),
+        ],
       ),
     );
   }

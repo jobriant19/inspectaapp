@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../audit/audit_location_screen.dart';
+import '../../audit/settings/admin_audit_screen.dart';
 import '../admin_help_reports_screen.dart';
 import '../admin_verification_screen.dart';
 import '../settings/admin_settings_screen.dart';
@@ -128,16 +128,16 @@ class AdminHomeManagementMenu extends StatelessWidget {
       ),
       _MenuItem(
         label: lang == 'EN'
-            ? 'Audit\nLocation'
+            ? 'Audit\nSettings'
             : lang == 'ZH'
-                ? '审计\n位置'
-                : 'Audit\nLokasi',
+                ? '审计\n设置'
+                : 'Audit\nSettings',
         icon: Icons.fact_check_rounded,
         gradient: const [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
         shadow: const Color(0xFF8B5CF6),
         onTap: () => Navigator.push(
           context,
-          _slideRoute(AuditLocationScreen(lang: lang)),
+          _slideRoute(AdminAuditScreen(lang: lang)),
         ).then((_) => onRefreshStats()),
       ),
       _MenuItem(
