@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '5r findings/analytics_5r_tab.dart';
 import 'kts production/analytics_kts_tab.dart';
 import 'accident report/analytics_accident_tab.dart';
+import 'preventif_maintenance/analytics_preventif_tab.dart';
 
 // MAIN SCREEN
 class AnalyticsScreen extends StatefulWidget {
@@ -52,6 +53,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       );
     }
 
+    // PREVENTIF MAINTENANCE
+    if (_selectedFindingType == 'Preventif') {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Column(children: [
+          _buildFindingTypeSelector(),
+          Expanded(
+            child: AnalyticsPreventifTab(lang: widget.lang),
+          ),
+        ]),
+      );
+    }
+
     // 5R Finding (DEFAULT)
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -64,22 +78,31 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     );
   }
 
+  String _preventifLabel() {
+    if (widget.lang == 'EN') return 'Preventive';
+    if (widget.lang == 'ZH') return '预防性';
+    return 'Preventif';
+  }
+
   // FINDING TYPE SELECTOR BUILD
   Widget _buildFindingTypeSelector() {
-    const types = [
-      {'key': '5R', 'label': '5R Finding', 'icon': Icons.search_rounded},
-      {'key': 'KTS Production', 'label': 'KTS Production', 'icon': Icons.precision_manufacturing_rounded},
-      {'key': 'Accident', 'label': 'Accident Report', 'icon': Icons.warning_amber_rounded},
+    final types = [
+      {'key': '5R', 'label': '5R', 'icon': Icons.search_rounded},
+      {'key': 'KTS Production', 'label': 'KTS', 'icon': Icons.precision_manufacturing_rounded},
+      {'key': 'Accident', 'label': 'Accident', 'icon': Icons.warning_amber_rounded},
+      {'key': 'Preventif', 'label': _preventifLabel(), 'icon': Icons.build_circle_rounded},
     ];
     const activeColors = {
       '5R': Color(0xFF0EA5E9),
       'KTS Production': Color(0xFFF59E0B),
       'Accident': Color(0xFFEF4444),
+      'Preventif': Color(0xFF1D4ED8),
     };
     const borderColors = {
       '5R': Color(0xFF7DD3FC),
       'KTS Production': Color(0xFFFCD34D),
       'Accident': Color(0xFFFCA5A5),
+      'Preventif': Color(0xFFBFDBFE),
     };
 
     return Container(
@@ -93,7 +116,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           final borderColor = isSelected ? activeColor : borderColors[key]!;
           return Expanded(
             child: Padding(
-              padding: EdgeInsets.only(right: key != 'Accident' ? 6 : 0),
+              padding: EdgeInsets.only(right: key != 'Preventif' ? 6 : 0),
               child: GestureDetector(
                 onTap: () {
                   if (_selectedFindingType != key) {
