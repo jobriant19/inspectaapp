@@ -33,7 +33,7 @@ class _C {
 
 class _AuditQuestionManagerScreenState
     extends State<AuditQuestionManagerScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
 
   List<Map<String, dynamic>> _jenisAuditList = [];
@@ -66,23 +66,39 @@ class _AuditQuestionManagerScreenState
 
   Future<void> _fetchJenisAudit() async {
     final oldCtrl = _tabCtrl;
-    _tabCtrl = null;
+    final previousId = (oldCtrl != null &&
+            _jenisAuditList.isNotEmpty &&
+            oldCtrl.index < _jenisAuditList.length)
+        ? _jenisAuditList[oldCtrl.index]['id_jenis_audit']?.toString()
+        : null;
     try {
       final rows = await _supabase.from('jenis_audit').select().order('urutan');
       final list = List<Map<String, dynamic>>.from(rows);
-      if (mounted) {
-        oldCtrl?.dispose();
-        setState(() {
-          _jenisAuditList = list;
-          _tabCtrl = TabController(length: list.length, vsync: this);
-          _loadingJenis = false;
-        });
-      } else {
-        oldCtrl?.dispose();
+      if (!mounted) return;
+
+      int newIndex = 0;
+      if (previousId != null) {
+        final idx = list.indexWhere(
+            (j) => j['id_jenis_audit'].toString() == previousId);
+        if (idx != -1) newIndex = idx;
       }
+
+      final newCtrl = TabController(
+        length: list.length,
+        vsync: this,
+        initialIndex: list.isEmpty ? 0 : newIndex.clamp(0, list.length - 1),
+      );
+
+      setState(() {
+        _jenisAuditList = list;
+        _tabCtrl = newCtrl;
+        _loadingJenis = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        oldCtrl?.dispose();
+      });
     } catch (e) {
       debugPrint('Error fetch jenis_audit: $e');
-      oldCtrl?.dispose();
       if (mounted) setState(() => _loadingJenis = false);
     }
   }
@@ -270,6 +286,7 @@ class _AuditQuestionManagerScreenState
                 controller: _tabCtrl,
                 children: _jenisAuditList
                     .map((j) => _QuestionTabView(
+                          key: ValueKey(j['id_jenis_audit'].toString()),
                           lang: widget.lang,
                           idJenisAudit:
                               j['id_jenis_audit'].toString(),
@@ -291,6 +308,7 @@ class _QuestionTabView extends StatefulWidget {
   final String idJenisAudit;
 
   const _QuestionTabView({
+    super.key,
     required this.lang,
     required this.idJenisAudit,
   });
@@ -828,11 +846,29 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                                   selectedTemaId == null) {
                                 return;
                               }
-                              setSheet(
-                                  () => isTranslating = true);
+                              setSheet(() => isTranslating = true);
                               try {
-                                final t =
-                                    await _translateAll(text);
+                                final isDup = _questions.any((q) =>
+                                    q['id_tema']?.toString() == selectedTemaId &&
+                                    (q['pertanyaan']?.toString().trim().toLowerCase() ?? '') ==
+                                        text.toLowerCase() &&
+                                    (existing == null ||
+                                        q['id_question'] != existing['id_question']));
+                                if (isDup) {
+                                  setSheet(() => isTranslating = false);
+                                  if (ctx.mounted) Navigator.pop(ctx);
+                                  _showSuccessPopup(
+                                    isSuccess: false,
+                                    titleEn: 'Duplicate Question',
+                                    titleId: 'Pertanyaan Duplikat',
+                                    titleZh: '问题重复',
+                                    msgEn: 'This question already exists in this theme.',
+                                    msgId: 'Pertanyaan ini sudah ada pada tema ini.',
+                                    msgZh: '该主题中已存在此问题。',
+                                  );
+                                  return;
+                                }
+                                final t = await _translateAll(text);
                                 final urutan = int.tryParse(
                                         urutanCtrl.text
                                             .trim()) ??
@@ -952,36 +988,100 @@ class _QuestionTabViewState extends State<_QuestionTabView>
 
   Future<void> _delete(Map<String, dynamic> q) async {
     final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: Text(
-            _t('Delete Question', 'Hapus Pertanyaan', '删除问题'),
-            style:
-                GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-        content: Text(
-            _t('This cannot be undone.',
-                'Ini tidak dapat dibatalkan.', '此操作无法撤销。'),
-            style: GoogleFonts.poppins()),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(_t('Cancel', 'Batal', '取消'),
-                  style: const TextStyle(color: Colors.grey))),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: _C.red,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10))),
-              child: Text(_t('Delete', 'Hapus', '删除'),
-                  style:
-                      const TextStyle(color: Colors.white))),
-        ],
-      ),
-    );
-    if (confirmed == true) {
+          context: context,
+          barrierDismissible: true,
+          builder: (_) => Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEBEB),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: _C.red.withValues(alpha: 0.25), width: 2),
+                    ),
+                    child: const Icon(Icons.delete_forever_rounded,
+                        color: _C.red, size: 34),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _t('Delete Question?', 'Hapus Pertanyaan?', '删除问题？'),
+                    style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _C.textMain),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _t(
+                      'This action cannot be undone.',
+                      'Tindakan ini tidak dapat dibatalkan.',
+                      '此操作无法撤销。',
+                    ),
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: _C.textSub, height: 1.5),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(context, true),
+                      icon: const Icon(Icons.delete_forever_rounded,
+                          color: Colors.white, size: 16),
+                      label: Text(
+                        _t('Delete', 'Hapus', '删除'),
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _C.red,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: _C.divider),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(
+                        _t('Cancel', 'Batal', '取消'),
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: _C.textSub),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ) ??
+        false;
+
+    if (confirmed) {
       await _supabase
           .from('audit_question')
           .delete()

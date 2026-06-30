@@ -343,6 +343,23 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
                               if (text.isEmpty) return;
                               setDlg(() => isTranslating = true);
                               try {
+                                final isDup = _temas.any((tm) =>
+                                    (tm['nama_tema_id']?.toString().trim().toLowerCase() ?? '') ==
+                                        text.toLowerCase() &&
+                                    (!isEdit || tm['id_tema'] != existing['id_tema']));
+                                if (isDup) {
+                                  setDlg(() => isTranslating = false);
+                                  _showSuccessPopup(
+                                    isSuccess: false,
+                                    titleEn: 'Duplicate Theme',
+                                    titleId: 'Tema Duplikat',
+                                    titleZh: '主题重复',
+                                    msgEn: 'This theme name already exists in this audit type.',
+                                    msgId: 'Nama tema ini sudah ada pada jenis audit ini.',
+                                    msgZh: '该审计类型中已存在此主题名称。',
+                                  );
+                                  return;
+                                }
                                 final t = await _translateAll(text);
                                 if (isEdit) {
                                   await _supabase.from('audit_tema').update({

@@ -341,6 +341,23 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                               if (text.isEmpty) return;
                               setDlg(() => isTranslating = true);
                               try {
+                                final isDup = _list.any((j) =>
+                                    (j['nama_id']?.toString().trim().toLowerCase() ?? '') ==
+                                        text.toLowerCase() &&
+                                    (!isEdit || j['id_jenis_audit'] != existing['id_jenis_audit']));
+                                if (isDup) {
+                                  setDlg(() => isTranslating = false);
+                                  _showSuccessPopup(
+                                    isSuccess: false,
+                                    titleEn: 'Duplicate Name',
+                                    titleId: 'Nama Duplikat',
+                                    titleZh: '名称重复',
+                                    msgEn: 'This audit type name already exists.',
+                                    msgId: 'Nama jenis audit ini sudah ada.',
+                                    msgZh: '该审计类型名称已存在。',
+                                  );
+                                  return;
+                                }
                                 final t = await _translateAll(text);
                                 if (isEdit) {
                                   await _supabase
