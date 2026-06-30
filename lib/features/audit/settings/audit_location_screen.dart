@@ -782,9 +782,9 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                               final max = range['max'] as double?;
                               final isSelected = selectedMinScore == min && selectedMaxScore == max;
                               Color chipColor = _C.primary;
-                              if (min == 80.0) chipColor = _C.green;
-                              else if (min == 60.0) chipColor = _C.amber;
-                              else if (max == 59.9) chipColor = _C.red;
+                              if (min == 80.0) { chipColor = _C.green; }
+                              else if (min == 60.0) { chipColor = _C.amber; }
+                              else if (max == 59.9) { chipColor = _C.red; }
                               return _FilterChipItem(
                                 label: range['label'] as String,
                                 isSelected: isSelected,
