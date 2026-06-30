@@ -451,9 +451,9 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen> {
                               final max = range['max'] as double?;
                               final isSelected = selectedMinScore == min && selectedMaxScore == max;
                               Color chipColor = _SBC.primary;
-                              if (min == 80.0) chipColor = _SBC.green;
-                              else if (min == 60.0) chipColor = _SBC.amber;
-                              else if (max == 59.9) chipColor = _SBC.red;
+                              if (min == 80.0) { chipColor = _SBC.green; }
+                              else if (min == 60.0) { chipColor = _SBC.amber; }
+                              else if (max == 59.9) { chipColor = _SBC.red; }
                               return _FilterChipItem(
                                 label: range['label'] as String,
                                 isSelected: isSelected,
