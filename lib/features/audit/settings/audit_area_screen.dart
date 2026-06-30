@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../audit_result_detail_screen.dart';
 
-class _C {
+class _ARC {
   static const primary    = Color(0xFF8B5CF6);
   static const primaryLt  = Color(0xFFEDE9FE);
   static const green      = Color(0xFF10B981);
@@ -18,7 +18,7 @@ class _C {
   static const surface    = Color(0xFFF8FAFC);
 }
 
-class _LocationItem {
+class _AreaItem {
   final String id;
   final String name;
   final String? description;
@@ -29,8 +29,9 @@ class _LocationItem {
   double? latestScore;
   String? latestAuditDate;
   String? picName;
+  final String? idSubunit;
 
-  _LocationItem({
+  _AreaItem({
     required this.id,
     required this.name,
     this.description,
@@ -41,38 +42,56 @@ class _LocationItem {
     this.latestScore,
     this.latestAuditDate,
     this.picName,
+    this.idSubunit,
   });
 }
 
-class _LocationHierarchyFilter {
+class _AreaHierarchyFilter {
+  final String? idLokasi;
+  final String? namaLokasi;
+  final String? idUnit;
+  final String? namaUnit;
+  final String? idSubunit;
+  final String? namaSubunit;
   final String? auditStatus;
   final double? minScore;
   final double? maxScore;
 
-  const _LocationHierarchyFilter({
+  const _AreaHierarchyFilter({
+    this.idLokasi,
+    this.namaLokasi,
+    this.idUnit,
+    this.namaUnit,
+    this.idSubunit,
+    this.namaSubunit,
     this.auditStatus,
     this.minScore,
     this.maxScore,
   });
 }
 
-class AuditLocationScreen extends StatefulWidget {
+class AuditAreaScreen extends StatefulWidget {
   final String lang;
   final VoidCallback? onScheduleChanged;
-  const AuditLocationScreen({super.key, required this.lang, this.onScheduleChanged});
+  const AuditAreaScreen({super.key, required this.lang, this.onScheduleChanged});
 
   @override
-  State<AuditLocationScreen> createState() => _AuditLocationScreenState();
+  State<AuditAreaScreen> createState() => _AuditAreaScreenState();
 }
 
-class _AuditLocationScreenState extends State<AuditLocationScreen> {
+class _AuditAreaScreenState extends State<AuditAreaScreen> {
   final _supabase = Supabase.instance.client;
 
-  List<_LocationItem> _data = [];
+  List<_AreaItem> _data = [];
   bool _loading = true;
   String _search = '';
-  _LocationHierarchyFilter? _filter;
+  _AreaHierarchyFilter? _filter;
   bool _hasSchedule = false;
+
+  List<Map<String, dynamic>> _allLokasi  = [];
+  List<Map<String, dynamic>> _allUnit    = [];
+  List<Map<String, dynamic>> _allSubunit = [];
+  bool _filterDataLoaded = false;
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -83,18 +102,18 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchLokasi();
+    _fetchAreas();
   }
 
-  Future<void> _fetchLokasi() async {
+  Future<void> _fetchAreas() async {
     setState(() => _loading = true);
     try {
       final rows = await _supabase
-          .from('lokasi')
-          .select('id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, id_pic')
-          .order('nama_lokasi');
+          .from('area')
+          .select('id_area, nama_area, gambar_area, deskripsi_area, id_pic, id_subunit')
+          .order('nama_area');
 
-      final ids = rows.map((r) => r['id_lokasi'].toString()).toList();
+      final ids = rows.map((r) => r['id_area'].toString()).toList();
       final picIds = rows
           .where((r) => r['id_pic'] != null)
           .map((r) => r['id_pic'].toString())
@@ -106,7 +125,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
             ? _supabase
                 .from('audit_result')
                 .select('id_ref, nilai_audit, tanggal_audit')
-                .eq('level_type', 'lokasi')
+                .eq('level_type', 'area')
                 .inFilter('id_ref', ids)
                 .order('tanggal_audit', ascending: false)
             : Future.value(<dynamic>[]),
@@ -136,7 +155,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                   'id_ref, periode_mulai, periode_selesai, id_jenis_audit, '
                   'User_Auditor:User!fk_audit_schedule_auditor(nama), '
                   'JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)')
-              .eq('level_type', 'lokasi')
+              .eq('level_type', 'area')
               .inFilter('id_ref', ids)
               .eq('status', 'pending')
               .order('created_at', ascending: false)
@@ -149,8 +168,8 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
       }
       _hasSchedule = scheduleRows.isNotEmpty;
 
-      final items = rows.map<_LocationItem>((r) {
-        final id = r['id_lokasi'].toString();
+      final items = rows.map<_AreaItem>((r) {
+        final id = r['id_area'].toString();
         final audit = auditMap[id];
         final schedule = scheduleMap[id];
 
@@ -177,16 +196,17 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
           }
         }
 
-        return _LocationItem(
+        return _AreaItem(
           id: id,
-          name: r['nama_lokasi']?.toString() ?? '-',
-          description: r['deskripsi_lokasi']?.toString(),
-          imageUrl: r['gambar_lokasi']?.toString(),
+          name: r['nama_area']?.toString() ?? '-',
+          description: r['deskripsi_area']?.toString(),
+          imageUrl: r['gambar_area']?.toString(),
           latestScore: audit != null
               ? double.tryParse(audit['nilai_audit']?.toString() ?? '')
               : null,
           latestAuditDate: audit?['tanggal_audit']?.toString(),
           picName: r['id_pic'] != null ? picMap[r['id_pic'].toString()] : null,
+          idSubunit: r['id_subunit']?.toString(),
           schedulePeriode: schedulePeriode,
           scheduleAuditorName: scheduleAuditorName,
           scheduleJenisAuditName: scheduleJenisAuditName,
@@ -200,16 +220,37 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Audit lokasi fetch error: $e');
+      debugPrint('Audit area fetch error: $e');
       if (mounted) setState(() => _loading = false);
     }
   }
 
+  Future<void> _loadFilterData() async {
+    if (_filterDataLoaded) return;
+    try {
+      final results = await Future.wait([
+        _supabase.from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi'),
+        _supabase.from('unit').select('id_unit, nama_unit, id_lokasi').order('nama_unit'),
+        _supabase.from('subunit').select('id_subunit, nama_subunit, id_unit').order('nama_subunit'),
+      ]);
+      if (mounted) {
+        setState(() {
+          _allLokasi  = List<Map<String, dynamic>>.from(results[0]);
+          _allUnit    = List<Map<String, dynamic>>.from(results[1]);
+          _allSubunit = List<Map<String, dynamic>>.from(results[2]);
+          _filterDataLoaded = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading filter data: $e');
+    }
+  }
+
   Color _scoreColor(double? score) {
-    if (score == null) return _C.textSub;
-    if (score >= 80) return _C.green;
-    if (score >= 60) return _C.amber;
-    return _C.red;
+    if (score == null) return _ARC.textSub;
+    if (score >= 80) return _ARC.green;
+    if (score >= 60) return _ARC.amber;
+    return _ARC.red;
   }
 
   String _scoreLabel(double? score) {
@@ -225,10 +266,30 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
     return DateFormat('dd MMM yyyy').format(dt);
   }
 
-  List<_LocationItem> _applyFilter(List<_LocationItem> items) {
+  List<_AreaItem> _applyFilter(List<_AreaItem> items) {
     final filter = _filter;
     if (filter == null) return items;
-    List<_LocationItem> result = items;
+    List<_AreaItem> result = items;
+
+    if (filter.idSubunit != null) {
+      result = result.where((i) => i.idSubunit == filter.idSubunit).toList();
+    } else if (filter.idUnit != null) {
+      final validSubIds = _allSubunit
+          .where((s) => s['id_unit']?.toString() == filter.idUnit)
+          .map((s) => s['id_subunit']?.toString() ?? '')
+          .toSet();
+      result = result.where((i) => validSubIds.contains(i.idSubunit)).toList();
+    } else if (filter.idLokasi != null) {
+      final validUnitIds = _allUnit
+          .where((u) => u['id_lokasi']?.toString() == filter.idLokasi)
+          .map((u) => u['id_unit']?.toString() ?? '')
+          .toSet();
+      final validSubIds = _allSubunit
+          .where((s) => validUnitIds.contains(s['id_unit']?.toString()))
+          .map((s) => s['id_subunit']?.toString() ?? '')
+          .toSet();
+      result = result.where((i) => validSubIds.contains(i.idSubunit)).toList();
+    }
 
     if (filter.auditStatus == 'audited') {
       result = result.where((i) => i.latestScore != null).toList();
@@ -248,6 +309,9 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
   }
 
   Future<void> _showFilterSheet() async {
+    await _loadFilterData();
+    if (!mounted) return;
+
     final current = _filter;
 
     await showModalBottomSheet(
@@ -256,9 +320,12 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
+          String? selectedLokasiId  = current?.idLokasi;
+          String? selectedUnitId    = current?.idUnit;
+          String? selectedSubunitId = current?.idSubunit;
           String? selectedAuditStatus = current?.auditStatus;
-          double? selectedMinScore = current?.minScore;
-          double? selectedMaxScore = current?.maxScore;
+          double? selectedMinScore    = current?.minScore;
+          double? selectedMaxScore    = current?.maxScore;
 
           final scoreRanges = [
             {'label': _t('All Scores', 'Semua Nilai', '所有分数'), 'min': null, 'max': null},
@@ -288,7 +355,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                     children: [
                       Text(
                         _t('Filter', 'Filter', '筛选'),
-                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _C.textMain),
+                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _ARC.textMain),
                       ),
                       TextButton(
                         onPressed: () {
@@ -296,7 +363,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                           Navigator.pop(ctx);
                         },
                         child: Text(_t('Reset', 'Reset', '重置'),
-                            style: GoogleFonts.poppins(color: _C.red, fontWeight: FontWeight.w600)),
+                            style: GoogleFonts.poppins(color: _ARC.red, fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),
@@ -306,46 +373,139 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                     child: StatefulBuilder(
                       builder: (ctx2, setInner) {
+                        final filteredUnit = selectedLokasiId == null
+                            ? _allUnit
+                            : _allUnit.where((u) => u['id_lokasi']?.toString() == selectedLokasiId).toList();
+                        final filteredSubunit = selectedUnitId == null
+                            ? _allSubunit
+                            : _allSubunit.where((s) => s['id_unit']?.toString() == selectedUnitId).toList();
+
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Text(_t('Location', 'Lokasi', '位置'),
+                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
+                            const SizedBox(height: 8),
+                            Wrap(spacing: 8, runSpacing: 8, children: [
+                              _FilterChipItem(
+                                label: _t('All', 'Semua', '全部'),
+                                isSelected: selectedLokasiId == null,
+                                color: _ARC.primary,
+                                onTap: () => setInner(() {
+                                  selectedLokasiId  = null;
+                                  selectedUnitId    = null;
+                                  selectedSubunitId = null;
+                                }),
+                              ),
+                              ..._allLokasi.map((lok) {
+                                final id   = lok['id_lokasi']?.toString() ?? '';
+                                final nama = lok['nama_lokasi']?.toString() ?? '';
+                                return _FilterChipItem(
+                                  label: nama,
+                                  isSelected: selectedLokasiId == id,
+                                  color: _ARC.primary,
+                                  onTap: () => setInner(() {
+                                    selectedLokasiId  = id;
+                                    selectedUnitId    = null;
+                                    selectedSubunitId = null;
+                                  }),
+                                );
+                              }),
+                            ]),
+                            const SizedBox(height: 16),
+
+                            Text(_t('Unit', 'Unit', '单元'),
+                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
+                            const SizedBox(height: 8),
+                            Wrap(spacing: 8, runSpacing: 8, children: [
+                              _FilterChipItem(
+                                label: _t('All', 'Semua', '全部'),
+                                isSelected: selectedUnitId == null,
+                                color: _ARC.blue,
+                                onTap: () => setInner(() {
+                                  selectedUnitId    = null;
+                                  selectedSubunitId = null;
+                                }),
+                              ),
+                              ...filteredUnit.map((unit) {
+                                final id   = unit['id_unit']?.toString() ?? '';
+                                final nama = unit['nama_unit']?.toString() ?? '';
+                                return _FilterChipItem(
+                                  label: nama,
+                                  isSelected: selectedUnitId == id,
+                                  color: _ARC.blue,
+                                  onTap: () => setInner(() {
+                                    selectedUnitId    = id;
+                                    selectedSubunitId = null;
+                                  }),
+                                );
+                              }),
+                            ]),
+                            const SizedBox(height: 16),
+
+                            Text(_t('Sub-Unit', 'Sub-Unit', '子单元'),
+                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
+                            const SizedBox(height: 8),
+                            Wrap(spacing: 8, runSpacing: 8, children: [
+                              _FilterChipItem(
+                                label: _t('All', 'Semua', '全部'),
+                                isSelected: selectedSubunitId == null,
+                                color: _ARC.green,
+                                onTap: () => setInner(() => selectedSubunitId = null),
+                              ),
+                              ...filteredSubunit.map((sub) {
+                                final id   = sub['id_subunit']?.toString() ?? '';
+                                final nama = sub['nama_subunit']?.toString() ?? '';
+                                return _FilterChipItem(
+                                  label: nama,
+                                  isSelected: selectedSubunitId == id,
+                                  color: _ARC.green,
+                                  onTap: () => setInner(() => selectedSubunitId = id),
+                                );
+                              }),
+                            ]),
+                            const SizedBox(height: 16),
+                            const Divider(),
+                            const SizedBox(height: 8),
+
                             if (_hasSchedule) ...[
                               Text(_t('Audit Status', 'Status Audit', '审计状态'),
-                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub)),
+                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
                               const SizedBox(height: 8),
                               Wrap(spacing: 8, runSpacing: 8, children: [
                                 _FilterChipItem(
                                   label: _t('All', 'Semua', '全部'),
                                   isSelected: selectedAuditStatus == null,
-                                  color: _C.primary,
+                                  color: _ARC.primary,
                                   onTap: () => setInner(() => selectedAuditStatus = null),
                                 ),
                                 _FilterChipItem(
                                   label: _t('Audited', 'Sudah Diaudit', '已审计'),
                                   isSelected: selectedAuditStatus == 'audited',
-                                  color: _C.green,
+                                  color: _ARC.green,
                                   onTap: () => setInner(() => selectedAuditStatus = 'audited'),
                                 ),
                                 _FilterChipItem(
                                   label: _t('Not Audited', 'Belum Diaudit', '未审计'),
                                   isSelected: selectedAuditStatus == 'not_audited',
-                                  color: _C.amber,
+                                  color: _ARC.amber,
                                   onTap: () => setInner(() => selectedAuditStatus = 'not_audited'),
                                 ),
                               ]),
                               const SizedBox(height: 16),
                             ],
+
                             Text(_t('Score Range', 'Rentang Nilai', '分数范围'),
-                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub)),
+                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
                             const SizedBox(height: 8),
                             Wrap(spacing: 8, runSpacing: 8, children: scoreRanges.map((range) {
                               final min = range['min'] as double?;
                               final max = range['max'] as double?;
                               final isSelected = selectedMinScore == min && selectedMaxScore == max;
-                              Color chipColor = _C.primary;
-                              if (min == 80.0) { chipColor = _C.green; }
-                              else if (min == 60.0) { chipColor = _C.amber; }
-                              else if (max == 59.9) { chipColor = _C.red; }
+                              Color chipColor = _ARC.primary;
+                              if (min == 80.0) chipColor = _ARC.green;
+                              else if (min == 60.0) chipColor = _ARC.amber;
+                              else if (max == 59.9) chipColor = _ARC.red;
                               return _FilterChipItem(
                                 label: range['label'] as String,
                                 isSelected: isSelected,
@@ -368,12 +528,28 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
+                        final lokasiNama = _allLokasi
+                            .firstWhere((l) => l['id_lokasi']?.toString() == selectedLokasiId, orElse: () => {})['nama_lokasi']?.toString();
+                        final unitNama = _allUnit
+                            .firstWhere((u) => u['id_unit']?.toString() == selectedUnitId, orElse: () => {})['nama_unit']?.toString();
+                        final subunitNama = _allSubunit
+                            .firstWhere((s) => s['id_subunit']?.toString() == selectedSubunitId, orElse: () => {})['nama_subunit']?.toString();
+
                         setState(() {
-                          final hasFilter = selectedAuditStatus != null ||
+                          final hasFilter = selectedLokasiId != null ||
+                              selectedUnitId != null ||
+                              selectedSubunitId != null ||
+                              selectedAuditStatus != null ||
                               selectedMinScore != null ||
                               selectedMaxScore != null;
                           _filter = hasFilter
-                              ? _LocationHierarchyFilter(
+                              ? _AreaHierarchyFilter(
+                                  idLokasi:    selectedLokasiId,
+                                  namaLokasi:  lokasiNama,
+                                  idUnit:      selectedUnitId,
+                                  namaUnit:    unitNama,
+                                  idSubunit:   selectedSubunitId,
+                                  namaSubunit: subunitNama,
                                   auditStatus: selectedAuditStatus,
                                   minScore:    selectedMinScore,
                                   maxScore:    selectedMaxScore,
@@ -383,7 +559,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                         Navigator.pop(ctx);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _C.primary,
+                        backgroundColor: _ARC.primary,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -401,12 +577,12 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
     );
   }
 
-  void _showDetail(_LocationItem item) {
+  void _showDetail(_AreaItem item) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _LocationDetailSheet(lang: widget.lang, item: item),
+      builder: (_) => _AreaDetailSheet(lang: widget.lang, item: item),
     );
   }
 
@@ -415,16 +591,16 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
         .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').join();
     return Container(
       width: 56, height: 56,
-      color: _C.primaryLt,
+      color: _ARC.primaryLt,
       child: Center(
         child: Text(initials,
             style: GoogleFonts.poppins(
-                fontSize: 18, fontWeight: FontWeight.w700, color: _C.primary)),
+                fontSize: 18, fontWeight: FontWeight.w700, color: _ARC.primary)),
       ),
     );
   }
 
-  Widget _buildCard(_LocationItem item) {
+  Widget _buildCard(_AreaItem item) {
     final score = item.latestScore;
     final scoreColor = _scoreColor(score);
     return GestureDetector(
@@ -434,7 +610,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _C.divider, width: 1.2),
+          border: Border.all(color: _ARC.divider, width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -464,16 +640,16 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                       children: [
                         Text(item.name,
                             style: GoogleFonts.poppins(
-                                fontSize: 14, fontWeight: FontWeight.w700, color: _C.textMain),
+                                fontSize: 14, fontWeight: FontWeight.w700, color: _ARC.textMain),
                             maxLines: 2, overflow: TextOverflow.ellipsis),
                         if (item.picName != null) ...[
                           const SizedBox(height: 3),
                           Row(children: [
-                            const Icon(Icons.person_outline_rounded, size: 12, color: _C.textSub),
+                            const Icon(Icons.person_outline_rounded, size: 12, color: _ARC.textSub),
                             const SizedBox(width: 4),
                             Expanded(
                                 child: Text(item.picName!,
-                                    style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub),
+                                    style: GoogleFonts.poppins(fontSize: 11, color: _ARC.textSub),
                                     maxLines: 1, overflow: TextOverflow.ellipsis)),
                           ]),
                         ],
@@ -482,19 +658,19 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: _C.primary.withValues(alpha: 0.1),
+                              color: _ARC.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _C.primary.withValues(alpha: 0.35)),
+                              border: Border.all(color: _ARC.primary.withValues(alpha: 0.35)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.fact_check_rounded, size: 11, color: _C.primary),
+                                const Icon(Icons.fact_check_rounded, size: 11, color: _ARC.primary),
                                 const SizedBox(width: 4),
                                 Flexible(
                                   child: Text(item.scheduleJenisAuditName!,
                                       style: GoogleFonts.poppins(
-                                          fontSize: 10, fontWeight: FontWeight.w600, color: _C.primary),
+                                          fontSize: 10, fontWeight: FontWeight.w600, color: _ARC.primary),
                                       maxLines: 1, overflow: TextOverflow.ellipsis),
                                 ),
                               ],
@@ -506,19 +682,19 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: _C.blue.withValues(alpha: 0.1),
+                              color: _ARC.blue.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _C.blue.withValues(alpha: 0.35)),
+                              border: Border.all(color: _ARC.blue.withValues(alpha: 0.35)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.event_rounded, size: 11, color: _C.blue),
+                                const Icon(Icons.event_rounded, size: 11, color: _ARC.blue),
                                 const SizedBox(width: 4),
                                 Flexible(
                                   child: Text(item.schedulePeriode!,
                                       style: GoogleFonts.poppins(
-                                          fontSize: 10, fontWeight: FontWeight.w600, color: _C.blue),
+                                          fontSize: 10, fontWeight: FontWeight.w600, color: _ARC.blue),
                                       maxLines: 1, overflow: TextOverflow.ellipsis),
                                 ),
                               ],
@@ -556,7 +732,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
             Container(
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
               decoration: BoxDecoration(
-                color: _C.surface,
+                color: _ARC.surface,
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
               ),
               child: Column(
@@ -565,12 +741,12 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                   if (item.scheduleAuditorName != null) ...[
                     Row(
                       children: [
-                        const Icon(Icons.assignment_ind_outlined, size: 12, color: _C.blue),
+                        const Icon(Icons.assignment_ind_outlined, size: 12, color: _ARC.blue),
                         const SizedBox(width: 5),
                         Expanded(
                           child: Text(
                             '${_t('Auditor', 'Auditor', '审计员')}: ${item.scheduleAuditorName!}',
-                            style: GoogleFonts.poppins(fontSize: 11, color: _C.blue),
+                            style: GoogleFonts.poppins(fontSize: 11, color: _ARC.blue),
                             maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -580,14 +756,14 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                   ],
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today_rounded, size: 12, color: _C.textSub),
+                      const Icon(Icons.calendar_today_rounded, size: 12, color: _ARC.textSub),
                       const SizedBox(width: 5),
                       Expanded(
                         child: Text(
                           item.latestAuditDate != null
                               ? '${_t('Last audit', 'Terakhir diaudit', '上次审计')}: ${_formatDate(item.latestAuditDate!)}'
                               : _t('Never audited', 'Belum pernah diaudit', '从未审计'),
-                          style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub),
+                          style: GoogleFonts.poppins(fontSize: 11, color: _ARC.textSub),
                         ),
                       ),
                     ],
@@ -625,7 +801,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
           Icon(Icons.location_off_rounded, size: 56, color: Colors.grey.shade300),
           const SizedBox(height: 12),
           Text(_t('No data found', 'Tidak ada data', '没有数据'),
-              style: GoogleFonts.poppins(fontSize: 14, color: _C.textSub)),
+              style: GoogleFonts.poppins(fontSize: 14, color: _ARC.textSub)),
         ],
       ),
     );
@@ -642,6 +818,9 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
     String? filterLabel;
     if (_filter != null) {
       final parts = <String>[
+        if (_filter!.namaLokasi != null) _filter!.namaLokasi!,
+        if (_filter!.namaUnit != null) _filter!.namaUnit!,
+        if (_filter!.namaSubunit != null) _filter!.namaSubunit!,
         if (_filter!.auditStatus == 'audited') _t('Audited', 'Sudah Diaudit', '已审计'),
         if (_filter!.auditStatus == 'not_audited') _t('Not Audited', 'Belum Diaudit', '未审计'),
         if (_filter!.minScore != null || _filter!.maxScore != null) ...[
@@ -664,23 +843,23 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                 Expanded(
                   child: TextField(
                     onChanged: (v) => setState(() => _search = v),
-                    style: GoogleFonts.poppins(fontSize: 14, color: _C.textMain),
+                    style: GoogleFonts.poppins(fontSize: 14, color: _ARC.textMain),
                     decoration: InputDecoration(
                       hintText: _t('Search…', 'Cari…', '搜索…'),
-                      hintStyle: GoogleFonts.poppins(fontSize: 13, color: _C.textSub),
-                      prefixIcon: const Icon(Icons.search_rounded, color: _C.primary, size: 20),
+                      hintStyle: GoogleFonts.poppins(fontSize: 13, color: _ARC.textSub),
+                      prefixIcon: const Icon(Icons.search_rounded, color: _ARC.primary, size: 20),
                       filled: true,
-                      fillColor: _C.surface,
+                      fillColor: _ARC.surface,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _C.divider)),
+                          borderSide: const BorderSide(color: _ARC.divider)),
                       enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _C.divider)),
+                          borderSide: const BorderSide(color: _ARC.divider)),
                       focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _C.primary, width: 1.5)),
+                          borderSide: const BorderSide(color: _ARC.primary, width: 1.5)),
                     ),
                   ),
                 ),
@@ -690,13 +869,13 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: _filter != null ? _C.primary : _C.surface,
+                      color: _filter != null ? _ARC.primary : _ARC.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _filter != null ? _C.primary : _C.divider),
+                      border: Border.all(color: _filter != null ? _ARC.primary : _ARC.divider),
                     ),
                     child: Icon(
                       Icons.filter_list_rounded,
-                      color: _filter != null ? Colors.white : _C.primary,
+                      color: _filter != null ? Colors.white : _ARC.primary,
                       size: 20,
                     ),
                   ),
@@ -712,23 +891,23 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: _C.primary.withValues(alpha:0.08),
+                  color: _ARC.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _C.primary.withValues(alpha:0.3)),
+                  border: Border.all(color: _ARC.primary.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.filter_alt_rounded, size: 14, color: _C.primary),
+                    const Icon(Icons.filter_alt_rounded, size: 14, color: _ARC.primary),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(filterLabel,
                           style: GoogleFonts.poppins(
-                              fontSize: 11, color: _C.primary, fontWeight: FontWeight.w600),
+                              fontSize: 11, color: _ARC.primary, fontWeight: FontWeight.w600),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                     GestureDetector(
                       onTap: () => setState(() => _filter = null),
-                      child: const Icon(Icons.close_rounded, size: 14, color: _C.primary),
+                      child: const Icon(Icons.close_rounded, size: 14, color: _ARC.primary),
                     ),
                   ],
                 ),
@@ -738,7 +917,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
           if (!_loading)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: _StatsRow(items: _data, lang: widget.lang),
+              child: _AreaStatsRow(items: _data, lang: widget.lang),
             ),
 
           Expanded(
@@ -747,8 +926,8 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                 : items.isEmpty
                     ? _buildEmpty()
                     : RefreshIndicator(
-                        onRefresh: _fetchLokasi,
-                        color: _C.primary,
+                        onRefresh: _fetchAreas,
+                        color: _ARC.primary,
                         child: ListView.builder(
                           padding: const EdgeInsets.only(bottom: 100, top: 4),
                           itemCount: items.length,
@@ -762,10 +941,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
   }
 }
 
-class _StatsRow extends StatelessWidget {
-  final List<_LocationItem> items;
+class _AreaStatsRow extends StatelessWidget {
+  final List<_AreaItem> items;
   final String lang;
-  const _StatsRow({required this.items, required this.lang});
+  const _AreaStatsRow({required this.items, required this.lang});
 
   String _t(String en, String id, String zh) {
     if (lang == 'EN') return en;
@@ -777,46 +956,35 @@ class _StatsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final audited = items.where((i) => i.latestScore != null).length;
     final avgScore = audited > 0
-        ? items
-                .where((i) => i.latestScore != null)
-                .map((i) => i.latestScore!)
-                .reduce((a, b) => a + b) /
-            audited
+        ? items.where((i) => i.latestScore != null).map((i) => i.latestScore!).reduce((a, b) => a + b) / audited
         : 0.0;
 
     return Row(
       children: [
         Expanded(
-          child: _StatChip(
-              label: _t('Total', 'Total', '总计'),
-              value: '${items.length}',
-              color: _C.primary),
+          child: _AreaStatChip(label: _t('Total', 'Total', '总计'), value: '${items.length}', color: _ARC.primary),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _StatChip(
-              label: _t('Audited', 'Diaudit', '已审计'),
-              value: '$audited',
-              color: _C.green),
+          child: _AreaStatChip(label: _t('Audited', 'Diaudit', '已审计'), value: '$audited', color: _ARC.green),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _StatChip(
+          child: _AreaStatChip(
               label: _t('Avg Score', 'Rata-rata', '平均分'),
               value: audited > 0 ? '${avgScore.toStringAsFixed(0)}%' : '-',
-              color: _C.amber),
+              color: _ARC.amber),
         ),
       ],
     );
   }
 }
 
-class _StatChip extends StatelessWidget {
+class _AreaStatChip extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _StatChip(
-      {required this.label, required this.value, required this.color});
+  const _AreaStatChip({required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -824,38 +992,33 @@ class _StatChip extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha:0.09),
+        color: color.withValues(alpha: 0.09),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha:0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
-          Text(value,
-              style: GoogleFonts.poppins(
-                  fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+          Text(value, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800, color: color)),
           const SizedBox(height: 2),
           Text(label,
-              style: GoogleFonts.poppins(
-                  fontSize: 10, color: color.withValues(alpha:0.8)),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+              style: GoogleFonts.poppins(fontSize: 10, color: color.withValues(alpha: 0.8)),
+              textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
     );
   }
 }
 
-class _LocationDetailSheet extends StatefulWidget {
+class _AreaDetailSheet extends StatefulWidget {
   final String lang;
-  final _LocationItem item;
-  const _LocationDetailSheet({required this.lang, required this.item});
+  final _AreaItem item;
+  const _AreaDetailSheet({required this.lang, required this.item});
 
   @override
-  State<_LocationDetailSheet> createState() => _LocationDetailSheetState();
+  State<_AreaDetailSheet> createState() => _AreaDetailSheetState();
 }
 
-class _LocationDetailSheetState extends State<_LocationDetailSheet> {
+class _AreaDetailSheetState extends State<_AreaDetailSheet> {
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _history = [];
   bool _loading = true;
@@ -873,10 +1036,10 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
   }
 
   Color _scoreColor(double? score) {
-    if (score == null) return _C.textSub;
-    if (score >= 80) return _C.green;
-    if (score >= 60) return _C.amber;
-    return _C.red;
+    if (score == null) return _ARC.textSub;
+    if (score >= 80) return _ARC.green;
+    if (score >= 60) return _ARC.amber;
+    return _ARC.red;
   }
 
   Future<void> _fetchHistory() async {
@@ -887,7 +1050,7 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
               'id_result, nilai_audit, nilai_final, is_finalized, '
               'tanggal_audit, catatan_audit, selfie_url, created_at, '
               'Auditor:User!fk_audit_result_auditor(nama, gambar_user)')
-          .eq('level_type', 'lokasi')
+          .eq('level_type', 'area')
           .eq('id_ref', widget.item.id)
           .order('tanggal_audit', ascending: false)
           .limit(20);
@@ -918,9 +1081,7 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
             Container(
               margin: const EdgeInsets.only(top: 10),
               width: 40, height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
@@ -928,18 +1089,16 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
                 children: [
                   Expanded(
                     child: Text(widget.item.name,
-                        style: GoogleFonts.poppins(
-                            fontSize: 16, fontWeight: FontWeight.w700, color: _C.textMain)),
+                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _ARC.textMain)),
                   ),
                   if (widget.item.latestScore != null)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: _scoreColor(widget.item.latestScore).withValues(alpha:0.12),
+                        color: _scoreColor(widget.item.latestScore).withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text(
-                          '${widget.item.latestScore!.toStringAsFixed(0)}%',
+                      child: Text('${widget.item.latestScore!.toStringAsFixed(0)}%',
                           style: GoogleFonts.poppins(
                               fontSize: 16, fontWeight: FontWeight.w800, color: _scoreColor(widget.item.latestScore))),
                     ),
@@ -951,20 +1110,17 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
-                    _t('Riwayat Audit', 'Audit History', '审计历史'),
-                    style: GoogleFonts.poppins(
-                        fontSize: 13, fontWeight: FontWeight.w700, color: _C.textMain)),
+                child: Text(_t('Riwayat Audit', 'Audit History', '审计历史'),
+                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _ARC.textMain)),
               ),
             ),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: _C.primary))
+                  ? const Center(child: CircularProgressIndicator(color: _ARC.primary))
                   : _history.isEmpty
                       ? Center(
-                          child: Text(
-                              _t('Belum ada riwayat audit', 'No audit history', '无审计历史'),
-                              style: GoogleFonts.poppins(fontSize: 13, color: _C.textSub)))
+                          child: Text(_t('Belum ada riwayat audit', 'No audit history', '无审计历史'),
+                              style: GoogleFonts.poppins(fontSize: 13, color: _ARC.textSub)))
                       : ListView.separated(
                           controller: ctrl,
                           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -992,7 +1148,7 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
                                       lang: widget.lang,
                                       idResult: idResult,
                                       locationName: widget.item.name,
-                                      levelType: 'lokasi',
+                                      levelType: 'area',
                                     ),
                                   ),
                                 );
@@ -1000,16 +1156,16 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
                               child: Container(
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
-                                  color: color.withValues(alpha:0.05),
+                                  color: color.withValues(alpha: 0.05),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: color.withValues(alpha:0.3)),
+                                  border: Border.all(color: color.withValues(alpha: 0.3)),
                                 ),
                                 child: Row(
                                   children: [
                                     Container(
                                       width: 52, height: 52,
                                       decoration: BoxDecoration(
-                                        color: color.withValues(alpha:0.12),
+                                        color: color.withValues(alpha: 0.12),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Center(
@@ -1018,14 +1174,11 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
                                           children: [
                                             Text(
                                               displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 12, fontWeight: FontWeight.w800, color: color),
+                                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w800, color: color),
                                             ),
                                             if (isFinalized)
-                                              Text(
-                                                _t('Final', 'Final', '最终'),
-                                                style: GoogleFonts.poppins(fontSize: 8, color: color),
-                                              ),
+                                              Text(_t('Final', 'Final', '最终'),
+                                                  style: GoogleFonts.poppins(fontSize: 8, color: color)),
                                           ],
                                         ),
                                       ),
@@ -1036,30 +1189,25 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(auditor,
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 13, fontWeight: FontWeight.w600, color: _C.textMain)),
-                                          Text(date,
-                                              style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub)),
+                                              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: _ARC.textMain)),
+                                          Text(date, style: GoogleFonts.poppins(fontSize: 11, color: _ARC.textSub)),
                                         ],
                                       ),
                                     ),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                       decoration: BoxDecoration(
-                                        color: _C.primary.withValues(alpha:0.1),
+                                        color: _ARC.primary.withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: _C.primary.withValues(alpha:0.3)),
+                                        border: Border.all(color: _ARC.primary.withValues(alpha: 0.3)),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(Icons.open_in_new_rounded, size: 12, color: _C.primary),
+                                          const Icon(Icons.open_in_new_rounded, size: 12, color: _ARC.primary),
                                           const SizedBox(width: 4),
-                                          Text(
-                                            _t('Detail', 'Detail', '详情'),
-                                            style: GoogleFonts.poppins(
-                                                fontSize: 11, fontWeight: FontWeight.w700, color: _C.primary),
-                                          ),
+                                          Text(_t('Detail', 'Detail', '详情'),
+                                              style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: _ARC.primary)),
                                         ],
                                       ),
                                     ),
@@ -1110,7 +1258,7 @@ class _FilterChipItem extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : _C.textSub,
+            color: isSelected ? Colors.white : _ARC.textSub,
           ),
         ),
       ),

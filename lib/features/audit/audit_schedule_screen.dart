@@ -198,7 +198,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
           if (mulai != null)   _periodeAwal  = mulai;
           if (selesai != null) _periodeAkhir = selesai;
           if (r['id_jenis_audit'] != null)
-            _selectedJenisAuditId = r['id_jenis_audit'].toString();
+            { _selectedJenisAuditId = r['id_jenis_audit'].toString(); }
           if (r['notif_time'] != null) {
             final parts = r['notif_time'].toString().split(':');
             if (parts.length >= 2) {
@@ -256,7 +256,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       final nameCol = 'nama_$level';
       final row = await _supabase
           .from(level)
-          .select('$nameCol')
+          .select(nameCol)
           .eq(idCol, idRef)
           .single();
       return row[nameCol]?.toString() ?? '-';

@@ -3,7 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../audit_schedule_screen.dart';
 import '../question/audit_question_manager_screen.dart';
+import 'audit_area_screen.dart';
 import 'audit_location_screen.dart';
+import 'audit_subunit_screen.dart';
+import 'audit_unit_screen.dart';
 
 class _AC {
   static const primary  = Color(0xFF8B5CF6);
@@ -19,11 +22,33 @@ class AdminAuditScreen extends StatefulWidget {
   State<AdminAuditScreen> createState() => _AdminAuditScreenState();
 }
 
-class _AdminAuditScreenState extends State<AdminAuditScreen> {
+class _AdminAuditScreenState extends State<AdminAuditScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabCtrl;
+
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
     if (widget.lang == 'ZH') return zh;
     return id;
+  }
+
+  List<String> get _tabLabels => [
+    _t('Location', 'Lokasi', '位置'),
+    _t('Unit', 'Unit', '单元'),
+    _t('Sub-Unit', 'Sub-Unit', '子单元'),
+    _t('Area', 'Area', '区域'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 4, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
   }
 
   void _openQuestionManager() {
@@ -63,37 +88,79 @@ class _AdminAuditScreenState extends State<AdminAuditScreen> {
               fontSize: 16, fontWeight: FontWeight.w700, color: _AC.primary),
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
-          child: Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _ActionButton(
-                    label: _t('Questions', 'Pertanyaan', '问题'),
-                    subtitle: _t('Manage by audit type', 'Kelola per jenis audit', '按审计类型管理'),
-                    icon: Icons.help_outline_rounded,
-                    colors: [_AC.primary, _AC.primary.withValues(alpha: 0.78)],
-                    onTap: _openQuestionManager,
+          preferredSize: const Size.fromHeight(112),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _ActionButton(
+                        label: _t('Questions', 'Pertanyaan', '问题'),
+                        subtitle: _t('Manage by audit type', 'Kelola per jenis audit', '按审计类型管理'),
+                        icon: Icons.help_outline_rounded,
+                        colors: [_AC.primary, _AC.primary.withValues(alpha: 0.78)],
+                        onTap: _openQuestionManager,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _ActionButton(
+                        label: _t('Schedule', 'Jadwal Audit', '审计计划'),
+                        subtitle: _t('Assign auditors', 'Atur penjadwalan', '分配审计员'),
+                        icon: Icons.event_note_rounded,
+                        colors: [_AC.green, _AC.green.withValues(alpha: 0.78)],
+                        onTap: _openScheduleManager,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // TAB BAR
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _AC.surface,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.all(3),
+                  child: TabBar(
+                    controller: _tabCtrl,
+                    indicator: BoxDecoration(
+                      color: _AC.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: _AC.primary,
+                    labelStyle: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700, fontSize: 11.5),
+                    unselectedLabelStyle: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600, fontSize: 11.5),
+                    dividerColor: Colors.transparent,
+                    overlayColor: WidgetStateProperty.all(Colors.transparent),
+                    tabs: _tabLabels.map((l) => Tab(child: Text(l))).toList(),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _ActionButton(
-                    label: _t('Schedule', 'Jadwal Audit', '审计计划'),
-                    subtitle: _t('Assign auditors', 'Atur penjadwalan', '分配审计员'),
-                    icon: Icons.event_note_rounded,
-                    colors: [_AC.green, _AC.green.withValues(alpha: 0.78)],
-                    onTap: _openScheduleManager,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
-      body: AuditLocationScreen(lang: widget.lang),
+      body: TabBarView(
+        controller: _tabCtrl,
+        children: [
+          AuditLocationScreen(lang: widget.lang),
+          AuditUnitScreen(lang: widget.lang),
+          AuditSubunitScreen(lang: widget.lang),
+          AuditAreaScreen(lang: widget.lang),
+        ],
+      ),
     );
   }
 }
