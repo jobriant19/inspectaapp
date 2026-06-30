@@ -351,7 +351,7 @@ class _QuestionTabViewState extends State<_QuestionTabView>
             data['responseData']?['translatedText']?.toString() ?? '';
         if (t.isEmpty ||
             t.toUpperCase().startsWith('MYMEMORY WARNING') ||
-            t.toUpperCase().startsWith('PLEASE')) return text;
+            t.toUpperCase().startsWith('PLEASE')) { return text; }
         return t;
       }
       return text;
@@ -861,8 +861,9 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                                       .eq('id_question',
                                           existing['id_question']);
                                 }
-                                if (ctx.mounted)
+                                if (ctx.mounted) {
                                   Navigator.pop(ctx);
+                                }
                                 _fetchAll();
                                 _showSuccessPopup(
                                   isSuccess: true,
