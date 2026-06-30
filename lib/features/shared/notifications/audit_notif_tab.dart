@@ -27,7 +27,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
   String _searchQuery = '';
 
   DateTime _filterFrom = DateTime(DateTime.now().year, DateTime.now().month, 1);
-  DateTime _filterTo = DateTime(DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59);
+  DateTime _filterTo = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
   static const _blue = Color(0xFF1D4ED8);
   static const _blueLt = Color(0xFFEFF6FF);
@@ -53,6 +53,17 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     return id;
   }
 
+  bool _periodeOverlapsFilter(Map<String, dynamic> row) {
+    final schedule = row['Schedule'] as Map<String, dynamic>?;
+    if (schedule == null) return false;
+    final mulai = DateTime.tryParse(schedule['periode_mulai']?.toString() ?? '');
+    final selesai = DateTime.tryParse(schedule['periode_selesai']?.toString() ?? '');
+    if (mulai == null || selesai == null) return false;
+    final filterFrom = DateTime(_filterFrom.year, _filterFrom.month, _filterFrom.day);
+    final filterTo = DateTime(_filterTo.year, _filterTo.month, _filterTo.day, 23, 59, 59);
+    return !selesai.isBefore(filterFrom) && !mulai.isAfter(filterTo);
+  }
+
   Future<void> _fetch() async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
@@ -63,11 +74,10 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           .from('audit_result')
           .select(
             'id_result, level_type, id_ref, tanggal_audit, nilai_audit, '
-            'nilai_final, is_finalized, catatan_audit, created_at',
+            'nilai_final, is_finalized, catatan_audit, created_at, '
+            'Schedule:audit_schedule!fk_audit_result_schedule(periode_mulai, periode_selesai)',
           )
           .eq('id_auditor', userId)
-          .gte('created_at', _filterFrom.toIso8601String())
-          .lte('created_at', _filterTo.toIso8601String())
           .order('created_at', ascending: false)
           .limit(100);
 
@@ -75,7 +85,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
       for (final row in auditorRows as List) {
         final r = Map<String, dynamic>.from(row as Map);
         r['_role'] = 'auditor';
-        items.add(r);
+        if (_periodeOverlapsFilter(r)) items.add(r);
       }
 
       // PIC LOCATION FETCH
@@ -98,12 +108,11 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             .select(
               'id_result, level_type, id_ref, tanggal_audit, nilai_audit, '
               'nilai_final, is_finalized, catatan_audit, created_at, '
-              'Auditor:User!fk_audit_result_auditor(nama)',
+              'Auditor:User!fk_audit_result_auditor(nama), '
+              'Schedule:audit_schedule!fk_audit_result_schedule(periode_mulai, periode_selesai)',
             )
             .eq('level_type', ref['level']!)
             .eq('id_ref', ref['id']!)
-            .gte('created_at', _filterFrom.toIso8601String())
-            .lte('created_at', _filterTo.toIso8601String())
             .order('created_at', ascending: false)
             .limit(30);
 
@@ -111,6 +120,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           final r = Map<String, dynamic>.from(row as Map);
           r['_role'] = 'pic';
           r['_level'] = ref['level'];
+          if (!_periodeOverlapsFilter(r)) continue;
           final alreadyExists = items.any((i) => i['id_result'] == r['id_result']);
           if (!alreadyExists) items.add(r);
         }
@@ -221,15 +231,8 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
   }
 
-  String _monthLabel(DateTime dt) {
-    final months = {
-      'EN': ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-      'ID': ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'],
-      'ZH': ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
-    };
-    final m = months[widget.lang] ?? months['ID']!;
-    return '${m[dt.month - 1]} ${dt.year}';
-  }
+  String _fmtFilterDate(DateTime dt) =>
+      '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
 
   Color _scoreColor(double? s) {
     if (s == null) return const Color(0xFF64748B);
@@ -240,67 +243,30 @@ class _AuditNotifTabState extends State<AuditNotifTab>
 
   Future<void> _showPeriodPicker() async {
     DateTime tempFrom = _filterFrom;
-    DateTime tempTo = DateTime(_filterTo.year, _filterTo.month, _filterTo.day);
-    final now = DateTime.now();
-    final years = List.generate(3, (i) => now.year - 1 + i);
-    final monthNames = {
-      'EN': ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-      'ID': ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'],
-      'ZH': ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
-    }[widget.lang] ?? ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+    DateTime tempTo = _filterTo;
 
-    Widget buildPicker(DateTime current, ValueChanged<DateTime> onChange, StateSetter setSt) {
-      return Row(children: [
-        Expanded(
-          flex: 3,
-          child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: _blueLt,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _blue.withValues(alpha:0.3)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: current.month - 1,
-                icon: Icon(Icons.keyboard_arrow_down, size: 18, color: _blue),
-                style: TextStyle(fontSize: 13, color: _blue, fontWeight: FontWeight.w600),
-                dropdownColor: Colors.white,
-                items: List.generate(12, (i) => DropdownMenuItem(value: i, child: Text(monthNames[i]))),
-                onChanged: (v) {
-                  if (v != null) setSt(() => onChange(DateTime(current.year, v + 1)));
-                },
-              ),
-            ),
+    Widget dateButton(String label, DateTime value, VoidCallback onTap) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: _blueLt,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _blue.withValues(alpha:0.3)),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          flex: 2,
-          child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: _blueLt,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _blue.withValues(alpha:0.3)),
+          child: Row(children: [
+            Icon(Icons.calendar_today_rounded, size: 15, color: _blue),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(_fmtFilterDate(value),
+                  style: TextStyle(fontSize: 13, color: _blue, fontWeight: FontWeight.w700)),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: current.year,
-                icon: Icon(Icons.keyboard_arrow_down, size: 18, color: _blue),
-                style: TextStyle(fontSize: 13, color: _blue, fontWeight: FontWeight.w600),
-                dropdownColor: Colors.white,
-                items: years.map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),
-                onChanged: (v) {
-                  if (v != null) setSt(() => onChange(DateTime(v, current.month)));
-                },
-              ),
-            ),
-          ),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _blue),
+          ]),
         ),
-      ]);
+      );
     }
 
     await showDialog(
@@ -333,19 +299,43 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                 const SizedBox(height: 16),
                 Text(_t('Dari', 'From', '从'), style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
-                buildPicker(tempFrom, (d) => tempFrom = d, setSt),
+                dateButton(_t('Dari', 'From', '从'), tempFrom, () async {
+                  final picked = await showDatePicker(
+                    context: ctx,
+                    initialDate: tempFrom,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(DateTime.now().year + 2),
+                    builder: (c, child) => Theme(
+                      data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _blue)),
+                      child: child!,
+                    ),
+                  );
+                  if (picked != null) setSt(() => tempFrom = picked);
+                }),
                 const SizedBox(height: 14),
                 Text(_t('Sampai', 'To', '到'), style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
-                buildPicker(tempTo, (d) => tempTo = d, setSt),
+                dateButton(_t('Sampai', 'To', '到'), tempTo, () async {
+                  final picked = await showDatePicker(
+                    context: ctx,
+                    initialDate: tempTo,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(DateTime.now().year + 2),
+                    builder: (c, child) => Theme(
+                      data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _blue)),
+                      child: child!,
+                    ),
+                  );
+                  if (picked != null) setSt(() => tempTo = picked);
+                }),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
                       setState(() {
-                        _filterFrom = DateTime(tempFrom.year, tempFrom.month, 1);
-                        _filterTo = DateTime(tempTo.year, tempTo.month + 1, 0, 23, 59, 59);
+                        _filterFrom = tempFrom;
+                        _filterTo = tempTo;
                       });
                       Navigator.pop(ctx);
                       _fetch();
@@ -369,7 +359,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final periodLabel = '${_monthLabel(_filterFrom)} – ${_monthLabel(DateTime(_filterTo.year, _filterTo.month))}';
+    final periodLabel = '${_fmtFilterDate(_filterFrom)} – ${_fmtFilterDate(_filterTo)}';
 
     return Column(
       children: [
@@ -515,10 +505,9 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           return replies.any((r) => r['is_confirmed'] == true);
         });
 
-    final effectiveScore =
-        (noAnswers.isNotEmpty && allNoConfirmed) ? 100.0 : displayScore;
-    final effectiveScoreColor =
-        _scoreColor(noAnswers.isNotEmpty && allNoConfirmed ? 100.0 : displayScore);
+    final isFixed100 = noAnswers.isNotEmpty && allNoConfirmed;
+    final effectiveScore = isFixed100 ? 100.0 : displayScore;
+    final effectiveScoreColor = isFixed100 ? const Color(0xFFF59E0B) : _scoreColor(displayScore);
     final showScore = noAnswers.isEmpty || allNoConfirmed;
 
     final poinLogs = (item['_poin_logs'] as List<Map<String, dynamic>>?) ?? [];
