@@ -503,9 +503,9 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
                               final max = range['max'] as double?;
                               final isSelected = selectedMinScore == min && selectedMaxScore == max;
                               Color chipColor = _ARC.primary;
-                              if (min == 80.0) chipColor = _ARC.green;
-                              else if (min == 60.0) chipColor = _ARC.amber;
-                              else if (max == 59.9) chipColor = _ARC.red;
+                              if (min == 80.0) { chipColor = _ARC.green; }
+                              else if (min == 60.0) { chipColor = _ARC.amber; }
+                              else if (max == 59.9) { chipColor = _ARC.red; }
                               return _FilterChipItem(
                                 label: range['label'] as String,
                                 isSelected: isSelected,
