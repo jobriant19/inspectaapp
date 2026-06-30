@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../audit_schedule_screen.dart';
+import '../schedule/audit_schedule_screen.dart';
 import '../question/audit_question_manager_screen.dart';
 import 'audit_area_screen.dart';
 import 'audit_location_screen.dart';
