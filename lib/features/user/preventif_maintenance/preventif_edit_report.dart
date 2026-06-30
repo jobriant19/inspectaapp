@@ -5,11 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const List<String> _kEditBagianList = [
-  'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
-  'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
-];
-
 class _EPC {
   static const primary      = Color(0xFF1D4ED8);
   static const primaryLight = Color(0xFFEFF6FF);
@@ -280,114 +275,6 @@ class _PmEditScreenState extends State<PmEditScreen> {
     }
   }
 
-  void _showBagianSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.65,
-        ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // HANDLE
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
-                borderRadius: BorderRadius.circular(2)),
-            ),
-            // HEADER
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _EPC.primaryLight,
-                    borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.grid_view_rounded,
-                      color: _EPC.primary, size: 18)),
-                const SizedBox(width: 12),
-                Expanded(child: Text(
-                  t['pick_bagian']!,
-                  style: GoogleFonts.inter(
-                      fontSize: 15, fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1E293B)))),
-                GestureDetector(
-                  onTap: () => Navigator.pop(ctx),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(8)),
-                    child: const Icon(Icons.close, size: 18,
-                        color: Color(0xFF64748B)))),
-              ]),
-            ),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            // SECTION LIST
-            Flexible(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                itemCount: _kEditBagianList.length,
-                itemBuilder: (_, i) {
-                  final b   = _kEditBagianList[i];
-                  final sel = _selectedBagian == b;
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() => _selectedBagian = b);
-                      Navigator.pop(ctx);
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 13),
-                      decoration: BoxDecoration(
-                        color: sel ? _EPC.primaryLight : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: sel ? _EPC.primary : const Color(0xFFE2E8F0),
-                          width: sel ? 1.5 : 1)),
-                      child: Row(children: [
-                        Container(
-                          width: 34, height: 34,
-                          decoration: BoxDecoration(
-                            color: sel ? _EPC.primary : _EPC.primaryLight,
-                            borderRadius: BorderRadius.circular(9)),
-                          child: Center(child: Text(
-                            b[0].toUpperCase(),
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14,
-                              color: sel ? Colors.white : _EPC.primary)))),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text(b,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                            color: sel ? _EPC.primary : const Color(0xFF1E293B)))),
-                        if (sel)
-                          const Icon(Icons.check_circle_rounded,
-                              color: _EPC.primary, size: 20),
-                      ]),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showBulanPicker() async {
     final now = DateTime.now();
     DateTime temp = DateTime(_bulanPm.year, _bulanPm.month, 1);
@@ -479,49 +366,24 @@ class _PmEditScreenState extends State<PmEditScreen> {
                 ]),
                 const SizedBox(height: 16),
 
-                // SECTION
+                // SECTION (READ-ONLY, TIDAK DAPAT DIUBAH SAAT EDIT)
                 _sectionCard(children: [
                   _label(t['bagian']!, required: true),
-                  GestureDetector(
-                    onTap: _showBagianSheet,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 15),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFF),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _selectedBagian != null
-                              ? _EPC.primary
-                              : _EPC.border,
-                          width: _selectedBagian != null ? 1.5 : 1)),
-                      child: Row(children: [
-                        Icon(
-                          Icons.grid_view_rounded,
-                          size: 16,
-                          color: _selectedBagian != null
-                              ? _EPC.primary
-                              : const Color(0xFFBFDBFE)),
-                        const SizedBox(width: 10),
-                        Expanded(child: Text(
-                          _selectedBagian ?? t['pick_bagian']!,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: _selectedBagian != null
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: _selectedBagian != null
-                                ? const Color(0xFF1E293B)
-                                : const Color(0xFFCBD5E1)))),
-                        Icon(
-                          CupertinoIcons.chevron_down,
-                          size: 15,
-                          color: _selectedBagian != null
-                              ? _EPC.primary
-                              : const Color(0xFFBFDBFE)),
-                      ]),
-                    ),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _EPC.border, width: 1)),
+                    child: Row(children: [
+                      const Icon(Icons.grid_view_rounded, size: 16, color: _EPC.primary),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(
+                        _selectedBagian ?? '-',
+                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
+                      const Icon(CupertinoIcons.lock_fill, size: 13, color: Color(0xFF94A3B8)),
+                    ]),
                   ),
                 ]),
                 const SizedBox(height: 16),
