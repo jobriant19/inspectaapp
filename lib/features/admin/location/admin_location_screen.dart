@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'admin_area_tab.dart';
 import 'admin_location_tab.dart';
+import 'admin_section_tab.dart';
 import 'admin_subunit_tab.dart';
 import 'admin_unit_tab.dart';
 
@@ -73,7 +74,7 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
           unselectedLabelColor: Colors.black38,
           indicatorWeight: 3,
           isScrollable: true, 
-          tabAlignment: TabAlignment.start, // ← rata kiri saat scrollable
+          tabAlignment: TabAlignment.start,
           tabs: List.generate(
             4,
             (i) => Tab(
@@ -98,13 +99,85 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
           ),
         ),
       ),
-      body: TabBarView(
-        controller: _tabCtrl,
+      body: Column(
         children: [
-          AdminLocationTab(lang: _lang),
-          AdminUnitTab(lang: _lang),
-          AdminSubunitTab(lang: _lang),
-          AdminAreaTab(lang: _lang),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => AdminSectionTab(lang: _lang),
+                  transitionsBuilder: (_, animation, __, child) => SlideTransition(
+                    position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                        .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                    child: child,
+                  ),
+                ),
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _primary.withValues(alpha: 0.25)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.dashboard_customize_rounded, color: _primary, size: 18),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _lang == 'EN' ? 'Section Settings' : _lang == 'ZH' ? '部门设置' : 'Pengaturan Section',
+                            style: GoogleFonts.poppins(
+                                fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A)),
+                          ),
+                          Text(
+                            _lang == 'EN'
+                                ? 'Manage Laser, Mesin, Assy, and other sections'
+                                : _lang == 'ZH'
+                                    ? '管理激光、机械、组装等部门'
+                                    : 'Kelola Laser, Mesin, Assy, dan section lainnya',
+                            style: GoogleFonts.poppins(fontSize: 10, color: Colors.black38),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black26, size: 13),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: [
+                AdminLocationTab(lang: _lang),
+                AdminUnitTab(lang: _lang),
+                AdminSubunitTab(lang: _lang),
+                AdminAreaTab(lang: _lang),
+              ],
+            ),
+          ),
         ],
       ),
     );
