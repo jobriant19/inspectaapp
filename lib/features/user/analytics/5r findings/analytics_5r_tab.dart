@@ -225,14 +225,15 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
   Future<void> _fetchTargetMonthly(int month, int year) async {
     try {
+      final referenceDate =
+          DateTime(year, month, 1).toIso8601String().split('T').first;
+
       final rows = await _supabase
           .from('target_5r_findings')
           .select()
           .eq('type', 'monthly')
-          .eq('bulan', month)
-          .eq('tahun', year)
-          .eq('is_aktif', true)
-          .order('updated_at', ascending: false)
+          .lte('effective_date', referenceDate)
+          .order('effective_date', ascending: false)
           .limit(1);
 
       if (!mounted) return;

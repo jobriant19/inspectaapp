@@ -94,8 +94,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       var qQuery = _supabase
           .from('audit_question')
           .select()
-          .eq('level_type', widget.levelType)
-          .eq('id_ref', widget.idRef)
           .eq('is_active', true);
       if (widget.idJenisAudit != null) {
         qQuery = qQuery.eq('id_jenis_audit', widget.idJenisAudit!);
