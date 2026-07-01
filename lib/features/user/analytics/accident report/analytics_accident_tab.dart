@@ -666,69 +666,96 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   Widget _buildDailyCalendar(DateTime selectedDate, ValueChanged<DateTime> onChange,
       {required VoidCallback onConfirm}) {
     final now = DateTime.now();
-    final year = now.year; final month = now.month;
-    final daysInMonth = DateUtils.getDaysInMonth(year, month);
-    final firstWeekday = DateTime(year, month, 1).weekday % 7;
     final locale = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
-    final monthLabel = DateFormat('MMMM yyyy', locale).format(DateTime(year, month));
     final dayLabels = widget.lang == 'ZH'
         ? ['日','一','二','三','四','五','六']
         : widget.lang == 'ID'
             ? ['Min','Sen','Sel','Rab','Kam','Jum','Sab']
             : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-    return StatefulBuilder(builder: (_, setIn) => Column(children: [
-      Text(monthLabel, style: const TextStyle(
-          fontSize: 13, fontWeight: FontWeight.w700, color: _C.textPrimary)),
-      const SizedBox(height: 10),
-      Row(children: dayLabels.map((d) => Expanded(child: Center(
-          child: Text(d, style: const TextStyle(
-              fontSize: 10, fontWeight: FontWeight.w600, color: _C.textSecondary))))).toList()),
-      const SizedBox(height: 6),
-      GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7, crossAxisSpacing: 4, mainAxisSpacing: 4, childAspectRatio: 1),
-        itemCount: firstWeekday + daysInMonth,
-        itemBuilder: (_, i) {
-          if (i < firstWeekday) return const SizedBox();
-          final day  = i - firstWeekday + 1;
-          final date = DateTime(year, month, day);
-          final isSel   = selectedDate.day == day && selectedDate.month == month;
-          final isToday = now.day == day && now.month == month;
-          final isFut   = date.isAfter(now);
-          return GestureDetector(
-            onTap: isFut ? null : () => setIn(() => onChange(date)),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              decoration: BoxDecoration(
-                color: isSel ? _C.red : isToday ? const Color(0xFFE0F2FE) : Colors.transparent,
-                shape: BoxShape.circle,
-                border: isToday && !isSel ? Border.all(color: _C.red, width: 1.2) : null),
-              child: Center(child: Text('$day', style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isSel || isToday ? FontWeight.bold : FontWeight.normal,
-                  color: isSel ? Colors.white : isFut ? _C.textMuted : _C.textPrimary))),
-            ),
-          );
-        },
-      ),
-      const SizedBox(height: 12),
-      SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: onConfirm,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _C.red, foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            padding: const EdgeInsets.symmetric(vertical: 10),
+    DateTime displayedMonth = DateTime(selectedDate.year, selectedDate.month);
+
+    return StatefulBuilder(builder: (_, setIn) {
+      final year  = displayedMonth.year;
+      final month = displayedMonth.month;
+      final daysInMonth    = DateUtils.getDaysInMonth(year, month);
+      final firstWeekday   = DateTime(year, month, 1).weekday % 7;
+      final monthLabel     = DateFormat('MMMM yyyy', locale).format(DateTime(year, month));
+      final isCurrentMonth = year == now.year && month == now.month;
+
+      return Column(children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          IconButton(
+            onPressed: () => setIn(() => displayedMonth = DateTime(year, month - 1)),
+            icon: const Icon(Icons.chevron_left_rounded, color: _C.red, size: 22),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
           ),
-          child: Text(_t('Terapkan', 'Apply', '应用'),
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          Text(monthLabel, style: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w700, color: _C.textPrimary)),
+          IconButton(
+            onPressed: isCurrentMonth
+                ? null
+                : () => setIn(() => displayedMonth = DateTime(year, month + 1)),
+            icon: Icon(Icons.chevron_right_rounded,
+                color: isCurrentMonth ? _C.textMuted : _C.red, size: 22),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            visualDensity: VisualDensity.compact,
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: dayLabels.map((d) => Expanded(child: Center(
+            child: Text(d, style: const TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w600, color: _C.textSecondary))))).toList()),
+        const SizedBox(height: 6),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 7, crossAxisSpacing: 4, mainAxisSpacing: 4, childAspectRatio: 1),
+          itemCount: firstWeekday + daysInMonth,
+          itemBuilder: (_, i) {
+            if (i < firstWeekday) return const SizedBox();
+            final day  = i - firstWeekday + 1;
+            final date = DateTime(year, month, day);
+            final isSel   = selectedDate.year == year &&
+                selectedDate.month == month && selectedDate.day == day;
+            final isToday = now.year == year && now.month == month && now.day == day;
+            final isFut   = date.isAfter(now);
+            return GestureDetector(
+              onTap: isFut ? null : () => setIn(() => onChange(date)),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                decoration: BoxDecoration(
+                  color: isSel ? _C.red : isToday ? const Color(0xFFE0F2FE) : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: isToday && !isSel ? Border.all(color: _C.red, width: 1.2) : null),
+                child: Center(child: Text('$day', style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSel || isToday ? FontWeight.bold : FontWeight.normal,
+                    color: isSel ? Colors.white : isFut ? _C.textMuted : _C.textPrimary))),
+              ),
+            );
+          },
         ),
-      ),
-    ]));
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: onConfirm,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _C.red, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+            ),
+            child: Text(_t('Terapkan', 'Apply', '应用'),
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          ),
+        ),
+      ]);
+    });
   }
 
   // GROUP PICKER
