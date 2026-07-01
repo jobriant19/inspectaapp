@@ -286,6 +286,7 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
   void _showMonthPicker() async {
     String tempMode = _filterMode;
     DateTime tempDate = _selectedDate ?? DateTime.now();
+    DateTime tempViewedMonth = tempDate;
 
     await showDialog(
       context: context,
@@ -451,7 +452,9 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                     child: _buildDailyCalendar(
                       tempDate,
+                      tempViewedMonth,
                       (picked) => setSt(() => tempDate = picked),
+                      onViewedMonthChanged: (m) => setSt(() => tempViewedMonth = m),
                       onConfirm: () {
                         Navigator.pop(ctx);
                         setState(() {
@@ -474,12 +477,15 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
 
   Widget _buildDailyCalendar(
     DateTime selectedDate,
+    DateTime viewedMonth,
     ValueChanged<DateTime> onDateChanged, {
+    required ValueChanged<DateTime> onViewedMonthChanged,
     required VoidCallback onConfirm,
   }) {
     final now = DateTime.now();
-    final year = now.year;
-    final month = now.month;
+    final today = DateTime(now.year, now.month, now.day);
+    final year = viewedMonth.year;
+    final month = viewedMonth.month;
     final daysInMonth = DateUtils.getDaysInMonth(year, month);
     final firstWeekday = DateTime(year, month, 1).weekday % 7;
     final locale = widget.lang == 'ID'
@@ -493,14 +499,48 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
             ? ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
             : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+    final canGoNext = year < now.year || (year == now.year && month < now.month);
+
+    void changeMonth(int delta) {
+      int m = month + delta;
+      int y = year;
+      if (m < 1) { m = 12; y -= 1; }
+      if (m > 12) { m = 1; y += 1; }
+      onViewedMonthChanged(DateTime(y, m, 1));
+    }
+
     return StatefulBuilder(
       builder: (_, setInner) => Column(
         children: [
-          Text(monthLabel,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: KTSAppColors.textPrimary)),
+          Row( // MODIFIED: navigasi bulan sebelumnya/berikutnya
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left_rounded,
+                    size: 20, color: KTSAppColors.primary),
+                onPressed: () => changeMonth(-1),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 18,
+              ),
+              Text(monthLabel,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: KTSAppColors.textPrimary)),
+              IconButton(
+                icon: Icon(Icons.chevron_right_rounded,
+                    size: 20,
+                    color: canGoNext
+                        ? KTSAppColors.primary
+                        : KTSAppColors.divider),
+                onPressed: canGoNext ? () => changeMonth(1) : null,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 18,
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           Row(
             children: dayLabels
@@ -533,10 +573,10 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
               final isSelected = selectedDate.year == date.year &&
                   selectedDate.month == date.month &&
                   selectedDate.day == date.day;
-              final isToday = now.year == date.year &&
-                  now.month == date.month &&
-                  now.day == date.day;
-              final isFuture = date.isAfter(now);
+              final isToday = today.year == date.year &&
+                  today.month == date.month &&
+                  today.day == date.day;
+              final isFuture = date.isAfter(today);
               return GestureDetector(
                 onTap: isFuture
                     ? null
