@@ -315,13 +315,21 @@ class _State extends State<AdminTarget5rScreen> {
     }
   }
 
-  // POP-UP KONFIRMASI SEBELUM MENAMBAH TARGET BARU
+  // CONFIRM TARGET POP-UP
   Future<bool?> _confirmAddDialog(
     BuildContext ctx, {
     required _T type,
     DateTime? monthlyEffectiveDate,
     DateTime? dateValue,
     String? offDayLabel,
+    int a = 0, // MEMBER TARGET
+    int i = 0, // INSPECTION TARGET
+    int l = 0, // LOCATION AUDIT TARGET
+    int u = 0, // UNIT AUDIT TARGET
+    int s = 0, // SUBUNIT AUDIT TARGET
+    int ar = 0, // AREA AUDIT TARGET
+    int aSelesai = 0, // COMPLETED MEMBER TARGET
+    int iSelesai = 0, // COMPLETED INSPECTION TARGET
   }) {
     final (String typeLabel, IconData typeIcon, Color typeColor) = switch (type) {
       _T.monthly => (_t('monthly'), Icons.calendar_month_rounded, _kGreen),
@@ -345,10 +353,28 @@ class _State extends State<AdminTarget5rScreen> {
           '${DateFormat('d MMMM yyyy', _locale).format(dateValue ?? DateTime.now())} • $lbl';
     }
 
+    final List<(IconData, String, int, Color)> targetRows = type == _T.offDay
+        ? []
+        : [
+            (Icons.people_rounded, _t('a'), a, _kGreen),
+            (Icons.check_circle_rounded, widget.lang == 'ID'
+                ? 'Target Anggota Selesai'
+                : widget.lang == 'ZH' ? '成员完成目标' : 'Member Completion Target', aSelesai, _kGreen),
+            (Icons.search_rounded, _t('i'), i, _kGreen),
+            (Icons.check_circle_outline_rounded, widget.lang == 'ID'
+                ? 'Target Inspeksi Selesai'
+                : widget.lang == 'ZH' ? '检查完成目标' : 'Inspection Completion Target', iSelesai, _kGreen),
+            (Icons.location_city_rounded, _t('l'), l, const Color(0xFF2563EB)),
+            (Icons.apartment_rounded, _t('u'), u, const Color(0xFF2563EB)),
+            (Icons.domain_rounded, _t('s'), s, const Color(0xFF7C3AED)),
+            (Icons.place_rounded, _t('ar'), ar, const Color(0xFF7C3AED)),
+          ];
+
     return showDialog<bool>(
       context: ctx,
       barrierDismissible: true,
       builder: (dCtx) => AlertDialog(
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [
           Container(
@@ -370,34 +396,110 @@ class _State extends State<AdminTarget5rScreen> {
             ),
           ),
         ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.lang == 'ID'
-                  ? 'Tambahkan target $typeLabel berikut?'
-                  : widget.lang == 'ZH'
-                      ? '确定要添加此 $typeLabel 目标吗？'
-                      : 'Add the following $typeLabel target?',
-              style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: typeColor.withValues(alpha:0.06),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: typeColor.withValues(alpha:0.25)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.lang == 'ID'
+                    ? 'Tambahkan target $typeLabel berikut?'
+                    : widget.lang == 'ZH'
+                        ? '确定要添加此 $typeLabel 目标吗？'
+                        : 'Add the following $typeLabel target?',
+                style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
               ),
-              child: Text(detail,
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: typeColor.withValues(alpha:0.25)),
+                ),
+                child: Text(detail,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: typeColor)),
+              ),
+
+              if (targetRows.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  widget.lang == 'ID'
+                      ? 'Detail Target'
+                      : widget.lang == 'ZH'
+                          ? '目标详情'
+                          : 'Target Details',
                   style: GoogleFonts.poppins(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: typeColor)),
-            ),
-          ],
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black54),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Column(
+                    children: [
+                      for (int idx = 0; idx < targetRows.length; idx++) ...[
+                        if (idx > 0)
+                          Divider(height: 1, color: Colors.grey.shade100),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(children: [
+                            Icon(targetRows[idx].$1, size: 14, color: targetRows[idx].$4),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(targetRows[idx].$2,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 12, color: Colors.black87)),
+                            ),
+                            Text('${targetRows[idx].$3}',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: targetRows[idx].$4)),
+                          ]),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+
+              if (type == _T.offDay && (offDayLabel ?? '').isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: typeColor.withValues(alpha:0.25)),
+                  ),
+                  child: Row(children: [
+                    Icon(Icons.label_rounded, size: 14, color: typeColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(offDayLabel!,
+                          style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: typeColor)),
+                    ),
+                  ]),
+                ),
+              ],
+            ],
+          ),
         ),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         actions: [
@@ -1431,6 +1533,14 @@ class _State extends State<AdminTarget5rScreen> {
                                             ? selDate
                                             : null,
                                         offDayLabel: cLbl.text.trim(),
+                                        a: int.tryParse(cA.text) ?? 0, 
+                                        i: int.tryParse(cI.text) ?? 0, 
+                                        l: int.tryParse(cL.text) ?? 0,
+                                        u: int.tryParse(cU.text) ?? 0,
+                                        s: int.tryParse(cS.text) ?? 0,
+                                        ar: int.tryParse(cAr.text) ?? 0,
+                                        aSelesai: int.tryParse(cASelesai.text) ?? 0,
+                                        iSelesai: int.tryParse(cISelesai.text) ?? 0,
                                       );
                                       if (confirmed != true) return;
                                     }
