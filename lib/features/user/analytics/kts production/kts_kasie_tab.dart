@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import 'kts_section_location_picker.dart';
 
 const List<String> kKtsBagianKasieList = [
   'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
@@ -120,11 +121,12 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
 
   List<_KasieRow> _rows = [];
   List<String> _bulanLabels = [];
+  Map<String, String> _sectionNameMap = {};
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadSectionNameMap().then((_) => _loadData());
   }
 
   // MONTH RANGE
@@ -137,6 +139,33 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
     });
   }
 
+  Future<void> _loadSectionNameMap() async {
+    try {
+      final res = await _db
+          .from('section')
+          .select('nama_section_id, nama_section_en, nama_section_zh');
+      final rows = List<Map<String, dynamic>>.from(res);
+      final map = <String, String>{};
+      for (final r in rows) {
+        final idName = (r['nama_section_id'] as String?)?.trim();
+        if (idName == null || idName.isEmpty) continue;
+        map[idName.toLowerCase()] = idName;
+        final enName = (r['nama_section_en'] as String?)?.trim();
+        if (enName != null && enName.isNotEmpty) map[enName.toLowerCase()] = idName;
+        final zhName = (r['nama_section_zh'] as String?)?.trim();
+        if (zhName != null && zhName.isNotEmpty) map[zhName.toLowerCase()] = idName;
+      }
+      if (mounted) setState(() => _sectionNameMap = map);
+    } catch (e) {
+      debugPrint('loadSectionNameMap error: $e');
+    }
+  }
+
+  String _resolveSectionName(String raw) {
+    final key = raw.trim().toLowerCase();
+    return _sectionNameMap[key] ?? raw.trim();
+  }
+
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
@@ -147,17 +176,19 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
       _bulanLabels = months.map((m) =>
           DateFormat('MMM yy', locale).format(m)).toList();
 
-      var kasieQuery = _db
+      final kasieRes = await _db
           .from('User')
           .select('id_user, nama, bagian_kasie')
           .eq('id_jabatan', 3);
 
-      if (_filterBagian != null) {
-        kasieQuery = kasieQuery.eq('bagian_kasie', _filterBagian!);
-      }
+      var kasieList = List<Map<String, dynamic>>.from(kasieRes);
 
-      final kasieRes = await kasieQuery;
-      final kasieList = List<Map<String, dynamic>>.from(kasieRes);
+      if (_filterBagian != null) {
+        kasieList = kasieList.where((k) {
+          final raw = (k['bagian_kasie'] as String?)?.trim() ?? '';
+          return raw.isNotEmpty && _resolveSectionName(raw) == _filterBagian;
+        }).toList();
+      }
 
       if (kasieList.isEmpty) {
         setState(() { _rows = []; _loading = false; });
@@ -187,8 +218,9 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
       for (final row in penyelesaianList) {
         final p = row['penyelesaian'] as Map<String, dynamic>?;
         if (p == null) continue;
-        final bagian = (p['bagian'] as String?)?.trim() ?? '';
-        if (bagian.isEmpty) continue;
+        final rawBagian = (p['bagian'] as String?)?.trim() ?? '';
+        if (rawBagian.isEmpty) continue;
+        final bagian = _resolveSectionName(rawBagian);
         final createdAt = DateTime.tryParse(row['created_at']?.toString() ?? '');
         if (createdAt == null) continue;
 
@@ -204,7 +236,8 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
       final rows = kasieList.map((k) {
         final kasieId   = k['id_user']?.toString() ?? '';
         final kasieNama = k['nama']?.toString() ?? '-';
-        final bagian    = (k['bagian_kasie'] as String?)?.trim() ?? '';
+        final rawBagianKasie = (k['bagian_kasie'] as String?)?.trim() ?? '';
+        final bagian = rawBagianKasie.isEmpty ? '' : _resolveSectionName(rawBagianKasie);
 
         final monthSet = bagianMonthSet[bagian] ?? {};
         final bulanan = <int, int>{};
@@ -307,92 +340,10 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
   }
 
   void _showBagianPicker() async {
-    final items = [null, ...kKtsBagianKasieList];
-    await showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.6),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _C.primaryLight, width: 1.5),
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: const BoxDecoration(
-                color: _C.primaryLight,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Row(children: [
-                const Icon(Icons.grid_view_rounded, color: _C.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_t('pilih_bagian'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary))),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18, color: _C.textSec),
-                  onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero,
-                ),
-              ]),
-            ),
-            Flexible(child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 12, top: 4),
-              itemCount: items.length,
-              itemBuilder: (_, i) {
-                final item = items[i];
-                final lbl  = item ?? _t('semua_bagian');
-                final sel  = item == _filterBagian;
-                return InkWell(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    setState(() => _filterBagian = item);
-                    _loadData();
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: sel ? _C.primaryLight : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: sel ? _C.primary : const Color(0xFFE2E8F0),
-                        width: sel ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(children: [
-                      Container(
-                        width: 34, height: 34,
-                        decoration: BoxDecoration(
-                          color: sel ? _C.primary : _C.primaryLight,
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: Center(child: Text(
-                          lbl.isNotEmpty ? lbl[0].toUpperCase() : '#',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 14,
-                            color: sel ? Colors.white : _C.primaryDark,
-                          ),
-                        )),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(lbl, style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                        color: sel ? _C.primaryDark : const Color(0xFF1E293B),
-                      ))),
-                      if (sel) const Icon(Icons.check_circle_rounded, color: _C.primary, size: 18),
-                    ]),
-                  ),
-                );
-              },
-            )),
-          ]),
-        ),
-      ),
-    );
+    final result = await showKtsSectionLocationPicker(context, lang: widget.lang);
+    if (result == null) return;
+    setState(() => _filterBagian = result.isAllSections ? null : result.sectionName);
+    _loadData();
   }
 
   // FILTER BAR

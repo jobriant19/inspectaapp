@@ -44,6 +44,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   bool _filterDataLoaded = false;
 
   final Map<String, int> _monthlyPoints = {};
+  Map<String, String> _sectionNameMap = {};
 
   static const _primary = Color(0xFF6366F1);
   static const _bg = Color(0xFFF8FAFC);
@@ -55,6 +56,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSectionNameMap();
     _loadData();
   }
 
@@ -132,6 +134,33 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       debugPrint('Error loading users: $e');
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadSectionNameMap() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('section')
+          .select('nama_section_id, nama_section_en, nama_section_zh');
+      final rows = List<Map<String, dynamic>>.from(res);
+      final map = <String, String>{};
+      for (final r in rows) {
+        final idName = (r['nama_section_id'] as String?)?.trim();
+        if (idName == null || idName.isEmpty) continue;
+        map[idName.toLowerCase()] = idName;
+        final enName = (r['nama_section_en'] as String?)?.trim();
+        if (enName != null && enName.isNotEmpty) map[enName.toLowerCase()] = idName;
+        final zhName = (r['nama_section_zh'] as String?)?.trim();
+        if (zhName != null && zhName.isNotEmpty) map[zhName.toLowerCase()] = idName;
+      }
+      if (mounted) setState(() => _sectionNameMap = map);
+    } catch (e) {
+      debugPrint('loadSectionNameMap error: $e');
+    }
+  }
+
+  String _resolveSectionName(String raw) {
+    final key = raw.trim().toLowerCase();
+    return _sectionNameMap[key] ?? raw.trim();
   }
 
   void _applyFilter() {
@@ -481,6 +510,10 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     if (idJabatan == 3) roleColor = const Color(0xFF0891B2); // Kasie
     if (idJabatan == 6) roleColor = const Color(0xFF059669); // Admin
 
+    final bool isKasie = idJabatan == 3;
+    final String bagianKasieRaw = (user['bagian_kasie'] as String?)?.trim() ?? '';
+    final String bagianKasieName = bagianKasieRaw.isEmpty ? '' : _resolveSectionName(bagianKasieRaw);
+
     return GestureDetector(
       onTap: () => _showUserDetail(user),
       child: Container(
@@ -587,6 +620,15 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                     specificLocation,
                     _locationChipColor(user),
                     Icons.location_on_outlined,
+                  ),
+                ],
+                // LINE 3: KASIE SECTION
+                if (isKasie && bagianKasieName.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  _buildChip(
+                    bagianKasieName,
+                    const Color(0xFF0891B2),
+                    Icons.apartment_outlined,
                   ),
                 ],
               ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import 'kts_section_location_picker.dart';
 
 class _C {
   static const primary      = Color(0xFFF59E0B);
@@ -164,12 +165,13 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   int _totalKts = 0;
 
   List<Map<String, dynamic>> _faktorMaster = [];
+  Map<String, String> _sectionNameMap = {};
 
   @override
   void initState() {
     super.initState();
     _initMonths();
-    _loadFaktorMaster().then((_) => _loadData());
+    Future.wait([_loadSectionNameMap(), _loadFaktorMaster()]).then((_) => _loadData());
   }
 
   @override
@@ -205,6 +207,34 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     } catch (e) {
       debugPrint('loadFaktorMaster error: $e');
     }
+  }
+
+  Future<void> _loadSectionNameMap() async {
+    try {
+      final res = await _db
+          .from('section')
+          .select('nama_section_id, nama_section_en, nama_section_zh');
+      final rows = List<Map<String, dynamic>>.from(res);
+      final map = <String, String>{};
+      for (final r in rows) {
+        final idName = (r['nama_section_id'] as String?)?.trim();
+        if (idName == null || idName.isEmpty) continue;
+        map[idName.toLowerCase()] = idName;
+        final enName = (r['nama_section_en'] as String?)?.trim();
+        if (enName != null && enName.isNotEmpty) map[enName.toLowerCase()] = idName;
+        final zhName = (r['nama_section_zh'] as String?)?.trim();
+        if (zhName != null && zhName.isNotEmpty) map[zhName.toLowerCase()] = idName;
+      }
+      if (mounted) setState(() => _sectionNameMap = map);
+    } catch (e) {
+      debugPrint('loadSectionNameMap error: $e');
+    }
+  }
+
+  /// Menyamakan nama bagian (ID/EN/ZH) menjadi nama section ID (canonical).
+  String _resolveSectionName(String raw) {
+    final key = raw.trim().toLowerCase();
+    return _sectionNameMap[key] ?? raw.trim();
   }
 
   // DATE RANGE
@@ -247,7 +277,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       final filtered = rows.where((r) {
         final p = r['penyelesaian'] as Map<String, dynamic>?;
         if (p == null) return false;
-        if (_subBagian != null && p['bagian'] != _subBagian) return false;
+        if (_subBagian != null &&
+            _resolveSectionName((p['bagian'] as String?)?.trim() ?? '') != _subBagian) return false;
         if (_subFaktorId != null &&
             p['id_subkategoritemuan_penyebab']?.toString() != _subFaktorId) return false;
         return true;
@@ -268,7 +299,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
 
       for (final row in filtered) {
         final p = row['penyelesaian'] as Map<String, dynamic>;
-        final bagian = (p['bagian'] as String?)?.trim() ?? '';
+        final rawBagian = (p['bagian'] as String?)?.trim() ?? '';
+        final bagian = rawBagian.isEmpty ? '' : _resolveSectionName(rawBagian);
         final biaya  = (p['additional_cost'] as num?)?.toDouble() ?? 0.0;
         final subkat = p['subkategori_penyebab'] as Map<String, dynamic>?;
         final faktorNama = subkat?['nama_subkategoritemuan'] as String? ?? '';
@@ -563,7 +595,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: isSel ? color.withOpacity(0.1) : Colors.white,
+          color: isSel ? color.withValues(alpha:0.1) : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: isSel ? color : const Color(0xFFE2E8F0), width: isSel ? 1.8 : 1),
         ),
@@ -582,60 +614,10 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   }
 
   void _showBagianPicker() async {
-    final items = [null, ...kKtsBagianList];
-    await showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _C.blueLight, width: 1.5)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: BoxDecoration(color: _C.blueLight, borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
-              child: Row(children: [
-                const Icon(Icons.grid_view_rounded, color: _C.blue, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_t('pilih_bagian'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _C.blue))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.blue), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
-              ]),
-            ),
-            Flexible(child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 12, top: 4),
-              itemCount: items.length,
-              itemBuilder: (_, i) {
-                final item = items[i];
-                final lbl  = item ?? _t('semua_bagian');
-                final sel  = item == _subBagian;
-                return InkWell(
-                  onTap: () { Navigator.pop(ctx); setState(() => _subBagian = item); _loadData(); },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: sel ? _C.blueLight : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: sel ? _C.blue : const Color(0xFFE2E8F0), width: sel ? 1.5 : 1),
-                    ),
-                    child: Row(children: [
-                      Container(
-                        width: 34, height: 34,
-                        decoration: BoxDecoration(color: sel ? _C.blue : _C.blueLight, borderRadius: BorderRadius.circular(9)),
-                        child: Center(child: Text(lbl.isNotEmpty ? lbl[0].toUpperCase() : '#', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: sel ? Colors.white : _C.blue))),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(lbl, style: TextStyle(fontSize: 13, fontWeight: sel ? FontWeight.bold : FontWeight.normal, color: sel ? _C.blue : const Color(0xFF1E293B)))),
-                      if (sel) const Icon(Icons.check_circle_rounded, color: _C.blue, size: 18),
-                    ]),
-                  ),
-                );
-              },
-            )),
-          ]),
-        ),
-      ),
-    );
+    final result = await showKtsSectionLocationPicker(context, lang: widget.lang);
+    if (result == null) return;
+    setState(() => _subBagian = result.isAllSections ? null : result.sectionName);
+    _loadData();
   }
 
   void _showFaktorPicker() async {
@@ -733,111 +715,147 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Row(children: [
-        // PERIOD BUTTON
-        _filterBtn(
-          label: periodLabel,
-          active: true,
-          color: _C.primary,
-          icon: Icons.keyboard_arrow_down_rounded,
-          onTap: _showMonthPicker,
-        ),
-        const SizedBox(width: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            // PERIOD BUTTON
+            _filterBtn(
+              label: periodLabel,
+              active: true,
+              color: _C.primary,
+              icon: Icons.keyboard_arrow_down_rounded,
+              onTap: _showMonthPicker,
+            ),
+            const SizedBox(width: 6),
 
-        // SELECT VIEW BUTTON
-        Expanded(
-          flex: showBiayaSub ? 2 : 3,
-          child: GestureDetector(
-            onTap: _showFilterTypePicker,
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: _activeFilter != null ? filterColor.withOpacity(0.1) : Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _activeFilter != null ? filterColor : _C.primaryLight,
-                  width: 1.5,
-                ),
-                boxShadow: [BoxShadow(color: _C.primary.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
-              ),
-              child: Row(children: [
-                if (_activeFilter != null) ...[
-                  Icon(
-                    _activeFilter == _FilterType.bagian ? Icons.grid_view_rounded
-                        : _activeFilter == _FilterType.faktor ? Icons.tag_rounded
-                        : Icons.monetization_on_rounded,
-                    size: 13, color: filterColor,
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Flexible(
-                  child: Text(
-                    filterLabel,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _activeFilter != null ? filterColor : _C.primaryDark,
+            // SELECT VIEW BUTTON
+            Expanded(
+              flex: showBiayaSub ? 2 : 3,
+              child: GestureDetector(
+                onTap: _showFilterTypePicker,
+                child: Container(
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: _activeFilter != null ? filterColor.withOpacity(0.1) : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _activeFilter != null ? filterColor : _C.primaryLight,
+                      width: 1.5,
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    boxShadow: [BoxShadow(color: _C.primary.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
                   ),
+                  child: Row(children: [
+                    if (_activeFilter != null) ...[
+                      Icon(
+                        _activeFilter == _FilterType.bagian ? Icons.grid_view_rounded
+                            : _activeFilter == _FilterType.faktor ? Icons.tag_rounded
+                            : Icons.monetization_on_rounded,
+                        size: 13, color: filterColor,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(
+                        filterLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _activeFilter != null ? filterColor : _C.primaryDark,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: _activeFilter != null ? filterColor : _C.primary),
+                  ]),
                 ),
-                const SizedBox(width: 2),
-                Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: _activeFilter != null ? filterColor : _C.primary),
-              ]),
-            ),
-          ),
-        ),
-
-        // SUB FILTER
-        if (subAction != null) ...[
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: subAction,
-            child: Container(
-              height: 38,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              decoration: BoxDecoration(
-                color: (_activeFilter == _FilterType.bagian ? _subBagian != null : _subFaktorId != null)
-                    ? filterColor : Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: filterColor, width: 1.5),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.tune_rounded, size: 13,
-                    color: (_activeFilter == _FilterType.bagian ? _subBagian != null : _subFaktorId != null)
-                        ? Colors.white : filterColor),
-                const SizedBox(width: 3),
-                Text(
-                  _activeFilter == _FilterType.bagian
-                      ? (_subBagian ?? _t('semua_bagian'))
-                      : (_subFaktorId == null
-                          ? _t('semua_faktor')
-                          : (_faktorMaster.firstWhere(
-                              (f) => f['id_subkategoritemuan']?.toString() == _subFaktorId,
-                              orElse: () => {'nama_subkategoritemuan': '?'},
-                            )['nama_subkategoritemuan'] as String)),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: (_activeFilter == _FilterType.bagian ? _subBagian != null : _subFaktorId != null)
-                        ? Colors.white : filterColor,
-                  ),
-                ),
-              ]),
             ),
-          ),
-        ],
 
-        // KTS COST SUB FILTER
-        if (showBiayaSub) ...[
-          const SizedBox(width: 6),
-          Expanded(
-            flex: 2,
-            child: _buildBiayaSubFilter(),
-          ),
+            // SUB FILTER
+            if (subAction != null) ...[
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: subAction,
+                child: Container(
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: (_activeFilter == _FilterType.bagian ? _subBagian != null : _subFaktorId != null)
+                        ? filterColor : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: filterColor, width: 1.5),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.tune_rounded, size: 13,
+                        color: (_activeFilter == _FilterType.bagian ? _subBagian != null : _subFaktorId != null)
+                            ? Colors.white : filterColor),
+                    const SizedBox(width: 3),
+                    Text(
+                      _activeFilter == _FilterType.bagian
+                          ? (_subBagian ?? _t('semua_bagian'))
+                          : (_subFaktorId == null
+                              ? _t('semua_faktor')
+                              : (_faktorMaster.firstWhere(
+                                  (f) => f['id_subkategoritemuan']?.toString() == _subFaktorId,
+                                  orElse: () => {'nama_subkategoritemuan': '?'},
+                                )['nama_subkategoritemuan'] as String)),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: (_activeFilter == _FilterType.bagian ? _subBagian != null : _subFaktorId != null)
+                            ? Colors.white : filterColor,
+                      ),
+                    ),
+                  ]),
+                ),
+              ),
+            ],
+
+            // KTS COST SUB FILTER
+            if (showBiayaSub) ...[
+              const SizedBox(width: 6),
+              Expanded(
+                flex: 2,
+                child: _buildBiayaSubFilter(),
+              ),
+            ],
+          ]),
+
+          // TOMBOL PILIH SECTION (khusus KTS Cost saat sub-filter "Bagian" aktif)
+          if (showBiayaSub && _biayaSubFilter == 'bagian') ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: _showBagianPicker,
+              child: Container(
+                width: double.infinity,
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: _subBagian != null ? _C.orange.withOpacity(0.1) : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _C.orange, width: 1.5),
+                  boxShadow: [BoxShadow(color: _C.orange.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
+                ),
+                child: Row(children: [
+                  Icon(Icons.grid_view_rounded, size: 14, color: _C.orange),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _subBagian ?? _t('semua_bagian'),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _C.orange),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _C.orange),
+                ]),
+              ),
+            ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
