@@ -285,7 +285,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E3A8A).withOpacity(0.1),
+                          color: const Color(0xFF1E3A8A).withValues(alpha:0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(Icons.schedule_rounded,
@@ -395,7 +395,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
                         color: _extensionNewDate != null
-                            ? const Color(0xFF1E3A8A).withOpacity(0.05)
+                            ? const Color(0xFF1E3A8A).withValues(alpha:0.05)
                             : Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
@@ -488,7 +488,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.5),
+      barrierColor: Colors.black.withValues(alpha:0.5),
       builder: (ctx) => Center(
         child: Container(
           padding: const EdgeInsets.all(32),
@@ -497,7 +497,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00C9E4).withOpacity(0.2),
+                color: const Color(0xFF00C9E4).withValues(alpha:0.2),
                 blurRadius: 30,
                 spreadRadius: 4,
               ),
@@ -715,7 +715,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.55),
+      barrierColor: Colors.black.withValues(alpha:0.55),
       builder: (dialogContext) {
         Future.delayed(const Duration(milliseconds: 3000), () {
           if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
@@ -735,7 +735,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF16A34A).withOpacity(0.3),
+                    color: const Color(0xFF16A34A).withValues(alpha:0.3),
                     blurRadius: 30,
                     spreadRadius: 5,
                     offset: const Offset(0, 10),
@@ -750,9 +750,9 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                     height: 90,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFF16A34A).withOpacity(0.1),
+                      color: const Color(0xFF16A34A).withValues(alpha:0.1),
                       border: Border.all(
-                        color: const Color(0xFF16A34A).withOpacity(0.3),
+                        color: const Color(0xFF16A34A).withValues(alpha:0.3),
                         width: 2,
                       ),
                     ),
@@ -795,7 +795,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                         value: v,
                         minHeight: 4,
                         backgroundColor:
-                            const Color(0xFF16A34A).withOpacity(0.1),
+                            const Color(0xFF16A34A).withValues(alpha:0.1),
                         valueColor: const AlwaysStoppedAnimation<Color>(
                             Color(0xFF16A34A)),
                       ),
@@ -997,7 +997,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha:0.04),
               blurRadius: 12,
               offset: const Offset(0, 4))
         ],
@@ -1018,8 +1018,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isFinished
-                        ? const Color(0xFF16A34A).withOpacity(0.3)
-                        : const Color(0xFFDC2626).withOpacity(0.3),
+                        ? const Color(0xFF16A34A).withValues(alpha:0.3)
+                        : const Color(0xFFDC2626).withValues(alpha:0.3),
                   ),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1137,7 +1137,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha:0.15),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -1171,7 +1171,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha:0.04),
               blurRadius: 12,
               offset: const Offset(0, 4))
         ],
@@ -1244,7 +1244,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha:0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 16, color: color),
@@ -1316,7 +1316,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha:0.04),
                     blurRadius: 12,
                     offset: const Offset(0, 4))
               ],
@@ -1352,7 +1352,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha:0.04),
                     blurRadius: 12,
                     offset: const Offset(0, 4))
               ],
@@ -1425,7 +1425,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             border: Border.all(color: const Color(0xFFE2E8F0)),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha:0.04),
                   blurRadius: 12,
                   offset: const Offset(0, 4))
             ],
@@ -1520,7 +1520,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 color: const Color(0xFFDCFCE7), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF16A34A).withOpacity(0.08),
+                color: const Color(0xFF16A34A).withValues(alpha:0.08),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               )
@@ -1727,7 +1727,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 105, 217, 6).withOpacity(0.1),
+                color: const Color.fromARGB(255, 105, 217, 6).withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.build_circle_rounded, size: 16, color: Color.fromARGB(255, 76, 217, 6)),
@@ -1752,7 +1752,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF16A34A).withOpacity(0.07),
+                color: const Color(0xFF16A34A).withValues(alpha:0.07),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -2059,7 +2059,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha:0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -2135,7 +2135,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               elevation: 2,
-              shadowColor: const Color(0xFF00C9E4).withOpacity(0.4),
+              shadowColor: const Color(0xFF00C9E4).withValues(alpha:0.4),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
             ),
