@@ -5,6 +5,8 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../user/finding/finding_detail_screen.dart';
 import '../../user/home/finding_card.dart';
+import '../../user/home/kts_finding_card.dart';
+import '../../user/ktsproduksi/kts_detail_screen.dart';
 
 class AssignedFindingsTab extends StatefulWidget {
   final String lang;
@@ -73,7 +75,13 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
   Widget build(BuildContext context) {
     super.build(context);
     if (_isLoading) return _buildShimmer();
-    if (_items.isEmpty) {
+
+    final unfinishedItems = _items.where((e) {
+      final s = (e['status_temuan'] ?? '').toString();
+      return !['Selesai', 'done', 'completed', 'closed'].any((x) => s.contains(x));
+    }).toList();
+
+    if (unfinishedItems.isEmpty) {
       return _buildEmpty(
         widget.t('empty_findings'),
         widget.t('empty_findings_sub'),
@@ -81,10 +89,7 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
       );
     }
 
-    final pendingCount = _items.where((e) {
-      final s = (e['status_temuan'] ?? '').toString().toLowerCase();
-      return !['selesai', 'done', 'completed', 'closed'].any((x) => s.contains(x));
-    }).length;
+    final pendingCount = unfinishedItems.length;
 
     return Column(
       children: [
@@ -117,9 +122,31 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-            itemCount: _items.length,
+            itemCount: unfinishedItems.length,
             itemBuilder: (context, index) {
-              final item = _items[index];
+              final item = unfinishedItems[index];
+              final jenis = (item['jenis_temuan'] ?? '').toString().toLowerCase();
+              final isKts = jenis.contains('kts');
+
+              if (isKts) {
+                return KtsFindingCard(
+                  data: item,
+                  lang: widget.lang,
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => KtsDetailScreen(
+                          ktsId: item['id_temuan'].toString(),
+                          lang: widget.lang,
+                          initialData: item,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              }
+
               return FindingCard(
                 data: item,
                 lang: widget.lang,
