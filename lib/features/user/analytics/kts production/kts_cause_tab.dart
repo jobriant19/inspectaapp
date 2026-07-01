@@ -331,6 +331,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     String tmpMode   = _mode;
     int tmpMonthIdx  = _monthIdx;
     DateTime tmpDate = _selDate ?? DateTime.now();
+    DateTime tmpViewedMonth = tmpDate;
 
     await showDialog(
       context: context,
@@ -408,11 +409,17 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
             else
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: _buildDailyCalendar(tmpDate, (d) => ss(() => tmpDate = d), onConfirm: () {
-                  Navigator.pop(ctx);
-                  setState(() { _mode = 'daily'; _selDate = tmpDate; _monthIdx = tmpDate.month - 1; });
-                  _loadData();
-                }),
+                child: _buildDailyCalendar(
+                  tmpDate,
+                  tmpViewedMonth,
+                  (d) => ss(() => tmpDate = d),
+                  onViewedMonthChanged: (m) => ss(() => tmpViewedMonth = m),
+                  onConfirm: () {
+                    Navigator.pop(ctx);
+                    setState(() { _mode = 'daily'; _selDate = tmpDate; _monthIdx = tmpDate.month - 1; });
+                    _loadData();
+                  },
+                ),
               ),
           ]),
         ),
@@ -420,15 +427,53 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     );
   }
 
-  Widget _buildDailyCalendar(DateTime sel, ValueChanged<DateTime> onChange, {required VoidCallback onConfirm}) {
+  Widget _buildDailyCalendar(
+    DateTime sel,
+    DateTime viewedMonth,
+    ValueChanged<DateTime> onChange, {
+    required ValueChanged<DateTime> onViewedMonthChanged,
+    required VoidCallback onConfirm,
+  }) {
     final now   = DateTime.now();
-    final days  = DateUtils.getDaysInMonth(now.year, now.month);
-    final first = DateTime(now.year, now.month, 1).weekday % 7;
+    final today = DateTime(now.year, now.month, now.day);
+    final year  = viewedMonth.year;
+    final month = viewedMonth.month;
+    final days  = DateUtils.getDaysInMonth(year, month);
+    final first = DateTime(year, month, 1).weekday % 7;
     final locale = widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
-    final hdr   = DateFormat('MMMM yyyy', locale).format(DateTime(now.year, now.month));
+    final hdr   = DateFormat('MMMM yyyy', locale).format(DateTime(year, month));
     final lbls  = widget.lang == 'ZH' ? ['日','一','二','三','四','五','六'] : widget.lang == 'ID' ? ['Min','Sen','Sel','Rab','Kam','Jum','Sab'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    final canGoNext = year < now.year || (year == now.year && month < now.month);
+
+    void changeMonth(int delta) {
+      int m = month + delta;
+      int y = year;
+      if (m < 1) { m = 12; y -= 1; }
+      if (m > 12) { m = 1; y += 1; }
+      onViewedMonthChanged(DateTime(y, m, 1));
+    }
+
     return StatefulBuilder(builder: (_, si) => Column(children: [
-      Text(hdr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _C.textPrimary)),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left_rounded, size: 20, color: _C.primary),
+            onPressed: () => changeMonth(-1),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            splashRadius: 18,
+          ),
+          Text(hdr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _C.textPrimary)),
+          IconButton(
+            icon: Icon(Icons.chevron_right_rounded, size: 20, color: canGoNext ? _C.primary : _C.divider),
+            onPressed: canGoNext ? () => changeMonth(1) : null,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            splashRadius: 18,
+          ),
+        ],
+      ),
       const SizedBox(height: 10),
       Row(children: lbls.map((d) => Expanded(child: Center(child: Text(d, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: _C.textSec))))).toList()),
       const SizedBox(height: 6),
@@ -440,10 +485,10 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         itemBuilder: (_, i) {
           if (i < first) return const SizedBox();
           final day  = i - first + 1;
-          final date = DateTime(now.year, now.month, day);
+          final date = DateTime(year, month, day);
           final isSel    = sel.year == date.year && sel.month == date.month && sel.day == date.day;
-          final isToday  = now.day == day;
-          final isFuture = date.isAfter(now);
+          final isToday  = today.year == date.year && today.month == date.month && today.day == date.day;
+          final isFuture = date.isAfter(today);
           return GestureDetector(
             onTap: isFuture ? null : () => si(() => onChange(date)),
             child: AnimatedContainer(
