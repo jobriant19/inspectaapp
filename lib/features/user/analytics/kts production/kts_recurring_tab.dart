@@ -639,7 +639,7 @@ class _KtsRecurringTabState extends State<KtsRecurringTab> {
           border: Border.all(color: _AppColors.primaryLight, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: _AppColors.primary.withOpacity(0.10),
+              color: _AppColors.primary.withValues(alpha:0.10),
               blurRadius: 6,
               offset: const Offset(0, 2),
             )
@@ -738,7 +738,7 @@ class _KtsRecurringTabState extends State<KtsRecurringTab> {
               Border.all(color: _AppColors.primaryLight, width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: _AppColors.primary.withOpacity(0.07),
+                color: _AppColors.primary.withValues(alpha:0.07),
                 blurRadius: 8,
                 offset: const Offset(0, 3))
           ],
@@ -802,7 +802,7 @@ class _KtsRecurringTabState extends State<KtsRecurringTab> {
               color: _AppColors.primaryLight,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                  color: _AppColors.primary.withOpacity(0.3)),
+                  color: _AppColors.primary.withValues(alpha:0.3)),
             ),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text(getTxt('total'),
@@ -1008,7 +1008,7 @@ class _KtsRecurringTabState extends State<KtsRecurringTab> {
                           shape: BoxShape.circle),
                       child: Icon(Icons.search_off_rounded,
                           size: 36,
-                          color: _AppColors.primary.withOpacity(0.5)),
+                          color: _AppColors.primary.withValues(alpha:0.5)),
                     ),
                     const SizedBox(height: 16),
                     Text(
