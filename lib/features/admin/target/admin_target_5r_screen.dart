@@ -207,6 +207,182 @@ class _State extends State<AdminTarget5rScreen> {
     _activeMonthlyId = activeId;
   }
 
+  Map<String, dynamic>? _findDuplicate({
+    required _T type,
+    DateTime? date,
+    int? excludeId,
+  }) {
+    if (date == null) return null;
+    final dateStr = date.toIso8601String().split('T').first;
+    for (final r in _all) {
+      if (excludeId != null && r['id'] == excludeId) continue;
+      if (r['type'] != type.db) continue;
+      final compareField = type == _T.monthly ? r['effective_date'] : r['specific_date'];
+      if ((compareField?.toString()) == dateStr) return r;
+    }
+    return null;
+  }
+
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dCtx) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (Navigator.of(dCtx, rootNavigator: true).canPop()) {
+            Navigator.of(dCtx, rootNavigator: true).pop();
+          }
+        });
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _kGreen.withValues(alpha:0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded,
+                    color: _kGreen, size: 40),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showDuplicateWarningDialog(
+      BuildContext ctx, Map<String, dynamic> existing) {
+    final dupType = _TE.from(existing['type'] as String? ?? 'daily_specific');
+    final rawDateStr = dupType == _T.monthly
+        ? (existing['effective_date'] ?? '-').toString()
+        : (existing['specific_date'] ?? '-').toString();
+    final parsedDate = DateTime.tryParse(rawDateStr);
+    final dateStr = parsedDate != null
+        ? (dupType == _T.monthly
+            ? DateFormat('MMMM yyyy', _locale).format(parsedDate)
+            : DateFormat('d MMMM yyyy', _locale).format(parsedDate))
+        : rawDateStr;
+
+    final label = dupType == _T.offDay
+        ? existing['off_day_label'] as String?
+        : null;
+    final typeLabel = dupType == _T.offDay
+        ? _t('offDay')
+        : dupType == _T.monthly
+            ? _t('monthly')
+            : _t('daily');
+
+    final String messageText = dupType == _T.monthly
+        ? (widget.lang == 'ID'
+            ? 'Sudah ada target $typeLabel pada bulan ini. Silakan edit target yang sudah ada.'
+            : widget.lang == 'ZH'
+                ? '本月已存在$typeLabel目标。请编辑现有目标。'
+                : 'A $typeLabel target already exists for this month. Please edit the existing target.')
+        : (widget.lang == 'ID'
+            ? 'Sudah ada target $typeLabel pada tanggal ini. Silakan edit target yang sudah ada, atau pilih tanggal lain.'
+            : widget.lang == 'ZH'
+                ? '此日期已存在$typeLabel目标。请编辑现有目标，或选择其他日期。'
+                : 'A $typeLabel target already exists on this date. Please edit the existing target or choose a different date.');
+
+    return showDialog(
+      context: ctx,
+      barrierDismissible: true,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha:0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.warning_amber_rounded,
+                color: Colors.red, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              widget.lang == 'ID'
+                  ? 'Target Sudah Ada'
+                  : widget.lang == 'ZH'
+                      ? '目标已存在'
+                      : 'Target Already Exists',
+              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              messageText,
+              style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.red.withValues(alpha:0.25)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.event_rounded, size: 14, color: Colors.red),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    (label != null && label.isNotEmpty)
+                        ? '$dateStr • $label'
+                        : dateStr,
+                    style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.red),
+                  ),
+                ),
+              ]),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dCtx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              widget.lang == 'ID'
+                  ? 'Mengerti'
+                  : widget.lang == 'ZH'
+                      ? '知道了'
+                      : 'Got It',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _filter() {
     var l = List<Map<String, dynamic>>.from(_all);
     if (_fType != null) l = l.where((r) => r['type'] == _fType!.db).toList();
@@ -296,17 +472,17 @@ class _State extends State<AdminTarget5rScreen> {
             .from('target_5r_findings')
             .update(payload)
             .eq('id', id);
-        _snack(_t('ok_edit'));
+        _showSuccessDialog(_t('ok_edit'));
       } else if (type == _T.monthly) {
         await Supabase.instance.client
             .from('target_5r_findings')
             .upsert(payload, onConflict: 'type,effective_date');
-        _snack(_t('ok_add'));
+        _showSuccessDialog(_t('ok_add'));
       } else {
         await Supabase.instance.client
             .from('target_5r_findings')
             .insert(payload);
-        _snack(_t('ok_add'));
+        _showSuccessDialog(_t('ok_add'));
       }
       _fetch();
     } catch (e) {
@@ -318,18 +494,19 @@ class _State extends State<AdminTarget5rScreen> {
   // CONFIRM TARGET POP-UP
   Future<bool?> _confirmAddDialog(
     BuildContext ctx, {
+    required bool isEdit, 
     required _T type,
     DateTime? monthlyEffectiveDate,
     DateTime? dateValue,
     String? offDayLabel,
-    int a = 0, // MEMBER TARGET
-    int i = 0, // INSPECTION TARGET
-    int l = 0, // LOCATION AUDIT TARGET
-    int u = 0, // UNIT AUDIT TARGET
-    int s = 0, // SUBUNIT AUDIT TARGET
-    int ar = 0, // AREA AUDIT TARGET
-    int aSelesai = 0, // COMPLETED MEMBER TARGET
-    int iSelesai = 0, // COMPLETED INSPECTION TARGET
+    int a = 0,
+    int i = 0,
+    int l = 0,
+    int u = 0,
+    int s = 0,
+    int ar = 0,
+    int aSelesai = 0,
+    int iSelesai = 0,
   }) {
     final (String typeLabel, IconData typeIcon, Color typeColor) = switch (type) {
       _T.monthly => (_t('monthly'), Icons.calendar_month_rounded, _kGreen),
@@ -352,7 +529,6 @@ class _State extends State<AdminTarget5rScreen> {
       detail =
           '${DateFormat('d MMMM yyyy', _locale).format(dateValue ?? DateTime.now())} • $lbl';
     }
-
     final List<(IconData, String, int, Color)> targetRows = type == _T.offDay
         ? []
         : [
@@ -369,6 +545,41 @@ class _State extends State<AdminTarget5rScreen> {
             (Icons.domain_rounded, _t('s'), s, const Color(0xFF7C3AED)),
             (Icons.place_rounded, _t('ar'), ar, const Color(0xFF7C3AED)),
           ];
+    final String dialogTitle = isEdit
+        ? (widget.lang == 'ID'
+            ? 'Konfirmasi Perubahan'
+            : widget.lang == 'ZH'
+                ? '确认修改'
+                : 'Confirm Changes')
+        : (widget.lang == 'ID'
+            ? 'Konfirmasi Penambahan'
+            : widget.lang == 'ZH'
+                ? '确认添加'
+                : 'Confirm Addition');
+
+    final String questionText = isEdit
+        ? (widget.lang == 'ID'
+            ? 'Simpan perubahan pada target $typeLabel berikut?'
+            : widget.lang == 'ZH'
+                ? '确定要保存此 $typeLabel 目标的更改吗？'
+                : 'Save the following changes to this $typeLabel target?')
+        : (widget.lang == 'ID'
+            ? 'Tambahkan target $typeLabel berikut?'
+            : widget.lang == 'ZH'
+                ? '确定要添加此 $typeLabel 目标吗？'
+                : 'Add the following $typeLabel target?');
+
+    final String confirmBtnText = isEdit
+        ? (widget.lang == 'ID'
+            ? 'Ya, Simpan'
+            : widget.lang == 'ZH'
+                ? '是，保存'
+                : 'Yes, Save')
+        : (widget.lang == 'ID'
+            ? 'Ya, Tambahkan'
+            : widget.lang == 'ZH'
+                ? '是，添加'
+                : 'Yes, Add');
 
     return showDialog<bool>(
       context: ctx,
@@ -382,16 +593,12 @@ class _State extends State<AdminTarget5rScreen> {
             decoration: BoxDecoration(
                 color: typeColor.withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(10)),
-            child: Icon(typeIcon, color: typeColor, size: 18),
+            child: Icon(isEdit ? Icons.edit_rounded : typeIcon, color: typeColor, size: 18),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              widget.lang == 'ID'
-                  ? 'Konfirmasi Penambahan'
-                  : widget.lang == 'ZH'
-                      ? '确认添加'
-                      : 'Confirm Addition',
+              dialogTitle,
               style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),
@@ -402,11 +609,7 @@ class _State extends State<AdminTarget5rScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.lang == 'ID'
-                    ? 'Tambahkan target $typeLabel berikut?'
-                    : widget.lang == 'ZH'
-                        ? '确定要添加此 $typeLabel 目标吗？'
-                        : 'Add the following $typeLabel target?',
+                questionText,
                 style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
               ),
               const SizedBox(height: 10),
@@ -514,11 +717,7 @@ class _State extends State<AdminTarget5rScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: Text(
-              widget.lang == 'ID'
-                  ? 'Ya, Tambahkan'
-                  : widget.lang == 'ZH'
-                      ? '是，添加'
-                      : 'Yes, Add',
+              confirmBtnText,
               style: const TextStyle(color: Colors.white),
             ),
           ),
@@ -559,7 +758,7 @@ class _State extends State<AdminTarget5rScreen> {
           .from('target_5r_findings')
           .delete()
           .eq('id', id);
-      _snack(_t('ok_del'));
+      _showSuccessDialog(_t('ok_del'));
       _fetch();
     } catch (_) {
       _snack(_t('err'), err: true);
@@ -889,9 +1088,8 @@ class _State extends State<AdminTarget5rScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null)
-              Icon(icon, size: 13, color: sel ? Colors.white : color),
-            if (icon != null) const SizedBox(height: 2),
+            Icon(icon ?? Icons.apps_rounded, size: 13, color: sel ? Colors.white : color),
+            const SizedBox(height: 2),
             Text(
               label,
               style: GoogleFonts.poppins(
@@ -1230,7 +1428,6 @@ class _State extends State<AdminTarget5rScreen> {
         ? (DateTime.tryParse(item!['specific_date'] as String) ??
             DateTime.now())
         : DateTime.now();
-    bool aktif = item?['is_aktif'] as bool? ?? true;
 
     final cA = TextEditingController(
         text: '${item?['target_anggota'] ?? 2}');
@@ -1457,55 +1654,6 @@ class _State extends State<AdminTarget5rScreen> {
                                 maxLines: 2),
                             const SizedBox(height: 12),
 
-                            if (selType != _T.monthly) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade50,
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: Colors.grey.shade200),
-                                ),
-                                child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(children: [
-                                        Icon(Icons.toggle_on_rounded,
-                                            color: aktif
-                                                ? _kGreen
-                                                : Colors.grey,
-                                            size: 20),
-                                        const SizedBox(width: 8),
-                                        Text(_t('aktif'),
-                                            style: GoogleFonts.poppins(
-                                                fontSize: 14,
-                                                fontWeight:
-                                                    FontWeight.w600,
-                                                color: aktif
-                                                    ? _kGreen
-                                                    : Colors.grey
-                                                        .shade600)),
-                                      ]),
-                                      Switch(
-                                          value: aktif,
-                                          activeColor:
-                                              const Color(0xFF22C55E),
-                                          activeTrackColor:
-                                              const Color(0xFFBBF7D0),
-                                          inactiveThumbColor:
-                                              Colors.grey.shade400,
-                                          inactiveTrackColor:
-                                              Colors.grey.shade200,
-                                          onChanged: (v) =>
-                                              setM(() => aktif = v)),
-                                    ]),
-                              ),
-                              const SizedBox(height: 20),
-                            ],
-
                             // SAVE BUTTON
                             SizedBox(
                                 width: double.infinity,
@@ -1523,27 +1671,38 @@ class _State extends State<AdminTarget5rScreen> {
                                     if (!fk.currentState!
                                         .validate()) { return; }
 
-                                    if (!isEdit) {
-                                      final confirmed = await _confirmAddDialog(
-                                        ctx,
-                                        type: selType,
-                                        monthlyEffectiveDate:
-                                            monthlyEffectiveDate,
-                                        dateValue: selType != _T.monthly
-                                            ? selDate
-                                            : null,
-                                        offDayLabel: cLbl.text.trim(),
-                                        a: int.tryParse(cA.text) ?? 0, 
-                                        i: int.tryParse(cI.text) ?? 0, 
-                                        l: int.tryParse(cL.text) ?? 0,
-                                        u: int.tryParse(cU.text) ?? 0,
-                                        s: int.tryParse(cS.text) ?? 0,
-                                        ar: int.tryParse(cAr.text) ?? 0,
-                                        aSelesai: int.tryParse(cASelesai.text) ?? 0,
-                                        iSelesai: int.tryParse(cISelesai.text) ?? 0,
-                                      );
-                                      if (confirmed != true) return;
+                                    final dup = _findDuplicate(
+                                      type: selType,
+                                      date: selType == _T.monthly
+                                          ? monthlyEffectiveDate
+                                          : selDate,
+                                      excludeId: isEdit ? item['id'] as int? : null,
+                                    );
+                                    if (dup != null) {
+                                      await _showDuplicateWarningDialog(ctx, dup);
+                                      return;
                                     }
+
+                                    final confirmed = await _confirmAddDialog(
+                                      ctx,
+                                      isEdit: isEdit,
+                                      type: selType,
+                                      monthlyEffectiveDate:
+                                          monthlyEffectiveDate,
+                                      dateValue: selType != _T.monthly
+                                          ? selDate
+                                          : null,
+                                      offDayLabel: cLbl.text.trim(),
+                                      a: int.tryParse(cA.text) ?? 0,
+                                      i: int.tryParse(cI.text) ?? 0,
+                                      l: int.tryParse(cL.text) ?? 0,
+                                      u: int.tryParse(cU.text) ?? 0,
+                                      s: int.tryParse(cS.text) ?? 0,
+                                      ar: int.tryParse(cAr.text) ?? 0,
+                                      aSelesai: int.tryParse(cASelesai.text) ?? 0,
+                                      iSelesai: int.tryParse(cISelesai.text) ?? 0,
+                                    );
+                                    if (confirmed != true) return;
 
                                     Navigator.pop(ctx);
                                     await _save(
@@ -1571,9 +1730,7 @@ class _State extends State<AdminTarget5rScreen> {
                                       ket: cKet.text.trim().isEmpty
                                           ? null
                                           : cKet.text.trim(),
-                                      aktif: selType == _T.monthly
-                                          ? true
-                                          : aktif,
+                                      aktif: true,
                                     );
                                   },
                                   style: ElevatedButton.styleFrom(
