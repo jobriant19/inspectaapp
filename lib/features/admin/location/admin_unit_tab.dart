@@ -3,143 +3,30 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-
 import '../../shared/code/qr_generator_screen.dart';
 import '../shared/admin_image_picker_widget.dart';
-import 'admin_location_tab.dart';
-import 'admin_unit_tab.dart';
 
-class AdminLocationScreen extends StatefulWidget {
+class AdminUnitTab extends StatefulWidget {
   final String lang;
-  const AdminLocationScreen({super.key, required this.lang});
+  const AdminUnitTab({super.key, required this.lang});
 
   @override
-  State<AdminLocationScreen> createState() => _AdminLocationScreenState();
+  State<AdminUnitTab> createState() => _AdminUnitTabState();
 }
 
-class _AdminLocationScreenState extends State<AdminLocationScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabCtrl;
-
-  static const _primary = Color(0xFF10B981);
-  static const _bg = Color(0xFFF8FAFC);
-
-  final List<IconData> _tabIcons = [
-    Icons.location_city_rounded,
-    Icons.business_rounded,
-    Icons.layers_rounded,
-    Icons.place_rounded,
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 4, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
-
-  String get _lang => widget.lang;
-
-  @override
-  Widget build(BuildContext context) {
-    final tabLabels = _lang == 'EN'
-        ? ['Location', 'Unit', 'Sub-Unit', 'Area']
-        : _lang == 'ZH'
-            ? ['位置', '单位', '子单位', '区域']
-            : ['Lokasi', 'Unit', 'Sub-Unit', 'Area'];
-
-    return Scaffold(
-      backgroundColor: _bg,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: _primary,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
-        shadowColor: Colors.black.withValues(alpha:0.08),
-        title: Text(
-          _lang == 'EN' ? 'Location Management' : _lang == 'ZH' ? '位置管理' : 'Kelola Lokasi',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: _primary),
-        ),
-        bottom: TabBar(
-          controller: _tabCtrl,
-          indicatorColor: _primary,
-          labelColor: _primary,
-          unselectedLabelColor: Colors.black38,
-          indicatorWeight: 3,
-          isScrollable: true, 
-          tabAlignment: TabAlignment.start, // ← rata kiri saat scrollable
-          tabs: List.generate(
-            4,
-            (i) => Tab(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(_tabIcons[i], size: 15),
-                    const SizedBox(width: 5),
-                    Text(
-                      tabLabels[i],
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabCtrl,
-        children: [
-          AdminLocationTab(lang: _lang),
-          AdminUnitTab(lang: _lang),
-          _SubunitTab(lang: _lang),
-          _AreaTab(lang: _lang),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────
-// TAB: SUBUNIT
-// ─────────────────────────────────────────
-class _SubunitTab extends StatefulWidget {
-  final String lang;
-  const _SubunitTab({required this.lang});
-
-  @override
-  State<_SubunitTab> createState() => _SubunitTabState();
-}
-
-class _SubunitTabState extends State<_SubunitTab>
-  with AutomaticKeepAliveClientMixin {
+class _AdminUnitTabState extends State<AdminUnitTab>
+    with AutomaticKeepAliveClientMixin {
   List<Map<String, dynamic>> _data = [];
   List<Map<String, dynamic>> _filtered = [];
-  List<Map<String, dynamic>> _unitList = [];
+  List<Map<String, dynamic>> _lokasiList = [];
   bool _isLoading = true;
   String _search = '';
 
-  // Filter state
-  String? _filterUnitId;
-  String? _filterUnitName;
+  String? _filterLokasiId;
+  String? _filterLokasiName;
   String _sortOrder = 'none';
 
-  static const _primary = Color(0xFFFBBF24);
+  static const _primary = Color(0xFF6366F1);
 
   @override
   void initState() {
@@ -152,18 +39,18 @@ class _SubunitTabState extends State<_SubunitTab>
     try {
       final results = await Future.wait([
         Supabase.instance.client
-            .from('subunit')
-            .select('id_subunit, nama_subunit, deskripsi_subunit, is_star, gambar_subunit, kategori, qrcode, id_unit, id_lokasi, id_pic, unit(nama_unit), lokasi(nama_lokasi), User!fk_subunit_pic(nama)')
-            .order('nama_subunit'),
-        Supabase.instance.client
             .from('unit')
-            .select('id_unit, nama_unit')
+            .select('id_unit, nama_unit, deskripsi_unit, is_star, gambar_unit, kategori, qrcode, id_lokasi, id_pic, lokasi(nama_lokasi), User!fk_unit_pic(nama)')
             .order('nama_unit'),
+        Supabase.instance.client
+            .from('lokasi')
+            .select('id_lokasi, nama_lokasi')
+            .order('nama_lokasi'),
       ]);
       if (mounted) {
         setState(() {
           _data = List<Map<String, dynamic>>.from(results[0] as List);
-          _unitList = List<Map<String, dynamic>>.from(results[1] as List);
+          _lokasiList = List<Map<String, dynamic>>.from(results[1] as List);
           _applyFilter();
           _isLoading = false;
         });
@@ -178,26 +65,26 @@ class _SubunitTabState extends State<_SubunitTab>
     List<Map<String, dynamic>> result = List.from(_data);
 
     if (q.isNotEmpty) {
-      result = result.where((d) => (d['nama_subunit'] ?? '').toLowerCase().contains(q)).toList();
+      result = result.where((d) => (d['nama_unit'] ?? '').toLowerCase().contains(q)).toList();
     }
-    if (_filterUnitId != null) {
-      result = result.where((d) => d['id_unit']?.toString() == _filterUnitId).toList();
+    if (_filterLokasiId != null) {
+      result = result.where((d) => d['id_lokasi']?.toString() == _filterLokasiId).toList();
     }
     if (_sortOrder == 'asc') {
-      result.sort((a, b) => (a['nama_subunit'] ?? '').compareTo(b['nama_subunit'] ?? ''));
+      result.sort((a, b) => (a['nama_unit'] ?? '').compareTo(b['nama_unit'] ?? ''));
     } else if (_sortOrder == 'desc') {
-      result.sort((a, b) => (b['nama_subunit'] ?? '').compareTo(a['nama_subunit'] ?? ''));
+      result.sort((a, b) => (b['nama_unit'] ?? '').compareTo(a['nama_unit'] ?? ''));
     }
     _filtered = result;
   }
 
   Widget? _buildActiveChips() {
     final chips = <Widget>[];
-    if (_filterUnitId != null && _filterUnitName != null) {
+    if (_filterLokasiId != null && _filterLokasiName != null) {
       chips.add(_buildFilterChip(
-        '📍 $_filterUnitName',
+        '📍 $_filterLokasiName',
         _primary,
-        () => setState(() { _filterUnitId = null; _filterUnitName = null; _applyFilter(); }),
+        () => setState(() { _filterLokasiId = null; _filterLokasiName = null; _applyFilter(); }),
       ));
     }
     if (_sortOrder != 'none') {
@@ -241,36 +128,36 @@ class _SubunitTabState extends State<_SubunitTab>
 
   void _showDialog({Map<String, dynamic>? item}) {
     final isEdit = item != null;
-    final namaCtrl = TextEditingController(text: item?['nama_subunit'] ?? '');
-    final descCtrl = TextEditingController(text: item?['deskripsi_subunit'] ?? '');
+    final namaCtrl = TextEditingController(text: item?['nama_unit'] ?? '');
+    final descCtrl = TextEditingController(text: item?['deskripsi_unit'] ?? '');
     final kategoriCtrl = TextEditingController(text: item?['kategori'] ?? '');
-    String? selectedUnitId = item?['id_unit']?.toString();
-    String? gambarUrl = item?['gambar_subunit'] as String?;
+    String? selectedLokasiId = item?['id_lokasi']?.toString();
+    String? gambarUrl = item?['gambar_unit'] as String?;
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => _AdminFormDialog(
+        builder: (ctx, setDlg) => _AdminUnitFormDialog(
           title: isEdit
-              ? (widget.lang == 'EN' ? 'Edit Sub-Unit' : widget.lang == 'ZH' ? '编辑子单位' : 'Edit Sub-Unit')
-              : (widget.lang == 'EN' ? 'Add Sub-Unit' : widget.lang == 'ZH' ? '添加子单位' : 'Tambah Sub-Unit'),
-          icon: Icons.layers_rounded,
+              ? (widget.lang == 'EN' ? 'Edit Unit' : widget.lang == 'ZH' ? '编辑单位' : 'Edit Unit')
+              : (widget.lang == 'EN' ? 'Add Unit' : widget.lang == 'ZH' ? '添加单位' : 'Tambah Unit'),
+          icon: Icons.business_rounded,
           color: _primary,
           lang: widget.lang,
           fields: [
-            _FormField(
-              label: widget.lang == 'EN' ? 'Sub-Unit Name' : widget.lang == 'ZH' ? '子单位名称' : 'Nama Sub-Unit',
+            _UnitFormField(
+              label: widget.lang == 'EN' ? 'Unit Name' : widget.lang == 'ZH' ? '单位名称' : 'Nama Unit',
               controller: namaCtrl,
-              icon: Icons.layers_rounded,
+              icon: Icons.business_rounded,
             ),
-            _FormField(
+            _UnitFormField(
               label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
               controller: descCtrl,
               icon: Icons.notes_rounded,
               maxLines: 3,
             ),
-            _FormField(
+            _UnitFormField(
               label: widget.lang == 'EN' ? 'Category' : widget.lang == 'ZH' ? '类别' : 'Kategori',
               controller: kategoriCtrl,
               icon: Icons.category_rounded,
@@ -279,12 +166,12 @@ class _SubunitTabState extends State<_SubunitTab>
           imagePickerWidget: AdminImagePickerWidget(
             currentImageUrl: gambarUrl,
             storageBucket: 'lokasi-images',
-            storageFolder: 'subunit',
-            filePrefix: item?['id_subunit']?.toString() ?? 'new-subunit',
+            storageFolder: 'unit',
+            filePrefix: item?['id_unit']?.toString() ?? 'new-unit',
             height: 120,
             isCircle: false,
             accentColor: _primary,
-            placeholder: Icon(Icons.layers_rounded, color: _primary, size: 28),
+            placeholder: Icon(Icons.business_rounded, color: _primary, size: 28),
             hint: widget.lang == 'EN'
                 ? 'Tap to select image'
                 : widget.lang == 'ZH'
@@ -323,27 +210,27 @@ class _SubunitTabState extends State<_SubunitTab>
             onUploaded: (newUrl) => setDlg(() => gambarUrl = newUrl),
           ),
           extraWidget: _buildParentDropdown(
-            label: 'Unit',
-            items: _unitList,
-            idKey: 'id_unit',
-            nameKey: 'nama_unit',
-            selectedId: selectedUnitId,
-            onChanged: (v) => setDlg(() => selectedUnitId = v),
+            label: widget.lang == 'EN' ? 'Location' : widget.lang == 'ZH' ? '位置' : 'Lokasi',
+            items: _lokasiList,
+            idKey: 'id_lokasi',
+            nameKey: 'nama_lokasi',
+            selectedId: selectedLokasiId,
+            onChanged: (v) => setDlg(() => selectedLokasiId = v),
           ),
           onSave: () async {
-            if (namaCtrl.text.trim().isEmpty || selectedUnitId == null) return;
+            if (namaCtrl.text.trim().isEmpty || selectedLokasiId == null) return;
             final data = {
-              'nama_subunit': namaCtrl.text.trim(),
-              'deskripsi_subunit': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+              'nama_unit': namaCtrl.text.trim(),
+              'deskripsi_unit': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
               'kategori': kategoriCtrl.text.trim().isEmpty ? null : kategoriCtrl.text.trim(),
-              'gambar_subunit': gambarUrl,
-              'id_unit': selectedUnitId,
+              'gambar_unit': gambarUrl,
+              'id_lokasi': selectedLokasiId,
             };
             if (isEdit) {
               await Supabase.instance.client
-                  .from('subunit').update(data).eq('id_subunit', item['id_subunit']);
+                  .from('unit').update(data).eq('id_unit', item['id_unit']);
             } else {
-              await Supabase.instance.client.from('subunit').insert(data);
+              await Supabase.instance.client.from('unit').insert(data);
             }
             _load();
           },
@@ -353,9 +240,9 @@ class _SubunitTabState extends State<_SubunitTab>
   }
 
   Future<void> _delete(String id, String name) async {
-    final ok = await _showConfirm(context, name, widget.lang);
+    final ok = await _showUnitConfirm(context, name, widget.lang);
     if (!ok) return;
-    await Supabase.instance.client.from('subunit').delete().eq('id_subunit', id);
+    await Supabase.instance.client.from('unit').delete().eq('id_unit', id);
     _load();
   }
 
@@ -363,18 +250,18 @@ class _SubunitTabState extends State<_SubunitTab>
     return Row(
       children: [
         Expanded(
-          child: _LocationFilterButton(
-            label: 'Unit',
-            icon: Icons.business_rounded,
-            isActive: _filterUnitId != null,
-            activeLabel: _filterUnitName,
+          child: _UnitFilterButton(
+            label: widget.lang == 'EN' ? 'Location' : widget.lang == 'ZH' ? '位置' : 'Lokasi',
+            icon: Icons.location_city_rounded,
+            isActive: _filterLokasiId != null,
+            activeLabel: _filterLokasiName,
             primaryColor: _primary,
-            onTap: () => _showUnitFilterDialog(),
+            onTap: () => _showLokasiFilterDialog(),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _LocationFilterButton(
+          child: _UnitFilterButton(
             label: widget.lang == 'EN' ? 'Sort' : widget.lang == 'ZH' ? '排序' : 'Urutan',
             icon: Icons.sort_by_alpha_rounded,
             isActive: _sortOrder != 'none',
@@ -387,487 +274,111 @@ class _SubunitTabState extends State<_SubunitTab>
     );
   }
 
-  void _showUnitFilterDialog() {
+  void _showLokasiFilterDialog() {
     showDialog(
       context: context,
       builder: (ctx) => _buildSimpleFilterDialog(
         ctx: ctx,
-        title: widget.lang == 'EN' ? 'Filter by Unit' : widget.lang == 'ZH' ? '按单位筛选' : 'Filter Unit',
+        title: widget.lang == 'EN' ? 'Filter by Location' : widget.lang == 'ZH' ? '按位置筛选' : 'Filter Lokasi',
+        icon: Icons.location_city_rounded,
+        primaryColor: _primary,
+        items: _lokasiList,
+        idKey: 'id_lokasi',
+        nameKey: 'nama_lokasi',
+        selectedId: _filterLokasiId,
+        lang: widget.lang,
+        onSelect: (id, name) {
+          setState(() {
+            _filterLokasiId = id;
+            _filterLokasiName = name;
+            _applyFilter();
+          });
+          Navigator.pop(ctx);
+        },
+        onClear: () {
+          setState(() {
+            _filterLokasiId = null;
+            _filterLokasiName = null;
+            _applyFilter();
+          });
+          Navigator.pop(ctx);
+        },
+      ),
+    );
+  }
+
+  void _showSortDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => _buildSortDialog(
+        ctx: ctx,
+        primaryColor: _primary,
+        currentSort: _sortOrder,
+        lang: widget.lang,
+        onSelect: (sort) {
+          setState(() {
+            _sortOrder = sort;
+            _applyFilter();
+          });
+          Navigator.pop(ctx);
+        },
+      ),
+    );
+  }
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return _buildUnitTabContent(
+      isLoading: _isLoading,
+      search: _search,
+      onSearch: (v) => setState(() {
+        _search = v;
+        _applyFilter();
+      }),
+      addTitle: widget.lang == 'EN'
+          ? 'Add New Unit'
+          : widget.lang == 'ZH'
+              ? '添加新单位'
+              : 'Tambah Unit Baru',
+      addSubtitle: widget.lang == 'EN'
+          ? 'Tap to add a new unit'
+          : widget.lang == 'ZH'
+              ? '点击以添加新单位'
+              : 'Ketuk untuk menambah unit baru',
+      activeChipsWidget: _buildActiveChips(),
+      data: _filtered,
+      lang: widget.lang,
+      primaryColor: _primary,
+      nameFn: (item) => item['nama_unit'] ?? '',
+      subtitleFn: (item) => item['lokasi']?['nama_lokasi'] ?? '-',
+      subtitleIcon: Icons.location_city_rounded,
+      icon: Icons.business_rounded,
+      onAdd: () => _showDialog(),
+      onEdit: (item) => _showDialog(item: item),
+      onDelete: (item) => _delete(item['id_unit'], item['nama_unit'] ?? ''),
+      onRefresh: _load,
+      filterWidget: _buildFilterRow(),
+      onTapDetail: (item) => _showUnitDetailSheet(
+        context: context,
+        item: item,
+        lang: widget.lang,
+        primaryColor: _primary,
         icon: Icons.business_rounded,
-        primaryColor: _primary,
-        items: _unitList,
-        idKey: 'id_unit',
-        nameKey: 'nama_unit',
-        selectedId: _filterUnitId,
-        lang: widget.lang,
-        onSelect: (id, name) {
-          setState(() {
-            _filterUnitId = id;
-            _filterUnitName = name;
-            _applyFilter();
-          });
-          Navigator.pop(ctx);
-        },
-        onClear: () {
-          setState(() {
-            _filterUnitId = null;
-            _filterUnitName = null;
-            _applyFilter();
-          });
-          Navigator.pop(ctx);
-        },
-      ),
-    );
-  }
-
-  void _showSortDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => _buildSortDialog(
-        ctx: ctx,
-        primaryColor: _primary,
-        currentSort: _sortOrder,
-        lang: widget.lang,
-        onSelect: (sort) {
-          setState(() {
-            _sortOrder = sort;
-            _applyFilter();
-          });
-          Navigator.pop(ctx);
-        },
-      ),
-    );
-  }
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    return _buildTabContent(
-      isLoading: _isLoading,
-      search: _search,
-      onSearch: (v) => setState(() {
-        _search = v;
-        _applyFilter();
-      }),
-      addTitle: widget.lang == 'EN'
-          ? 'Add New Sub-Unit'
-          : widget.lang == 'ZH'
-              ? '添加新子单位'
-              : 'Tambah Sub-Unit Baru',
-      addSubtitle: widget.lang == 'EN'
-          ? 'Tap to add a new sub-unit'
-          : widget.lang == 'ZH'
-              ? '点击以添加新子单位'
-              : 'Ketuk untuk menambah sub-unit baru',
-      activeChipsWidget: _buildActiveChips(),
-      data: _filtered,
-      lang: widget.lang,
-      primaryColor: _primary,
-      nameFn: (item) => item['nama_subunit'] ?? '',
-      subtitleFn: (item) => item['unit']?['nama_unit'] ?? '-',
-      subtitleIcon: Icons.business_rounded,
-      icon: Icons.layers_rounded,
-      onAdd: () => _showDialog(),
-      onEdit: (item) => _showDialog(item: item),
-      onDelete: (item) => _delete(item['id_subunit'], item['nama_subunit'] ?? ''),
-      onRefresh: _load,
-      filterWidget: _buildFilterRow(),
-      onTapDetail: (item) => _showLocationDetailSheet(
-        context: context,
-        item: item,
-        lang: widget.lang,
-        primaryColor: _primary,
-        icon: Icons.layers_rounded,
-        nameKey: 'subunit',
-        nameFn: (item) => item['nama_subunit'] ?? '',
-        subtitleFn: (item) => item['unit']?['nama_unit'] ?? '-',
+        nameKey: 'unit',
+        nameFn: (item) => item['nama_unit'] ?? '',
+        subtitleFn: (item) => item['lokasi']?['nama_lokasi'] ?? '-',
         onEdit: (item) => _showDialog(item: item),
-        onDelete: (item) => _delete(item['id_subunit'], item['nama_subunit'] ?? ''),
+        onDelete: (item) => _delete(item['id_unit'], item['nama_unit'] ?? ''),
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────
-// TAB: AREA
-// ─────────────────────────────────────────
-class _AreaTab extends StatefulWidget {
-  final String lang;
-  const _AreaTab({required this.lang});
-
-  @override
-  State<_AreaTab> createState() => _AreaTabState();
-}
-
-class _AreaTabState extends State<_AreaTab>
-  with AutomaticKeepAliveClientMixin { 
-  List<Map<String, dynamic>> _data = [];
-  List<Map<String, dynamic>> _filtered = [];
-  List<Map<String, dynamic>> _subunitList = [];
-  bool _isLoading = true;
-  String _search = '';
-
-  // Filter state
-  String? _filterSubunitId;
-  String? _filterSubunitName;
-  String _sortOrder = 'none';
-
-  static const _primary = Color(0xFFF472B6);
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
-    try {
-      final results = await Future.wait([
-        Supabase.instance.client
-            .from('area')
-            .select('id_area, nama_area, deskripsi_area, is_star, gambar_area, kategori, qrcode, id_subunit, id_unit, id_lokasi, id_pic, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), User!fk_area_pic(nama)')
-            .order('nama_area'),
-        Supabase.instance.client
-            .from('subunit')
-            .select('id_subunit, nama_subunit')
-            .order('nama_subunit'),
-      ]);
-      if (mounted) {
-        setState(() {
-          _data = List<Map<String, dynamic>>.from(results[0] as List);
-          _subunitList = List<Map<String, dynamic>>.from(results[1] as List);
-          _applyFilter();
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _applyFilter() {
-    final q = _search.toLowerCase();
-    List<Map<String, dynamic>> result = List.from(_data);
-
-    if (q.isNotEmpty) {
-      result = result.where((d) => (d['nama_area'] ?? '').toLowerCase().contains(q)).toList();
-    }
-    if (_filterSubunitId != null) {
-      result = result.where((d) => d['id_subunit']?.toString() == _filterSubunitId).toList();
-    }
-    if (_sortOrder == 'asc') {
-      result.sort((a, b) => (a['nama_area'] ?? '').compareTo(b['nama_area'] ?? ''));
-    } else if (_sortOrder == 'desc') {
-      result.sort((a, b) => (b['nama_area'] ?? '').compareTo(a['nama_area'] ?? ''));
-    }
-    _filtered = result;
-  }
-
-  Widget? _buildActiveChips() {
-    final chips = <Widget>[];
-    if (_filterSubunitId != null && _filterSubunitName != null) {
-      chips.add(_buildFilterChip(
-        '📍 $_filterSubunitName',
-        _primary,
-        () => setState(() { _filterSubunitId = null; _filterSubunitName = null; _applyFilter(); }),
-      ));
-    }
-    if (_sortOrder != 'none') {
-      chips.add(_buildFilterChip(
-        _sortOrder == 'asc' ? '🔤 A→Z' : '🔤 Z→A',
-        _primary,
-        () => setState(() { _sortOrder = 'none'; _applyFilter(); }),
-      ));
-    }
-    if (chips.isEmpty) return null;
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Wrap(spacing: 8, runSpacing: 4, children: chips),
-    );
-  }
-
-  Widget _buildFilterChip(String label, Color color, VoidCallback onRemove) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha:0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha:0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label,
-              style: GoogleFonts.poppins(
-                  fontSize: 11, color: color, fontWeight: FontWeight.w600)),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: onRemove,
-            child: Icon(Icons.close_rounded, size: 13, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDialog({Map<String, dynamic>? item}) {
-    final isEdit = item != null;
-    final namaCtrl = TextEditingController(text: item?['nama_area'] ?? '');
-    final descCtrl = TextEditingController(text: item?['deskripsi_area'] ?? '');
-    final kategoriCtrl = TextEditingController(text: item?['kategori'] ?? '');
-    String? selectedSubunitId = item?['id_subunit']?.toString();
-    String? gambarUrl = item?['gambar_area'] as String?;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => _AdminFormDialog(
-          title: isEdit
-              ? (widget.lang == 'EN' ? 'Edit Area' : widget.lang == 'ZH' ? '编辑区域' : 'Edit Area')
-              : (widget.lang == 'EN' ? 'Add Area' : widget.lang == 'ZH' ? '添加区域' : 'Tambah Area'),
-          icon: Icons.place_rounded,
-          color: _primary,
-          lang: widget.lang,
-          fields: [
-            _FormField(
-              label: widget.lang == 'EN' ? 'Area Name' : widget.lang == 'ZH' ? '区域名称' : 'Nama Area',
-              controller: namaCtrl,
-              icon: Icons.place_rounded,
-            ),
-            _FormField(
-              label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
-              controller: descCtrl,
-              icon: Icons.notes_rounded,
-              maxLines: 3,
-            ),
-            _FormField(
-              label: widget.lang == 'EN' ? 'Category' : widget.lang == 'ZH' ? '类别' : 'Kategori',
-              controller: kategoriCtrl,
-              icon: Icons.category_rounded,
-            ),
-          ],
-          imagePickerWidget: AdminImagePickerWidget(
-            currentImageUrl: gambarUrl,
-            storageBucket: 'lokasi-images',
-            storageFolder: 'area',
-            filePrefix: item?['id_area']?.toString() ?? 'new-area',
-            height: 120,
-            isCircle: false,
-            accentColor: _primary,
-            placeholder: Icon(Icons.place_rounded, color: _primary, size: 28),
-            hint: widget.lang == 'EN'
-                ? 'Tap to select image'
-                : widget.lang == 'ZH'
-                    ? '点击选择图片'
-                    : 'Tap untuk pilih gambar',
-            subHint: widget.lang == 'EN'
-                ? 'Camera or Gallery'
-                : widget.lang == 'ZH'
-                    ? '相机或图库'
-                    : 'Kamera atau Galeri',
-            uploadingText: widget.lang == 'EN'
-                ? 'Uploading...'
-                : widget.lang == 'ZH'
-                    ? '上传中...'
-                    : 'Mengunggah...',
-            changeText: widget.lang == 'EN'
-                ? 'Change Image'
-                : widget.lang == 'ZH'
-                    ? '更换图片'
-                    : 'Ganti Gambar',
-                    sourceTitleText: widget.lang == 'EN'
-                        ? 'Select Image Source'
-                        : widget.lang == 'ZH'
-                            ? '选择图片来源'
-                            : 'Pilih Sumber Gambar',
-                    cameraText: widget.lang == 'EN'
-                        ? 'Camera'
-                        : widget.lang == 'ZH'
-                            ? '相机'
-                            : 'Kamera',
-                    galleryText: widget.lang == 'EN'
-                        ? 'Gallery'
-                        : widget.lang == 'ZH'
-                            ? '图库'
-                            : 'Galeri',
-            onUploaded: (newUrl) => setDlg(() => gambarUrl = newUrl),
-          ),
-          extraWidget: _buildParentDropdown(
-            label: 'Sub-Unit',
-            items: _subunitList,
-            idKey: 'id_subunit',
-            nameKey: 'nama_subunit',
-            selectedId: selectedSubunitId,
-            onChanged: (v) => setDlg(() => selectedSubunitId = v),
-          ),
-          onSave: () async {
-            if (namaCtrl.text.trim().isEmpty || selectedSubunitId == null) return;
-            final data = {
-              'nama_area': namaCtrl.text.trim(),
-              'deskripsi_area': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
-              'kategori': kategoriCtrl.text.trim().isEmpty ? null : kategoriCtrl.text.trim(),
-              'gambar_area': gambarUrl,
-              'id_subunit': selectedSubunitId,
-            };
-            if (isEdit) {
-              await Supabase.instance.client
-                  .from('area').update(data).eq('id_area', item['id_area']);
-            } else {
-              await Supabase.instance.client.from('area').insert(data);
-            }
-            _load();
-          },
-        ),
-      ),
-    );
-  }
-
-  Future<void> _delete(String id, String name) async {
-    final ok = await _showConfirm(context, name, widget.lang);
-    if (!ok) return;
-    await Supabase.instance.client.from('area').delete().eq('id_area', id);
-    _load();
-  }
-
-  Widget _buildFilterRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: _LocationFilterButton(
-            label: 'Sub-Unit',
-            icon: Icons.layers_rounded,
-            isActive: _filterSubunitId != null,
-            activeLabel: _filterSubunitName,
-            primaryColor: _primary,
-            onTap: () => _showSubunitFilterDialog(),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _LocationFilterButton(
-            label: widget.lang == 'EN' ? 'Sort' : widget.lang == 'ZH' ? '排序' : 'Urutan',
-            icon: Icons.sort_by_alpha_rounded,
-            isActive: _sortOrder != 'none',
-            activeLabel: _sortOrder == 'asc' ? 'A→Z' : _sortOrder == 'desc' ? 'Z→A' : null,
-            primaryColor: _primary,
-            onTap: () => _showSortDialog(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showSubunitFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => _buildSimpleFilterDialog(
-        ctx: ctx,
-        title: widget.lang == 'EN' ? 'Filter by Sub-Unit' : widget.lang == 'ZH' ? '按子单位筛选' : 'Filter Sub-Unit',
-        icon: Icons.layers_rounded,
-        primaryColor: _primary,
-        items: _subunitList,
-        idKey: 'id_subunit',
-        nameKey: 'nama_subunit',
-        selectedId: _filterSubunitId,
-        lang: widget.lang,
-        onSelect: (id, name) {
-          setState(() {
-            _filterSubunitId = id;
-            _filterSubunitName = name;
-            _applyFilter();
-          });
-          Navigator.pop(ctx);
-        },
-        onClear: () {
-          setState(() {
-            _filterSubunitId = null;
-            _filterSubunitName = null;
-            _applyFilter();
-          });
-          Navigator.pop(ctx);
-        },
-      ),
-    );
-  }
-
-  void _showSortDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => _buildSortDialog(
-        ctx: ctx,
-        primaryColor: _primary,
-        currentSort: _sortOrder,
-        lang: widget.lang,
-        onSelect: (sort) {
-          setState(() {
-            _sortOrder = sort;
-            _applyFilter();
-          });
-          Navigator.pop(ctx);
-        },
-      ),
-    );
-  }
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    return _buildTabContent(
-      isLoading: _isLoading,
-      search: _search,
-      onSearch: (v) => setState(() {
-        _search = v;
-        _applyFilter();
-      }),
-      addTitle: widget.lang == 'EN'
-          ? 'Add New Area'
-          : widget.lang == 'ZH'
-              ? '添加新区域'
-              : 'Tambah Area Baru',
-      addSubtitle: widget.lang == 'EN'
-          ? 'Tap to add a new area'
-          : widget.lang == 'ZH'
-              ? '点击以添加新区域'
-              : 'Ketuk untuk menambah area baru',
-      activeChipsWidget: _buildActiveChips(),
-      data: _filtered,
-      lang: widget.lang,
-      primaryColor: _primary,
-      nameFn: (item) => item['nama_area'] ?? '',
-      subtitleFn: (item) => item['subunit']?['nama_subunit'] ?? '-',
-      subtitleIcon: Icons.layers_rounded,
-      icon: Icons.place_rounded,
-      onAdd: () => _showDialog(),
-      onEdit: (item) => _showDialog(item: item),
-      onDelete: (item) => _delete(item['id_area'], item['nama_area'] ?? ''),
-      onRefresh: _load,
-      filterWidget: _buildFilterRow(),
-      onTapDetail: (item) => _showLocationDetailSheet(
-        context: context,
-        item: item,
-        lang: widget.lang,
-        primaryColor: _primary,
-        icon: Icons.place_rounded,
-        nameKey: 'area',
-        nameFn: (item) => item['nama_area'] ?? '',
-        subtitleFn: (item) => item['subunit']?['nama_subunit'] ?? '-',
-        onEdit: (item) => _showDialog(item: item),
-        onDelete: (item) => _delete(item['id_area'], item['nama_area'] ?? ''),
-      ),
-    );
-  }
-}
-
-void _showLocationDetailSheet({
+void _showUnitDetailSheet({
   required BuildContext context,
   required Map<String, dynamic> item,
   required String lang,
@@ -881,7 +392,7 @@ void _showLocationDetailSheet({
 }) {
   final name = nameFn(item);
   final subtitle = subtitleFn(item);
-  final deskripsi = (item['deskripsi_$nameKey'] ?? item['deskripsi_lokasi'] ?? item['deskripsi_unit'] ?? item['deskripsi_subunit'] ?? item['deskripsi_area'] ?? '') as String;
+  final deskripsi = (item['deskripsi_unit'] ?? '') as String;
   final isStar = (item['is_star'] ?? 0) as int;
   final kategori = item['kategori'] as String?;
   final qrcode = item['qrcode'] as String?;
@@ -895,22 +406,6 @@ void _showLocationDetailSheet({
       'label': lang == 'EN' ? 'Location' : lang == 'ZH' ? '位置' : 'Lokasi',
       'value': item['lokasi']['nama_lokasi'],
       'color': const Color(0xFF10B981),
-    });
-  }
-  if (item['unit']?['nama_unit'] != null) {
-    infoRows.add({
-      'icon': Icons.business_rounded,
-      'label': lang == 'EN' ? 'Unit' : lang == 'ZH' ? '单位' : 'Unit',
-      'value': item['unit']['nama_unit'],
-      'color': const Color(0xFF6366F1),
-    });
-  }
-  if (item['subunit']?['nama_subunit'] != null) {
-    infoRows.add({
-      'icon': Icons.layers_rounded,
-      'label': lang == 'EN' ? 'Sub-Unit' : lang == 'ZH' ? '子单位' : 'Sub-Unit',
-      'value': item['subunit']['nama_subunit'],
-      'color': const Color(0xFFFBBF24),
     });
   }
   if (kategori != null && kategori.isNotEmpty) {
@@ -930,14 +425,14 @@ void _showLocationDetailSheet({
     });
   }
 
-  const editBlue = Color(0xFF2563EB); // ← biru cerah untuk Edit
+  const editBlue = Color(0xFF2563EB);
 
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (ctx) => DraggableScrollableSheet(
-      initialChildSize: 0.85,   // ← naik dari 0.65 agar Edit/Delete langsung terlihat
+      initialChildSize: 0.85,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (_, scrollCtrl) => Container(
@@ -947,7 +442,6 @@ void _showLocationDetailSheet({
         ),
         child: Column(
           children: [
-            // Handle bar
             Container(
               margin: const EdgeInsets.only(top: 12),
               width: 40,
@@ -962,7 +456,6 @@ void _showLocationDetailSheet({
                 controller: scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                 children: [
-                  // ── Header ──
                   Row(
                     children: [
                       Container(
@@ -1038,9 +531,8 @@ void _showLocationDetailSheet({
                   Divider(color: Colors.grey.shade100, thickness: 1.5),
                   const SizedBox(height: 16),
 
-                  // ── Deskripsi ──
                   if (deskripsi.isNotEmpty) ...[
-                    _locDetailSection(
+                    _unitDetailSection(
                       lang == 'EN' ? 'Description' : lang == 'ZH' ? '描述' : 'Deskripsi',
                     ),
                     const SizedBox(height: 10),
@@ -1064,13 +556,12 @@ void _showLocationDetailSheet({
                     const SizedBox(height: 16),
                   ],
 
-                  // ── Info Rows ──
                   if (infoRows.isNotEmpty) ...[
-                    _locDetailSection(
+                    _unitDetailSection(
                       lang == 'EN' ? 'Information' : lang == 'ZH' ? '信息' : 'Informasi',
                     ),
                     const SizedBox(height: 10),
-                    ...infoRows.map((row) => _locDetailRow(
+                    ...infoRows.map((row) => _unitDetailRow(
                           icon: row['icon'] as IconData,
                           label: row['label'] as String,
                           value: row['value'] as String,
@@ -1080,8 +571,7 @@ void _showLocationDetailSheet({
 
                   const SizedBox(height: 20),
 
-                  // ── QR Code Section ──
-                  _locDetailSection('QR Code'),
+                  _unitDetailSection('QR Code'),
                   const SizedBox(height: 10),
 
                   if (qrcode != null && qrcode.isNotEmpty) ...[
@@ -1131,7 +621,7 @@ void _showLocationDetailSheet({
                                       .maybeSingle();
                                   if (refreshed != null && context.mounted) {
                                     item.addAll(refreshed);
-                                    _showLocationDetailSheet(
+                                    _showUnitDetailSheet(
                                       context: context,
                                       item: item,
                                       lang: lang,
@@ -1211,7 +701,7 @@ void _showLocationDetailSheet({
                                       .maybeSingle();
                                   if (refreshed != null && context.mounted) {
                                     item.addAll(refreshed);
-                                    _showLocationDetailSheet(
+                                    _showUnitDetailSheet(
                                       context: context,
                                       item: item,
                                       lang: lang,
@@ -1250,11 +740,10 @@ void _showLocationDetailSheet({
 
                   const SizedBox(height: 16),
 
-                  // ── Tombol Edit & Delete ──
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton.icon(  // ← ElevatedButton biru cerah
+                        child: ElevatedButton.icon(
                           onPressed: () {
                             Navigator.pop(ctx);
                             onEdit(item);
@@ -1304,7 +793,7 @@ void _showLocationDetailSheet({
   );
 }
 
-Widget _locDetailSection(String title) {
+Widget _unitDetailSection(String title) {
   return Row(
     children: [
       Container(
@@ -1328,7 +817,7 @@ Widget _locDetailSection(String title) {
   );
 }
 
-Widget _locDetailRow({
+Widget _unitDetailRow({
   required IconData icon,
   required String label,
   required String value,
@@ -1384,10 +873,7 @@ Widget _locDetailRow({
   );
 }
 
-// ─────────────────────────────────────────
-// SHARED: Tab content builder
-// ─────────────────────────────────────────
-Widget _buildTabContent({
+Widget _buildUnitTabContent({
   required bool isLoading,
   required String search,
   required ValueChanged<String> onSearch,
@@ -1415,7 +901,6 @@ Widget _buildTabContent({
     backgroundColor: bg,
     body: Column(
       children: [
-        // ── Banner Add Button (seperti admin_user_screen) ──
         Container(
           color: Colors.white,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -1475,7 +960,6 @@ Widget _buildTabContent({
             ),
           ),
         ),
-        // Search
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
           child: Container(
@@ -1498,7 +982,6 @@ Widget _buildTabContent({
             ),
           ),
         ),
-        // Filter tambahan (unit/subunit/area)
         if (filterWidget != null) ...[
           const SizedBox(height: 8),
           Padding(
@@ -1507,9 +990,7 @@ Widget _buildTabContent({
           ),
         ],
         const SizedBox(height: 8),
-        // Active filter chips
         if (activeChipsWidget != null) activeChipsWidget,
-        // Count
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Align(
@@ -1521,7 +1002,6 @@ Widget _buildTabContent({
           ),
         ),
         const SizedBox(height: 8),
-        // List
         Expanded(
           child: isLoading
               ? Shimmer.fromColors(
@@ -1659,10 +1139,7 @@ Widget _buildTabContent({
   );
 }
 
-// ─────────────────────────────────────────
-// SHARED: Konfirmasi hapus
-// ─────────────────────────────────────────
-Future<bool> _showConfirm(BuildContext context, String name, String lang) async {
+Future<bool> _showUnitConfirm(BuildContext context, String name, String lang) async {
   return await showDialog<bool>(
         context: context,
         barrierDismissible: true,
@@ -1761,9 +1238,6 @@ Future<bool> _showConfirm(BuildContext context, String name, String lang) async 
       false;
 }
 
-// ─────────────────────────────────────────
-// SHARED: Parent dropdown widget
-// ─────────────────────────────────────────
 Widget _buildParentDropdown({
   required String label,
   required List<Map<String, dynamic>> items,
@@ -1778,7 +1252,7 @@ Widget _buildParentDropdown({
       Text(
         label,
         style: GoogleFonts.poppins(
-          color: Colors.black54,       // ← TERBACA (bukan putih)
+          color: Colors.black54,
           fontSize: 12,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.3,
@@ -1788,7 +1262,7 @@ Widget _buildParentDropdown({
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),   // ← PUTIH/CERAH
+          color: const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade200),
         ),
@@ -1796,7 +1270,7 @@ Widget _buildParentDropdown({
           child: DropdownButton<String>(
             value: selectedId,
             isExpanded: true,
-            dropdownColor: Colors.white,    // ← PUTIH
+            dropdownColor: Colors.white,
             icon: Icon(Icons.keyboard_arrow_down_rounded,
                 color: Colors.black45),
             hint: Text(
@@ -1810,7 +1284,7 @@ Widget _buildParentDropdown({
                 child: Text(
                   item[nameKey] ?? '-',
                   style: GoogleFonts.poppins(
-                    color: const Color(0xFF1E3A8A), // ← TERBACA
+                    color: const Color(0xFF1E3A8A),
                     fontSize: 13,
                   ),
                   maxLines: 1,
@@ -1826,15 +1300,12 @@ Widget _buildParentDropdown({
   );
 }
 
-// ─────────────────────────────────────────
-// SHARED: Admin Form Dialog
-// ─────────────────────────────────────────
-class _FormField {
+class _UnitFormField {
   final String label;
   final TextEditingController controller;
   final IconData icon;
   final int maxLines;
-  const _FormField({
+  const _UnitFormField({
     required this.label,
     required this.controller,
     required this.icon,
@@ -1842,17 +1313,17 @@ class _FormField {
   });
 }
 
-class _AdminFormDialog extends StatelessWidget {
+class _AdminUnitFormDialog extends StatelessWidget {
   final String title;
   final IconData icon;
   final Color color;
-  final List<_FormField> fields;
+  final List<_UnitFormField> fields;
   final Widget? extraWidget;
-  final Widget? imagePickerWidget; // ← BARU: ganti URL field
+  final Widget? imagePickerWidget;
   final String lang;
   final Future<void> Function() onSave;
 
-  const _AdminFormDialog({
+  const _AdminUnitFormDialog({
     required this.title,
     required this.icon,
     required this.color,
@@ -1876,7 +1347,6 @@ class _AdminFormDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Sticky Header ──
             Container(
               padding: const EdgeInsets.fromLTRB(24, 20, 20, 16),
               decoration: BoxDecoration(
@@ -1925,7 +1395,6 @@ class _AdminFormDialog extends StatelessWidget {
                 ],
               ),
             ),
-            // ── Scrollable Body ──
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
@@ -1933,7 +1402,6 @@ class _AdminFormDialog extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Image Picker (ganti URL field) ──
                     if (imagePickerWidget != null) ...[
                       Text(
                         lang == 'EN' ? 'Photo' : lang == 'ZH' ? '图片' : 'Foto',
@@ -1948,7 +1416,6 @@ class _AdminFormDialog extends StatelessWidget {
                       imagePickerWidget!,
                       const SizedBox(height: 20),
                     ],
-                    // ── Fields ──
                     ...fields.map((f) => Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -1991,7 +1458,6 @@ class _AdminFormDialog extends StatelessWidget {
                             const SizedBox(height: 14),
                           ],
                         )),
-                    // ── Extra widget (dropdown parent) ──
                     if (extraWidget != null) ...[
                       extraWidget!,
                       const SizedBox(height: 20),
@@ -2000,7 +1466,6 @@ class _AdminFormDialog extends StatelessWidget {
                 ),
               ),
             ),
-            // ── Sticky Footer ──
             Container(
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
               decoration: BoxDecoration(
@@ -2065,10 +1530,7 @@ class _AdminFormDialog extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────
-// SHARED: Filter button widget untuk unit/subunit/area
-// ─────────────────────────────────────────
-class _LocationFilterButton extends StatelessWidget {
+class _UnitFilterButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool isActive;
@@ -2076,7 +1538,7 @@ class _LocationFilterButton extends StatelessWidget {
   final Color primaryColor;
   final VoidCallback onTap;
 
-  const _LocationFilterButton({
+  const _UnitFilterButton({
     required this.label,
     required this.icon,
     required this.isActive,
@@ -2138,9 +1600,6 @@ class _LocationFilterButton extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────
-// SHARED: Simple filter dialog (lokasi/unit/subunit)
-// ─────────────────────────────────────────
 Widget _buildSimpleFilterDialog({
   required BuildContext ctx,
   required String title,
@@ -2161,7 +1620,6 @@ Widget _buildSimpleFilterDialog({
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Header
         Container(
           padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
           decoration: BoxDecoration(
@@ -2193,14 +1651,12 @@ Widget _buildSimpleFilterDialog({
             ],
           ),
         ),
-        // Options
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 360),
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Column(
               children: [
-                // All / Clear option
                 GestureDetector(
                   onTap: onClear,
                   child: AnimatedContainer(
@@ -2281,9 +1737,6 @@ Widget _buildSimpleFilterDialog({
   );
 }
 
-// ─────────────────────────────────────────
-// SHARED: Sort dialog
-// ─────────────────────────────────────────
 Widget _buildSortDialog({
   required BuildContext ctx,
   required Color primaryColor,
