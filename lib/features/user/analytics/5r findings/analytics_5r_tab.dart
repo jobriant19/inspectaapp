@@ -985,8 +985,8 @@ class _Analytics5RTabState extends State<Analytics5RTab>
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: activeColor.withOpacity(0.4), width: 1.2),
-            boxShadow: [BoxShadow(color: activeColor.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
+            border: Border.all(color: activeColor.withValues(alpha:0.4), width: 1.2),
+            boxShadow: [BoxShadow(color: activeColor.withValues(alpha:0.08), blurRadius: 6, offset: const Offset(0, 2))],
           ),
           child: Row(children: [
             const Icon(Icons.bar_chart_rounded, size: 16, color: activeColor),
@@ -1053,7 +1053,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                     decoration: BoxDecoration(
                       color: Colors.white, borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: _AppColors.primaryLight),
-                      boxShadow: [BoxShadow(color: activeColor.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))],
+                      boxShadow: [BoxShadow(color: activeColor.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 3))],
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       // LEGEND
@@ -1342,7 +1342,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Flexible(child: Text(label,
@@ -1356,10 +1356,11 @@ class _Analytics5RTabState extends State<Analytics5RTab>
     );
   }
 
-  void _showMonthPicker(VoidCallback onChanged) async {
+   void _showMonthPicker(VoidCallback onChanged) async {
     String tempMode = _filterMode;
     int tempMonthIndex = _selectedMonthIndex;
     DateTime tempDate = _selectedDate ?? DateTime.now();
+    DateTime tempDisplayMonth = DateTime(tempDate.year, tempDate.month, 1);
 
     await showDialog(
       context: context,
@@ -1445,7 +1446,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                               color: isSel ? _AppColors.primary : _AppColors.divider,
                               width: isSel ? 1.5 : 1),
                             boxShadow: isSel ? [BoxShadow(
-                              color: _AppColors.primary.withOpacity(0.3),
+                              color: _AppColors.primary.withValues(alpha:0.3),
                               blurRadius: 6, offset: const Offset(0, 2))] : []),
                           child: Center(child: Text(_translatedMonths[i], style: TextStyle(
                             fontSize: 13,
@@ -1459,8 +1460,11 @@ class _Analytics5RTabState extends State<Analytics5RTab>
               else
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: _buildDailyCalendar(tempDate,
+                  child: _buildDailyCalendar(
+                    tempDate,
+                    tempDisplayMonth,
                     (picked) => setSt(() => tempDate = picked),
+                    (newMonth) => setSt(() => tempDisplayMonth = newMonth),
                     onConfirm: () {
                       Navigator.pop(ctx);
                       setState(() {
@@ -1479,11 +1483,12 @@ class _Analytics5RTabState extends State<Analytics5RTab>
     );
   }
 
-  Widget _buildDailyCalendar(DateTime selectedDate, ValueChanged<DateTime> onDateChanged,
-      {required VoidCallback onConfirm}) {
+  Widget _buildDailyCalendar(DateTime selectedDate, DateTime displayMonth,
+      ValueChanged<DateTime> onDateChanged,
+      ValueChanged<DateTime> onMonthChanged, {required VoidCallback onConfirm}) {
     final now = DateTime.now();
-    final year = now.year;
-    final month = now.month;
+    final year = displayMonth.year;
+    final month = displayMonth.month;
     final daysInMonth = DateUtils.getDaysInMonth(year, month);
     final firstWeekday = DateTime(year, month, 1).weekday % 7;
     final locale = widget.lang == 'ID' ? 'id_ID' : (widget.lang == 'EN' ? 'en_US' : 'zh_CN');
@@ -1493,11 +1498,49 @@ class _Analytics5RTabState extends State<Analytics5RTab>
         : widget.lang == 'ID'
             ? ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
             : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final bool isCurrentMonth = year == now.year && month == now.month;
 
     return StatefulBuilder(
       builder: (_, setInner) => Column(children: [
-        Text(monthLabel, style: const TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.textPrimary)),
+        // HEADER: PREV / MONTH LABEL / NEXT
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            GestureDetector(
+              onTap: () => onMonthChanged(DateTime(year, month - 1, 1)),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.chevron_left_rounded,
+                    size: 18, color: _AppColors.primary),
+              ),
+            ),
+            Text(monthLabel, style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w700, color: _AppColors.textPrimary)),
+            GestureDetector(
+              onTap: isCurrentMonth
+                  ? null
+                  : () => onMonthChanged(DateTime(year, month + 1, 1)),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isCurrentMonth
+                      ? Colors.grey.shade100
+                      : _AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.chevron_right_rounded,
+                    size: 18,
+                    color: isCurrentMonth
+                        ? Colors.grey.shade400
+                        : _AppColors.primary),
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
         Row(children: dayLabels.map((d) => Expanded(child: Center(
           child: Text(d, style: const TextStyle(
