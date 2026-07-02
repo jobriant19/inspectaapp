@@ -35,7 +35,7 @@ class _KasieRow {
   });
 }
 
-enum _RangeFilter { thisMonth, threeMonths, sixMonths }
+enum _RangeFilter { thisMonth, threeMonths, sixMonths, oneYear, custom }
 
 extension _RF on _RangeFilter {
   String label(String lang) {
@@ -46,6 +46,10 @@ extension _RF on _RangeFilter {
         return lang == 'EN' ? '3 Months' : lang == 'ZH' ? '3个月' : '3 Bulan';
       case _RangeFilter.sixMonths:
         return lang == 'EN' ? '6 Months' : lang == 'ZH' ? '6个月' : '6 Bulan';
+      case _RangeFilter.oneYear:
+        return lang == 'EN' ? '1 Year' : lang == 'ZH' ? '1年' : '1 Tahun';
+      case _RangeFilter.custom:
+        return lang == 'EN' ? 'Custom' : lang == 'ZH' ? '自定义' : 'Kustom';
     }
   }
 
@@ -54,6 +58,8 @@ extension _RF on _RangeFilter {
       case _RangeFilter.thisMonth:   return 1;
       case _RangeFilter.threeMonths: return 3;
       case _RangeFilter.sixMonths:   return 6;
+      case _RangeFilter.oneYear:     return 12;
+      case _RangeFilter.custom:      return 12; 
     }
   }
 }
@@ -118,10 +124,13 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
   String? _filterBagian;
   bool _chartExpanded = false;
   bool _loading = false;
+  DateTime? _customStart;
+  DateTime? _customEnd;
 
   List<_KasieRow> _rows = [];
   List<String> _bulanLabels = [];
   Map<String, String> _sectionNameMap = {};
+  Map<String, String> _sectionDisplayMap = {};
 
   @override
   void initState() {
@@ -131,6 +140,16 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
 
   // MONTH RANGE
   List<DateTime> _getMonths() {
+    if (_range == _RangeFilter.custom && _customStart != null && _customEnd != null) {
+      final List<DateTime> months = [];
+      DateTime cursor = DateTime(_customStart!.year, _customStart!.month, 1);
+      final last = DateTime(_customEnd!.year, _customEnd!.month, 1);
+      while (!cursor.isAfter(last) && months.length < 12) {
+        months.add(cursor);
+        cursor = DateTime(cursor.year, cursor.month + 1, 1);
+      }
+      return months;
+    }
     final now = DateTime.now();
     final count = _range.monthCount;
     return List.generate(count, (i) {
@@ -146,6 +165,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
           .select('nama_section_id, nama_section_en, nama_section_zh');
       final rows = List<Map<String, dynamic>>.from(res);
       final map = <String, String>{};
+      final displayMap = <String, String>{};
       for (final r in rows) {
         final idName = (r['nama_section_id'] as String?)?.trim();
         if (idName == null || idName.isEmpty) continue;
@@ -154,8 +174,16 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
         if (enName != null && enName.isNotEmpty) map[enName.toLowerCase()] = idName;
         final zhName = (r['nama_section_zh'] as String?)?.trim();
         if (zhName != null && zhName.isNotEmpty) map[zhName.toLowerCase()] = idName;
+
+        String display = idName;
+        if (widget.lang == 'EN') {
+          if (enName != null && enName.isNotEmpty) display = enName;
+        } else if (widget.lang == 'ZH') {
+          if (zhName != null && zhName.isNotEmpty) display = zhName;
+        }
+        displayMap[idName.toLowerCase()] = display;
       }
-      if (mounted) setState(() => _sectionNameMap = map);
+      if (mounted) setState(() { _sectionNameMap = map; _sectionDisplayMap = displayMap; });
     } catch (e) {
       debugPrint('loadSectionNameMap error: $e');
     }
@@ -164,6 +192,11 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
   String _resolveSectionName(String raw) {
     final key = raw.trim().toLowerCase();
     return _sectionNameMap[key] ?? raw.trim();
+  }
+
+  String _displaySectionName(String raw) {
+    if (raw.isEmpty) return raw;
+    return _sectionDisplayMap[raw.trim().toLowerCase()] ?? raw;
   }
 
   Future<void> _loadData() async {
@@ -300,7 +333,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
               ]),
             ),
             const SizedBox(height: 8),
-            ..._RangeFilter.values.map((r) {
+            ..._RangeFilter.values.where((r) => r != _RangeFilter.custom).map((r) {
               final sel = _range == r;
               return GestureDetector(
                 onTap: () {
@@ -332,11 +365,123 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
                 ),
               );
             }),
+            GestureDetector(
+              onTap: () { Navigator.pop(ctx); _showCustomRangePicker(); },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: _range == _RangeFilter.custom ? _C.primaryLight : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _range == _RangeFilter.custom ? _C.primary : const Color(0xFFE2E8F0),
+                    width: _range == _RangeFilter.custom ? 1.8 : 1,
+                  ),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.edit_calendar_rounded, size: 16, color: _C.primary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    _range == _RangeFilter.custom && _customStart != null && _customEnd != null
+                        ? '${DateFormat('MMM yyyy').format(_customStart!)} – ${DateFormat('MMM yyyy').format(_customEnd!)}'
+                        : (widget.lang == 'EN' ? 'Custom (Start – End)' : widget.lang == 'ZH' ? '自定义（开始-结束）' : 'Kustom (Mulai – Selesai)'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _range == _RangeFilter.custom ? _C.primaryDark : const Color(0xFF1E293B),
+                    ),
+                  )),
+                  if (_range == _RangeFilter.custom) const Icon(Icons.check_circle_rounded, color: _C.primary, size: 20),
+                ]),
+              ),
+            ),
             const SizedBox(height: 12),
           ]),
         ),
       ),
     );
+  }
+
+  void _showCustomRangePicker() async {
+    final now = DateTime.now();
+    DateTime tempStart = _customStart ?? DateTime(now.year, now.month, 1);
+    DateTime tempEnd   = _customEnd   ?? DateTime(now.year, now.month, 1);
+
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      Widget monthYearPicker(String title, DateTime value, ValueChanged<DateTime> onChanged) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(12), border: Border.all(color: _C.divider)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _C.textSec)),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: DropdownButton<int>(
+                isExpanded: true, value: value.month, underline: const SizedBox.shrink(),
+                items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(value: m,
+                  child: Text(DateFormat('MMMM').format(DateTime(2024, m, 1)), style: const TextStyle(fontSize: 13)))).toList(),
+                onChanged: (m) { if (m != null) onChanged(DateTime(value.year, m, 1)); },
+              )),
+              const SizedBox(width: 8),
+              Expanded(child: DropdownButton<int>(
+                isExpanded: true, value: value.year, underline: const SizedBox.shrink(),
+                items: List.generate(6, (i) => now.year - 4 + i).map((y) => DropdownMenuItem(value: y,
+                  child: Text('$y', style: const TextStyle(fontSize: 13)))).toList(),
+                onChanged: (y) { if (y != null) onChanged(DateTime(y, value.month, 1)); },
+              )),
+            ]),
+          ]),
+        );
+      }
+
+      final monthsDiff = (tempEnd.year - tempStart.year) * 12 + (tempEnd.month - tempStart.month);
+      final isValid = monthsDiff >= 0 && monthsDiff < 12;
+
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+              decoration: const BoxDecoration(color: _C.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              child: Row(children: [
+                const Icon(Icons.edit_calendar_rounded, color: _C.primary, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(widget.lang == 'EN' ? 'Custom Period' : widget.lang == 'ZH' ? '自定义期间' : 'Periode Kustom',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary))),
+                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            monthYearPicker(widget.lang == 'EN' ? 'Start' : widget.lang == 'ZH' ? '开始' : 'Mulai', tempStart, (d) => setLocal(() => tempStart = d)),
+            monthYearPicker(widget.lang == 'EN' ? 'End' : widget.lang == 'ZH' ? '结束' : 'Selesai', tempEnd, (d) => setLocal(() => tempEnd = d)),
+            if (!isValid)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  widget.lang == 'EN' ? 'Range must be between 0–12 months' : widget.lang == 'ZH' ? '范围必须在0-12个月之间' : 'Rentang maksimal 12 bulan',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFFEF4444))),
+              ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(width: double.infinity, child: ElevatedButton(
+                onPressed: isValid ? () {
+                  Navigator.pop(ctx);
+                  setState(() { _range = _RangeFilter.custom; _customStart = tempStart; _customEnd = tempEnd; });
+                  _loadData();
+                } : null,
+                style: ElevatedButton.styleFrom(backgroundColor: _C.primary, foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: Text(widget.lang == 'EN' ? 'Apply' : widget.lang == 'ZH' ? '应用' : 'Terapkan'),
+              )),
+            ),
+          ]),
+        ),
+      );
+    }));
   }
 
   void _showBagianPicker() async {
@@ -348,21 +493,25 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
 
   // FILTER BAR
   Widget _buildFilterBar() {
+    String rangeLabel = _range.label(widget.lang);
+    if (_range == _RangeFilter.custom && _customStart != null && _customEnd != null) {
+      rangeLabel = '${DateFormat('MMM yy').format(_customStart!)}–${DateFormat('MMM yy').format(_customEnd!)}';
+    }
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: Row(children: [
         // RANGE MONTH BUTTON
-        _filterBtn(
-          label: _range.label(widget.lang),
+        Expanded(child: _filterBtn(
+          label: rangeLabel,
           color: _C.primary,
           active: true,
           icon: Icons.date_range_rounded,
           onTap: _showRangePicker,
-        ),
+        )),
         const SizedBox(width: 8),
         // SECTION BUTTON
         Expanded(child: _filterBtn(
-          label: _filterBagian ?? _t('semua_bagian'),
+          label: _filterBagian != null ? _displaySectionName(_filterBagian!) : _t('semua_bagian'),
           color: _C.primary,
           active: _filterBagian != null,
           icon: Icons.grid_view_rounded,
@@ -390,10 +539,10 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
           border: Border.all(color: active ? color : _C.primaryLight, width: 1.5),
           boxShadow: [BoxShadow(color: color.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))],
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
+        child: Row(children: [
           Icon(icon, size: 14, color: active ? Colors.white : color),
           const SizedBox(width: 6),
-          Flexible(child: Text(label,
+          Expanded(child: Text(label,
             style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.w600,
               color: active ? Colors.white : color,
@@ -471,7 +620,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
 
     if (sorted.isEmpty) return _emptyBox();
 
-    final xMax   = _range.monthCount;
+    final xMax   = _getMonths().length;
     final xTicks = List.generate(xMax + 1, (i) => i);
 
     const double labelW  = 72.0;
@@ -671,7 +820,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
         Expanded(
           flex: flexSection,
           child: Text(
-            row.bagian.isEmpty ? '-' : row.bagian,
+            row.bagian.isEmpty ? '-' : _displaySectionName(row.bagian),
             style: TextStyle(
               fontSize: 11, fontWeight: FontWeight.w600,
               color: row.total > 0 ? _C.textPrimary : const Color(0xFFCBD5E1),
