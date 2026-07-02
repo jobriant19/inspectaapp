@@ -42,6 +42,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
   String? selectedAreaId;
   String? selectedSupervisorId;
   String? selectedBagianKasie;
+  String? selectedSectionId;
 
   List<Map<String, dynamic>> lokasiList = [];
   List<Map<String, dynamic>> unitList = [];
@@ -211,6 +212,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
         'timestamp': DateTime.now().toIso8601String(),
         'id_supervisor': selectedSupervisorId,
         'bagian_kasie': selectedJabatan == 3 ? selectedBagianKasie : null,
+        'id_section': selectedJabatan == 3 ? selectedSectionId : null,
       });
 
       _showSnack(
@@ -433,7 +435,10 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
       onTap: () async {
         final result = await showKtsSectionLocationPicker(context, lang: _lang);
         if (result == null) return;
-        setState(() => selectedBagianKasie = result.isAllSections ? null : result.sectionName);
+        setState(() {
+          selectedBagianKasie = result.isAllSections ? null : result.sectionName;
+          selectedSectionId  = result.isAllSections ? null : result.sectionId;
+        });
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
