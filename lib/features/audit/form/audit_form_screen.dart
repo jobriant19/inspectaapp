@@ -336,6 +336,91 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     }
   }
 
+  void _showEvidencePreview(String url) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black87,
+      builder: (dialogContext) {
+        final size = MediaQuery.of(dialogContext).size;
+        final isLandscape = size.width > size.height;
+        final maxW = isLandscape ? size.width * 0.75 : size.width * 0.92;
+        final maxH = isLandscape ? size.height * 0.88 : size.height * 0.7;
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    color: Colors.black,
+                    child: InteractiveViewer(
+                      minScale: 1,
+                      maxScale: 4,
+                      child: Image.network(
+                        url,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                        errorBuilder: (_, __, ___) => SizedBox(
+                          height: 200,
+                          child: Center(
+                            child: Icon(Icons.broken_image_outlined,
+                                color: Colors.grey.shade400, size: 40),
+                          ),
+                        ),
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return SizedBox(
+                            height: 220,
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.white70,
+                                strokeWidth: 2.4,
+                                value: progress.expectedTotalBytes != null
+                                    ? (progress.cumulativeBytesLoaded /
+                                        (progress.expectedTotalBytes ?? 1))
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: -14, right: -14,
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(dialogContext).pop(),
+                    child: Container(
+                      width: 32, height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha:0.3),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 18, color: Colors.black87),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _submit() async {
     if (!_allAnswered) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -1273,17 +1358,43 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                       )
                     else
                       Stack(children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
-                            evidenceUrl,
-                            width: double.infinity,
-                            height: 140,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
+                        GestureDetector(
+                          onTap: () => _showEvidencePreview(evidenceUrl),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              evidenceUrl,
+                              width: double.infinity,
                               height: 140,
-                              color: Colors.grey.shade100,
-                              child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                height: 140,
+                                color: Colors.grey.shade100,
+                                child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 6, bottom: 6,
+                          child: IgnorePointer(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha:0.55),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 13),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    _t('View', 'Lihat', '查看'),
+                                    style: GoogleFonts.poppins(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
