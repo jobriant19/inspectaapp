@@ -388,7 +388,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
           color: active ? color : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: active ? color : _C.primaryLight, width: 1.5),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.12), blurRadius: 6, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: color.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 14, color: active ? Colors.white : color),
@@ -429,9 +429,9 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _C.primary.withOpacity(0.45), width: 1.2),
+          border: Border.all(color: _C.primary.withValues(alpha:0.45), width: 1.2),
           boxShadow: [BoxShadow(
-              color: _C.primary.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _C.primary.withValues(alpha:0.07), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           const Icon(Icons.bar_chart_rounded, size: 16, color: _C.primary),
@@ -486,7 +486,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.primaryLight, width: 1.2),
         boxShadow: [BoxShadow(
-            color: _C.primary.withOpacity(0.07), blurRadius: 10, offset: const Offset(0, 3))],
+            color: _C.primary.withValues(alpha:0.07), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: LayoutBuilder(builder: (ctx, constraints) {
         final barAreaW = constraints.maxWidth - labelW - 8;
@@ -700,7 +700,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
               width: 26, height: 26,
               decoration: BoxDecoration(
                 color: val > 0
-                    ? _C.barColor.withOpacity(0.15)
+                    ? _C.barColor.withValues(alpha:0.15)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
               ),
@@ -790,7 +790,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.primaryLight, width: 1.5),
         boxShadow: [BoxShadow(
-            color: _C.primary.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))],
+            color: _C.primary.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: Column(children: [
         buildHeaderRow(),
@@ -843,14 +843,14 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: _C.barColor.withOpacity(0.12),
+                      color: _C.barColor.withValues(alpha:0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(Icons.person_outline_rounded,
                         size: 14, color: _C.barColor),
                   ),
                   const SizedBox(width: 8),
-                  Text(_t('laporan_kts') + ' ' + _t('kasie'),
+                  Text('${_t('laporan_kts')} ${_t('kasie')}',
                     style: const TextStyle(
                       fontSize: 14, fontWeight: FontWeight.w800, color: _C.barColor)),
                 ]),
