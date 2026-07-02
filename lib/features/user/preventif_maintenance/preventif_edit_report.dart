@@ -31,7 +31,8 @@ class _PmEditScreenState extends State<PmEditScreen> {
   final _judulCtrl = TextEditingController();
   final _descCtrl  = TextEditingController();
   final _alasanCtrl = TextEditingController();
-  String? _selectedBagian;
+  String? _selectedBagian; 
+  Map<String, String> _sectionDisplayMap = {};
   DateTime _bulanPm = DateTime(DateTime.now().year, DateTime.now().month, 1);
 
   bool get _isLate {
@@ -138,6 +139,7 @@ class _PmEditScreenState extends State<PmEditScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSectionDisplayMap();
     final d = widget.existingData;
     _judulCtrl.text   = d['judul_pm'] ?? '';
     _descCtrl.text    = d['deskripsi_pm'] ?? '';
@@ -158,6 +160,36 @@ class _PmEditScreenState extends State<PmEditScreen> {
     _descCtrl.dispose();
     _alasanCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSectionDisplayMap() async {
+    try {
+      final sb = Supabase.instance.client;
+      final res = await sb.from('section').select('nama_section_id, nama_section_en, nama_section_zh');
+      final rows = List<Map<String, dynamic>>.from(res);
+      final map = <String, String>{};
+      for (final r in rows) {
+        final idName = (r['nama_section_id'] as String?)?.trim();
+        if (idName == null || idName.isEmpty) continue;
+        String display = idName;
+        if (widget.lang == 'EN') {
+          final en = (r['nama_section_en'] as String?)?.trim();
+          if (en != null && en.isNotEmpty) display = en;
+        } else if (widget.lang == 'ZH') {
+          final zh = (r['nama_section_zh'] as String?)?.trim();
+          if (zh != null && zh.isNotEmpty) display = zh;
+        }
+        map[idName.toLowerCase()] = display;
+      }
+      if (mounted) setState(() => _sectionDisplayMap = map);
+    } catch (e) {
+      debugPrint('PM edit loadSectionDisplayMap error: $e');
+    }
+  }
+
+  String _displaySectionName(String? raw) {
+    if (raw == null || raw.isEmpty) return '-';
+    return _sectionDisplayMap[raw.trim().toLowerCase()] ?? raw;
   }
 
   void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(
@@ -380,7 +412,7 @@ class _PmEditScreenState extends State<PmEditScreen> {
                       const Icon(Icons.grid_view_rounded, size: 16, color: _EPC.primary),
                       const SizedBox(width: 10),
                       Expanded(child: Text(
-                        _selectedBagian ?? '-',
+                        _displaySectionName(_selectedBagian),
                         style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
                       const Icon(CupertinoIcons.lock_fill, size: 13, color: Color(0xFF94A3B8)),
                     ]),
