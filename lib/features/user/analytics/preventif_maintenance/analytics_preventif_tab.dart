@@ -596,10 +596,10 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
           color: active ? _PC.primary : Colors.white, borderRadius: BorderRadius.circular(10),
           border: Border.all(color: active ? _PC.primary : _PC.primaryLight, width: 1.5),
           boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))]),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
+        child: Row(children: [
           Icon(icon, size: 14, color: active ? Colors.white : _PC.primary),
           const SizedBox(width: 6),
-          Flexible(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: active ? Colors.white : _PC.primary), overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: active ? Colors.white : _PC.primary), overflow: TextOverflow.ellipsis)),
           const SizedBox(width: 4),
           Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: active ? Colors.white : _PC.primary),
         ]),
