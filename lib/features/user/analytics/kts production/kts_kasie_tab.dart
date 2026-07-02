@@ -340,7 +340,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
   }
 
   void _showBagianPicker() async {
-    final result = await showKtsSectionLocationPicker(context, lang: widget.lang);
+    final result = await showKtsSectionLocationPicker(context, lang: widget.lang, accentColor: _C.primary);
     if (result == null) return;
     setState(() => _filterBagian = result.isAllSections ? null : result.sectionName);
     _loadData();
