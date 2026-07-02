@@ -770,57 +770,57 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
 
-                                  const SizedBox(height: 20),
+                                  // const SizedBox(height: 20),
 
-                                  // Divider
-                                  Row(children: [
-                                    Expanded(
-                                      child: Divider(
-                                          color: const Color(0xFF90CAF9).withValues(alpha:0.5))),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      child: Text(
-                                        getTxt('or_login'),
-                                        style: const TextStyle(
-                                            fontSize: 11, color: Color(0xFF1565C0),
-                                            fontWeight: FontWeight.w600),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Divider(
-                                          color: const Color(0xFF90CAF9).withValues(alpha:0.5))),
-                                  ]),
+                                  // // Divider
+                                  // Row(children: [
+                                  //   Expanded(
+                                  //     child: Divider(
+                                  //         color: const Color(0xFF90CAF9).withValues(alpha:0.5))),
+                                  //   Padding(
+                                  //     padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  //     child: Text(
+                                  //       getTxt('or_login'),
+                                  //       style: const TextStyle(
+                                  //           fontSize: 11, color: Color(0xFF1565C0),
+                                  //           fontWeight: FontWeight.w600),
+                                  //     ),
+                                  //   ),
+                                  //   Expanded(
+                                  //     child: Divider(
+                                  //         color: const Color(0xFF90CAF9).withValues(alpha:0.5))),
+                                  // ]),
 
-                                  const SizedBox(height: 14),
+                                  // const SizedBox(height: 14),
 
-                                  // Tombol Google
-                                  SizedBox(
-                                    width: double.infinity, height: 50,
-                                    child: OutlinedButton.icon(
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: const Color(0xFF1565C0),
-                                        side: const BorderSide(
-                                            color: Color(0xFF90CAF9), width: 1.2),
-                                        backgroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(14)),
-                                      ),
-                                      onPressed: isLoading ? null : () => _auth.signInWithGoogle(),
-                                      icon: Image.asset(
-                                        'assets/images/Google.svg',
-                                        height: 22,
-                                        errorBuilder: (_, __, ___) => const Icon(
-                                            Icons.g_mobiledata,
-                                            size: 28,
-                                            color: Color(0xFF1976D2)),
-                                      ),
-                                      label: Text(
-                                        getTxt('google'),
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w700, fontSize: 14),
-                                      ),
-                                    ),
-                                  ),
+                                  // // Tombol Google
+                                  // SizedBox(
+                                  //   width: double.infinity, height: 50,
+                                  //   child: OutlinedButton.icon(
+                                  //     style: OutlinedButton.styleFrom(
+                                  //       foregroundColor: const Color(0xFF1565C0),
+                                  //       side: const BorderSide(
+                                  //           color: Color(0xFF90CAF9), width: 1.2),
+                                  //       backgroundColor: Colors.white,
+                                  //       shape: RoundedRectangleBorder(
+                                  //           borderRadius: BorderRadius.circular(14)),
+                                  //     ),
+                                  //     onPressed: isLoading ? null : () => _auth.signInWithGoogle(),
+                                  //     icon: Image.asset(
+                                  //       'assets/images/Google.svg',
+                                  //       height: 22,
+                                  //       errorBuilder: (_, __, ___) => const Icon(
+                                  //           Icons.g_mobiledata,
+                                  //           size: 28,
+                                  //           color: Color(0xFF1976D2)),
+                                  //     ),
+                                  //     label: Text(
+                                  //       getTxt('google'),
+                                  //       style: const TextStyle(
+                                  //           fontWeight: FontWeight.w700, fontSize: 14),
+                                  //     ),
+                                  //   ),
+                                  // ),
 
                                   const SizedBox(height: 16),
                                 ],
