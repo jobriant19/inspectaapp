@@ -614,7 +614,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   }
 
   void _showBagianPicker() async {
-    final result = await showKtsSectionLocationPicker(context, lang: widget.lang);
+    final accentColor = _activeFilter == _FilterType.biaya ? _C.orange : _C.blue;
+    final result = await showKtsSectionLocationPicker(context, lang: widget.lang, accentColor: accentColor);
     if (result == null) return;
     setState(() => _subBagian = result.isAllSections ? null : result.sectionName);
     _loadData();
