@@ -196,7 +196,7 @@ class _AccidentReportListScreenState
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.12),
+                color: Colors.black.withValues(alpha:0.12),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
               ),
@@ -277,7 +277,7 @@ class _AccidentReportListScreenState
                           boxShadow: [
                             BoxShadow(
                               color:
-                                  const Color(0xFFEF4444).withOpacity(0.3),
+                                  const Color(0xFFEF4444).withValues(alpha:0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -467,7 +467,7 @@ class _AccidentReportListScreenState
               boxShadow: [
                 BoxShadow(
                   color:
-                      const Color.fromARGB(255, 246, 59, 59).withOpacity(0.4),
+                      const Color.fromARGB(255, 246, 59, 59).withValues(alpha:0.4),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                 ),
@@ -478,7 +478,7 @@ class _AccidentReportListScreenState
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.25),
+                    color: Colors.white.withValues(alpha:0.25),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(Icons.health_and_safety_outlined,
@@ -505,7 +505,7 @@ class _AccidentReportListScreenState
                                 : 'Catat kecelakaan di tempat kerja',
                         style: GoogleFonts.inter(
                             fontSize: 13,
-                            color: Colors.white.withOpacity(0.85)),
+                            color: Colors.white.withValues(alpha:0.85)),
                       ),
                     ],
                   ),
@@ -543,7 +543,7 @@ class _AccidentReportListScreenState
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF16A34A).withOpacity(0.35),
+                    color: const Color(0xFF16A34A).withValues(alpha:0.35),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -554,7 +554,7 @@ class _AccidentReportListScreenState
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha:0.25),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(
@@ -587,7 +587,7 @@ class _AccidentReportListScreenState
                                   : 'Kelola tindakan korektif & preventif',
                           style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: Colors.white.withOpacity(0.85)),
+                              color: Colors.white.withValues(alpha:0.85)),
                         ),
                       ],
                     ),
@@ -636,7 +636,7 @@ class _AccidentReportListScreenState
               color: const Color(0xFFE0E7FF), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF3B82F6).withOpacity(0.08),
+              color: const Color(0xFF3B82F6).withValues(alpha:0.08),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
@@ -655,8 +655,8 @@ class _AccidentReportListScreenState
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          sevColor.withOpacity(0.15),
-                          sevColor.withOpacity(0.08),
+                          sevColor.withValues(alpha:0.15),
+                          sevColor.withValues(alpha:0.08),
                         ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -734,7 +734,7 @@ class _AccidentReportListScreenState
                             _buildChip(
                               Icons.warning_amber_rounded,
                               severity,
-                              sevColor.withOpacity(0.1),
+                              sevColor.withValues(alpha:0.1),
                               sevColor,
                             ),
                           ],
@@ -855,7 +855,7 @@ class _AccidentReportListScreenState
           color: bgColor,
           borderRadius: BorderRadius.circular(10),
           border:
-              Border.all(color: color.withOpacity(0.25), width: 1),
+              Border.all(color: color.withValues(alpha:0.25), width: 1),
         ),
         child: Icon(icon, size: 15, color: color),
       ),
@@ -873,8 +873,8 @@ class _AccidentReportListScreenState
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  const Color.fromARGB(255, 246, 59, 59).withOpacity(0.1),
-                  const Color.fromARGB(255, 216, 29, 29).withOpacity(0.05),
+                  const Color.fromARGB(255, 246, 59, 59).withValues(alpha:0.1),
+                  const Color.fromARGB(255, 216, 29, 29).withValues(alpha:0.05),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -1093,7 +1093,7 @@ class _AccidentReportDetailScreenState
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.12),
+                color: Colors.black.withValues(alpha:0.12),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
               ),
@@ -1169,7 +1169,7 @@ class _AccidentReportDetailScreenState
                           boxShadow: [
                             BoxShadow(
                               color: const Color(0xFFEF4444)
-                                  .withOpacity(0.3),
+                                  .withValues(alpha:0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -1271,7 +1271,7 @@ class _AccidentReportDetailScreenState
           color: bgColor,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-              color: color.withOpacity(0.3), width: 1),
+              color: color.withValues(alpha:0.3), width: 1),
         ),
         child: Icon(icon, size: 17, color: color),
       ),
@@ -1457,7 +1457,7 @@ class _AccidentReportDetailScreenState
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha:0.1),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -1504,7 +1504,7 @@ class _AccidentReportDetailScreenState
                   color: _statusBg(status),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                      color: _statusColor(status).withOpacity(0.3),
+                      color: _statusColor(status).withValues(alpha:0.3),
                       width: 1),
                 ),
                 child: Text(status,
@@ -1518,10 +1518,10 @@ class _AccidentReportDetailScreenState
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
-                  color: sevColor.withOpacity(0.1),
+                  color: sevColor.withValues(alpha:0.1),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                      color: sevColor.withOpacity(0.3), width: 1),
+                      color: sevColor.withValues(alpha:0.3), width: 1),
                 ),
                 child: Text(severity,
                     style: GoogleFonts.inter(
@@ -1548,7 +1548,7 @@ class _AccidentReportDetailScreenState
                   color: const Color(0xFFE0E7FF), width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF3B82F6).withOpacity(0.06),
+                  color: const Color(0xFF3B82F6).withValues(alpha:0.06),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -1729,7 +1729,7 @@ class _AccidentReportDetailScreenState
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF16A34A).withOpacity(0.35),
+                    color: const Color(0xFF16A34A).withValues(alpha:0.35),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -1740,7 +1740,7 @@ class _AccidentReportDetailScreenState
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha:0.25),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: const Icon(CupertinoIcons.checkmark_shield_fill,
@@ -1777,7 +1777,7 @@ class _AccidentReportDetailScreenState
                                   : 'Lihat tindakan korektif & preventif HRD',
                           style: GoogleFonts.inter(
                               fontSize: 12,
-                              color: Colors.white.withOpacity(0.85)),
+                              color: Colors.white.withValues(alpha:0.85)),
                         ),
                       ],
                     ),
@@ -1802,7 +1802,7 @@ class _AccidentReportDetailScreenState
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha:0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 16, color: color),
@@ -2156,7 +2156,7 @@ class _AccidentResolutionScreenState
                 Border.all(color: const Color(0xFFE0E7FF), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF3B82F6).withOpacity(0.06),
+                color: const Color(0xFF3B82F6).withValues(alpha:0.06),
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -2229,7 +2229,7 @@ class _AccidentResolutionScreenState
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha:0.08),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -2328,7 +2328,7 @@ class _AccidentResolutionScreenState
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha:0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 16, color: color),
