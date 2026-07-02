@@ -131,7 +131,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: borderColor, width: 1.5),
                     boxShadow: isSelected ? [BoxShadow(
-                      color: activeColor.withOpacity(0.28), blurRadius: 8, offset: const Offset(0, 3),
+                      color: activeColor.withValues(alpha:0.28), blurRadius: 8, offset: const Offset(0, 3),
                     )] : [],
                   ),
                   child: Center(
