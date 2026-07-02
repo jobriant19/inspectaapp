@@ -221,7 +221,7 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
                     GestureDetector(
                       onTap: () async {
                         if (_cameraController == null ||
-                            !_cameraController!.value.isInitialized) return;
+                            !_cameraController!.value.isInitialized) { return; }
                         try {
                           final image = await _cameraController!.takePicture();
                           await _processAndReturnImage(image);
