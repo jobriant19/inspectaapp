@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/services/auth_service.dart';
+import '../../auth/auth_service.dart';
 import '../../user/analytics/kts production/kts_section_location_picker.dart';
 import '../shared/admin_image_picker_widget.dart';
 

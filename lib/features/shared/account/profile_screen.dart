@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 
-import '../../../core/services/auth_service.dart';
+import '../../auth/auth_service.dart';
 import '../../../core/utils/image_picker_helper.dart';
 import '../../../core/utils/jabatan_helper.dart';
 
