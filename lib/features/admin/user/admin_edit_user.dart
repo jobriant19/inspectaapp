@@ -46,6 +46,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
   String? _selectedAreaId;
   String? _selectedSupervisorId;
   String? _selectedBagianKasie;
+  String? _selectedSectionId;
 
   List<Map<String, dynamic>> _lokasiList = [];
   List<Map<String, dynamic>> _unitList = [];
@@ -73,6 +74,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     _selectedSupervisorId = u['id_supervisor'] as String?;
     final bagian = (u['bagian_kasie'] as String?)?.trim();
     _selectedBagianKasie = (bagian == null || bagian.isEmpty) ? null : bagian;
+    _selectedSectionId = u['id_section'] as String?;
 
     _loadInitialData();
   }
@@ -210,6 +212,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         'id_area': _selectedAreaId,
         'id_supervisor': _selectedSupervisorId,
         'bagian_kasie': _selectedJabatan == 3 ? _selectedBagianKasie : null,
+        'id_section': _selectedJabatan == 3 ? _selectedSectionId : null,
       };
 
       if (pass.isNotEmpty) {
@@ -938,7 +941,10 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
       onTap: () async {
         final result = await showKtsSectionLocationPicker(context, lang: _lang);
         if (result == null) return;
-        setState(() => _selectedBagianKasie = result.isAllSections ? null : result.sectionName);
+        setState(() {
+          _selectedBagianKasie = result.isAllSections ? null : result.sectionName;
+          _selectedSectionId  = result.isAllSections ? null : result.sectionId;
+        });
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
