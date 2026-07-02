@@ -278,9 +278,9 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         final p = r['penyelesaian'] as Map<String, dynamic>?;
         if (p == null) return false;
         if (_subBagian != null &&
-            _resolveSectionName((p['bagian'] as String?)?.trim() ?? '') != _subBagian) return false;
+            _resolveSectionName((p['bagian'] as String?)?.trim() ?? '') != _subBagian) { return false; }
         if (_subFaktorId != null &&
-            p['id_subkategoritemuan_penyebab']?.toString() != _subFaktorId) return false;
+            p['id_subkategoritemuan_penyebab']?.toString() != _subFaktorId) { return false; }
         return true;
       }).toList();
 
@@ -602,7 +602,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         child: Row(children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: isSel ? color : color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: isSel ? color : color.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10)),
             child: Icon(icon, size: 18, color: isSel ? Colors.white : color),
           ),
           const SizedBox(width: 14),
@@ -739,13 +739,13 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                   height: 38,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
-                    color: _activeFilter != null ? filterColor.withOpacity(0.1) : Colors.white,
+                    color: _activeFilter != null ? filterColor.withValues(alpha:0.1) : Colors.white,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: _activeFilter != null ? filterColor : _C.primaryLight,
                       width: 1.5,
                     ),
-                    boxShadow: [BoxShadow(color: _C.primary.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
+                    boxShadow: [BoxShadow(color: _C.primary.withValues(alpha:0.08), blurRadius: 6, offset: const Offset(0, 2))],
                   ),
                   child: Row(children: [
                     if (_activeFilter != null) ...[
@@ -835,10 +835,10 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 height: 38,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: _subBagian != null ? _C.orange.withOpacity(0.1) : Colors.white,
+                  color: _subBagian != null ? _C.orange.withValues(alpha:0.1) : Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: _C.orange, width: 1.5),
-                  boxShadow: [BoxShadow(color: _C.orange.withOpacity(0.08), blurRadius: 6, offset: const Offset(0, 2))],
+                  boxShadow: [BoxShadow(color: _C.orange.withValues(alpha:0.08), blurRadius: 6, offset: const Offset(0, 2))],
                 ),
                 child: Row(children: [
                   Icon(Icons.grid_view_rounded, size: 14, color: _C.orange),
@@ -936,7 +936,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           color: active ? color : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: active ? color : _C.primaryLight, width: 1.5),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.12), blurRadius: 6, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: color.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Flexible(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: active ? Colors.white : color), overflow: TextOverflow.ellipsis)),
@@ -962,8 +962,8 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _C.primary.withOpacity(0.45), width: 1.2),
-          boxShadow: [BoxShadow(color: _C.primary.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 2))],
+          border: Border.all(color: _C.primary.withValues(alpha:0.45), width: 1.2),
+          boxShadow: [BoxShadow(color: _C.primary.withValues(alpha:0.07), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Icon(Icons.bar_chart_rounded, size: 16, color: _C.primary),
@@ -1035,7 +1035,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.primaryLight, width: 1.2),
-        boxShadow: [BoxShadow(color: _C.primary.withOpacity(0.07), blurRadius: 10, offset: const Offset(0, 3))],
+        boxShadow: [BoxShadow(color: _C.primary.withValues(alpha:0.07), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1061,12 +1061,12 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: isZero
-                      ? Container(height: 22, decoration: BoxDecoration(color: color.withOpacity(0.06), borderRadius: BorderRadius.circular(4)))
+                      ? Container(height: 22, decoration: BoxDecoration(color: color.withValues(alpha:0.06), borderRadius: BorderRadius.circular(4)))
                       : LayoutBuilder(builder: (ctx, constraints) {
                           final barWidth = constraints.maxWidth * frac;
                           final labelStr = '${row.value.toInt()}';
                           return Stack(children: [
-                            Container(height: 22, decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(4))),
+                            Container(height: 22, decoration: BoxDecoration(color: color.withValues(alpha:0.1), borderRadius: BorderRadius.circular(4))),
                             Container(
                               height: 22,
                               width: barWidth.clamp(0.0, constraints.maxWidth),
@@ -1209,9 +1209,9 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: _C.orange.withOpacity(0.08),
+                          color: _C.orange.withValues(alpha:0.08),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _C.orange.withOpacity(0.3)),
+                          border: Border.all(color: _C.orange.withValues(alpha:0.3)),
                         ),
                         child: Text(
                           label,
@@ -1267,7 +1267,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.primaryLight, width: 1.2),
         boxShadow: [BoxShadow(
-          color: _C.primary.withOpacity(0.07),
+          color: _C.primary.withValues(alpha:0.07),
           blurRadius: 10,
           offset: const Offset(0, 3),
         )],
@@ -1489,7 +1489,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFBFDBFE), width: 1.5),
-        boxShadow: [BoxShadow(color: _C.blue.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [BoxShadow(color: _C.blue.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: Column(children: [
         _tableHeader([_t('bagian_label'), _t('jumlah_kts'), _t('persen'), _t('total_nominal')], [3, 2, 1, 3], _C.blueLight, _C.blue),
@@ -1525,7 +1525,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.greenLight, width: 1.5),
-        boxShadow: [BoxShadow(color: _C.green.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [BoxShadow(color: _C.green.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: Column(children: [
         _tableHeader([_t('faktor_label'), _t('jumlah_kts'), _t('persen'), _t('total_nominal')], [3, 2, 1, 3], _C.greenLight, _C.green),
@@ -1579,7 +1579,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   Widget _tableFooter(List<String> vals, List<int> flexes, Color bg, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: bg.withOpacity(0.6), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12))),
+      decoration: BoxDecoration(color: bg.withValues(alpha:0.6), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12))),
       child: Row(children: List.generate(vals.length, (i) => Expanded(flex: flexes[i], child: Text(vals[i],
         textAlign: i == 0 ? TextAlign.left : i == vals.length - 1 ? TextAlign.right : TextAlign.center,
         style: TextStyle(fontSize: i == 1 ? 15 : 12, fontWeight: FontWeight.w900, color: i == 0 ? _C.textPrimary : color),
@@ -1591,7 +1591,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(children: [
-        Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 14, color: color)),
+        Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)), child: Icon(icon, size: 14, color: color)),
         const SizedBox(width: 8),
         Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color)),
       ]),
@@ -1627,7 +1627,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha:0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, size: 14, color: color),
