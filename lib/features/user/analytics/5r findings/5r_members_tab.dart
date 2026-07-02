@@ -257,42 +257,32 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
         color: Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(children: [
-          widget.buildFilterBtn(
-            label: widget.filterMode == 'daily' && widget.selectedDate != null
-                ? DateFormat('d MMM yyyy',
-                        widget.lang == 'ID'
-                            ? 'id_ID'
-                            : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
-                    .format(widget.selectedDate!)
-                : _monthLabel,
-            isActive: true,
-            onTap: () => widget.showMonthPicker(fetchData),
-          ),
+          Expanded(child: _buildMemberTimeFilterButton()),
           const SizedBox(width: 10),
-          Expanded(child: widget.buildFilterBtn(
-            label: widget.selectedUnitId == null
-                ? widget.getTxt('semua_grup_anggota')
-                : (widget.unitList.firstWhere(
-                        (u) =>
-                            u['id_unit'].toString() == widget.selectedUnitId,
-                        orElse: () => {
-                              'nama_unit': widget.getTxt('semua_grup')
-                            })['nama_unit']
-                    as String),
-            onTap: widget.showGroupPicker,
-          )),
+          Expanded(child: _buildMemberGroupFilterButton()),
         ]),
       ),
       // Last updated
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(widget.lastUpdatedText,
-              style: const TextStyle(
-                  fontSize: 11,
-                  color: _AppColors.textSecondary,
-                  height: 1.4)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: _AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.access_time_filled_rounded,
+                  size: 13, color: _AppColors.primary),
+              const SizedBox(width: 6),
+              Text(widget.lastUpdatedText,
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: _AppColors.textPrimary)),
+            ]),
+          ),
         ),
       ),
       // Table header
@@ -603,6 +593,98 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
         : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
     return DateFormat.MMM(locale)
         .format(DateTime(2000, widget.selectedMonthIndex + 1));
+  }
+
+  // ─── Time filter button (kalender + mode + nilai terpilih) ────────────────
+  Widget _buildMemberTimeFilterButton() {
+    final isActive = widget.filterMode == 'daily';
+    final modeLabel = widget.filterMode == 'daily'
+        ? (widget.lang == 'ID' ? 'Harian' : widget.lang == 'ZH' ? '按日' : 'Daily')
+        : (widget.lang == 'ID' ? 'Bulanan' : widget.lang == 'ZH' ? '按月' : 'Monthly');
+    final valueLabel = widget.filterMode == 'daily' && widget.selectedDate != null
+        ? DateFormat('d MMM yyyy',
+                widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
+            .format(widget.selectedDate!)
+        : _monthLabel;
+
+    return GestureDetector(
+      onTap: () => widget.showMonthPicker(fetchData),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: isActive ? _AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.calendar_month_rounded, size: 15,
+                    color: isActive ? Colors.white : _AppColors.primary),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text('$modeLabel · $valueLabel',
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : _AppColors.primary)),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  // ─── Group filter button (fill, tulisan center, arrow kanan) ──────────────
+  Widget _buildMemberGroupFilterButton() {
+    final isActive = widget.selectedUnitId != null;
+    final label = widget.selectedUnitId == null
+        ? widget.getTxt('semua_grup_anggota')
+        : (widget.unitList.firstWhere(
+                (u) => u['id_unit'].toString() == widget.selectedUnitId,
+                orElse: () => {'nama_unit': widget.getTxt('semua_grup')})['nama_unit']
+            as String);
+
+    return GestureDetector(
+      onTap: widget.showGroupPicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isActive ? _AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Text(label,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : _AppColors.primary)),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+        ]),
+      ),
+    );
   }
 }
 

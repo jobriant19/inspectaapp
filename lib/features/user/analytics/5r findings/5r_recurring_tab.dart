@@ -76,6 +76,86 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
     });
   }
 
+  bool get _isPeriodDefault {
+    final now = DateTime.now();
+    final defaultFrom = DateTime(now.year - 1, now.month);
+    return _recurringFrom.year == defaultFrom.year &&
+        _recurringFrom.month == defaultFrom.month &&
+        _recurringTo.year == now.year &&
+        _recurringTo.month == now.month;
+  }
+
+  // ─── Period filter button (icon + teks center, tanpa arrow) ───────────────
+  Widget _buildPeriodFilterButton(String periodLabel) {
+    final isActive = !_isPeriodDefault;
+    return GestureDetector(
+      onTap: _showPeriodPicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: isActive ? _AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.calendar_month_rounded, size: 15,
+                color: isActive ? Colors.white : _AppColors.primary),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(periodLabel,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
+                      color: isActive ? Colors.white : _AppColors.primary)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Finder filter button (fill, tulisan center, arrow kanan) ─────────────
+  Widget _buildFinderFilterButton() {
+    final isActive = _recurringUserId != null;
+    final label = _recurringUserName.isEmpty ? widget.getTxt('semua_grup') : _recurringUserName;
+    return GestureDetector(
+      onTap: _showUserPicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isActive ? _AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Text(label,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : _AppColors.primary)),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+        ]),
+      ),
+    );
+  }
+
   Future<List<RecurringTopic5R>> _fetchRecurringData() async {
     try {
       var query = _supabase
@@ -149,36 +229,59 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
         color: Colors.transparent,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(children: [
-          Expanded(
-              child: widget.buildFilterBtn(
-            label: periodLabel,
-            onTap: _showPeriodPicker,
-            icon: Icons.calendar_month_rounded,
-          )),
+          Expanded(child: _buildPeriodFilterButton(periodLabel)),
           const SizedBox(width: 10),
-          Expanded(
-              child: widget.buildFilterBtn(
-            label: _recurringUserName.isEmpty
-                ? widget.getTxt('semua_grup')
-                : _recurringUserName,
-            onTap: _showUserPicker,
-          )),
+          Expanded(child: _buildFinderFilterButton()),
         ]),
       ),
 
       // SECTION LABEL
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(widget.getTxt('topik'),
-              style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: _AppColors.textPrimary)),
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _AppColors.primaryLight),
+          ),
+          child: Row(children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                  color: _AppColors.primary, shape: BoxShape.circle),
+              child: const Icon(Icons.autorenew_rounded,
+                  color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.getTxt('topik'),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: _AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.lang == 'ID'
+                        ? 'Temuan dengan pola atau lokasi serupa dikelompokkan otomatis'
+                        : widget.lang == 'ZH'
+                            ? '相似模式或位置的发现会自动分组'
+                            : 'Findings with similar patterns or locations are grouped automatically',
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: _AppColors.textSecondary,
+                        height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+          ]),
         ),
       ),
-      const Divider(height: 1, color: _AppColors.divider),
 
       // LIST
       Expanded(
@@ -230,48 +333,101 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
 
   // TOPIC CARD
   Widget _buildRecurringTopicCard(RecurringTopic5R topic) {
+    final isKts = topic.findings.isNotEmpty &&
+        (topic.findings.first['jenis_temuan'] ?? '') == 'KTS Production';
+
+    final Color severityColor = topic.total >= 6
+        ? const Color(0xFFEF4444)
+        : topic.total >= 3
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFF10B981);
+    final String severityLabel = topic.total >= 6
+        ? (widget.lang == 'ID'
+            ? 'Sering Terjadi'
+            : widget.lang == 'ZH'
+                ? '频繁发生'
+                : 'Frequent')
+        : topic.total >= 3
+            ? (widget.lang == 'ID'
+                ? 'Cukup Sering'
+                : widget.lang == 'ZH'
+                    ? '较常见'
+                    : 'Recurring')
+            : (widget.lang == 'ID'
+                ? 'Jarang'
+                : widget.lang == 'ZH'
+                    ? '较少'
+                    : 'Occasional');
+    final String occurrenceLabel = widget.lang == 'ID'
+        ? '${topic.total} kejadian'
+        : widget.lang == 'ZH'
+            ? '${topic.total} 次'
+            : '${topic.total} occurrences';
+
     return GestureDetector(
       onTap: () => _showRecurringDetail(topic),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _AppColors.primaryLight, width: 1.5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: severityColor.withOpacity(0.35), width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: _AppColors.primary.withOpacity(0.07),
-                blurRadius: 8,
-                offset: const Offset(0, 3))
+                color: severityColor.withOpacity(0.12),
+                blurRadius: 10,
+                offset: const Offset(0, 4))
           ],
         ),
-        child: Row(children: [
-          ClipRRect(
-            borderRadius:
-                const BorderRadius.horizontal(left: Radius.circular(14)),
-            child: Container(
-              width: 80,
-              height: 80,
-              color: _AppColors.primaryLight,
-              child: topic.imageUrl != null && topic.imageUrl!.isNotEmpty
-                  ? Image.network(topic.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                          Icons.image_not_supported,
-                          color: _AppColors.textMuted))
-                  : const Icon(Icons.image_outlined,
-                      color: _AppColors.textMuted, size: 32),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Strip tingkat keseringan
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: severityColor.withOpacity(0.10),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(14.5)),
             ),
+            child: Row(children: [
+              Icon(Icons.autorenew_rounded, size: 13, color: severityColor),
+              const SizedBox(width: 4),
+              Text(severityLabel,
+                  style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: severityColor)),
+              const Spacer(),
+              Text(occurrenceLabel,
+                  style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: severityColor)),
+            ]),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-              child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Builder(builder: (context) {
-              final isKts = topic.findings.isNotEmpty &&
-                  (topic.findings.first['jenis_temuan'] ?? '') ==
-                      'KTS Production';
-              return Column(
+          // Konten
+          Row(children: [
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.only(bottomLeft: Radius.circular(15)),
+              child: Container(
+                width: 78,
+                height: 78,
+                color: _AppColors.primaryLight,
+                child: topic.imageUrl != null && topic.imageUrl!.isNotEmpty
+                    ? Image.network(topic.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                            Icons.image_not_supported,
+                            color: _AppColors.textMuted))
+                    : const Icon(Icons.image_outlined,
+                        color: _AppColors.textMuted, size: 30),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(topic.topic,
@@ -284,9 +440,7 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                     const SizedBox(height: 4),
                     Row(children: [
                       Icon(
-                        isKts
-                            ? Icons.tag_rounded
-                            : Icons.location_on_rounded,
+                        isKts ? Icons.tag_rounded : Icons.location_on_rounded,
                         size: 13,
                         color: isKts
                             ? const Color(0xFFD97706)
@@ -307,29 +461,21 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                         overflow: TextOverflow.ellipsis,
                       )),
                     ]),
-                  ]);
-            }),
-          )),
-          Container(
-            margin: const EdgeInsets.only(right: 12),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-                color: _AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: _AppColors.primary.withOpacity(0.3))),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(widget.getTxt('total'),
-                  style: const TextStyle(
-                      fontSize: 9, color: _AppColors.textSecondary)),
-              Text('${topic.total}',
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: _AppColors.primary)),
-            ]),
-          ),
+                  ]),
+            )),
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('${topic.total}',
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: severityColor)),
+                Icon(Icons.chevron_right_rounded,
+                    color: _AppColors.textMuted, size: 18),
+              ]),
+            ),
+          ]),
         ]),
       ),
     );

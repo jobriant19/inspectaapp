@@ -98,6 +98,91 @@ class FiveRLocationTab extends StatelessWidget {
     return 'Nilai';
   }
 
+  // ─── Time filter button (kalender + mode + nilai terpilih) ────────────────
+  Widget _buildLocationTimeFilterButton() {
+    final isActive = filterMode == 'daily';
+    final modeLabel = filterMode == 'daily'
+        ? (lang == 'ID' ? 'Harian' : lang == 'ZH' ? '按日' : 'Daily')
+        : (lang == 'ID' ? 'Bulanan' : lang == 'ZH' ? '按月' : 'Monthly');
+    final valueLabel = filterMode == 'daily' && selectedDate != null
+        ? DateFormat('d MMM yyyy',
+                lang == 'ID' ? 'id_ID' : lang == 'EN' ? 'en_US' : 'zh_CN')
+            .format(selectedDate!)
+        : translatedMonths[selectedMonthIndex];
+
+    return GestureDetector(
+      onTap: showMonthPicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: isActive ? _AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.calendar_month_rounded, size: 15,
+                    color: isActive ? Colors.white : _AppColors.primary),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text('$modeLabel · $valueLabel',
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : _AppColors.primary)),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  // ─── Level filter button (fill, tulisan center, arrow kanan) ──────────────
+  Widget _buildLocationLevelFilterButton() {
+    final isActive = selectedLocationLevel != translatedLocationLevels[0];
+    return GestureDetector(
+      onTap: showLevelPicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isActive ? _AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _AppColors.primary : const Color(0xFF7DD3FC),
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Text(selectedLocationLevel,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : _AppColors.primary)),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : _AppColors.primary, size: 18),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -106,20 +191,9 @@ class FiveRLocationTab extends StatelessWidget {
         color: Colors.transparent,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(children: [
-          buildFilterBtn(
-            label: filterMode == 'daily' && selectedDate != null
-                ? DateFormat('d MMM yyyy',
-                    lang == 'ID' ? 'id_ID' : lang == 'EN' ? 'en_US' : 'zh_CN')
-                    .format(selectedDate!)
-                : translatedMonths[selectedMonthIndex],
-            isActive: true,
-            onTap: showMonthPicker,
-          ),
+          Expanded(child: _buildLocationTimeFilterButton()),
           const SizedBox(width: 10),
-          Expanded(child: buildFilterBtn(
-            label: selectedLocationLevel,
-            onTap: showLevelPicker,
-          )),
+          Expanded(child: _buildLocationLevelFilterButton()),
         ]),
       ),
 
