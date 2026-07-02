@@ -5,7 +5,7 @@ import '../admin_help_reports_screen.dart';
 import '../admin_verification_screen.dart';
 import '../settings/admin_settings_screen.dart';
 import '../location/admin_location_screen.dart';
-import '../admin_category_screen.dart';
+import '../category/admin_category_screen.dart';
 import '../target/admin_poin_target_screen.dart';
 import '../user/admin_user_screen.dart';
 
