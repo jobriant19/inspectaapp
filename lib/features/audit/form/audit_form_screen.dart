@@ -1,10 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'audit_evidence_camera_screen.dart';
+import 'audit_popup_selfie.dart';
 
-/// AuditFormScreen — pertanyaan dikelompokkan per tema sesuai jenis audit,
-/// muncul satu per satu saat dijawab, scroll vertikal, submit fixed di bawah.
 class AuditFormScreen extends StatefulWidget {
   final String lang;
   final String levelType;
@@ -43,6 +43,11 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
   bool _loading = true;
   bool _submitting = false;
+  String? _selfieUrl;
+  Timer? _scrollDebounceTimer;
+  Timer? _scrollRetryTimer;
+  int _scrollRequestGen = 0;
+  static const int _maxScrollRetries = 6;
 
   // Keys untuk scroll otomatis ke pertanyaan berikutnya
   final Map<String, GlobalKey> _questionKeys = {};
@@ -65,11 +70,14 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   @override
   void initState() {
     super.initState();
+    _selfieUrl = widget.selfieUrl;
     _fetchData();
   }
 
   @override
   void dispose() {
+    _scrollDebounceTimer?.cancel();
+    _scrollRetryTimer?.cancel();
     _scrollCtrl.dispose();
     _finalNoteCtrl.dispose();
     for (final c in _noteCtrls.values) { c.dispose(); }
@@ -78,7 +86,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
   Future<void> _fetchData() async {
     try {
-      // Fetch tema sesuai jenis audit
       final temaQuery = _supabase.from('audit_tema').select();
       if (widget.idJenisAudit != null) {
         final temaRows = await temaQuery
@@ -129,8 +136,6 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     return t['nama_tema_id']?.toString() ?? '-';
   }
 
-  // ── Pertanyaan yang sudah "visible" (pertanyaan pertama per tema selalu visible,
-  //    pertanyaan berikutnya visible setelah pertanyaan sebelumnya dijawab) ──
   bool _isVisible(List<Map<String, dynamic>> temaQuestions, int index) {
     if (index == 0) return true;
     final prevId = temaQuestions[index - 1]['id_question'].toString();
@@ -173,30 +178,88 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
   void _onAnswer(String id, bool value) {
     setState(() => _answers[id] = value);
-    // Tunggu frame selesai render baru scroll, hindari konflik rebuild
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      Future.delayed(const Duration(milliseconds: 120), () {
-        if (!mounted) return;
-        _scrollToNext(id);
+    _requestAutoScroll(id, delayMs: 150);
+  }
+
+  void _requestAutoScroll(String id, {int delayMs = 150}) {
+    _scrollDebounceTimer?.cancel();
+    _scrollRetryTimer?.cancel();
+    final gen = ++_scrollRequestGen;
+    _scrollDebounceTimer = Timer(Duration(milliseconds: delayMs), () {
+      if (!mounted || gen != _scrollRequestGen) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || gen != _scrollRequestGen) return;
+        _scrollToNext(id, gen: gen);
       });
     });
   }
 
-  void _scrollToNext(String answeredId) {
-    if (!mounted || !_scrollCtrl.hasClients) return;
+  List<String> _displayOrderedQuestionIds() {
+    final List<String> ids = [];
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    final List<Map<String, dynamic>> noTema = [];
+    for (final q in _questions) {
+      final temaId = q['id_tema']?.toString();
+      if (temaId == null) {
+        noTema.add(q);
+      } else {
+        grouped.putIfAbsent(temaId, () => []).add(q);
+      }
+    }
+    for (final tema in _temas) {
+      final temaId = tema['id_tema'].toString();
+      final temaQs = grouped[temaId];
+      if (temaQs == null || temaQs.isEmpty) continue;
+      ids.addAll(temaQs.map((q) => q['id_question'].toString()));
+    }
+    ids.addAll(noTema.map((q) => q['id_question'].toString()));
+    return ids;
+  }
 
-    final idx = _questions.indexWhere(
-      (q) => q['id_question'].toString() == answeredId,
-    );
+  void _scrollToNext(String answeredId, {int attempt = 0, int gen = 0}) {
+    if (!mounted || !_scrollCtrl.hasClients) return;
+    if (gen != 0 && gen != _scrollRequestGen) return;
+
+    final orderedIds = _displayOrderedQuestionIds();
+    final idx = orderedIds.indexWhere((id) => id == answeredId);
     if (idx < 0) return;
 
     final currentScroll = _scrollCtrl.offset;
     final maxScroll = _scrollCtrl.position.maxScrollExtent;
+    final viewport = _scrollCtrl.position.viewportDimension;
+
+    if (!_isQuestionComplete(answeredId)) {
+      final key = _questionKeys[answeredId];
+      final ctx = key?.currentContext;
+      final ro = ctx?.findRenderObject();
+      if (ro is RenderBox && ro.attached) {
+        try {
+          final offset = ro.localToGlobal(
+            Offset.zero,
+            ancestor: _scrollCtrl.position.context.storageContext.findRenderObject(),
+          );
+          final cardBottom = currentScroll + offset.dy + ro.size.height;
+          final rawTarget = cardBottom - viewport + 24; // padding bawah
+          final targetScroll = rawTarget.clamp(currentScroll, maxScroll);
+          if (targetScroll > currentScroll) {
+            _scrollCtrl.animateTo(
+              targetScroll,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOut,
+            );
+          }
+        } catch (_) {}
+      } else if (attempt < _maxScrollRetries) {
+        // ── BARU: render object kartu belum siap, coba lagi sebentar lagi ──
+        _scheduleScrollRetry(answeredId, attempt, gen);
+      }
+      return;
+    }
 
     // Cari pertanyaan atau tema header berikutnya yang sudah ter-render
-    for (int i = idx + 1; i < _questions.length; i++) {
-      final nextId = _questions[i]['id_question'].toString();
+    bool foundRenderedTarget = false;
+    for (int i = idx + 1; i < orderedIds.length; i++) {
+      final nextId = orderedIds[i];
       final key = _questionKeys[nextId];
       final ctx = key?.currentContext;
       if (ctx == null) continue;
@@ -207,14 +270,15 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       final renderBox = ro as RenderBox?;
       if (renderBox == null) continue;
 
+      foundRenderedTarget = true;
+
       try {
         final offset = renderBox.localToGlobal(
           Offset.zero,
           ancestor: _scrollCtrl.position.context.storageContext.findRenderObject(),
         );
-        final rawTarget = currentScroll + offset.dy - 80; // 80px padding atas
+        final rawTarget = currentScroll + offset.dy - 80;
 
-        // ── PERUBAHAN: jangan pernah scroll mundur ke atas, hanya boleh maju ke bawah ──
         final targetScroll = rawTarget.clamp(currentScroll, maxScroll);
 
         if (targetScroll > currentScroll) {
@@ -224,16 +288,16 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             curve: Curves.easeOut,
           );
         }
-        // Jika targetScroll <= currentScroll, pertanyaan berikutnya sudah terlihat,
-        // tidak perlu scroll sama sekali (dan tidak boleh scroll mundur ke atas).
       } catch (_) {
-        // ── PERUBAHAN: tidak lagi fallback ke ensureVisible karena berisiko
-        // scroll ke atas — lebih aman tidak auto-scroll untuk kasus ini.
       }
       return;
     }
 
-    // Semua sudah dijawab → scroll ke bawah untuk tombol Submit
+    if (!foundRenderedTarget && idx + 1 < _questions.length && attempt < _maxScrollRetries) {
+      _scheduleScrollRetry(answeredId, attempt, gen);
+      return;
+    }
+
     final bottomTarget = _scrollCtrl.position.maxScrollExtent;
     if (bottomTarget > currentScroll) {
       _scrollCtrl.animateTo(
@@ -242,6 +306,18 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         curve: Curves.easeOut,
       );
     }
+  }
+
+  void _scheduleScrollRetry(String answeredId, int attempt, int gen) {
+    _scrollRetryTimer?.cancel();
+    final delay = Duration(milliseconds: 80 + (attempt * 60));
+    _scrollRetryTimer = Timer(delay, () {
+      if (!mounted || (gen != 0 && gen != _scrollRequestGen)) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || (gen != 0 && gen != _scrollRequestGen)) return;
+        _scrollToNext(answeredId, attempt: attempt + 1, gen: gen);
+      });
+    });
   }
 
   Future<void> _captureEvidence(String id, String questionText) async {
@@ -256,6 +332,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     );
     if (url != null && mounted) {
       setState(() => _evidenceUrls[id] = url);
+      _requestAutoScroll(id, delayMs: 150);
     }
   }
 
@@ -290,7 +367,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             'catatan_audit': _finalNoteCtrl.text.trim().isEmpty
                 ? null
                 : _finalNoteCtrl.text.trim(),
-            'selfie_url': widget.selfieUrl,
+            'selfie_url': _selfieUrl,
             'is_finalized': false,
           })
           .select('id_result')
@@ -721,19 +798,35 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _textMain, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1D4ED8), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: const [SizedBox(width: 48)],
         title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
               _t('Audit Form', 'Formulir Audit', '审计表单'),
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: _textMain),
+              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1D4ED8)),
             ),
-            Text(widget.locationName,
-                style: GoogleFonts.poppins(fontSize: 11, color: _textSub)),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.location_on_rounded, color: Color(0xFF1D4ED8), size: 12),
+                const SizedBox(width: 3),
+                Flexible(
+                  child: Text(
+                    widget.locationName,
+                    style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF1D4ED8)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -749,8 +842,15 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
               : Column(
                   children: [
                     // ── Selfie banner ──
-                    if (widget.selfieUrl != null)
-                      _SelfieEvidenceBanner(selfieUrl: widget.selfieUrl!, lang: widget.lang),
+                    if (_selfieUrl != null)
+                      _SelfieEvidenceBanner(
+                        selfieUrl: _selfieUrl!,
+                        lang: widget.lang,
+                        locationName: widget.locationName,
+                        levelType: widget.levelType,
+                        idRef: widget.idRef,
+                        onRetake: (newUrl) => setState(() => _selfieUrl = newUrl),
+                      ),
 
                     // ── Progress header ──
                     Container(
@@ -1210,7 +1310,10 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                       controller: noteCtrl,
                       maxLines: 3,
                       style: GoogleFonts.poppins(fontSize: 13),
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) {
+                        setState(() {});
+                        _requestAutoScroll(id, delayMs: 450);
+                      },
                       decoration: InputDecoration(
                         hintText: _t('Describe the issue found…', 'Jelaskan masalah yang ditemukan…', '描述发现的问题…'),
                         hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
@@ -1248,12 +1351,23 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   }
 }
 
-/// Banner selfie — tidak berubah dari versi lama
+/// Banner selfie — sekarang bisa diklik untuk membuka popup detail + retake.
 class _SelfieEvidenceBanner extends StatelessWidget {
   final String selfieUrl;
   final String lang;
+  final String locationName;
+  final String levelType;
+  final String idRef;
+  final ValueChanged<String> onRetake;
 
-  const _SelfieEvidenceBanner({required this.selfieUrl, required this.lang});
+  const _SelfieEvidenceBanner({
+    required this.selfieUrl,
+    required this.lang,
+    required this.locationName,
+    required this.levelType,
+    required this.idRef,
+    required this.onRetake,
+  });
 
   String _t(String en, String id, String zh) {
     if (lang == 'EN') return en;
@@ -1265,53 +1379,65 @@ class _SelfieEvidenceBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     const teal = Color(0xFF14B8A6);
     const tealBg = Color(0xFFE6FAF8);
-    return Container(
-      width: double.infinity,
-      color: tealBg,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(
-              selfieUrl,
-              width: 52, height: 52, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 52, height: 52,
-                decoration: BoxDecoration(
-                  color: teal.withValues(alpha:0.15),
-                  borderRadius: BorderRadius.circular(8),
+    return GestureDetector(
+      onTap: () => showAuditSelfiePopup(
+        context,
+        selfieUrl: selfieUrl,
+        lang: lang,
+        locationName: locationName,
+        levelType: levelType,
+        idRef: idRef,
+        onRetake: onRetake,
+      ),
+      child: Container(
+        width: double.infinity,
+        color: tealBg,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(
+                selfieUrl,
+                width: 52, height: 52, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(
+                    color: teal.withValues(alpha:0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.broken_image_outlined, color: teal, size: 24),
                 ),
-                child: const Icon(Icons.broken_image_outlined, color: teal, size: 24),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  const Icon(Icons.verified_rounded, color: teal, size: 14),
-                  const SizedBox(width: 5),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Icon(Icons.verified_rounded, color: teal, size: 14),
+                    const SizedBox(width: 5),
+                    Text(
+                      _t('Audit Location Proof', 'Bukti Lokasi Audit', '审计位置证明'),
+                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: teal),
+                    ),
+                  ]),
+                  const SizedBox(height: 2),
                   Text(
-                    _t('Audit Location Proof', 'Bukti Lokasi Audit', '审计位置证明'),
-                    style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: teal),
+                    _t(
+                      'Selfie captured before the audit started.',
+                      'Selfie diambil sebelum audit dimulai.',
+                      '审计开始前已拍摄自拍。',
+                    ),
+                    style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF0F766E)),
                   ),
-                ]),
-                const SizedBox(height: 2),
-                Text(
-                  _t(
-                    'Selfie captured before the audit started.',
-                    'Selfie diambil sebelum audit dimulai.',
-                    '审计开始前已拍摄自拍。',
-                  ),
-                  style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF0F766E)),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            const Icon(Icons.chevron_right_rounded, color: teal, size: 20),
+          ],
+        ),
       ),
     );
   }
