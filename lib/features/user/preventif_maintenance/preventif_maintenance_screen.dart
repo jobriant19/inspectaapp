@@ -271,7 +271,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
       final start = months.first;
       final end   = DateTime(months.last.year, months.last.month + 1, 0);
 
-      // PERIODE SEKARANG BERBASIS bulan_pm (BUKAN created_at)
+      // PERIOD NOW BASED ON bulan_pm (NOT created_at)
       final pmRes = List<Map<String, dynamic>>.from(
         await _db.from('preventif_maintenance')
             .select('id_user, bagian, bulan_pm, alasan_terlambat, is_late')
@@ -279,7 +279,7 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
             .lte('bulan_pm', DateFormat('yyyy-MM-dd').format(end)),
       );
 
-      // MAPPING: BAGIAN -> INDEX BULAN -> STATUS / ALASAN (is_late LANGSUNG DARI DB)
+      // MAPPING: SECTION -> MONTH INDEX -> STATUS / REASON (is_late FROM DB)
       final Map<String, Map<int, _PmStatus>> bagianMonthStatus = {};
       final Map<String, Map<int, String?>>  bagianMonthAlasan  = {};
       for (final row in pmRes) {
@@ -934,10 +934,10 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           color: active ? _PC.primary : Colors.white, borderRadius: BorderRadius.circular(10),
           border: Border.all(color: active ? _PC.primary : _PC.primaryLight, width: 1.5),
           boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))]),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
+        child: Row(children: [
           Icon(icon, size: 14, color: active ? Colors.white : _PC.primary),
           const SizedBox(width: 6),
-          Flexible(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: active ? Colors.white : _PC.primary), overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: active ? Colors.white : _PC.primary), overflow: TextOverflow.ellipsis)),
           const SizedBox(width: 4),
           Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: active ? Colors.white : _PC.primary),
         ]),
@@ -1134,17 +1134,52 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
           child: const Icon(Icons.list_alt_rounded, size: 14, color: _PC.barColor)),
         const SizedBox(width: 8),
         Text(_t('my_records'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _PC.barColor)),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: _PC.barColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(20)),
+          child: Text('${_myRecords.length}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _PC.barColor)),
+        ),
       ]),
       const SizedBox(height: 10),
       ..._myRecords.map((r) {
         final dateStr = r['created_at'] != null
             ? DateFormat('dd MMM yyyy', locale).format(DateTime.parse(r['created_at']).toLocal()) : '-';
+        final isLate = r['is_late'] == true;
+        final bulanParsed = DateTime.tryParse(r['bulan_pm']?.toString() ?? '');
+        final bulanStr = bulanParsed != null ? DateFormat('MMMM yyyy', locale).format(bulanParsed) : '-';
+        final statusColor = isLate ? const Color(0xFFEF4444) : _PC.barColor;
+        final statusLabel = isLate
+            ? (widget.lang == 'EN' ? 'Late' : widget.lang == 'ZH' ? '迟到' : 'Terlambat')
+            : (widget.lang == 'EN' ? 'On Time' : widget.lang == 'ZH' ? '准时' : 'Tepat Waktu');
+        final statusIcon = isLate ? Icons.priority_high_rounded : Icons.check_circle_rounded;
+        final alasan = r['alasan_terlambat']?.toString();
+
         return Container(
           margin: const EdgeInsets.only(bottom: 14),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18),
             border: Border.all(color: _PC.border, width: 1.4),
             boxShadow: [BoxShadow(color: _PC.primary.withValues(alpha:0.07), blurRadius: 12, offset: const Offset(0, 4))]),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // STRIP STATUS + BULAN PENGAJUAN (INFO PALING PENTING DITARUH PALING ATAS)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.08),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
+                border: Border(bottom: BorderSide(color: statusColor.withValues(alpha: 0.2), width: 1)),
+              ),
+              child: Row(children: [
+                Icon(statusIcon, size: 14, color: statusColor),
+                const SizedBox(width: 6),
+                Text(statusLabel, style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w800, color: statusColor)),
+                const Spacer(),
+                Icon(Icons.calendar_month_rounded, size: 13, color: statusColor.withValues(alpha: 0.85)),
+                const SizedBox(width: 4),
+                Text(bulanStr, style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: statusColor)),
+              ]),
+            ),
+
             if (r['file_pm'] != null && r['file_name_pm'] != null)
               GestureDetector(
                 onTap: () => _openFile(r['file_pm'], r['file_name_pm']),
@@ -1172,12 +1207,38 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(r['judul_pm'] ?? '-', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: const Color(0xFF1E293B))),
-                  const SizedBox(height: 4),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.circular(8)),
-                    child: Text(r['bagian'] ?? '-', style: GoogleFonts.inter(fontSize: 11, color: _PC.primary, fontWeight: FontWeight.w700))),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.circular(8)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.grid_view_rounded, size: 11, color: _PC.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        (r['bagian'] == null || (r['bagian'] as String).isEmpty) ? '-' : _displaySectionName(r['bagian']),
+                        style: GoogleFonts.inter(fontSize: 11, color: _PC.primary, fontWeight: FontWeight.w700),
+                      ),
+                    ]),
+                  ),
                   if ((r['deskripsi_pm'] ?? '').toString().isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text(r['deskripsi_pm'], style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569)), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Text(r['deskripsi_pm'], style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF475569), height: 1.4), maxLines: 3, overflow: TextOverflow.ellipsis),
+                  ],
+                  if (isLate && alasan != null && alasan.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFECACA), width: 1)),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Icon(Icons.info_rounded, size: 14, color: Color(0xFFEF4444)),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text(alasan, style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF991B1B), height: 1.4))),
+                      ]),
+                    ),
                   ],
                 ])),
               ]),
@@ -1186,10 +1247,12 @@ class _PreventifMaintenanceScreenState extends State<PreventifMaintenanceScreen>
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Row(children: [
-                const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF94A3B8)),
+                const Icon(Icons.access_time_rounded, size: 12, color: Color(0xFF94A3B8)),
                 const SizedBox(width: 4),
-                Text(dateStr, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8))),
-                const Spacer(),
+                Expanded(child: Text(
+                  widget.lang == 'EN' ? 'Submitted $dateStr' : widget.lang == 'ZH' ? '提交于 $dateStr' : 'Dilaporkan $dateStr',
+                  style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
+                  overflow: TextOverflow.ellipsis)),
                 // EDIT BUTTON
                 GestureDetector(
                   onTap: () async {
