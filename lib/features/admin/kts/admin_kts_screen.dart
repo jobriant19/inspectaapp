@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../accident/admin_accident_screen.dart';
-import '../admin_profile_screen.dart';
+import '../profile/admin_profile_screen.dart';
 import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
 import '../preventif/admin_preventif_screen.dart';

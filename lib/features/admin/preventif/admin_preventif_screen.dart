@@ -8,7 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../user/analytics/kts production/kts_section_location_picker.dart';
-import '../admin_profile_screen.dart';
+import '../profile/admin_profile_screen.dart';
 import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
 import '../kts/admin_kts_screen.dart';
