@@ -5,13 +5,16 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class KtsSectionPickResult {
   final bool isAllSections;
-  final String? sectionName;
+  final String? sectionName; 
+  final String? sectionId;
 
   const KtsSectionPickResult.all()
       : isAllSections = true,
-        sectionName = null;
+        sectionName = null,
+        sectionId = null;
 
-  const KtsSectionPickResult.section(this.sectionName) : isAllSections = false;
+  const KtsSectionPickResult.section(this.sectionName, {this.sectionId})
+      : isAllSections = false;
 }
 
 Future<KtsSectionPickResult?> showKtsSectionLocationPicker(
@@ -82,9 +85,18 @@ class _KtsSectionLocationPickerSheetState
     super.dispose();
   }
 
-  // Selalu pakai nama Indonesia agar konsisten dengan data "bagian"
-  // yang tersimpan di tabel penyelesaian / User.bagian_kasie.
-  String _nameOf(Map<String, dynamic> s) => s['nama_section_id']?.toString() ?? '-';
+  String _idNameOf(Map<String, dynamic> s) => s['nama_section_id']?.toString() ?? '-';
+
+  String _displayNameOf(Map<String, dynamic> s) {
+    if (widget.lang == 'EN') {
+      final en = (s['nama_section_en'] as String?)?.trim();
+      if (en != null && en.isNotEmpty) return en;
+    } else if (widget.lang == 'ZH') {
+      final zh = (s['nama_section_zh'] as String?)?.trim();
+      if (zh != null && zh.isNotEmpty) return zh;
+    }
+    return _idNameOf(s);
+  }
 
   String _locationBadge(Map<String, dynamic> s) {
     final parts = <String>[];
@@ -178,7 +190,7 @@ class _KtsSectionLocationPickerSheetState
   List<Map<String, dynamic>> _applySearch(List<Map<String, dynamic>> src) {
     final q = _searchCtrl.text.toLowerCase();
     if (q.isEmpty) return src;
-    return src.where((s) => _nameOf(s).toLowerCase().contains(q)).toList();
+    return src.where((s) => _displayNameOf(s).toLowerCase().contains(q)).toList();
   }
 
   void _onSearch() => setState(() => _filteredSections = _applySearch(_allSections));
@@ -683,13 +695,18 @@ class _KtsSectionLocationPickerSheetState
                         )
                       else
                         ..._filteredSections.map((s) {
-                          final name = _nameOf(s);
+                          final displayName = _displayNameOf(s);
+                          final idName = _idNameOf(s);
+                          final sectionId = s['id_section']?.toString();
                           final badge = _locationBadge(s);
                           return Material(
                             color: Colors.transparent,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(14),
-                              onTap: () => Navigator.pop(context, KtsSectionPickResult.section(name)),
+                              onTap: () => Navigator.pop(
+                                context,
+                                KtsSectionPickResult.section(idName, sectionId: sectionId),
+                              ),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                 margin: const EdgeInsets.only(bottom: 6),
@@ -709,7 +726,7 @@ class _KtsSectionLocationPickerSheetState
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(name, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF1E293B))),
+                                        Text(displayName, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF1E293B))),
                                         if (badge.isNotEmpty) ...[
                                           const SizedBox(height: 2),
                                           Text(badge, style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)), maxLines: 1, overflow: TextOverflow.ellipsis),
