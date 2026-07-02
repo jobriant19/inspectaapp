@@ -757,7 +757,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                       ),
                       const SizedBox(width: 4),
                     ],
-                    Flexible(
+                    Expanded(
                       child: Text(
                         filterLabel,
                         style: TextStyle(
