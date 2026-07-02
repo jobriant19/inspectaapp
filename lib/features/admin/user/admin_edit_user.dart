@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/auth_service.dart';
+import '../../user/analytics/kts production/kts_section_location_picker.dart';
 import '../shared/admin_image_picker_widget.dart';
 
 class AdminEditUserScreen extends StatefulWidget {
@@ -516,7 +517,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                               : 'Bagian Kasie',
                     ),
                     const SizedBox(height: 6),
-                    _buildBagianKasieDropdown(),
+                    _buildBagianKasiePicker(),
                     const SizedBox(height: 14),
                   ],
 
@@ -546,6 +547,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     nameKey: 'nama_lokasi',
                     selectedId: _selectedLokasiId,
                     hint: _lang == 'EN' ? 'Select location' : 'Pilih lokasi',
+                    icon: Icons.location_on_outlined,
+                    color: const Color(0xFF10B981),
                     onChanged: (v) {
                       setState(() => _selectedLokasiId = v);
                       if (v != null) _loadUnit(v);
@@ -561,6 +564,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     nameKey: 'nama_unit',
                     selectedId: _selectedUnitId,
                     hint: _lang == 'EN' ? 'Select unit' : 'Pilih unit',
+                    icon: Icons.apartment_outlined,
+                    color: _primary,
                     enabled: _selectedLokasiId != null && _unitList.isNotEmpty,
                     onChanged: (v) {
                       setState(() => _selectedUnitId = v);
@@ -577,6 +582,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     nameKey: 'nama_subunit',
                     selectedId: _selectedSubunitId,
                     hint: _lang == 'EN' ? 'Select sub-unit' : 'Pilih sub-unit',
+                    icon: Icons.layers_outlined,
+                    color: const Color(0xFFFBBF24),
                     enabled: _selectedUnitId != null && _subunitList.isNotEmpty,
                     onChanged: (v) {
                       setState(() => _selectedSubunitId = v);
@@ -593,6 +600,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     nameKey: 'nama_area',
                     selectedId: _selectedAreaId,
                     hint: _lang == 'EN' ? 'Select area' : 'Pilih area',
+                    icon: Icons.pin_drop_outlined,
+                    color: const Color(0xFFF472B6),
                     enabled: _selectedSubunitId != null && _areaList.isNotEmpty,
                     onChanged: (v) => setState(() => _selectedAreaId = v),
                   ),
@@ -835,36 +844,85 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
   }
 
   Widget _buildJabatanDropdown() {
+    final hasValue = _selectedJabatan != null;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: hasValue ? _primary.withValues(alpha:0.05) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: hasValue ? _primary.withValues(alpha:0.45) : Colors.grey.shade200,
+          width: hasValue ? 1.4 : 1,
+        ),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int>(
           value: _selectedJabatan,
           isExpanded: true,
           dropdownColor: Colors.white,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              color: Colors.black45),
-          hint: Text(
-            _lang == 'EN'
-                ? 'Select job title'
-                : _lang == 'ZH'
-                    ? '请选择职位'
-                    : 'Pilih jabatan',
-            style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
-          ),
-          items: widget.jabatanList.map((j) {
-            return DropdownMenuItem<int>(
-              value: j['id_jabatan'] as int,
+          borderRadius: BorderRadius.circular(14),
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+              color: hasValue ? _primary : Colors.black45),
+          hint: Row(children: [
+            const Icon(Icons.work_outline_rounded, size: 16, color: Colors.black26),
+            const SizedBox(width: 10),
+            Expanded(
               child: Text(
-                j['nama_jabatan'],
-                style: GoogleFonts.poppins(
-                    color: const Color(0xFF1E3A8A), fontSize: 14),
+                _lang == 'EN'
+                    ? 'Select job title'
+                    : _lang == 'ZH'
+                        ? '请选择职位'
+                        : 'Pilih jabatan',
+                style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+                overflow: TextOverflow.ellipsis,
               ),
+            ),
+          ]),
+          selectedItemBuilder: (ctx) => widget.jabatanList.map((j) {
+            return Row(children: [
+              Container(
+                width: 26, height: 26,
+                decoration: BoxDecoration(color: _primary.withValues(alpha:0.14), borderRadius: BorderRadius.circular(7)),
+                child: const Icon(Icons.work_outline_rounded, size: 13, color: _primary),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  j['nama_jabatan'] ?? '-',
+                  style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 14, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ]);
+          }).toList(),
+          items: widget.jabatanList.map((j) {
+            final id = j['id_jabatan'] as int;
+            final isSelected = _selectedJabatan == id;
+            return DropdownMenuItem<int>(
+              value: id,
+              child: Row(children: [
+                Container(
+                  width: 26, height: 26,
+                  decoration: BoxDecoration(
+                    color: isSelected ? _primary : _primary.withValues(alpha:0.12),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Icon(Icons.work_outline_rounded, size: 13, color: isSelected ? Colors.white : _primary),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    j['nama_jabatan'] ?? '-',
+                    style: GoogleFonts.poppins(
+                      color: isSelected ? _primary : const Color(0xFF1E3A8A),
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (isSelected) const Icon(Icons.check_circle_rounded, size: 16, color: _primary),
+              ]),
             );
           }).toList(),
           onChanged: (v) => setState(() => _selectedJabatan = v),
@@ -873,54 +931,50 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     );
   }
 
-  Widget _buildBagianKasieDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String?>(
-          value: _selectedBagianKasie,
-          isExpanded: true,
-          dropdownColor: Colors.white,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              color: Colors.black45),
-          hint: Text(
-            _lang == 'EN'
-                ? 'Select section'
-                : _lang == 'ZH'
-                    ? '选择部门'
-                    : 'Pilih bagian',
-            style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+  Widget _buildBagianKasiePicker() {
+    const kasieColor = Color(0xFF0891B2);
+    final hasValue = _selectedBagianKasie != null && _selectedBagianKasie!.isNotEmpty;
+    return GestureDetector(
+      onTap: () async {
+        final result = await showKtsSectionLocationPicker(context, lang: _lang);
+        if (result == null) return;
+        setState(() => _selectedBagianKasie = result.isAllSections ? null : result.sectionName);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: hasValue ? kasieColor.withValues(alpha:0.05) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasValue ? kasieColor.withValues(alpha:0.5) : Colors.grey.shade200,
+            width: hasValue ? 1.4 : 1,
           ),
-          items: [
-            DropdownMenuItem<String?>(
-              value: null,
-              child: Text(
-                _lang == 'EN'
-                    ? '— No section —'
-                    : _lang == 'ZH'
-                        ? '— 无部门 —'
-                        : '— Tanpa bagian —',
-                style: GoogleFonts.poppins(
-                    color: Colors.black38, fontSize: 13),
-              ),
-            ),
-            ...const [
-              'Laser','Mesin','Spot','Las','Ftw','Cat','Assy',
-              'Ekspedisi & Packing','Purchasing','Engineering','PPIC'
-            ].map((b) => DropdownMenuItem<String?>(
-                  value: b,
-                  child: Text(b,
-                      style: GoogleFonts.poppins(
-                          color: const Color(0xFF1E3A8A), fontSize: 13)),
-                )),
-          ],
-          onChanged: (v) => setState(() => _selectedBagianKasie = v),
         ),
+        child: Row(children: [
+          Container(
+            width: 30, height: 30,
+            decoration: BoxDecoration(
+              color: hasValue ? kasieColor : kasieColor.withValues(alpha:0.12),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(Icons.apartment_outlined, size: 15, color: hasValue ? Colors.white : kasieColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              hasValue
+                  ? _selectedBagianKasie!
+                  : (_lang == 'EN' ? 'Select section' : _lang == 'ZH' ? '选择部门' : 'Pilih bagian'),
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: hasValue ? FontWeight.w700 : FontWeight.w400,
+                color: hasValue ? kasieColor : Colors.black38,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded, size: 18, color: hasValue ? kasieColor : Colors.black26),
+        ]),
       ),
     );
   }
@@ -932,41 +986,92 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     required String? selectedId,
     required String hint,
     required ValueChanged<String?> onChanged,
+    required IconData icon,
+    required Color color,
     bool enabled = true,
   }) {
+    final hasValue = enabled && items.any((e) => e[idKey]?.toString() == selectedId);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: enabled ? const Color(0xFFF8FAFC) : Colors.grey.shade50,
+        color: !enabled
+            ? Colors.grey.shade50
+            : (hasValue ? color.withValues(alpha:0.05) : const Color(0xFFF8FAFC)),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: enabled ? Colors.grey.shade200 : Colors.grey.shade100),
+          color: !enabled
+              ? Colors.grey.shade100
+              : (hasValue ? color.withValues(alpha:0.45) : Colors.grey.shade200),
+          width: hasValue ? 1.4 : 1,
+        ),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: items.any((e) => e[idKey]?.toString() == selectedId)
-              ? selectedId
-              : null,
+          value: hasValue ? selectedId : null,
           isExpanded: true,
           dropdownColor: Colors.white,
+          borderRadius: BorderRadius.circular(14),
           icon: Icon(Icons.keyboard_arrow_down_rounded,
-              color: enabled ? Colors.black45 : Colors.grey.shade300),
-          hint: Text(hint,
-              style:
-                  GoogleFonts.poppins(color: Colors.black38, fontSize: 13)),
+              color: !enabled ? Colors.grey.shade300 : (hasValue ? color : Colors.black45)),
+          hint: Row(children: [
+            Icon(icon, size: 16, color: !enabled ? Colors.grey.shade300 : Colors.black26),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(hint,
+                  style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ]),
+          selectedItemBuilder: enabled
+              ? (ctx) => items.map((item) {
+                    return Row(children: [
+                      Container(
+                        width: 26, height: 26,
+                        decoration: BoxDecoration(color: color.withValues(alpha:0.14), borderRadius: BorderRadius.circular(7)),
+                        child: Icon(icon, size: 13, color: color),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          item[nameKey] ?? '-',
+                          style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13, fontWeight: FontWeight.w600),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ]);
+                  }).toList()
+              : null,
           items: enabled
-              ? items
-                  .map((item) => DropdownMenuItem<String>(
-                        value: item[idKey] as String,
+              ? items.map((item) {
+                  final id = item[idKey] as String;
+                  final isSelected = selectedId == id;
+                  return DropdownMenuItem<String>(
+                    value: id,
+                    child: Row(children: [
+                      Container(
+                        width: 26, height: 26,
+                        decoration: BoxDecoration(
+                          color: isSelected ? color : color.withValues(alpha:0.12),
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+                        child: Icon(icon, size: 13, color: isSelected ? Colors.white : color),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
                         child: Text(
                           item[nameKey] ?? '-',
                           style: GoogleFonts.poppins(
-                              color: const Color(0xFF1E3A8A), fontSize: 13),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                            color: isSelected ? color : const Color(0xFF1E3A8A),
+                            fontSize: 13,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          ),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
                         ),
-                      ))
-                  .toList()
+                      ),
+                      if (isSelected) Icon(Icons.check_circle_rounded, size: 16, color: color),
+                    ]),
+                  );
+                }).toList()
               : [],
           onChanged: enabled ? onChanged : null,
         ),
@@ -976,11 +1081,18 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
 
   Widget _buildSupervisorDropdown() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: _selectedSupervisorId != null
+            ? const Color(0xFF8B5CF6).withValues(alpha:0.05)
+            : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: _selectedSupervisorId != null
+              ? const Color(0xFF8B5CF6).withValues(alpha:0.45)
+              : Colors.grey.shade200,
+          width: _selectedSupervisorId != null ? 1.4 : 1,
+        ),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -990,38 +1102,109 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
               : null,
           isExpanded: true,
           dropdownColor: Colors.white,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded,
-              color: Colors.black45),
-          hint: Text(
-            _lang == 'EN'
-                ? 'Select supervisor (optional)'
-                : _lang == 'ZH'
-                    ? '选择主管（可选）'
-                    : 'Pilih supervisor (opsional)',
-            style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
-          ),
+          borderRadius: BorderRadius.circular(14),
+          icon: Icon(Icons.keyboard_arrow_down_rounded,
+              color: _selectedSupervisorId != null ? const Color(0xFF8B5CF6) : Colors.black45),
+          hint: Row(children: [
+            const Icon(Icons.person_search_outlined, size: 16, color: Colors.black26),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _lang == 'EN'
+                    ? 'Select supervisor (optional)'
+                    : _lang == 'ZH'
+                        ? '选择主管（可选）'
+                        : 'Pilih supervisor (opsional)',
+                style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ]),
+          selectedItemBuilder: (ctx) => [
+            Row(children: [
+              Container(
+                width: 26, height: 26,
+                decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(7)),
+                child: Icon(Icons.remove_circle_outline_rounded, size: 13, color: Colors.grey.shade500),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _lang == 'EN' ? 'No supervisor' : _lang == 'ZH' ? '无主管' : 'Tanpa supervisor',
+                  style: GoogleFonts.poppins(color: Colors.black45, fontSize: 13, fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ]),
+            ..._supervisorList.map((s) => Row(children: [
+                  Container(
+                    width: 26, height: 26,
+                    decoration: BoxDecoration(color: const Color(0xFF8B5CF6).withValues(alpha:0.14), borderRadius: BorderRadius.circular(7)),
+                    child: const Icon(Icons.person_rounded, size: 13, color: Color(0xFF8B5CF6)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      s['nama'] ?? '-',
+                      style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ])),
+          ],
           items: [
             DropdownMenuItem<String>(
               value: null,
-              child: Text(
-                _lang == 'EN'
-                    ? '— No supervisor —'
-                    : _lang == 'ZH'
-                        ? '— 无主管 —'
-                        : '— Tanpa supervisor —',
-                style: GoogleFonts.poppins(
-                    color: Colors.black38, fontSize: 13),
-              ),
-            ),
-            ..._supervisorList.map((s) => DropdownMenuItem<String>(
-                  value: s['id_user'] as String,
+              child: Row(children: [
+                Container(
+                  width: 26, height: 26,
+                  decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(7)),
+                  child: Icon(Icons.remove_circle_outline_rounded, size: 13, color: Colors.grey.shade500),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
                   child: Text(
-                    s['nama'] ?? '-',
-                    style: GoogleFonts.poppins(
-                        color: const Color(0xFF1E3A8A), fontSize: 13),
+                    _lang == 'EN'
+                        ? '— No supervisor —'
+                        : _lang == 'ZH'
+                            ? '— 无主管 —'
+                            : '— Tanpa supervisor —',
+                    style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
-                )),
+                ),
+              ]),
+            ),
+            ..._supervisorList.map((s) {
+              final id = s['id_user'] as String;
+              final isSelected = _selectedSupervisorId == id;
+              return DropdownMenuItem<String>(
+                value: id,
+                child: Row(children: [
+                  Container(
+                    width: 26, height: 26,
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF8B5CF6).withValues(alpha:0.12),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Icon(Icons.person_rounded, size: 13, color: isSelected ? Colors.white : const Color(0xFF8B5CF6)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      s['nama'] ?? '-',
+                      style: GoogleFonts.poppins(
+                        color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF1E3A8A),
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isSelected) const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF8B5CF6)),
+                ]),
+              );
+            }),
           ],
           onChanged: (v) => setState(() => _selectedSupervisorId = v),
         ),
