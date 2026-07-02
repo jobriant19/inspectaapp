@@ -169,7 +169,7 @@ class AccidentRecurringTabState extends State<AccidentRecurringTab> {
         decoration: const BoxDecoration(
             color: Color(0xFFFEF2F2), shape: BoxShape.circle),
         child: Icon(Icons.warning_amber_rounded,
-            size: 36, color: _C.red.withOpacity(0.5)),
+            size: 36, color: _C.red.withValues(alpha:0.5)),
       ),
       const SizedBox(height: 16),
       Text(
@@ -667,9 +667,9 @@ class _AccidentRecurringCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+          border: Border.all(color: color.withValues(alpha:0.3), width: 1.5),
           boxShadow: [BoxShadow(
-              color: color.withOpacity(0.08),
+              color: color.withValues(alpha:0.08),
               blurRadius: 8, offset: const Offset(0, 3))],
         ),
         child: Row(children: [
@@ -678,7 +678,7 @@ class _AccidentRecurringCard extends StatelessWidget {
                 const BorderRadius.horizontal(left: Radius.circular(14)),
             child: Container(
               width: 80, height: 80,
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha:0.1),
               child: imageUrl != null && imageUrl.isNotEmpty
                   ? Image.network(imageUrl, fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) =>
@@ -698,11 +698,11 @@ class _AccidentRecurringCard extends StatelessWidget {
               const SizedBox(height: 4),
               Row(children: [
                 Icon(Icons.repeat_rounded,
-                    size: 12, color: color.withOpacity(0.7)),
+                    size: 12, color: color.withValues(alpha:0.7)),
                 const SizedBox(width: 3),
                 Expanded(child: Text(sevLabel,
                     style: TextStyle(
-                        fontSize: 11, color: color.withOpacity(0.8)),
+                        fontSize: 11, color: color.withValues(alpha:0.8)),
                     maxLines: 1, overflow: TextOverflow.ellipsis)),
               ]),
               if (locationArea.isNotEmpty) ...[
@@ -723,13 +723,13 @@ class _AccidentRecurringCard extends StatelessWidget {
             margin: const EdgeInsets.only(right: 12),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha:0.1),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: color.withOpacity(0.3))),
+              border: Border.all(color: color.withValues(alpha:0.3))),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text(totalLabel,
                   style: TextStyle(
-                      fontSize: 9, color: color.withOpacity(0.7))),
+                      fontSize: 9, color: color.withValues(alpha:0.7))),
               Text('$total',
                   style: TextStyle(fontSize: 16,
                       fontWeight: FontWeight.w900, color: color)),
@@ -796,9 +796,9 @@ class _AccidentReportCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white, borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: sevColor.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: sevColor.withValues(alpha:0.3), width: 1.5),
         boxShadow: [BoxShadow(
-            color: sevColor.withOpacity(0.1),
+            color: sevColor.withValues(alpha:0.1),
             blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -811,7 +811,7 @@ class _AccidentReportCard extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                    color: sevColor.withOpacity(0.3), width: 1.5)),
+                    color: sevColor.withValues(alpha:0.3), width: 1.5)),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8.5),
                 child: fotoUrl.isNotEmpty
@@ -841,7 +841,7 @@ class _AccidentReportCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(
-                      color: sevColor.withOpacity(0.1),
+                      color: sevColor.withValues(alpha:0.1),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(color: sevColor, width: 1)),
                     child: Text(tingkat,
@@ -891,7 +891,7 @@ class _AccidentReportCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(
                 horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
-              color: sevColor.withOpacity(0.06),
+              color: sevColor.withValues(alpha:0.06),
               borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(14))),
             child: Row(children: [
@@ -900,7 +900,7 @@ class _AccidentReportCard extends StatelessWidget {
               const SizedBox(width: 5),
               Expanded(child: Text(penyebab,
                   style: TextStyle(fontSize: 11,
-                      color: sevColor.withOpacity(0.9),
+                      color: sevColor.withValues(alpha:0.9),
                       fontWeight: FontWeight.w500),
                   maxLines: 2, overflow: TextOverflow.ellipsis)),
             ]),
