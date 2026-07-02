@@ -5,11 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const List<String> kPmBagianList = [
-  'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
-  'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
-];
-
 class _PC {
   static const primary      = Color(0xFF1D4ED8);
   static const primaryLight = Color(0xFFEFF6FF);
@@ -33,7 +28,8 @@ class _PmFormScreenState extends State<PmFormScreen> {
   final _judulCtrl = TextEditingController();
   final _descCtrl  = TextEditingController();
   final _alasanCtrl = TextEditingController();
-  String? _selectedBagian; // diisi otomatis dari bagian_kasie user login
+  String? _selectedBagian;
+  Map<String, String> _sectionDisplayMap = {};
   DateTime _bulanPm = DateTime(DateTime.now().year, DateTime.now().month, 1);
 
   bool get _isLate {
@@ -158,6 +154,7 @@ class _PmFormScreenState extends State<PmFormScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSectionDisplayMap();
     if (!_isEdit) _loadUserBagian();
     if (_isEdit) {
       final d = widget.existingData!;
@@ -193,6 +190,36 @@ class _PmFormScreenState extends State<PmFormScreen> {
     } catch (e) {
       debugPrint('PM load bagian_kasie error: $e');
     }
+  }
+
+  Future<void> _loadSectionDisplayMap() async {
+    try {
+      final sb = Supabase.instance.client;
+      final res = await sb.from('section').select('nama_section_id, nama_section_en, nama_section_zh');
+      final rows = List<Map<String, dynamic>>.from(res);
+      final map = <String, String>{};
+      for (final r in rows) {
+        final idName = (r['nama_section_id'] as String?)?.trim();
+        if (idName == null || idName.isEmpty) continue;
+        String display = idName;
+        if (widget.lang == 'EN') {
+          final en = (r['nama_section_en'] as String?)?.trim();
+          if (en != null && en.isNotEmpty) display = en;
+        } else if (widget.lang == 'ZH') {
+          final zh = (r['nama_section_zh'] as String?)?.trim();
+          if (zh != null && zh.isNotEmpty) display = zh;
+        }
+        map[idName.toLowerCase()] = display;
+      }
+      if (mounted) setState(() => _sectionDisplayMap = map);
+    } catch (e) {
+      debugPrint('PM form loadSectionDisplayMap error: $e');
+    }
+  }
+
+  String _displaySectionName(String? raw) {
+    if (raw == null || raw.isEmpty) return '-';
+    return _sectionDisplayMap[raw.trim().toLowerCase()] ?? raw;
   }
 
   void _showBulanPicker() async {
@@ -462,7 +489,7 @@ class _PmFormScreenState extends State<PmFormScreen> {
                       const Icon(Icons.grid_view_rounded, size: 16, color: _PC.primary),
                       const SizedBox(width: 10),
                       Expanded(child: Text(
-                        _selectedBagian ?? '-',
+                        _displaySectionName(_selectedBagian),
                         style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
                       const Icon(CupertinoIcons.lock_fill, size: 13, color: Color(0xFF94A3B8)),
                     ]),
