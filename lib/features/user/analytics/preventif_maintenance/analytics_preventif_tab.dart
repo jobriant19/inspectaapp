@@ -6,10 +6,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const List<String> _kPmBagianList = [
-  'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
-  'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
-];
+import '../kts production/kts_section_location_picker.dart';
 
 class _PC {
   static const primary      = Color(0xFF1D4ED8);
@@ -100,13 +97,46 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
 
   bool _loadingTable = false;
   List<_PmKasieRow> _tableRows = [];
+  Map<String, String> _sectionDisplayMap = {};
 
   @override
   void initState() {
     super.initState();
     _currentUserId = _db.auth.currentUser?.id;
     _loadUserJabatan();
+    _loadSectionDisplayMap();
     _loadTableData();
+  }
+
+  Future<void> _loadSectionDisplayMap() async {
+    try {
+      final res = await _db
+          .from('section')
+          .select('nama_section_id, nama_section_en, nama_section_zh');
+      final rows = List<Map<String, dynamic>>.from(res);
+      final map = <String, String>{};
+      for (final r in rows) {
+        final idName = (r['nama_section_id'] as String?)?.trim();
+        if (idName == null || idName.isEmpty) continue;
+        String display = idName;
+        if (widget.lang == 'EN') {
+          final en = (r['nama_section_en'] as String?)?.trim();
+          if (en != null && en.isNotEmpty) display = en;
+        } else if (widget.lang == 'ZH') {
+          final zh = (r['nama_section_zh'] as String?)?.trim();
+          if (zh != null && zh.isNotEmpty) display = zh;
+        }
+        map[idName.toLowerCase()] = display;
+      }
+      if (mounted) setState(() => _sectionDisplayMap = map);
+    } catch (e) {
+      debugPrint('AnalyticsPreventif loadSectionDisplayMap error: $e');
+    }
+  }
+
+  String _displaySectionName(String raw) {
+    if (raw.isEmpty) return raw;
+    return _sectionDisplayMap[raw.trim().toLowerCase()] ?? raw;
   }
 
   Future<void> _loadUserJabatan() async {
@@ -539,7 +569,12 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
       Row(children: [
         Expanded(child: _filterBtn(label: rangeLabel, active: true, icon: Icons.date_range_rounded, onTap: _showRangePicker)),
         const SizedBox(width: 8),
-        Expanded(child: _filterBtn(label: _filterBagian ?? _t('semua_bagian'), active: _filterBagian != null, icon: Icons.grid_view_rounded, onTap: _showBagianPicker)),
+        Expanded(child: _filterBtn(
+          label: _filterBagian != null ? _displaySectionName(_filterBagian!) : _t('semua_bagian'),
+          active: _filterBagian != null,
+          icon: Icons.grid_view_rounded,
+          onTap: _showBagianPicker,
+        )),
       ]),
       const SizedBox(height: 8),
       Row(children: [
@@ -716,47 +751,14 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
   }
 
   void _showBagianPicker() async {
-    final items = [null, ..._kPmBagianList];
-    await showDialog(context: context, builder: (ctx) => Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: _PC.primaryLight, width: 1.5)),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-            decoration: const BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-            child: Row(children: [
-              const Icon(Icons.grid_view_rounded, color: _PC.primary, size: 20),
-              const SizedBox(width: 8),
-              Expanded(child: Text(_t('pilih_bagian'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _PC.textPrimary))),
-              IconButton(icon: const Icon(Icons.close, size: 18, color: _PC.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
-            ]),
-          ),
-          Flexible(child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 12, top: 4),
-            itemCount: items.length,
-            itemBuilder: (_, i) {
-              final item = items[i]; final lbl = item ?? _t('semua_bagian'); final sel = item == _filterBagian;
-              return InkWell(onTap: () { Navigator.pop(ctx); setState(() => _filterBagian = item); _loadTableData(); },
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(color: sel ? _PC.primaryLight : Colors.white, borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: sel ? _PC.primary : const Color(0xFFE2E8F0), width: sel ? 1.5 : 1)),
-                  child: Row(children: [
-                    Container(width: 34, height: 34, decoration: BoxDecoration(color: sel ? _PC.primary : _PC.primaryLight, borderRadius: BorderRadius.circular(9)),
-                      child: Center(child: Text(lbl.isNotEmpty ? lbl[0].toUpperCase() : '#', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: sel ? Colors.white : _PC.primaryDark)))),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(lbl, style: TextStyle(fontSize: 13, fontWeight: sel ? FontWeight.bold : FontWeight.normal, color: sel ? _PC.primaryDark : const Color(0xFF1E293B)))),
-                    if (sel) const Icon(Icons.check_circle_rounded, color: _PC.primary, size: 18),
-                  ]),
-                ));
-            },
-          )),
-        ]),
-      ),
-    ));
+    final result = await showKtsSectionLocationPicker(
+      context,
+      lang: widget.lang,
+      accentColor: _PC.primary, // biru, konsisten dengan tema tab ini
+    );
+    if (result == null) return;
+    setState(() => _filterBagian = result.isAllSections ? null : result.sectionName);
+    _loadTableData();
   }
 
   void _showLateFilterPicker() async {
@@ -886,7 +888,8 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
             Container(height: rowH, color: _PC.primaryLight, padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Row(children: [
                 Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft, child: Text(_t('bagian'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec)))),
-                Expanded(flex: 6, child: Align(alignment: Alignment.centerLeft, child: Text(_t('kasie'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec)))),
+                Expanded(flex: 6, child: Align(alignment: Alignment.centerLeft, child: Text(_t(
+                  'kasie'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec)))),
               ])),
             ...rows.asMap().entries.map((e) {
               final idx = e.key; final row = e.value;
@@ -895,7 +898,7 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
                 decoration: BoxDecoration(border: idx > 0 ? const Border(top: BorderSide(color: _PC.divider)) : null),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Row(children: [
-                  Expanded(flex: 5, child: Text(row.bagian.isEmpty ? '-' : row.bagian,
+                  Expanded(flex: 5, child: Text(row.bagian.isEmpty ? '-' : _displaySectionName(row.bagian),
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? _PC.textPrimary : const Color(0xFFCBD5E1)), overflow: TextOverflow.ellipsis)),
                   Expanded(flex: 6, child: GestureDetector(
                     onTap: canSeeDetail ? () => _showKasieDetail(row.kasieNama, row.bagian) : null,
