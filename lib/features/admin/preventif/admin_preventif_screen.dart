@@ -7,16 +7,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../user/analytics/kts production/kts_section_location_picker.dart';
 import '../admin_profile_screen.dart';
 import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
 import '../kts/admin_kts_screen.dart';
 import '../accident/admin_accident_screen.dart';
-
-const List<String> _kBagianList = [
-  'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
-  'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
-];
 
 class _PC {
   static const primary      = Color(0xFF1D4ED8);
@@ -111,6 +107,11 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
   String? _adminImage;
   final int _activeNavIndex = 4;
 
+  String? _currentUserId;
+  // ignore: unused_field
+  int? _currentUserJabatan;
+  Map<String, String> _sectionDisplayMap = {};
+
   // FILTER & CHART
   bool _chartExpanded = false;
   _PmRange _range     = _PmRange.threeMonths;
@@ -175,7 +176,51 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
     _lang      = widget.lang;
     _adminName = widget.adminName ?? 'Admin';
     _adminImage = widget.adminImage;
+    _currentUserId = _db.auth.currentUser?.id;
+    _loadUserJabatan();
+    _loadSectionDisplayMap();
     _loadTableData();
+  }
+
+  Future<void> _loadSectionDisplayMap() async {
+    try {
+      final res = await _db
+          .from('section')
+          .select('nama_section_id, nama_section_en, nama_section_zh');
+      final rows = List<Map<String, dynamic>>.from(res);
+      final map = <String, String>{};
+      for (final r in rows) {
+        final idName = (r['nama_section_id'] as String?)?.trim();
+        if (idName == null || idName.isEmpty) continue;
+        String display = idName;
+        if (_lang == 'EN') {
+          final en = (r['nama_section_en'] as String?)?.trim();
+          if (en != null && en.isNotEmpty) display = en;
+        } else if (_lang == 'ZH') {
+          final zh = (r['nama_section_zh'] as String?)?.trim();
+          if (zh != null && zh.isNotEmpty) display = zh;
+        }
+        map[idName.toLowerCase()] = display;
+      }
+      if (mounted) setState(() => _sectionDisplayMap = map);
+    } catch (e) {
+      debugPrint('AdminPreventif loadSectionDisplayMap error: $e');
+    }
+  }
+
+  String _displaySectionName(String raw) {
+    if (raw.isEmpty) return raw;
+    return _sectionDisplayMap[raw.trim().toLowerCase()] ?? raw;
+  }
+
+  Future<void> _loadUserJabatan() async {
+    if (_currentUserId == null) return;
+    try {
+      final res = await _db.from('User').select('id_jabatan').eq('id_user', _currentUserId!).single();
+      if (mounted) setState(() => _currentUserJabatan = res['id_jabatan'] as int?);
+    } catch (e) {
+      debugPrint('AdminPreventif loadUserJabatan error: $e');
+    }
   }
 
   List<DateTime> _getMonths() {
@@ -329,7 +374,7 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
   }
 
   // KASIE DETAIL BOTTOM SHEET
-  Future<void> _showKasieDetail(String kasieNama, String bagian) async {
+  Future<void> _showKasieDetail(String kasieId, String kasieNama, String bagian) async {
     final months = _getMonths();
     final start  = months.first;
     final end    = DateTime(months.last.year, months.last.month + 1, 0, 23, 59, 59);
@@ -339,7 +384,7 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
       final res = await _db
           .from('preventif_maintenance')
           .select('*, pelapor:id_user(nama, gambar_user)')
-          .eq('bagian', bagian)
+          .eq('id_user', kasieId)
           .gte('created_at', start.toIso8601String())
           .lte('created_at', end.toIso8601String())
           .order('created_at', ascending: false);
@@ -386,7 +431,7 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
                           children: [
                             Text(kasieNama,
                               style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B))),
-                            Text(bagian,
+                            Text(_displaySectionName(bagian),
                               style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
                           ],
                         ),
@@ -515,7 +560,9 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.circular(8)),
                       child: Text(
-                        r['bagian'] ?? '-',
+                        (r['bagian'] == null || (r['bagian'] as String).isEmpty)
+                            ? '-'
+                            : _displaySectionName(r['bagian']),
                         style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.primary),
                       ),
                     ),
@@ -812,81 +859,15 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
     ));
   }
 
-  void _showBagianPicker() {
-    final items = [null, ..._kBagianList];
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-          decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _PC.primaryLight, width: 1.5),
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: const BoxDecoration(
-                color: _PC.primaryLight,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Row(children: [
-                const Icon(Icons.grid_view_rounded, color: _PC.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_t('pilih_bagian'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _PC.textPrimary))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _PC.textSec),
-                    onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
-              ]),
-            ),
-            Flexible(
-              child: ListView.builder(
-                padding: const EdgeInsets.only(bottom: 12, top: 4),
-                itemCount: items.length,
-                itemBuilder: (_, i) {
-                  final item = items[i];
-                  final lbl  = item ?? _t('semua_bagian');
-                  final sel  = item == _filterBagian;
-                  return InkWell(
-                    onTap: () { Navigator.pop(ctx); setState(() => _filterBagian = item); _loadTableData(); },
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: sel ? _PC.primaryLight : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: sel ? _PC.primary : const Color(0xFFE2E8F0), width: sel ? 1.5 : 1),
-                      ),
-                      child: Row(children: [
-                        Container(
-                          width: 34, height: 34,
-                          decoration: BoxDecoration(
-                            color: sel ? _PC.primary : _PC.primaryLight,
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                          child: Center(child: Text(
-                            lbl.isNotEmpty ? lbl[0].toUpperCase() : '#',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14,
-                                color: sel ? Colors.white : _PC.primaryDark),
-                          )),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text(lbl,
-                          style: TextStyle(fontSize: 13,
-                              fontWeight: sel ? FontWeight.bold : FontWeight.normal,
-                              color: sel ? _PC.primaryDark : const Color(0xFF1E293B)))),
-                        if (sel) const Icon(Icons.check_circle_rounded, color: _PC.primary, size: 18),
-                      ]),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ]),
-        ),
-      ),
+  void _showBagianPicker() async {
+    final result = await showKtsSectionLocationPicker(
+      context,
+      lang: _lang,
+      accentColor: _PC.primary,
     );
+    if (result == null) return;
+    setState(() => _filterBagian = result.isAllSections ? null : result.sectionName);
+    _loadTableData();
   }
 
   void _onNavTap(int index) {
@@ -1111,6 +1092,7 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
                   final prefs = await SharedPreferences.getInstance();
                   await prefs.setString('lang', l['code']!);
                   if (mounted) setState(() => _lang = l['code']!);
+                  _loadSectionDisplayMap();
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
                 child: Container(
@@ -1272,7 +1254,7 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
         Expanded(child: _filterBtn(label: rangeLabel, active: true, icon: Icons.date_range_rounded, onTap: _showRangePicker)),
         const SizedBox(width: 8),
         Expanded(child: _filterBtn(
-          label: _filterBagian ?? _t('semua_bagian'),
+          label: _filterBagian != null ? _displaySectionName(_filterBagian!) : _t('semua_bagian'),
           active: _filterBagian != null,
           icon: Icons.grid_view_rounded,
           onTap: _showBagianPicker)),
@@ -1358,10 +1340,10 @@ class _AdminPreventifScreenState extends State<AdminPreventifScreen>
                 decoration: BoxDecoration(border: idx > 0 ? const Border(top: BorderSide(color: _PC.divider)) : null),
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Row(children: [
-                  Expanded(flex: 5, child: Text(row.bagian.isEmpty ? '-' : row.bagian,
+                  Expanded(flex: 5, child: Text(row.bagian.isEmpty ? '-' : _displaySectionName(row.bagian),
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? _PC.textPrimary : const Color(0xFFCBD5E1)), overflow: TextOverflow.ellipsis)),
                   Expanded(flex: 6, child: GestureDetector(
-                    onTap: () => _showKasieDetail(row.kasieNama, row.bagian),
+                    onTap: row.total > 0 ? () => _showKasieDetail(row.kasieId, row.kasieNama, row.bagian) : null,
                     child: Text(row.kasieNama,
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
                         color: row.total > 0 ? _PC.primary : const Color(0xFFCBD5E1),
