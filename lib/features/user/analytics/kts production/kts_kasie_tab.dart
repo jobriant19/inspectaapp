@@ -199,6 +199,8 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
     return _sectionDisplayMap[raw.trim().toLowerCase()] ?? raw;
   }
 
+  String _normKey(String raw) => raw.trim().toLowerCase();
+
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
@@ -206,20 +208,37 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
       final locale = widget.lang == 'ID' ? 'id_ID'
           : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
 
-      _bulanLabels = months.map((m) =>
-          DateFormat('MMM yy', locale).format(m)).toList();
+      _bulanLabels = months.map((m) => DateFormat('MMM yy', locale).format(m)).toList();
 
       final kasieRes = await _db
           .from('User')
-          .select('id_user, nama, bagian_kasie')
+          .select('''
+            id_user, nama, bagian_kasie, id_section,
+            section:id_section(nama_section_id, nama_section_en, nama_section_zh)
+          ''')
           .eq('id_jabatan', 3);
 
       var kasieList = List<Map<String, dynamic>>.from(kasieRes);
+      String kasieMatchKey(Map<String, dynamic> k) {
+        final id = k['id_section']?.toString();
+        if (id != null && id.isNotEmpty) return 'id:$id';
+        final raw = (k['bagian_kasie'] as String?)?.trim() ?? '';
+        if (raw.isEmpty) return '';
+        return 'name:${_normKey(_resolveSectionName(raw))}';
+      }
+
+      String kasieBagianLabel(Map<String, dynamic> k) {
+        final sectionJoin = k['section'] as Map<String, dynamic>?;
+        final joinedName = (sectionJoin?['nama_section_id'] as String?)?.trim();
+        if (joinedName != null && joinedName.isNotEmpty) return joinedName;
+        final raw = (k['bagian_kasie'] as String?)?.trim() ?? '';
+        return raw.isEmpty ? '' : _resolveSectionName(raw);
+      }
 
       if (_filterBagian != null) {
         kasieList = kasieList.where((k) {
-          final raw = (k['bagian_kasie'] as String?)?.trim() ?? '';
-          return raw.isNotEmpty && _resolveSectionName(raw) == _filterBagian;
+          final label = kasieBagianLabel(k);
+          return label.isNotEmpty && _normKey(label) == _normKey(_filterBagian!);
         }).toList();
       }
 
@@ -237,7 +256,8 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
             id_temuan,
             created_at,
             penyelesaian!temuan_id_penyelesaian_fkey(
-              bagian
+              bagian,
+              id_section
             )
           ''')
           .eq('jenis_temuan', 'KTS Production')
@@ -246,21 +266,29 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
           .not('id_penyelesaian', 'is', null);
 
       final penyelesaianList = List<Map<String, dynamic>>.from(penyelesaianRes);
-
-      final Map<String, Set<int>> bagianMonthSet = {};
+      final Map<String, Map<int, int>> bagianMonthCounts = {};
       for (final row in penyelesaianList) {
         final p = row['penyelesaian'] as Map<String, dynamic>?;
         if (p == null) continue;
-        final rawBagian = (p['bagian'] as String?)?.trim() ?? '';
-        if (rawBagian.isEmpty) continue;
-        final bagian = _resolveSectionName(rawBagian);
+
+        final idSection = p['id_section']?.toString();
+        String key;
+        if (idSection != null && idSection.isNotEmpty) {
+          key = 'id:$idSection';
+        } else {
+          final rawBagian = (p['bagian'] as String?)?.trim() ?? '';
+          if (rawBagian.isEmpty) continue;
+          key = 'name:${_normKey(_resolveSectionName(rawBagian))}';
+        }
+
         final createdAt = DateTime.tryParse(row['created_at']?.toString() ?? '');
         if (createdAt == null) continue;
 
         for (int i = 0; i < months.length; i++) {
           final m = months[i];
           if (createdAt.year == m.year && createdAt.month == m.month) {
-            bagianMonthSet.putIfAbsent(bagian, () => {}).add(i);
+            final monthMap = bagianMonthCounts.putIfAbsent(key, () => {});
+            monthMap[i] = (monthMap[i] ?? 0) + 1;
             break;
           }
         }
@@ -269,15 +297,17 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
       final rows = kasieList.map((k) {
         final kasieId   = k['id_user']?.toString() ?? '';
         final kasieNama = k['nama']?.toString() ?? '-';
-        final rawBagianKasie = (k['bagian_kasie'] as String?)?.trim() ?? '';
-        final bagian = rawBagianKasie.isEmpty ? '' : _resolveSectionName(rawBagianKasie);
+        final bagian = kasieBagianLabel(k);
+        final key = kasieMatchKey(k);
 
-        final monthSet = bagianMonthSet[bagian] ?? {};
+        final monthCounts = key.isEmpty ? <int, int>{} : (bagianMonthCounts[key] ?? {});
         final bulanan = <int, int>{};
+        int total = 0;
         for (int i = 0; i < months.length; i++) {
-          bulanan[i] = monthSet.contains(i) ? 1 : 0;
+          final v = monthCounts[i] ?? 0;
+          bulanan[i] = v;
+          total += v;
         }
-        final total = monthSet.length;
 
         return _KasieRow(
           kasieId: kasieId,
@@ -619,9 +649,13 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
     final sorted  = [...nonZero, ...zero];
 
     if (sorted.isEmpty) return _emptyBox();
-
-    final xMax   = _getMonths().length;
-    final xTicks = List.generate(xMax + 1, (i) => i);
+    final int xMax = _getMonths().length;
+    final int tickStep = xMax <= 6 ? 1 : (xMax / 6).ceil();
+    final List<int> xTicks = [];
+    for (int v = 0; v <= xMax; v += tickStep) {
+      xTicks.add(v);
+    }
+    if (xTicks.last != xMax) xTicks.add(xMax);
 
     const double labelW  = 72.0;
     const double barH    = 22.0;
@@ -758,10 +792,13 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
     }
 
     if (_rows.isEmpty) return _emptyBox();
+    final months = _getMonths();
+    if (months.length > 6) {
+      return _buildWideTable(months);
+    }
 
     final locale = widget.lang == 'ID' ? 'id_ID'
         : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
-    final months = _getMonths();
     final bulanLabels3 = months
         .map((m) => DateFormat('MMM', locale).format(m))
         .toList();
@@ -946,6 +983,139 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
         ..._rows.asMap().entries.map((e) => buildDataRow(e.key, e.value)),
         buildFooterRow(),
       ]),
+    );
+  }
+
+  Widget _buildWideTable(List<DateTime> months) {
+    final locale = widget.lang == 'ID' ? 'id_ID'
+        : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
+    final bulanLabels3 = months.map((m) => DateFormat('MMM', locale).format(m)).toList();
+    final int grandTotal = _rows.fold(0, (s, r) => s + r.total);
+
+    const double leftW  = 150.0;
+    const double monthW = 46.0;
+    const double totalW = 56.0;
+    const double rowH   = 40.0;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _C.primaryLight, width: 1.5),
+        boxShadow: [BoxShadow(color: _C.primary.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 3))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // KOLOM KIRI TETAP (Bagian + Kasie)
+          SizedBox(width: leftW, child: Column(children: [
+            Container(
+              height: rowH, color: _C.primaryLight,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(children: [
+                Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft,
+                  child: Text(_t('bagian'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec)))),
+                Expanded(flex: 6, child: Align(alignment: Alignment.centerLeft,
+                  child: Text(_t('kasie'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec)))),
+              ]),
+            ),
+            ..._rows.asMap().entries.map((e) {
+              final idx = e.key; final row = e.value;
+              return Container(
+                height: rowH,
+                decoration: BoxDecoration(border: idx > 0 ? const Border(top: BorderSide(color: _C.divider)) : null),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(children: [
+                  Expanded(flex: 5, child: Text(
+                    row.bagian.isEmpty ? '-' : _displaySectionName(row.bagian),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? _C.textPrimary : const Color(0xFFCBD5E1)),
+                    overflow: TextOverflow.ellipsis)),
+                  Expanded(flex: 6, child: Text(
+                    row.kasieNama,
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                    overflow: TextOverflow.ellipsis)),
+                ]),
+              );
+            }),
+            Container(
+              height: rowH,
+              decoration: const BoxDecoration(color: Color(0xFFFFF7ED), border: Border(top: BorderSide(color: _C.divider, width: 1.5))),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Align(alignment: Alignment.centerLeft, child: Text(
+                widget.lang == 'EN' ? 'Total' : widget.lang == 'ZH' ? '合计' : 'Total',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: _C.textPrimary))),
+            ),
+          ])),
+          Container(width: 1, color: _C.divider),
+          // KOLOM KANAN SCROLLABLE (Bulan + Total)
+          Expanded(child: LayoutBuilder(builder: (_, rightConstraints) {
+            final availW = rightConstraints.maxWidth;
+            final neededW = monthW * months.length + totalW;
+            final effMonthW = neededW < availW && months.isNotEmpty
+                ? (availW - totalW) / months.length
+                : monthW;
+            final totalContentW = neededW < availW ? availW : neededW;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: neededW < availW ? const NeverScrollableScrollPhysics() : const ClampingScrollPhysics(),
+              child: SizedBox(width: totalContentW, child: Column(children: [
+                Container(
+                  height: rowH, color: _C.primaryLight,
+                  child: Row(children: [
+                    ...bulanLabels3.map((lbl) => SizedBox(width: effMonthW, child: Center(
+                      child: Text(lbl, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec))))),
+                    SizedBox(width: totalW, child: Center(
+                      child: Text(_t('total'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.primaryDark)))),
+                  ]),
+                ),
+                ..._rows.asMap().entries.map((e) {
+                  final idx = e.key; final row = e.value;
+                  return Container(
+                    height: rowH,
+                    decoration: BoxDecoration(border: idx > 0 ? const Border(top: BorderSide(color: _C.divider)) : null),
+                    child: Row(children: [
+                      ...List.generate(months.length, (mi) {
+                        final val = row.bulanan[mi] ?? 0;
+                        return SizedBox(width: effMonthW, child: Center(child: Container(
+                          width: 26, height: 26,
+                          decoration: BoxDecoration(
+                            color: val > 0 ? _C.barColor.withValues(alpha:0.15) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Center(child: Text('$val',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: val > 0 ? _C.barColor : const Color(0xFFCBD5E1)))),
+                        )));
+                      }),
+                      SizedBox(width: totalW, child: Center(child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(color: row.total > 0 ? _C.primary : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                        child: Text('${row.total}', textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: row.total > 0 ? Colors.white : const Color(0xFFCBD5E1)))))),
+                    ]),
+                  );
+                }),
+                Container(
+                  height: rowH,
+                  decoration: const BoxDecoration(color: Color(0xFFFFF7ED), border: Border(top: BorderSide(color: _C.divider, width: 1.5))),
+                  child: Row(children: [
+                    ...List.generate(months.length, (mi) {
+                      final colTotal = _rows.fold(0, (s, r) => s + (r.bulanan[mi] ?? 0));
+                      return SizedBox(width: effMonthW, child: Center(child: Text('$colTotal',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: _C.primaryDark))));
+                    }),
+                    SizedBox(width: totalW, child: Center(child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      decoration: BoxDecoration(color: _C.primary, borderRadius: BorderRadius.circular(8)),
+                      child: Text('$grandTotal', textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white))))),
+                  ]),
+                ),
+              ])),
+            );
+          })),
+        ]),
+      ),
     );
   }
 

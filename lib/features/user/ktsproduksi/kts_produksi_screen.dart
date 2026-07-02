@@ -580,6 +580,7 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
   List<Map<String, dynamic>> _subKategoriList = [];
   Map<String, dynamic>? _selectedSubKategori;
   String? _selectedBagian;
+  String? _selectedSectionId;
 
   static const Color _kPrimary      = Color(0xFF1D4ED8);
   static const Color _kPrimaryLight = Color(0xFFEFF6FF);
@@ -833,7 +834,10 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
           : widget.lang == 'ZH'
               ? (result['nama_section_zh']?.toString() ?? result['nama_section_id']?.toString())
               : result['nama_section_id']?.toString();
-      setState(() => _selectedBagian = name);
+      setState(() {
+        _selectedBagian = name;
+        _selectedSectionId = result['id_section']?.toString();
+      });
     }
   }
 
@@ -888,6 +892,7 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
             ? (_selectedSubKategori != null ? _selectedSubKategori!['nama_subkategoritemuan'] : null)
             : _penyebabCtrl.text.trim(),
         'bagian': _selectedBagian,
+        'id_section': _selectedSectionId,
         'id_subkategoritemuan_penyebab': _selectedSubKategori?['id_subkategoritemuan'],
       }).select('id_penyelesaian').single();
 
