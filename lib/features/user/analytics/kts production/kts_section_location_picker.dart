@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Hasil yang dikembalikan oleh [showKtsSectionLocationPicker].
-/// - [isAllSections] = true  -> user memilih "Semua Bagian" (filter di-reset).
-/// - [sectionName]           -> nama bagian (nama_section_id) yang dipilih.
 class KtsSectionPickResult {
   final bool isAllSections;
   final String? sectionName;
@@ -17,28 +14,27 @@ class KtsSectionPickResult {
   const KtsSectionPickResult.section(this.sectionName) : isAllSections = false;
 }
 
-/// Menampilkan bottom sheet untuk memilih "bagian" (section) dengan filter
-/// lokasi bertingkat (Lokasi -> Unit -> Sub-Unit -> Area), meniru picker
-/// section yang dipakai di form penyelesaian KtsDetailScreen. Selalu
-/// menyediakan opsi "Semua Bagian" di paling atas.
 Future<KtsSectionPickResult?> showKtsSectionLocationPicker(
   BuildContext context, {
   required String lang,
+  Color accentColor = const Color(0xFF1D4ED8),
 }) {
-  return showModalBottomSheet<KtsSectionPickResult>(
+  return showDialog<KtsSectionPickResult>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    barrierDismissible: true,
+    builder: (ctx) => Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      child: _KtsSectionLocationPickerSheet(lang: lang, accentColor: accentColor),
     ),
-    builder: (ctx) => _KtsSectionLocationPickerSheet(lang: lang),
   );
 }
 
 class _KtsSectionLocationPickerSheet extends StatefulWidget {
   final String lang;
-  const _KtsSectionLocationPickerSheet({required this.lang});
+  final Color accentColor;
+  const _KtsSectionLocationPickerSheet({required this.lang, required this.accentColor});
 
   @override
   State<_KtsSectionLocationPickerSheet> createState() =>
@@ -47,9 +43,9 @@ class _KtsSectionLocationPickerSheet extends StatefulWidget {
 
 class _KtsSectionLocationPickerSheetState
     extends State<_KtsSectionLocationPickerSheet> {
-  static const Color _kPrimary      = Color(0xFF1D4ED8);
-  static const Color _kPrimaryLight = Color(0xFFEFF6FF);
-  static const Color _kBorder       = Color(0xFFBFDBFE);
+  Color get _kPrimary      => widget.accentColor;
+  Color get _kPrimaryLight => widget.accentColor.withValues(alpha: 0.08);
+  Color get _kBorder       => widget.accentColor.withValues(alpha: 0.35);
 
   List<Map<String, dynamic>> _lokasiList = [];
   List<Map<String, dynamic>> _unitList = [];
@@ -299,7 +295,7 @@ class _KtsSectionLocationPickerSheetState
                   ),
                   child: Row(
                     children: [
-                      const Icon(CupertinoIcons.slider_horizontal_3, color: _kPrimary, size: 20),
+                      Icon(CupertinoIcons.slider_horizontal_3, color: _kPrimary, size: 20),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -348,7 +344,8 @@ class _KtsSectionLocationPickerSheetState
                         if (tLokasiId != null && tUnitList.isNotEmpty) ...[
                           const SizedBox(height: 14),
                           _buildFilterChips(
-                            label: 'Unit', icon: CupertinoIcons.squares_below_rectangle,
+                            label: widget.lang == 'EN' ? 'Unit' : widget.lang == 'ZH' ? '单位' : 'Unit',
+                            icon: CupertinoIcons.squares_below_rectangle,
                             items: tUnitList, idKey: 'id_unit', nameKey: 'nama_unit',
                             selectedId: tUnitId,
                             onSelect: (id) async {
@@ -367,7 +364,8 @@ class _KtsSectionLocationPickerSheetState
                         if (tUnitId != null && tSubunitList.isNotEmpty) ...[
                           const SizedBox(height: 14),
                           _buildFilterChips(
-                            label: 'Sub-Unit', icon: CupertinoIcons.layers_alt_fill,
+                            label: widget.lang == 'EN' ? 'Sub-Unit' : widget.lang == 'ZH' ? '子单位' : 'Sub-Unit',
+                            icon: CupertinoIcons.layers_alt_fill,
                             items: tSubunitList, idKey: 'id_subunit', nameKey: 'nama_subunit',
                             selectedId: tSubunitId,
                             onSelect: (id) async {
@@ -385,7 +383,8 @@ class _KtsSectionLocationPickerSheetState
                         if (tSubunitId != null && tAreaList.isNotEmpty) ...[
                           const SizedBox(height: 14),
                           _buildFilterChips(
-                            label: 'Area', icon: CupertinoIcons.location_fill,
+                            label: widget.lang == 'EN' ? 'Area' : widget.lang == 'ZH' ? '区域' : 'Area',
+                            icon: CupertinoIcons.location_fill,
                             items: tAreaList, idKey: 'id_area', nameKey: 'nama_area',
                             selectedId: tAreaId,
                             onSelect: (id) {
@@ -420,7 +419,7 @@ class _KtsSectionLocationPickerSheetState
                             });
                           },
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: _kBorder),
+                            side: BorderSide(color: _kBorder),
                             padding: const EdgeInsets.symmetric(vertical: 13),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
@@ -516,15 +515,27 @@ class _KtsSectionLocationPickerSheetState
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.88,
+    final size = MediaQuery.of(context).size;
+    final dialogWidth = size.width > 480 ? 480.0 : size.width - 40;
+    final dialogHeight = (size.height * 0.78).clamp(420.0, 640.0);
+
+    return Container(
+      width: dialogWidth,
+      height: dialogHeight,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 28, offset: const Offset(0, 10)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          Container(margin: const EdgeInsets.only(top: 12, bottom: 8), width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(2))),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(20, 18, 12, 12),
             child: Row(children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: _kPrimaryLight, borderRadius: BorderRadius.circular(10)), child: const Icon(CupertinoIcons.square_grid_2x2_fill, color: _kPrimary, size: 18)),
+              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: _kPrimaryLight, borderRadius: BorderRadius.circular(10)), child: Icon(CupertinoIcons.square_grid_2x2_fill, color: _kPrimary, size: 18)),
               const SizedBox(width: 12),
               Expanded(child: Text(widget.lang == 'ZH' ? '选择部门' : widget.lang == 'EN' ? 'Select Section' : 'Pilih Bagian', style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)))),
               IconButton(icon: const Icon(CupertinoIcons.xmark, color: Color(0xFF94A3B8), size: 20), onPressed: () => Navigator.pop(context)),
@@ -605,11 +616,11 @@ class _KtsSectionLocationPickerSheetState
               decoration: InputDecoration(
                 hintText: widget.lang == 'ZH' ? '搜索部门...' : widget.lang == 'EN' ? 'Search section...' : 'Cari bagian...',
                 hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 14),
-                prefixIcon: const Icon(CupertinoIcons.search, color: _kPrimary, size: 18),
+                prefixIcon: Icon(CupertinoIcons.search, color: _kPrimary, size: 18),
                 filled: true, fillColor: const Color(0xFFF8FAFF),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kBorder, width: 1)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: _kPrimary, width: 1.5)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _kBorder, width: 1)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _kPrimary, width: 1.5)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
@@ -691,7 +702,7 @@ class _KtsSectionLocationPickerSheetState
                                   Container(
                                     width: 40, height: 40,
                                     decoration: BoxDecoration(color: _kPrimaryLight, borderRadius: BorderRadius.circular(10)),
-                                    child: const Icon(CupertinoIcons.square_grid_2x2_fill, color: _kPrimary, size: 18),
+                                    child: Icon(CupertinoIcons.square_grid_2x2_fill, color: _kPrimary, size: 18),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
