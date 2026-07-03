@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/utils/jabatan_helper.dart';
+import '../../../../core/utils/jabatan_helper.dart';
 
 class UserInfoCard extends StatefulWidget {
   final String userName;

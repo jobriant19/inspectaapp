@@ -16,7 +16,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'home_news_popup.dart';
-import 'user_info_card.dart';
+import 'info_card/user_info_card.dart';
 import 'activity_log_dialog.dart';
 import 'home_content.dart';
 import 'package:shimmer/shimmer.dart';
