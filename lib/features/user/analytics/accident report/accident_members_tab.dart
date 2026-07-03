@@ -246,10 +246,7 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
                 }
                 final list = snap.data ?? [];
                 if (list.isEmpty) {
-                  return Center(child: Text(
-                    _t('Tidak ada data anggota.',
-                       'No member data.', '没有成员数据。'),
-                    style: const TextStyle(color: _C.textSecondary)));
+                  return _buildEmptyState();
                 }
                 final self = list.firstWhere(
                   (m) => m.isSelf,
@@ -270,6 +267,80 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
               },
             )),
     ]);
+  }
+
+  // EMPTY STATE
+  Widget _buildEmptyState() {
+    final title = _t(
+      'Belum Ada Laporan Kecelakaan',
+      'No Accident Reports Yet',
+      '暂无事故报告',
+    );
+
+    final subtitle = _t(
+      'Belum ada laporan kecelakaan maupun data terkait yang tercatat pada periode ini.',
+      'No accident reports or related data have been recorded for this period.',
+      '本期尚未记录事故报告或相关数据。',
+    );
+
+    return Align(
+      alignment: const Alignment(0, -0.35),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(colors: [
+                _C.red.withValues(alpha:0.16),
+                _C.red.withValues(alpha:0.02),
+              ]),
+              boxShadow: [
+                BoxShadow(
+                    color: _C.red.withValues(alpha:0.18),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10)),
+              ],
+            ),
+            child: Image.asset(
+              'assets/images/safety.png',
+              width: 130,
+              height: 130,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Icon(
+                  Icons.image_not_supported_rounded,
+                  size: 80,
+                  color: _C.red.withValues(alpha:0.4)),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: _C.red,
+                  letterSpacing: 0.1)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: _C.red.withValues(alpha:0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _C.red.withValues(alpha:0.18)),
+            ),
+            child: Text(subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    color: _C.textPrimary,
+                    height: 1.55,
+                    fontWeight: FontWeight.w500)),
+          ),
+        ]),
+      ),
+    );
   }
 
   // TABLE HEADER
