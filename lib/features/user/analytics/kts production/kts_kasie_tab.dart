@@ -4,11 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'kts_section_location_picker.dart';
 
-const List<String> kKtsBagianKasieList = [
-  'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
-  'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
-];
-
 class _C {
   static const primary      = Color(0xFFF59E0B);
   static const primaryDark  = Color(0xFFD97706);
@@ -534,7 +529,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
         Expanded(child: _filterBtn(
           label: rangeLabel,
           color: _C.primary,
-          active: true,
+          active: _range != _RangeFilter.threeMonths,
           icon: Icons.date_range_rounded,
           onTap: _showRangePicker,
         )),
@@ -834,8 +829,8 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(children: [
-        headerCell(_t('bagian'), flex: flexSection),
-        headerCell(_t('kasie'), flex: flexKasie),
+        headerCell(_t('bagian'), flex: flexSection, align: TextAlign.center),
+        headerCell(_t('kasie'), flex: flexKasie, align: TextAlign.center),
         ...bulanLabels3.map((lbl) =>
           headerCell(lbl, flex: flexMonth, align: TextAlign.center)),
         headerCell(_t('total'),
@@ -858,6 +853,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
           flex: flexSection,
           child: Text(
             row.bagian.isEmpty ? '-' : _displaySectionName(row.bagian),
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 11, fontWeight: FontWeight.w600,
               color: row.total > 0 ? _C.textPrimary : const Color(0xFFCBD5E1),
@@ -870,6 +866,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
           flex: flexKasie,
           child: Text(
             row.kasieNama,
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 11,
               color: row.total > 0 ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
@@ -935,6 +932,7 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
           flex: flexSection + flexKasie,
           child: Text(
             widget.lang == 'EN' ? 'Total' : widget.lang == 'ZH' ? '合计' : 'Total',
+            textAlign: TextAlign.center,
             style: const TextStyle(
                 fontSize: 12, fontWeight: FontWeight.w900, color: _C.textPrimary),
           ),
@@ -1014,10 +1012,10 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
               height: rowH, color: _C.primaryLight,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Row(children: [
-                Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft,
-                  child: Text(_t('bagian'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec)))),
-                Expanded(flex: 6, child: Align(alignment: Alignment.centerLeft,
-                  child: Text(_t('kasie'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec)))),
+                Expanded(flex: 5, child: Align(alignment: Alignment.center,
+                  child: Text(_t('bagian'), textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec)))),
+                Expanded(flex: 6, child: Align(alignment: Alignment.center,
+                  child: Text(_t('kasie'), textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec)))),
               ]),
             ),
             ..._rows.asMap().entries.map((e) {
@@ -1029,10 +1027,12 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
                 child: Row(children: [
                   Expanded(flex: 5, child: Text(
                     row.bagian.isEmpty ? '-' : _displaySectionName(row.bagian),
+                    textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? _C.textPrimary : const Color(0xFFCBD5E1)),
                     overflow: TextOverflow.ellipsis)),
                   Expanded(flex: 6, child: Text(
                     row.kasieNama,
+                    textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
                     overflow: TextOverflow.ellipsis)),
                 ]),
@@ -1042,8 +1042,9 @@ class _KtsKasieTabState extends State<KtsKasieTab> {
               height: rowH,
               decoration: const BoxDecoration(color: Color(0xFFFFF7ED), border: Border(top: BorderSide(color: _C.divider, width: 1.5))),
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Align(alignment: Alignment.centerLeft, child: Text(
+              child: Align(alignment: Alignment.center, child: Text(
                 widget.lang == 'EN' ? 'Total' : widget.lang == 'ZH' ? '合计' : 'Total',
+                textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: _C.textPrimary))),
             ),
           ])),
