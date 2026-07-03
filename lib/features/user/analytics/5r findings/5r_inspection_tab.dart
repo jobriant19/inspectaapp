@@ -80,7 +80,7 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      // ── Filter bar ──────────────────────────────────────────────────────
+      // FILTER BAR
       Container(
         color: Colors.transparent,
         width: double.infinity,
@@ -97,7 +97,8 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
                             : 'zh_CN',
                   ).format(widget.selectedDate!)
                 : widget.translatedMonths[widget.selectedMonthIndex],
-            isActive: true,
+            icon: Icons.calendar_month_rounded,
+            isActive: widget.filterMode == 'daily',
             onTap: () => widget.showMonthPicker(() {}),
           ),
           const SizedBox(width: 10),
@@ -125,7 +126,7 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                      color: activeColor.withOpacity(0.28),
+                                      color: activeColor.withValues(alpha:0.28),
                                       blurRadius: 8,
                                       offset: const Offset(0, 3))
                                 ]
@@ -156,20 +157,20 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
         ]),
       ),
 
-      // ── Last updated ────────────────────────────────────────────────────
+      // LAST UPDATED
       _buildLastUpdatedWidget(),
 
-      // ── Table header ────────────────────────────────────────────────────
+      // TABLE HEADER
       _buildTableHeader(
         [widget.getTxt('nama'), widget.getTxt('temuan')],
         flex: [3, 1],
       ),
 
-      // ── Target row ──────────────────────────────────────────────────────
+      // TARGET ROW
       _buildTargetRow(
           [widget.getTxt('target_bulanan'), '${widget.targetInspeksi}']),
 
-      // ── List ────────────────────────────────────────────────────────────
+      // LIST
       Expanded(child: Builder(builder: (context) {
         if (widget.inspeksiFuture == null) return _buildInspeksiShimmer();
         return FutureBuilder<List<InspectionData5R>>(
@@ -200,15 +201,27 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
     ]);
   }
 
-  // ── Widgets pembantu ────────────────────────────────────────────────────────
-
   Widget _buildLastUpdatedWidget() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Text(
-        widget.lastUpdatedText,
-        style: const TextStyle(
-            fontSize: 11, color: _AppColors.textSecondary, height: 1.4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: _AppColors.primaryLight,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.access_time_filled_rounded,
+                size: 13, color: _AppColors.primary),
+            const SizedBox(width: 6),
+            Text(widget.lastUpdatedText,
+                style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _AppColors.textPrimary)),
+          ]),
+        ),
       ),
     );
   }
@@ -359,7 +372,7 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
   }
 }
 
-// ── Avatar helper (lokal, tidak perlu export) ─────────────────────────────────
+// AVATAR 
 class _Avatar5R extends StatelessWidget {
   final String name;
   final Color? color;
@@ -391,9 +404,9 @@ class _Avatar5R extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: bg.withOpacity(0.15),
+        color: bg.withValues(alpha:0.15),
         shape: BoxShape.circle,
-        border: Border.all(color: bg.withOpacity(0.3), width: 1),
+        border: Border.all(color: bg.withValues(alpha:0.3), width: 1),
       ),
       child: Center(
         child: Text(
