@@ -166,6 +166,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
 
   List<Map<String, dynamic>> _faktorMaster = [];
   Map<String, String> _sectionNameMap = {};
+  Map<String, Map<String, String>> _sectionTranslations = {};
 
   @override
   void initState() {
@@ -216,16 +217,30 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           .select('nama_section_id, nama_section_en, nama_section_zh');
       final rows = List<Map<String, dynamic>>.from(res);
       final map = <String, String>{};
+      final translations = <String, Map<String, String>>{};
       for (final r in rows) {
         final idName = (r['nama_section_id'] as String?)?.trim();
         if (idName == null || idName.isEmpty) continue;
-        map[idName.toLowerCase()] = idName;
         final enName = (r['nama_section_en'] as String?)?.trim();
-        if (enName != null && enName.isNotEmpty) map[enName.toLowerCase()] = idName;
         final zhName = (r['nama_section_zh'] as String?)?.trim();
+
+        map[idName.toLowerCase()] = idName;
+        if (enName != null && enName.isNotEmpty) map[enName.toLowerCase()] = idName;
         if (zhName != null && zhName.isNotEmpty) map[zhName.toLowerCase()] = idName;
+
+        // Simpan terjemahan per bahasa, dengan fallback ke nama ID jika kosong
+        translations[idName.toLowerCase()] = {
+          'id': idName,
+          'en': (enName != null && enName.isNotEmpty) ? enName : idName,
+          'zh': (zhName != null && zhName.isNotEmpty) ? zhName : idName,
+        };
       }
-      if (mounted) setState(() => _sectionNameMap = map);
+      if (mounted) {
+        setState(() {
+          _sectionNameMap = map;
+          _sectionTranslations = translations;
+        });
+      }
     } catch (e) {
       debugPrint('loadSectionNameMap error: $e');
     }
@@ -235,6 +250,20 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
   String _resolveSectionName(String raw) {
     final key = raw.trim().toLowerCase();
     return _sectionNameMap[key] ?? raw.trim();
+  }
+
+  String _sectionDisplayName(String canonicalIdName) {
+    final key = canonicalIdName.trim().toLowerCase();
+    final tr = _sectionTranslations[key];
+    if (tr == null) return canonicalIdName;
+    switch (widget.lang) {
+      case 'EN':
+        return tr['en'] ?? canonicalIdName;
+      case 'ZH':
+        return tr['zh'] ?? canonicalIdName;
+      default:
+        return tr['id'] ?? canonicalIdName;
+    }
   }
 
   // DATE RANGE
@@ -690,7 +719,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
     VoidCallback? subAction;
 
     if (_activeFilter == _FilterType.bagian) {
-      filterLabel = _subBagian ?? _t('bagian_penyebab');
+      filterLabel = _subBagian != null ? _sectionDisplayName(_subBagian!) : _t('bagian_penyebab');
       filterColor = _C.blue;
       subAction   = _showBagianPicker;
     } else if (_activeFilter == _FilterType.faktor) {
@@ -723,9 +752,9 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
             // PERIOD BUTTON
             _filterBtn(
               label: periodLabel,
-              active: true,
+              active: _mode == 'daily' || _monthIdx != DateTime.now().month - 1,
               color: _C.primary,
-              icon: Icons.keyboard_arrow_down_rounded,
+              icon: Icons.calendar_month_rounded, 
               onTap: _showMonthPicker,
             ),
             const SizedBox(width: 6),
@@ -739,7 +768,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                   height: 38,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   decoration: BoxDecoration(
-                    color: _activeFilter != null ? filterColor.withValues(alpha:0.1) : Colors.white,
+                    color: _activeFilter != null ? filterColor : Colors.white,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: _activeFilter != null ? filterColor : _C.primaryLight,
@@ -753,7 +782,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                         _activeFilter == _FilterType.bagian ? Icons.grid_view_rounded
                             : _activeFilter == _FilterType.faktor ? Icons.tag_rounded
                             : Icons.monetization_on_rounded,
-                        size: 13, color: filterColor,
+                        size: 13, color: Colors.white,
                       ),
                       const SizedBox(width: 4),
                     ],
@@ -763,13 +792,13 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: _activeFilter != null ? filterColor : _C.primaryDark,
+                          color: _activeFilter != null ? Colors.white : _C.primaryDark,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 2),
-                    Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: _activeFilter != null ? filterColor : _C.primary),
+                    Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: _activeFilter != null ? Colors.white : _C.primary),
                   ]),
                 ),
               ),
@@ -796,7 +825,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                     const SizedBox(width: 3),
                     Text(
                       _activeFilter == _FilterType.bagian
-                          ? (_subBagian ?? _t('semua_bagian'))
+                          ? (_subBagian != null ? _sectionDisplayName(_subBagian!) : _t('semua_bagian'))
                           : (_subFaktorId == null
                               ? _t('semua_faktor')
                               : (_faktorMaster.firstWhere(
@@ -835,22 +864,24 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
                 height: 38,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: _subBagian != null ? _C.orange.withValues(alpha:0.1) : Colors.white,
+                  // Default (belum ada section dipilih): tetap seperti semula (putih, border/teks orange)
+                  // Ada section dipilih: background orange solid, icon/tulisan/arrow putih
+                  color: _subBagian != null ? _C.orange : Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: _C.orange, width: 1.5),
                   boxShadow: [BoxShadow(color: _C.orange.withValues(alpha:0.08), blurRadius: 6, offset: const Offset(0, 2))],
                 ),
                 child: Row(children: [
-                  Icon(Icons.grid_view_rounded, size: 14, color: _C.orange),
+                  Icon(Icons.grid_view_rounded, size: 14, color: _subBagian != null ? Colors.white : _C.orange),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      _subBagian ?? _t('semua_bagian'),
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _C.orange),
+                      _subBagian != null ? _sectionDisplayName(_subBagian!) : _t('semua_bagian'),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _subBagian != null ? Colors.white : _C.orange),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _C.orange),
+                  Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _subBagian != null ? Colors.white : _C.orange),
                 ]),
               ),
             ),
@@ -984,7 +1015,9 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         final biayaJuta = s is _FaktorStat
             ? s.totalBiaya / 1e6
             : (s as _BagianStat).totalBiaya / 1e6;
-        final label = s is _FaktorStat ? s.namaFaktor : (s as _BagianStat).bagian;
+        final label = s is _FaktorStat
+            ? s.namaFaktor
+            : _sectionDisplayName((s as _BagianStat).bagian);
         return _ChartRow(label: label, value: biayaJuta);
       }).toList();
 
@@ -1006,7 +1039,9 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       final total = _bagianStats.fold(0, (sum, s) => sum + s.jumlah);
       return _buildHorizontalBarChart(
         title: _t('bagian_penyebab'),
-        rows: _bagianStats.map((s) => _ChartRow(label: s.bagian, value: s.jumlah.toDouble())).toList(),
+        rows: _bagianStats
+            .map((s) => _ChartRow(label: _sectionDisplayName(s.bagian), value: s.jumlah.toDouble()))
+            .toList(),
         color: _C.blue,
         total: total,
       );
@@ -1498,7 +1533,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
           final pct = total > 0 ? (s.jumlah / total * 100).toStringAsFixed(0) : '0';
           return Column(children: [
             if (i > 0) const Divider(height: 1, color: Color(0xFFE0E7FF)),
-            _tableRow([s.bagian, '${s.jumlah}', '$pct%', _formatRp(s.totalBiaya)], [3, 2, 1, 3],
+            _tableRow([_sectionDisplayName(s.bagian), '${s.jumlah}', '$pct%', _formatRp(s.totalBiaya)], [3, 2, 1, 3],
               numCols: {1, 2, 3}, highlightCol: 1,
               highlightColor: s.jumlah > 0 ? _C.blue : const Color(0xFFCBD5E1),
               mutedRow: s.jumlah == 0,
@@ -1555,7 +1590,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: bg, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
       child: Row(children: List.generate(cols.length, (i) => Expanded(flex: flexes[i], child: Text(cols[i],
-        textAlign: i == 0 ? TextAlign.left : i == cols.length - 1 ? TextAlign.right : TextAlign.center,
+        textAlign: TextAlign.center,
         style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
       )))),
     );
@@ -1569,7 +1604,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
         final isHl  = i == highlightCol;
         final color = mutedRow ? const Color(0xFFCBD5E1) : isHl ? (highlightColor ?? _C.textPrimary) : const Color(0xFF334155);
         return Expanded(flex: flexes[i], child: Text(vals[i],
-          textAlign: i == 0 ? TextAlign.left : i == vals.length - 1 ? TextAlign.right : TextAlign.center,
+          textAlign: TextAlign.center,
           style: TextStyle(fontSize: isNum ? 13 : 12, fontWeight: isHl ? FontWeight.w800 : FontWeight.w500, color: color),
         ));
       })),
@@ -1581,7 +1616,7 @@ class _KtsPenyebabTabState extends State<KtsPenyebabTab> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: bg.withValues(alpha:0.6), borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12))),
       child: Row(children: List.generate(vals.length, (i) => Expanded(flex: flexes[i], child: Text(vals[i],
-        textAlign: i == 0 ? TextAlign.left : i == vals.length - 1 ? TextAlign.right : TextAlign.center,
+        textAlign: TextAlign.center,
         style: TextStyle(fontSize: i == 1 ? 15 : 12, fontWeight: FontWeight.w900, color: i == 0 ? _C.textPrimary : color),
       )))),
     );
