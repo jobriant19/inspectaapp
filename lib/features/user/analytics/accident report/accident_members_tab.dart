@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../core/utils/jabatan_helper.dart';
+
 class _C {
   static const primary             = Color(0xFF0EA5E9);
   static const textPrimary         = Color(0xFF0C4A6E);
@@ -11,6 +13,8 @@ class _C {
   static const selfHighlight       = Color(0xFFFFF7ED);
   static const selfHighlightBorder = Color(0xFFFED7AA);
   static const red                 = Color(0xFFEF4444);
+  static const redLight            = Color(0xFFFEE2E2);
+  static const redBorderLight      = Color(0xFFFCA5A5);
 }
 
 class MemberData {
@@ -21,6 +25,9 @@ class MemberData {
   final bool    isSelf;
   final String? avatarUrl;
   final Color?  avatarColor;
+  final int?    idJabatan;
+  final String? jabatanNama;
+  final bool?   isVerificator;
   const MemberData({
     required this.name,
     this.unitName,
@@ -29,6 +36,9 @@ class MemberData {
     this.isSelf    = false,
     this.avatarUrl,
     this.avatarColor,
+    this.idJabatan,
+    this.jabatanNama,
+    this.isVerificator,
   });
 }
 
@@ -158,7 +168,8 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
     final userIds = grouped.keys.toList();
     final List<dynamic> usersRes = await _supabase
         .from('User')
-        .select('id_user, nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit)')
+        .select(
+            'id_user, nama, gambar_user, id_unit, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
         .inFilter('id_user', userIds);
     final currentUserId = _supabase.auth.currentUser?.id;
     return usersRes.map((u) {
@@ -172,6 +183,9 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
         isSelf:    uid == currentUserId,
         avatarUrl: u['gambar_user'] as String?,
         avatarColor: _C.red,
+        idJabatan: u['id_jabatan'] as int?,
+        jabatanNama: (u['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
+        isVerificator: u['is_verificator'] as bool?,
       );
     }).toList()
       ..sort((a, b) => b.findings.compareTo(a.findings));
@@ -192,37 +206,32 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
         color: Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(children: [
-          widget.buildFilterBtn(
-            label: widget.filterMode == 'daily' && widget.selectedDate != null
-                ? DateFormat('d MMM yyyy',
-                    widget.lang == 'ID' ? 'id_ID'
-                    : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
-                    .format(widget.selectedDate!)
-                : _monthLabel,
-            isActive: true,
-            onTap: () => widget.showMonthPicker(fetchData),
-          ),
+          Expanded(child: _buildMemberTimeFilterButton()),
           const SizedBox(width: 10),
-          Expanded(child: widget.buildFilterBtn(
-            label: widget.selectedUnitId == null
-                ? _t('Semua Grup', 'All Groups', '所有组')
-                : (widget.unitList.firstWhere(
-                    (u) => u['id_unit'].toString() == widget.selectedUnitId,
-                    orElse: () => {
-                      'nama_unit': _t('Semua Grup', 'All Groups', '所有组')
-                    })['nama_unit'] as String),
-            onTap: widget.showGroupPicker,
-          )),
+          Expanded(child: _buildMemberGroupFilterButton()),
         ]),
       ),
       // LAST UPDATED
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(widget.lastUpdatedText,
-              style: const TextStyle(
-                  fontSize: 11, color: _C.textSecondary, height: 1.4)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: _C.redLight,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.access_time_filled_rounded,
+                  size: 13, color: _C.red),
+              const SizedBox(width: 6),
+              Text(widget.lastUpdatedText,
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: _C.textPrimary)),
+            ]),
+          ),
         ),
       ),
       _buildTableHeader(),
@@ -273,17 +282,16 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
     return Container(
       color: const Color(0xFFF8FAFF),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(children: List.generate(cols.length, (i) => Expanded(
-        flex: i == 0 ? 3 : 1,
-        child: Padding(
-          padding: EdgeInsets.only(left: i == 0 ? 44 : 0),
+      child: Row(children: List.generate(cols.length, (i) {
+        return Expanded(
+          flex: i == 0 ? 3 : 1,
           child: Text(cols[i],
-              textAlign: i == 0 ? TextAlign.left : TextAlign.center,
+              textAlign: TextAlign.center,
               style: const TextStyle(
                   fontSize: 12.5, fontWeight: FontWeight.w600,
                   color: _C.textSecondary, letterSpacing: 0.2)),
-        ),
-      ))),
+        );
+      })),
     );
   }
 
@@ -292,25 +300,39 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
     return Container(
       color: m.isSelf ? _C.selfHighlight : Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      child: Row(children: [
-        Expanded(flex: 3, child: Row(children: [
-          _Avatar(name: m.name, avatarUrl: m.avatarUrl,
-              color: m.avatarColor, size: 34),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Expanded(flex: 3, child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _Avatar(name: m.name, avatarUrl: m.avatarUrl,
+                color: m.avatarColor, size: 36),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-            Text(m.name,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500,
-                    color: _C.textPrimary),
-                overflow: TextOverflow.ellipsis),
-            if (m.unitName != null && m.unitName!.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(m.unitName!,
-                  style: const TextStyle(fontSize: 11, color: _C.textSecondary),
-                  overflow: TextOverflow.ellipsis),
-            ],
-          ])),
-        ])),
+                Text(m.name,
+                    textAlign: TextAlign.left,
+                    maxLines: 1,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                        color: _C.textPrimary),
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _buildJabatanBadge(
+                        idJabatan: m.idJabatan,
+                        jabatanNama: m.jabatanNama,
+                        isVerificator: m.isVerificator),
+                    _buildUnitBadge(m.unitName),
+                  ],
+                ),
+              ],
+            )),
+          ],
+        )),
         Expanded(flex: 1, child: Text('${m.findings}',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13.5,
@@ -335,16 +357,39 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
             blurRadius: 6, offset: const Offset(0, -2))],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: [
-        Expanded(flex: 3, child: Row(children: [
-          _Avatar(name: self.name, avatarUrl: self.avatarUrl,
-              color: self.avatarColor, size: 34),
-          const SizedBox(width: 10),
-          Expanded(child: Text(self.name,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                  color: _C.textPrimary),
-              overflow: TextOverflow.ellipsis)),
-        ])),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Expanded(flex: 3, child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _Avatar(name: self.name, avatarUrl: self.avatarUrl,
+                color: self.avatarColor, size: 36),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(self.name,
+                    textAlign: TextAlign.left,
+                    maxLines: 1,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                        color: _C.textPrimary),
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _buildJabatanBadge(
+                        idJabatan: self.idJabatan,
+                        jabatanNama: self.jabatanNama,
+                        isVerificator: self.isVerificator),
+                    _buildUnitBadge(self.unitName),
+                  ],
+                ),
+              ],
+            )),
+          ],
+        )),
         Expanded(flex: 1, child: Text('${self.findings}',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13.5,
@@ -353,6 +398,153 @@ class AccidentMembersTabState extends State<AccidentMembersTab> {
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13.5,
                 fontWeight: FontWeight.w600, color: _C.textSecondary))),
+      ]),
+    );
+  }
+
+  Widget _buildMemberTimeFilterButton() {
+    final isActive = widget.filterMode == 'daily';
+    final modeLabel = widget.filterMode == 'daily'
+        ? _t('Harian', 'Daily', '按日')
+        : _t('Bulanan', 'Monthly', '按月');
+    final valueLabel = widget.filterMode == 'daily' && widget.selectedDate != null
+        ? DateFormat('d MMM yyyy',
+                widget.lang == 'ID' ? 'id_ID'
+                : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
+            .format(widget.selectedDate!)
+        : _monthLabel;
+
+    return GestureDetector(
+      onTap: () => widget.showMonthPicker(fetchData),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: isActive ? _C.red : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _C.red : _C.redBorderLight,
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _C.red.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.calendar_month_rounded, size: 15,
+                    color: isActive ? Colors.white : _C.red),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text('$modeLabel · $valueLabel',
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : _C.red)),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : _C.red, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildMemberGroupFilterButton() {
+    final isActive = widget.selectedUnitId != null;
+    final label = widget.selectedUnitId == null
+        ? _t('Semua Grup', 'All Groups', '所有组')
+        : (widget.unitList.firstWhere(
+                (u) => u['id_unit'].toString() == widget.selectedUnitId,
+                orElse: () => {'nama_unit': _t('Semua Grup', 'All Groups', '所有组')})['nama_unit']
+            as String);
+
+    return GestureDetector(
+      onTap: widget.showGroupPicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isActive ? _C.red : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _C.red : _C.redBorderLight,
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _C.red.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Text(label,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : _C.red)),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : _C.red, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildJabatanBadge({
+    required int?    idJabatan,
+    required String? jabatanNama,
+    required bool?   isVerificator,
+  }) {
+    final label = JabatanHelper.getDisplayRole(
+      isVerificatorFlag: isVerificator,
+      idJabatan: idJabatan,
+      jabatanFromDb: jabatanNama,
+      lang: widget.lang,
+    );
+    if (label.isEmpty) return const SizedBox.shrink();
+    final color = JabatanHelper.getPrimaryColor(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    final icon = JabatanHelper.getRoleIcon(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha:0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha:0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 10, color: color),
+        const SizedBox(width: 3),
+        Text(label,
+            style: TextStyle(
+                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
+      ]),
+    );
+  }
+
+  Widget _buildUnitBadge(String? unitName) {
+    if (unitName == null || unitName.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final color = _UnitBadgeHelper.getColor(unitName);
+    final icon = _UnitBadgeHelper.getIcon(unitName);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 10, color: color),
+        const SizedBox(width: 3),
+        Text(unitName,
+            style: TextStyle(
+                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
       ]),
     );
   }
@@ -439,5 +631,44 @@ class _Avatar extends StatelessWidget {
           style: TextStyle(fontSize: size * 0.35,
               fontWeight: FontWeight.w700, color: bg))),
     );
+  }
+}
+
+// UNIT BADGE HELPER
+class _UnitBadgeHelper {
+  static const List<Color> _palette = [
+    Color(0xFF0D9488), // teal
+    Color(0xFF6366F1), // indigo
+    Color(0xFF8B5CF6), // purple
+    Color(0xFFEC4899), // pink
+    Color(0xFF06B6D4), // cyan
+    Color(0xFFF97316), // orange
+    Color(0xFF84CC16), // lime
+    Color(0xFFEF4444), // red
+  ];
+
+  static Color getColor(String unitName) {
+    final name = unitName.toLowerCase();
+    if (name.contains('finance')) return const Color(0xFF0D9488);
+    if (name.contains('fabrication')) return const Color(0xFF6366F1);
+    if (name.contains('machine') || name.contains('mdc')) {
+      return const Color(0xFF8B5CF6);
+    }
+    if (name.contains('marketing')) return const Color(0xFFEC4899);
+    if (name.contains('support')) return const Color(0xFF06B6D4);
+    final idx = unitName.hashCode.abs() % _palette.length;
+    return _palette[idx];
+  }
+
+  static IconData getIcon(String unitName) {
+    final name = unitName.toLowerCase();
+    if (name.contains('finance')) return Icons.account_balance_wallet_rounded;
+    if (name.contains('fabrication')) return Icons.precision_manufacturing_rounded;
+    if (name.contains('machine') || name.contains('mdc')) {
+      return Icons.engineering_rounded;
+    }
+    if (name.contains('marketing')) return Icons.campaign_rounded;
+    if (name.contains('support')) return Icons.support_agent_rounded;
+    return Icons.apartment_rounded;
   }
 }
