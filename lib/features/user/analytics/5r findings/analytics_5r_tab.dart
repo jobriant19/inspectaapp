@@ -1807,23 +1807,28 @@ class _Analytics5RTabState extends State<Analytics5RTab>
     bool loadingItems = true;
     bool levelDropdownOpen = false;
 
+    final GlobalKey levelBtnKey = GlobalKey();
+    final GlobalKey stackKey = GlobalKey();
+    double dropdownTop = 102;
+    double dropdownRight = 14;
+
     IconData levelIcon(String label) {
       final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
       return [
-        Icons.location_city_rounded,
-        Icons.apartment_rounded,
-        Icons.account_tree_rounded,
-        Icons.map_rounded,
+        Icons.location_city_rounded, // LOCATION
+        Icons.business_rounded,      // UNIT
+        Icons.layers_rounded,        // SUBUNIT
+        Icons.place_rounded,         // AREA
       ][idx];
     }
 
     Color levelColor(String label) {
       final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
       return [
-        const Color(0xFF0EA5E9), // Lokasi
-        const Color(0xFF6366F1), // Unit
-        const Color(0xFF8B5CF6), // Subunit
-        const Color(0xFFF59E0B), // Area
+        const Color(0xFF10B981), // LOCATION
+        const Color(0xFF6366F1), // UNIT
+        const Color(0xFFFBBF24), // SUBUNIT
+        const Color(0xFFF472B6), // AREA
       ][idx];
     }
 
@@ -1874,7 +1879,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                 border: Border.all(color: _AppColors.primaryLight, width: 1.5)),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
-                child: Stack(clipBehavior: Clip.none, children: [
+                child: Stack(key: stackKey, clipBehavior: Clip.none, children: [
                   Column(children: [
                     // HEADER
                     Container(
@@ -1923,7 +1928,21 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                         ),
                         const SizedBox(width: 8),
                         GestureDetector(
-                          onTap: () => setSt(() => levelDropdownOpen = !levelDropdownOpen),
+                          key: levelBtnKey,
+                          onTap: () {
+                            final btnBox = levelBtnKey.currentContext!
+                                .findRenderObject() as RenderBox;
+                            final stackBox = stackKey.currentContext!
+                                .findRenderObject() as RenderBox;
+                            final btnPos = btnBox.localToGlobal(Offset.zero,
+                                ancestor: stackBox);
+                            setSt(() {
+                              dropdownTop = btnPos.dy + btnBox.size.height + 6;
+                              dropdownRight = stackBox.size.width -
+                                  (btnPos.dx + btnBox.size.width);
+                              levelDropdownOpen = !levelDropdownOpen;
+                            });
+                          },
                           child: Container(
                             width: 132,
                             height: 44,
@@ -2094,9 +2113,9 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                   // DROPDOWN PANEL (MENURUN DARI BUTTON, TETAP DI DALAM AREA POPUP)
                   if (levelDropdownOpen)
                     Positioned(
-                      top: 102,
-                      right: 14,
-                      width: 160,
+                      top: dropdownTop,
+                      right: dropdownRight,
+                      width: 132,
                       child: Material(
                         elevation: 10,
                         borderRadius: BorderRadius.circular(12),

@@ -100,7 +100,52 @@ class FiveRLocationTab extends StatelessWidget {
     return 'Nilai';
   }
 
-  // ─── Time filter button (kalender + mode + nilai terpilih) ────────────────
+  Color get _picColor {
+    final idx =
+        translatedLocationLevels.indexOf(selectedLocationLevel).clamp(0, 3);
+    return [
+      const Color(0xFF10B981), // LOCATION
+      const Color(0xFF6366F1), // UNIT
+      const Color(0xFFFBBF24), // SUBUNIT
+      const Color(0xFFF472B6), // AREA
+    ][idx];
+  }
+
+  Widget _buildPicBadge(String picName) {
+    final color = _picColor;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.assignment_ind_rounded, size: 10, color: color),
+        const SizedBox(width: 3),
+        Flexible(
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                  text: 'PIC : ',
+                  style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: color)),
+              TextSpan(
+                  text: picName,
+                  style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: color)),
+            ]),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ]),
+    );
+  }
+
   Widget _buildLocationTimeFilterButton() {
     final isActive = filterMode == 'daily';
     final modeLabel = filterMode == 'daily'
@@ -206,13 +251,13 @@ class FiveRLocationTab extends StatelessWidget {
       // ── Audit period banner (daily mode only) ─────────────────────────────
       if (!_use5RAudit) _buildAuditPeriodBanner(),
 
-      // ── Last updated ──────────────────────────────────────────────────────
+      // LAST UPDATED
       _buildLastUpdatedWidget(),
 
-      // ── Table header ──────────────────────────────────────────────────────
+      // TABLE HEADER
       _use5RAudit
-          ? _buildTableHeader([getTxt('rank'), getTxt('lokasi'), _rankAuditLabel])
-          : _buildTableHeader([getTxt('rank'), getTxt('lokasi'), getTxt('temuan')]),
+          ? _buildTableHeader([getTxt('rank'), selectedLocationLevel, _rankAuditLabel])
+          : _buildTableHeader([getTxt('rank'), selectedLocationLevel, getTxt('temuan')]),
 
       // ── List ──────────────────────────────────────────────────────────────
       Expanded(child: Builder(builder: (context) {
@@ -393,20 +438,8 @@ class FiveRLocationTab extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                             color: _AppColors.textPrimary),
                         overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 3),
-                    Row(children: [
-                      Icon(Icons.badge_rounded,
-                          size: 12, color: _AppColors.primary.withValues(alpha:0.7)),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(loc.pic,
-                            style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w500,
-                                color: _AppColors.textSecondary),
-                            overflow: TextOverflow.ellipsis),
-                      ),
-                    ]),
+                    const SizedBox(height: 4),
+                    _buildPicBadge(loc.pic),
                   ])),
             ])),
         SizedBox(
@@ -473,20 +506,8 @@ class FiveRLocationTab extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: _AppColors.textPrimary),
                           overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 3),
-                      Row(children: [
-                        Icon(Icons.badge_rounded,
-                            size: 12, color: scoreColor.withValues(alpha:0.75)),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(loc.pic,
-                              style: const TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: _AppColors.textSecondary),
-                              overflow: TextOverflow.ellipsis),
-                        ),
-                      ]),
+                      const SizedBox(height: 4),
+                      _buildPicBadge(loc.pic),
                       if (loc.auditDate != null) ...[
                         const SizedBox(height: 2),
                         ClipRRect(
