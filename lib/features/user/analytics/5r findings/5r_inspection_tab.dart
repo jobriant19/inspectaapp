@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../core/utils/jabatan_helper.dart';
+
 class _AppColors {
   static const primary = Color(0xFF0EA5E9);
   static const primaryLight = Color(0xFFE0F2FE);
@@ -14,11 +16,19 @@ class InspectionData5R {
   final String name;
   final int findings;
   final bool isSelf;
+  final String? avatarUrl;
+  final int? idJabatan;
+  final String? jabatanNama;
+  final bool? isVerificator;
 
   const InspectionData5R({
     required this.name,
     required this.findings,
     this.isSelf = false,
+    this.avatarUrl,
+    this.idJabatan,
+    this.jabatanNama,
+    this.isVerificator,
   });
 }
 
@@ -182,10 +192,7 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
             if (snapshot.hasError ||
                 !snapshot.hasData ||
                 snapshot.data!.isEmpty) {
-              return Center(
-                child: Text(
-                    '${widget.getTxt('tidak_ada_temuan_role')} "${widget.selectedInspectionRole}".'),
-              );
+              return _buildEmptyState();
             }
             return ListView.separated(
               padding: EdgeInsets.zero,
@@ -199,6 +206,110 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
         );
       })),
     ]);
+  }
+
+  // ── Empty state khusus Professional & Visitor ──────────────────────────────
+  Widget _buildEmptyState() {
+    final isProfessional = widget.selectedInspectionRole == widget.getTxt('profesional');
+    final isVisitor = widget.selectedInspectionRole == widget.getTxt('visitor');
+
+    if (!isProfessional && !isVisitor) {
+      return Center(
+        child: Text(
+            '${widget.getTxt('tidak_ada_temuan_role')} "${widget.selectedInspectionRole}".'),
+      );
+    }
+
+    final asset = isProfessional
+        ? 'assets/images/modepro.png'
+        : 'assets/images/visitor_off.png';
+
+    final title = isProfessional
+        ? (widget.lang == 'ID'
+            ? 'Belum Ada Temuan Profesional'
+            : widget.lang == 'ZH'
+                ? '暂无专业模式发现'
+                : 'No Professional Findings Yet')
+        : (widget.lang == 'ID'
+            ? 'Belum Ada Temuan Visitor'
+            : widget.lang == 'ZH'
+                ? '暂无访客发现'
+                : 'No Visitor Findings Yet');
+
+    final subtitle = isProfessional
+        ? (widget.lang == 'ID'
+            ? 'Belum ada temuan yang tercatat menggunakan Mode Profesional pada periode ini.'
+            : widget.lang == 'ZH'
+                ? '本期尚未有使用专业模式记录的发现。'
+                : 'No findings have been recorded using Professional Mode for this period.')
+        : (widget.lang == 'ID'
+            ? 'Belum ada temuan yang tercatat oleh Visitor pada periode ini.'
+            : widget.lang == 'ZH'
+                ? '本期尚未有访客记录的发现。'
+                : 'No findings have been recorded by Visitors for this period.');
+
+    final Color accent = isProfessional
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF3B82F6);
+
+    return Align(
+      alignment: const Alignment(0, -0.35),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(colors: [
+                accent.withOpacity(0.16),
+                accent.withOpacity(0.02),
+              ]),
+              boxShadow: [
+                BoxShadow(
+                    color: accent.withOpacity(0.18),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10)),
+              ],
+            ),
+            child: Image.asset(
+              asset,
+              width: 130,
+              height: 130,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Icon(
+                  Icons.image_not_supported_rounded,
+                  size: 80,
+                  color: accent.withOpacity(0.4)),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: accent,
+                  letterSpacing: 0.1)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: accent.withOpacity(0.18)),
+            ),
+            child: Text(subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    color: _AppColors.textPrimary,
+                    height: 1.55,
+                    fontWeight: FontWeight.w500)),
+          ),
+        ]),
+      ),
+    );
   }
 
   Widget _buildLastUpdatedWidget() {
@@ -232,20 +343,16 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: List.generate(cols.length, (i) {
-          final isFirst = i == 0;
           return Expanded(
             flex: flex[i],
-            child: Padding(
-              padding: EdgeInsets.only(left: isFirst ? 44 : 0),
-              child: Text(
-                cols[i],
-                textAlign: isFirst ? TextAlign.left : TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: _AppColors.textSecondary,
-                    letterSpacing: 0.2),
-              ),
+            child: Text(
+              cols[i],
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: _AppColors.textSecondary,
+                  letterSpacing: 0.2),
             ),
           );
         }),
@@ -263,16 +370,13 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
       child: Row(children: [
         Expanded(
           flex: 3,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 44),
-            child: Text(
-              vals[0],
-              textAlign: TextAlign.left,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _AppColors.primary),
-            ),
+          child: Text(
+            vals[0],
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _AppColors.primary),
           ),
         ),
         ...vals.sublist(1).map((v) => Expanded(
@@ -298,19 +402,35 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: [
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Expanded(
             flex: 3,
-            child: Row(children: [
-              _Avatar5R(name: item.name, size: 34),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: Text(item.name,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: _AppColors.textPrimary))),
-            ])),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _Avatar5R(name: item.name, avatarUrl: item.avatarUrl, size: 36),
+                const SizedBox(width: 10),
+                Expanded(child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.name,
+                        textAlign: TextAlign.left,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _AppColors.textPrimary)),
+                    const SizedBox(height: 4),
+                    _buildJabatanBadge(
+                        idJabatan: item.idJabatan,
+                        jabatanNama: item.jabatanNama,
+                        isVerificator: item.isVerificator),
+                  ],
+                )),
+              ],
+            )),
         Expanded(
             flex: 1,
             child: Text(
@@ -321,6 +441,40 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
                   fontWeight: FontWeight.w600,
                   color: findingsColor),
             )),
+      ]),
+    );
+  }
+
+  // ─── Jabatan badge (ikon + warna sesuai JabatanHelper) ─────────────────────
+  Widget _buildJabatanBadge({
+    required int?    idJabatan,
+    required String? jabatanNama,
+    required bool?   isVerificator,
+  }) {
+    final label = JabatanHelper.getDisplayRole(
+      isVerificatorFlag: isVerificator,
+      idJabatan: idJabatan,
+      jabatanFromDb: jabatanNama,
+      lang: widget.lang,
+    );
+    if (label.isEmpty) return const SizedBox.shrink();
+    final color = JabatanHelper.getPrimaryColor(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    final icon = JabatanHelper.getRoleIcon(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha:0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha:0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 10, color: color),
+        const SizedBox(width: 3),
+        Text(label,
+            style: TextStyle(
+                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
       ]),
     );
   }

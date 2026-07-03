@@ -457,7 +457,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
       final List<dynamic> temuanRes = await _supabase
           .from('temuan')
-          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama)')
+          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan))')
           .neq('jenis_temuan', 'KTS Production')
           .eq(roleCol, true)
           .gte('created_at', DateTime(year, month, 1).toIso8601String())
@@ -469,14 +469,44 @@ class _Analytics5RTabState extends State<Analytics5RTab>
         if (user == null) continue;
         final userId = item['id_user']?.toString() ?? '';
         if (userId.isEmpty) continue;
-        grouped.putIfAbsent(userId, () => {'nama': user['nama'] ?? '-', 'temuan': 0});
+        grouped.putIfAbsent(userId, () => {
+          'nama': user['nama'] ?? '-',
+          'temuan': 0,
+          'gambar_user': user['gambar_user'],
+          'id_jabatan': user['id_jabatan'],
+          'is_verificator': user['is_verificator'],
+          'jabatan_nama': (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'],
+        });
         grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
+      }
+
+      if (role == 'Eksekutif') {
+        final List<dynamic> eksekutifUsers = await _supabase
+            .from('User')
+            .select('id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
+            .eq('id_jabatan', 1);
+        for (final u in eksekutifUsers) {
+          final uid = u['id_user']?.toString() ?? '';
+          if (uid.isEmpty) continue;
+          grouped.putIfAbsent(uid, () => {
+            'nama': u['nama'] ?? '-',
+            'temuan': 0,
+            'gambar_user': u['gambar_user'],
+            'id_jabatan': u['id_jabatan'],
+            'is_verificator': u['is_verificator'],
+            'jabatan_nama': (u['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'],
+          });
+        }
       }
 
       return grouped.values
           .map((item) => InspectionData5R(
                 name: item['nama'] as String,
                 findings: item['temuan'] as int,
+                avatarUrl: item['gambar_user'] as String?,
+                idJabatan: item['id_jabatan'] as int?,
+                jabatanNama: item['jabatan_nama'] as String?,
+                isVerificator: item['is_verificator'] as bool?,
               ))
           .toList()
         ..sort((a, b) {
@@ -633,7 +663,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
       final List<dynamic> temuanRes = await _supabase
           .from('temuan')
-          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama)')
+          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan))')
           .neq('jenis_temuan', 'KTS Production')
           .eq(roleCol, true)
           .gte('created_at', start.toIso8601String())
@@ -645,14 +675,44 @@ class _Analytics5RTabState extends State<Analytics5RTab>
         if (user == null) continue;
         final userId = item['id_user']?.toString() ?? '';
         if (userId.isEmpty) continue;
-        grouped.putIfAbsent(userId, () => {'nama': user['nama'] ?? '-', 'temuan': 0});
+        grouped.putIfAbsent(userId, () => {
+          'nama': user['nama'] ?? '-',
+          'temuan': 0,
+          'gambar_user': user['gambar_user'],
+          'id_jabatan': user['id_jabatan'],
+          'is_verificator': user['is_verificator'],
+          'jabatan_nama': (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'],
+        });
         grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
+      }
+
+      if (role == 'Eksekutif') {
+        final List<dynamic> eksekutifUsers = await _supabase
+            .from('User')
+            .select('id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
+            .eq('id_jabatan', 1);
+        for (final u in eksekutifUsers) {
+          final uid = u['id_user']?.toString() ?? '';
+          if (uid.isEmpty) continue;
+          grouped.putIfAbsent(uid, () => {
+            'nama': u['nama'] ?? '-',
+            'temuan': 0,
+            'gambar_user': u['gambar_user'],
+            'id_jabatan': u['id_jabatan'],
+            'is_verificator': u['is_verificator'],
+            'jabatan_nama': (u['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'],
+          });
+        }
       }
 
       return grouped.values
           .map((item) => InspectionData5R(
                 name: item['nama'] as String,
                 findings: item['temuan'] as int,
+                avatarUrl: item['gambar_user'] as String?,
+                idJabatan: item['id_jabatan'] as int?,
+                jabatanNama: item['jabatan_nama'] as String?,
+                isVerificator: item['is_verificator'] as bool?,
               ))
           .toList()
         ..sort((a, b) {

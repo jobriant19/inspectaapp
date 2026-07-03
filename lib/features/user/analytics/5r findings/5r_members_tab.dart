@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../core/utils/jabatan_helper.dart';
+
 class _AppColors {
   static const primary             = Color(0xFF0EA5E9);
   static const primaryLight        = Color(0xFFE0F2FE);
@@ -22,6 +24,9 @@ class MemberData5R {
   final bool    isSelf;
   final String? avatarUrl;
   final Color?  avatarColor;
+  final int?    idJabatan;
+  final String? jabatanNama;
+  final bool?   isVerificator;
 
   const MemberData5R({
     required this.name,
@@ -31,6 +36,9 @@ class MemberData5R {
     this.isSelf      = false,
     this.avatarUrl,
     this.avatarColor,
+    this.idJabatan,
+    this.jabatanNama,
+    this.isVerificator,
   });
 }
 
@@ -132,7 +140,8 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
       var userQuery = _supabase
           .from('User')
           .select(
-              'id_user, nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit)');
+              'id_user, nama, gambar_user, id_unit, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
+          .or('id_jabatan.is.null,id_jabatan.neq.6');
       if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
       final List<dynamic> users = await userQuery;
       if (users.isEmpty) return [];
@@ -171,6 +180,9 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
           isSelf:    uid == currentUserId,
           avatarUrl: u['gambar_user'] as String?,
           avatarColor: const Color(0xFF0EA5E9),
+          idJabatan: u['id_jabatan'] as int?,
+          jabatanNama: (u['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
+          isVerificator: u['is_verificator'] as bool?,
         );
       }).toList()
         ..sort((a, b) {
@@ -193,7 +205,8 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
       var userQuery = _supabase
           .from('User')
           .select(
-              'id_user, nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit)');
+              'id_user, nama, gambar_user, id_unit, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
+          .or('id_jabatan.is.null,id_jabatan.neq.6');
       if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
       final List<dynamic> users = await userQuery;
       if (users.isEmpty) return [];
@@ -233,6 +246,9 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
               isSelf:    uid == currentUserId,
               avatarUrl: u['gambar_user'] as String?,
               avatarColor: const Color(0xFF0EA5E9),
+              idJabatan: u['id_jabatan'] as int?,
+              jabatanNama: (u['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
+              isVerificator: u['is_verificator'] as bool?,
             );
           })
           .toList()
@@ -413,29 +429,35 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     return Container(
       color: m.isSelf ? _AppColors.selfHighlight : Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-      child: Row(children: [
-        Expanded(flex: 3, child: Row(children: [
-          _Avatar5R(
-              name: m.name, avatarUrl: m.avatarUrl,
-              color: m.avatarColor, size: 34),
-          const SizedBox(width: 10),
-          Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(m.name,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: _AppColors.textPrimary),
-                overflow: TextOverflow.ellipsis),
-            if (m.unitName != null && m.unitName!.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(m.unitName!,
-                  style: const TextStyle(
-                      fontSize: 11, color: _AppColors.textSecondary),
-                  overflow: TextOverflow.ellipsis),
-            ],
-          ])),
-        ])),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Expanded(flex: 3, child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _Avatar5R(
+                name: m.name, avatarUrl: m.avatarUrl,
+                color: m.avatarColor, size: 36),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(m.name,
+                    textAlign: TextAlign.left,
+                    maxLines: 1,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _AppColors.textPrimary),
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                _buildJabatanBadge(
+                    idJabatan: m.idJabatan,
+                    jabatanNama: m.jabatanNama,
+                    isVerificator: m.isVerificator),
+              ],
+            )),
+          ],
+        )),
         Expanded(
           flex: 1,
           child: Text('${m.findings}',
@@ -484,21 +506,37 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(children: [
-        Expanded(flex: 3, child: Row(children: [
-          _Avatar5R(
-              name: self.name,
-              avatarUrl: self.avatarUrl,
-              color: self.avatarColor,
-              size: 34),
-          const SizedBox(width: 10),
-          Expanded(child: Text(self.name,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _AppColors.textPrimary),
-              overflow: TextOverflow.ellipsis)),
-        ])),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Expanded(flex: 3, child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _Avatar5R(
+                name: self.name,
+                avatarUrl: self.avatarUrl,
+                color: self.avatarColor,
+                size: 36),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(self.name,
+                    textAlign: TextAlign.left,
+                    maxLines: 1,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _AppColors.textPrimary),
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
+                _buildJabatanBadge(
+                    idJabatan: self.idJabatan,
+                    jabatanNama: self.jabatanNama,
+                    isVerificator: self.isVerificator),
+              ],
+            )),
+          ],
+        )),
         Expanded(
           flex: 1,
           child: Text('${self.findings}',
@@ -575,6 +613,40 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
         borderRadius: BorderRadius.circular(
             isCircle ? height / 2 : borderRadius),
       ),
+    );
+  }
+
+  // ─── Jabatan badge (ikon + warna sesuai JabatanHelper) ─────────────────────
+  Widget _buildJabatanBadge({
+    required int?    idJabatan,
+    required String? jabatanNama,
+    required bool?   isVerificator,
+  }) {
+    final label = JabatanHelper.getDisplayRole(
+      isVerificatorFlag: isVerificator,
+      idJabatan: idJabatan,
+      jabatanFromDb: jabatanNama,
+      lang: widget.lang,
+    );
+    if (label.isEmpty) return const SizedBox.shrink();
+    final color = JabatanHelper.getPrimaryColor(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    final icon = JabatanHelper.getRoleIcon(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 10, color: color),
+        const SizedBox(width: 3),
+        Text(label,
+            style: TextStyle(
+                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
+      ]),
     );
   }
 
