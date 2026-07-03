@@ -457,7 +457,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
       final List<dynamic> temuanRes = await _supabase
           .from('temuan')
-          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan))')
+          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan))')
           .neq('jenis_temuan', 'KTS Production')
           .eq(roleCol, true)
           .gte('created_at', DateTime(year, month, 1).toIso8601String())
@@ -476,6 +476,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
           'id_jabatan': user['id_jabatan'],
           'is_verificator': user['is_verificator'],
           'jabatan_nama': (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'],
+          'unit_nama': (user['unit'] as Map<String, dynamic>?)?['nama_unit'],
         });
         grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
       }
@@ -483,7 +484,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       if (role == 'Eksekutif') {
         final List<dynamic> eksekutifUsers = await _supabase
             .from('User')
-            .select('id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
+            .select('id_user, nama, gambar_user, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
             .eq('id_jabatan', 1);
         for (final u in eksekutifUsers) {
           final uid = u['id_user']?.toString() ?? '';
@@ -495,6 +496,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
             'id_jabatan': u['id_jabatan'],
             'is_verificator': u['is_verificator'],
             'jabatan_nama': (u['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'],
+            'unit_nama': (u['unit'] as Map<String, dynamic>?)?['nama_unit'],
           });
         }
       }
@@ -507,6 +509,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                 idJabatan: item['id_jabatan'] as int?,
                 jabatanNama: item['jabatan_nama'] as String?,
                 isVerificator: item['is_verificator'] as bool?,
+                unitName: item['unit_nama'] as String?,
               ))
           .toList()
         ..sort((a, b) {
@@ -663,7 +666,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
 
       final List<dynamic> temuanRes = await _supabase
           .from('temuan')
-          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan))')
+          .select('id_user, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan))')
           .neq('jenis_temuan', 'KTS Production')
           .eq(roleCol, true)
           .gte('created_at', start.toIso8601String())
@@ -682,6 +685,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
           'id_jabatan': user['id_jabatan'],
           'is_verificator': user['is_verificator'],
           'jabatan_nama': (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'],
+          'unit_nama': (user['unit'] as Map<String, dynamic>?)?['nama_unit'],
         });
         grouped[userId]!['temuan'] = (grouped[userId]!['temuan'] as int) + 1;
       }
@@ -689,7 +693,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       if (role == 'Eksekutif') {
         final List<dynamic> eksekutifUsers = await _supabase
             .from('User')
-            .select('id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
+            .select('id_user, nama, gambar_user, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
             .eq('id_jabatan', 1);
         for (final u in eksekutifUsers) {
           final uid = u['id_user']?.toString() ?? '';
@@ -701,6 +705,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
             'id_jabatan': u['id_jabatan'],
             'is_verificator': u['is_verificator'],
             'jabatan_nama': (u['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'],
+            'unit_nama': (u['unit'] as Map<String, dynamic>?)?['nama_unit'],
           });
         }
       }
@@ -713,6 +718,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
                 idJabatan: item['id_jabatan'] as int?,
                 jabatanNama: item['jabatan_nama'] as String?,
                 isVerificator: item['is_verificator'] as bool?,
+                unitName: item['unit_nama'] as String?,
               ))
           .toList()
         ..sort((a, b) {

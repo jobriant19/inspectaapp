@@ -20,6 +20,7 @@ class InspectionData5R {
   final int? idJabatan;
   final String? jabatanNama;
   final bool? isVerificator;
+  final String? unitName;
 
   const InspectionData5R({
     required this.name,
@@ -29,6 +30,7 @@ class InspectionData5R {
     this.idJabatan,
     this.jabatanNama,
     this.isVerificator,
+    this.unitName,
   });
 }
 
@@ -108,7 +110,8 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
                   ).format(widget.selectedDate!)
                 : widget.translatedMonths[widget.selectedMonthIndex],
             icon: Icons.calendar_month_rounded,
-            isActive: widget.filterMode == 'daily',
+            isActive: widget.filterMode == 'daily' ||
+                widget.selectedMonthIndex != DateTime.now().month - 1,
             onTap: () => widget.showMonthPicker(() {}),
           ),
           const SizedBox(width: 10),
@@ -423,10 +426,17 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
                             fontWeight: FontWeight.w600,
                             color: _AppColors.textPrimary)),
                     const SizedBox(height: 4),
-                    _buildJabatanBadge(
-                        idJabatan: item.idJabatan,
-                        jabatanNama: item.jabatanNama,
-                        isVerificator: item.isVerificator),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _buildJabatanBadge(
+                            idJabatan: item.idJabatan,
+                            jabatanNama: item.jabatanNama,
+                            isVerificator: item.isVerificator),
+                        _buildUnitBadge(item.unitName),
+                      ],
+                    ),
                   ],
                 )),
               ],
@@ -473,6 +483,29 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
         Icon(icon, size: 10, color: color),
         const SizedBox(width: 3),
         Text(label,
+            style: TextStyle(
+                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
+      ]),
+    );
+  }
+
+  Widget _buildUnitBadge(String? unitName) {
+    if (unitName == null || unitName.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final color = _UnitBadgeHelper.getColor(unitName);
+    final icon = _UnitBadgeHelper.getIcon(unitName);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 10, color: color),
+        const SizedBox(width: 3),
+        Text(unitName,
             style: TextStyle(
                 fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
       ]),
@@ -572,5 +605,43 @@ class _Avatar5R extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _UnitBadgeHelper {
+  static const List<Color> _palette = [
+    Color(0xFF0D9488), // teal
+    Color(0xFF6366F1), // indigo
+    Color(0xFF8B5CF6), // purple
+    Color(0xFFEC4899), // pink
+    Color(0xFF06B6D4), // cyan
+    Color(0xFFF97316), // orange
+    Color(0xFF84CC16), // lime
+    Color(0xFFEF4444), // red
+  ];
+
+  static Color getColor(String unitName) {
+    final name = unitName.toLowerCase();
+    if (name.contains('finance')) return const Color(0xFF0D9488);
+    if (name.contains('fabrication')) return const Color(0xFF6366F1);
+    if (name.contains('machine') || name.contains('mdc')) {
+      return const Color(0xFF8B5CF6);
+    }
+    if (name.contains('marketing')) return const Color(0xFFEC4899);
+    if (name.contains('support')) return const Color(0xFF06B6D4);
+    final idx = unitName.hashCode.abs() % _palette.length;
+    return _palette[idx];
+  }
+
+  static IconData getIcon(String unitName) {
+    final name = unitName.toLowerCase();
+    if (name.contains('finance')) return Icons.account_balance_wallet_rounded;
+    if (name.contains('fabrication')) return Icons.precision_manufacturing_rounded;
+    if (name.contains('machine') || name.contains('mdc')) {
+      return Icons.engineering_rounded;
+    }
+    if (name.contains('marketing')) return Icons.campaign_rounded;
+    if (name.contains('support')) return Icons.support_agent_rounded;
+    return Icons.apartment_rounded;
   }
 }
