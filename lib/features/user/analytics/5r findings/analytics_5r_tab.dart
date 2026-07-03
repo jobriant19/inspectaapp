@@ -156,6 +156,10 @@ class _Analytics5RTabState extends State<Analytics5RTab>
   int _targetAnggota = 2;
   int _targetInspeksi = 2;
 
+  // SPECIFIC LOCATION FILTER (Location Tab)
+  String? _selectedSpecificLocationId;
+  String? _selectedSpecificLocationName;
+
   late List<String> _translatedMonths;
   late List<String> _translatedRoles;
   late List<String> _translatedLocationLevels;
@@ -536,9 +540,11 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       final idCol = idMap[levelLower] ?? 'id_lokasi';
       final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
 
-      final List<dynamic> locations = await _supabase
-          .from(levelLower)
-          .select('$idCol, $nameCol');
+      var locQuery = _supabase.from(levelLower).select('$idCol, $nameCol');
+      if (_selectedSpecificLocationId != null) {
+        locQuery = locQuery.eq(idCol, _selectedSpecificLocationId!);
+      }
+      final List<dynamic> locations = await locQuery;
 
       final List<dynamic> temuanRes = await _supabase
           .from('temuan')
@@ -592,8 +598,11 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       final idCol   = idMap[levelLower]   ?? 'id_lokasi';
       final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
 
-      final List<dynamic> locations = await _supabase.from(levelLower)
-          .select('$idCol, $nameCol, id_pic');
+      var locQuery = _supabase.from(levelLower).select('$idCol, $nameCol, id_pic');
+      if (_selectedSpecificLocationId != null) {
+        locQuery = locQuery.eq(idCol, _selectedSpecificLocationId!);
+      }
+      final List<dynamic> locations = await locQuery;
 
       final startOfMonth = DateTime(year, month, 1).toIso8601String().split('T').first;
       final endOfMonth   = DateTime(year, month + 1, 0).toIso8601String().split('T').first;
@@ -747,9 +756,11 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       final idCol = idMap[levelLower] ?? 'id_lokasi';
       final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
 
-      final List<dynamic> locations = await _supabase
-          .from(levelLower)
-          .select('$idCol, $nameCol');
+      var locQuery = _supabase.from(levelLower).select('$idCol, $nameCol');
+      if (_selectedSpecificLocationId != null) {
+        locQuery = locQuery.eq(idCol, _selectedSpecificLocationId!);
+      }
+      final List<dynamic> locations = await locQuery;
 
       final List<dynamic> temuanRes = await _supabase
           .from('temuan')
@@ -886,12 +897,16 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       if (!isDaily) {
         final levelBackend = ['lokasi', 'unit', 'subunit', 'area'][
             _translatedLocationLevels.indexOf(_selectedLocationLevel).clamp(0, 3)];
-        final List<dynamic> auditRes = await _supabase
+        var auditQuery = _supabase
             .from('audit_result')
             .select('tanggal_audit, nilai_audit')
             .eq('level_type', levelBackend)
             .gte('tanggal_audit', startOfMonth.toIso8601String().split('T').first)
             .lte('tanggal_audit', endOfMonth.toIso8601String().split('T').first);
+        if (_selectedSpecificLocationId != null) {
+          auditQuery = auditQuery.eq('id_ref', _selectedSpecificLocationId!);
+        }
+        final List<dynamic> auditRes = await auditQuery;
 
         final Map<int, List<double>> dayScores = {};
         for (final a in auditRes) {
@@ -918,13 +933,17 @@ class _Analytics5RTabState extends State<Analytics5RTab>
         'subunit': 'id_subunit', 'area': 'id_area',
       };
       final idCol    = idColMap[levelBackend] ?? 'id_lokasi';
-      final List<dynamic> res = await _supabase
+      var temuanLocQuery = _supabase
           .from('temuan')
           .select('created_at, id_penyelesaian, $idCol')
           .neq('jenis_temuan', 'KTS Production')
           .gte('created_at', startDt.toIso8601String())
           .lte('created_at', endDt.toIso8601String())
           .not(idCol, 'is', null);
+      if (_selectedSpecificLocationId != null) {
+        temuanLocQuery = temuanLocQuery.eq(idCol, _selectedSpecificLocationId!);
+      }
+      final List<dynamic> res = await temuanLocQuery;
       return buildDailyFromTemuan(res);
     } catch (e) {
       debugPrint('Error fetching chart data: $e');
@@ -1345,6 +1364,7 @@ class _Analytics5RTabState extends State<Analytics5RTab>
       selectedMonthIndex: _selectedMonthIndex,
       selectedDate: _selectedDate,
       selectedLocationLevel: _selectedLocationLevel,
+      selectedLocationName: _selectedSpecificLocationName,
       translatedMonths: _translatedMonths,
       translatedLocationLevels: _translatedLocationLevels,
       lastUpdatedText: _lastUpdatedText,
@@ -1780,63 +1800,357 @@ class _Analytics5RTabState extends State<Analytics5RTab>
   }
 
   void _showLevelPicker() async {
-    await showDialog<String>(
+    String tempLevelLabel = _selectedLocationLevel;
+    String? tempSelectedId = _selectedSpecificLocationId;
+    final searchCtrl = TextEditingController();
+    List<Map<String, dynamic>> items = [];
+    bool loadingItems = true;
+    bool levelDropdownOpen = false;
+
+    IconData levelIcon(String label) {
+      final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
+      return [
+        Icons.location_city_rounded,
+        Icons.apartment_rounded,
+        Icons.account_tree_rounded,
+        Icons.map_rounded,
+      ][idx];
+    }
+
+    Color levelColor(String label) {
+      final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
+      return [
+        const Color(0xFF0EA5E9), // Lokasi
+        const Color(0xFF6366F1), // Unit
+        const Color(0xFF8B5CF6), // Subunit
+        const Color(0xFFF59E0B), // Area
+      ][idx];
+    }
+
+    Future<List<Map<String, dynamic>>> fetchItemsForLevel(String levelLabel) async {
+      final levelBackend = ['Lokasi', 'Unit', 'Subunit', 'Area'][
+          _translatedLocationLevels.indexOf(levelLabel).clamp(0, 3)];
+      final levelLower = levelBackend.toLowerCase();
+      final idMap = {'lokasi': 'id_lokasi', 'unit': 'id_unit', 'subunit': 'id_subunit', 'area': 'id_area'};
+      final nameMap = {'lokasi': 'nama_lokasi', 'unit': 'nama_unit', 'subunit': 'nama_subunit', 'area': 'nama_area'};
+      final idCol = idMap[levelLower] ?? 'id_lokasi';
+      final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
+      try {
+        final res = await _supabase.from(levelLower).select('$idCol, $nameCol').order(nameCol);
+        return List<Map<String, dynamic>>.from(res)
+            .map((e) => {'id': e[idCol]?.toString() ?? '', 'name': e[nameCol]?.toString() ?? '-'})
+            .toList();
+      } catch (e) {
+        debugPrint('Error fetching level items: $e');
+        return [];
+      }
+    }
+
+    await showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
-          decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _AppColors.primaryLight, width: 1.5)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: const BoxDecoration(
-                color: _AppColors.primaryLight,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-              child: Row(children: [
-                const Icon(Icons.tune_rounded, color: _AppColors.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(getTxt('pilih_level'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _AppColors.textPrimary))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _AppColors.textSecondary),
-                  onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
-              ]),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          if (loadingItems) {
+            fetchItemsForLevel(tempLevelLabel).then((res) {
+              items = res;
+              loadingItems = false;
+              setSt(() {});
+            });
+          }
+
+          final query = searchCtrl.text.trim().toLowerCase();
+          final filteredItems = query.isEmpty
+              ? items
+              : items.where((e) => (e['name'] as String).toLowerCase().contains(query)).toList();
+          final currentLevelColor = levelColor(tempLevelLabel);
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              width: 340,
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _AppColors.primaryLight, width: 1.5)),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(clipBehavior: Clip.none, children: [
+                  Column(children: [
+                    // HEADER
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+                      decoration: const BoxDecoration(
+                        color: _AppColors.primaryLight,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                      child: Row(children: [
+                        const Icon(Icons.tune_rounded, color: _AppColors.primary, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(getTxt('pilih_lokasi'),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _AppColors.textPrimary))),
+                        IconButton(icon: const Icon(Icons.close, size: 18, color: _AppColors.textSecondary),
+                          onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                      ]),
+                    ),
+                    // SEARCH + LEVEL DROPDOWN TRIGGER (FIXED, TIDAK IKUT SCROLL)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                        Expanded(
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: _AppColors.primary.withValues(alpha: 0.35), width: 1.3),
+                              boxShadow: [BoxShadow(
+                                  color: _AppColors.primary.withValues(alpha: 0.08),
+                                  blurRadius: 6, offset: const Offset(0, 2))],
+                            ),
+                            child: TextField(
+                              controller: searchCtrl,
+                              onChanged: (_) => setSt(() {}),
+                              style: const TextStyle(fontSize: 13, color: _AppColors.textPrimary, fontWeight: FontWeight.w500),
+                              decoration: InputDecoration(
+                                hintText: getTxt('cari'),
+                                hintStyle: const TextStyle(fontSize: 12.5, color: _AppColors.textMuted),
+                                prefixIcon: const Icon(Icons.search_rounded, color: _AppColors.primary, size: 19),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => setSt(() => levelDropdownOpen = !levelDropdownOpen),
+                          child: Container(
+                            width: 132,
+                            height: 44,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: currentLevelColor,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [BoxShadow(
+                                  color: currentLevelColor.withValues(alpha: 0.30),
+                                  blurRadius: 8, offset: const Offset(0, 3))],
+                            ),
+                            child: Row(children: [
+                              Icon(levelIcon(tempLevelLabel), color: Colors.white, size: 16),
+                              const SizedBox(width: 6),
+                              Expanded(child: Text(tempLevelLabel,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white))),
+                              AnimatedRotation(
+                                turns: levelDropdownOpen ? 0.5 : 0,
+                                duration: const Duration(milliseconds: 200),
+                                child: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 18),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      ]),
+                    ),
+                    const Divider(height: 1, color: _AppColors.divider),
+                    // HASIL (SCROLLABLE, AREA TETAP KONSISTEN)
+                    Expanded(
+                      child: loadingItems
+                          ? const Center(child: CircularProgressIndicator(color: _AppColors.primary, strokeWidth: 2))
+                          : ListView(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              children: [
+                                // OPSI "SEMUA"
+                                InkWell(
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    setState(() {
+                                      _selectedLocationLevel = tempLevelLabel;
+                                      _selectedSpecificLocationId = null;
+                                      _selectedSpecificLocationName = null;
+                                    });
+                                    _fetchAllData(fromTabFilter: true);
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: tempSelectedId == null
+                                          ? currentLevelColor.withValues(alpha: 0.10)
+                                          : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: tempSelectedId == null ? currentLevelColor : _AppColors.divider,
+                                        width: tempSelectedId == null ? 1.5 : 1),
+                                    ),
+                                    child: Row(children: [
+                                      Icon(Icons.apps_rounded,
+                                          size: 18,
+                                          color: tempSelectedId == null ? currentLevelColor : _AppColors.textSecondary),
+                                      const SizedBox(width: 10),
+                                      Expanded(child: Text('${getTxt('semua_grup_anggota')} ($tempLevelLabel)',
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: tempSelectedId == null ? FontWeight.bold : FontWeight.w500,
+                                              color: tempSelectedId == null ? currentLevelColor : _AppColors.textPrimary))),
+                                      if (tempSelectedId == null)
+                                        Icon(Icons.check_circle_rounded, color: currentLevelColor, size: 18),
+                                    ]),
+                                  ),
+                                ),
+                                if (filteredItems.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 24),
+                                    child: Center(
+                                      child: Text(getTxt('tidak_ada_data_level'),
+                                          style: const TextStyle(fontSize: 12.5, color: _AppColors.textSecondary)),
+                                    ),
+                                  )
+                                else
+                                  ...filteredItems.map((item) {
+                                    final isSel = item['id'] == tempSelectedId;
+                                    return InkWell(
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        setState(() {
+                                          _selectedLocationLevel = tempLevelLabel;
+                                          _selectedSpecificLocationId = item['id'] as String;
+                                          _selectedSpecificLocationName = item['name'] as String;
+                                        });
+                                        _fetchAllData(fromTabFilter: true);
+                                      },
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: isSel ? currentLevelColor.withValues(alpha: 0.10) : Colors.white,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isSel ? currentLevelColor : _AppColors.divider,
+                                            width: isSel ? 1.5 : 1),
+                                        ),
+                                        child: Row(children: [
+                                          Container(
+                                            width: 34, height: 34,
+                                            decoration: BoxDecoration(
+                                              color: isSel ? currentLevelColor : _AppColors.surface,
+                                              borderRadius: BorderRadius.circular(9),
+                                            ),
+                                            child: Icon(levelIcon(tempLevelLabel),
+                                                size: 17, color: isSel ? Colors.white : currentLevelColor),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(item['name'] as String,
+                                                    style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                                        color: isSel ? currentLevelColor : _AppColors.textPrimary),
+                                                    overflow: TextOverflow.ellipsis),
+                                                const SizedBox(height: 4),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                                  decoration: BoxDecoration(
+                                                    color: currentLevelColor.withValues(alpha: 0.12),
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    border: Border.all(color: currentLevelColor.withValues(alpha: 0.4)),
+                                                  ),
+                                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                                    Icon(levelIcon(tempLevelLabel), size: 9, color: currentLevelColor),
+                                                    const SizedBox(width: 3),
+                                                    Text(tempLevelLabel,
+                                                        style: TextStyle(
+                                                            fontSize: 9, fontWeight: FontWeight.w700, color: currentLevelColor)),
+                                                  ]),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          if (isSel)
+                                            Icon(Icons.check_circle_rounded, color: currentLevelColor, size: 18),
+                                        ]),
+                                      ),
+                                    );
+                                  }),
+                              ],
+                            ),
+                    ),
+                  ]),
+
+                  // BARRIER: TUTUP DROPDOWN JIKA TAP DI LUAR PANEL
+                  if (levelDropdownOpen)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () => setSt(() => levelDropdownOpen = false),
+                        child: Container(color: Colors.transparent),
+                      ),
+                    ),
+
+                  // DROPDOWN PANEL (MENURUN DARI BUTTON, TETAP DI DALAM AREA POPUP)
+                  if (levelDropdownOpen)
+                    Positioned(
+                      top: 102,
+                      right: 14,
+                      width: 160,
+                      child: Material(
+                        elevation: 10,
+                        borderRadius: BorderRadius.circular(12),
+                        shadowColor: Colors.black.withValues(alpha: 0.25),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: _AppColors.divider),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: _translatedLocationLevels.map((lvl) {
+                              final isSel = lvl == tempLevelLabel;
+                              final color = levelColor(lvl);
+                              return InkWell(
+                                onTap: () {
+                                  tempLevelLabel = lvl;
+                                  tempSelectedId = null;
+                                  loadingItems = true;
+                                  searchCtrl.clear();
+                                  levelDropdownOpen = false;
+                                  setSt(() {});
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: isSel ? color.withValues(alpha: 0.12) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(children: [
+                                    Icon(levelIcon(lvl), size: 16, color: isSel ? color : _AppColors.textSecondary),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(lvl,
+                                        style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                                            color: isSel ? color : _AppColors.textPrimary))),
+                                    if (isSel) Icon(Icons.check_rounded, size: 15, color: color),
+                                  ]),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                ]),
+              ),
             ),
-            Flexible(child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 12),
-              itemCount: _translatedLocationLevels.length,
-              itemBuilder: (_, i) {
-                final lbl = _translatedLocationLevels[i];
-                final isSel = lbl == _selectedLocationLevel;
-                return InkWell(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    setState(() => _selectedLocationLevel = lbl);
-                    _fetchAllData(fromTabFilter: true);
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSel ? _AppColors.primaryLight : Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSel ? _AppColors.primary : _AppColors.divider, width: 1)),
-                    child: Row(children: [
-                      Expanded(child: Text(lbl, style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                        color: isSel ? _AppColors.primary : _AppColors.textPrimary))),
-                      if (isSel) const Icon(Icons.check_circle_rounded, color: _AppColors.primary, size: 16),
-                    ]),
-                  ),
-                );
-              },
-            )),
-          ]),
-        ),
+          );
+        },
       ),
     );
   }

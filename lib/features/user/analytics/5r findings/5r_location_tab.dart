@@ -51,6 +51,7 @@ class FiveRLocationTab extends StatelessWidget {
   final int selectedMonthIndex;
   final DateTime? selectedDate;
   final String selectedLocationLevel;
+  final String? selectedLocationName;
   final List<String> translatedMonths;
   final List<String> translatedLocationLevels;
   final String lastUpdatedText;
@@ -77,6 +78,7 @@ class FiveRLocationTab extends StatelessWidget {
     required this.selectedMonthIndex,
     required this.selectedDate,
     required this.selectedLocationLevel,
+    this.selectedLocationName,
     required this.translatedMonths,
     required this.translatedLocationLevels,
     required this.lastUpdatedText,
@@ -123,7 +125,7 @@ class FiveRLocationTab extends StatelessWidget {
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
@@ -152,7 +154,11 @@ class FiveRLocationTab extends StatelessWidget {
 
   // ─── Level filter button (fill, tulisan center, arrow kanan) ──────────────
   Widget _buildLocationLevelFilterButton() {
-    final isActive = selectedLocationLevel != translatedLocationLevels[0];
+    final hasSpecificLocation =
+        selectedLocationName != null && selectedLocationName!.isNotEmpty;
+    final isActive =
+        hasSpecificLocation || selectedLocationLevel != translatedLocationLevels[0];
+    final label = hasSpecificLocation ? selectedLocationName! : selectedLocationLevel;
     return GestureDetector(
       onTap: showLevelPicker,
       child: Container(
@@ -166,11 +172,11 @@ class FiveRLocationTab extends StatelessWidget {
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
-            child: Text(selectedLocationLevel,
+            child: Text(label,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
@@ -300,7 +306,7 @@ class FiveRLocationTab extends StatelessWidget {
       decoration: BoxDecoration(
         color: _AppColors.primaryLight,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _AppColors.primary.withOpacity(0.3)),
+        border: Border.all(color: _AppColors.primary.withValues(alpha:0.3)),
       ),
       child: Row(children: [
         const Icon(Icons.calendar_today_rounded, size: 15, color: _AppColors.primary),
@@ -387,10 +393,20 @@ class FiveRLocationTab extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                             color: _AppColors.textPrimary),
                         overflow: TextOverflow.ellipsis),
-                    Text(loc.pic,
-                        style: const TextStyle(
-                            fontSize: 11.5, color: _AppColors.textSecondary),
-                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 3),
+                    Row(children: [
+                      Icon(Icons.badge_rounded,
+                          size: 12, color: _AppColors.primary.withValues(alpha:0.7)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(loc.pic,
+                            style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                color: _AppColors.textSecondary),
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ]),
                   ])),
             ])),
         SizedBox(
@@ -442,7 +458,7 @@ class FiveRLocationTab extends StatelessWidget {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                        color: scoreColor.withOpacity(0.12),
+                        color: scoreColor.withValues(alpha:0.12),
                         borderRadius: BorderRadius.circular(10)),
                     child: Icon(Icons.location_city_rounded,
                         color: scoreColor, size: 20)),
@@ -457,17 +473,27 @@ class FiveRLocationTab extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: _AppColors.textPrimary),
                           overflow: TextOverflow.ellipsis),
-                      Text(loc.pic,
-                          style: const TextStyle(
-                              fontSize: 11.5, color: _AppColors.textSecondary),
-                          overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 3),
+                      Row(children: [
+                        Icon(Icons.badge_rounded,
+                            size: 12, color: scoreColor.withValues(alpha:0.75)),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(loc.pic,
+                              style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: _AppColors.textSecondary),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                      ]),
                       if (loc.auditDate != null) ...[
                         const SizedBox(height: 2),
                         ClipRRect(
                             borderRadius: BorderRadius.circular(3),
                             child: LinearProgressIndicator(
                                 value: score != null ? score / 100 : 0,
-                                backgroundColor: scoreColor.withOpacity(0.15),
+                                backgroundColor: scoreColor.withValues(alpha:0.15),
                                 valueColor:
                                     AlwaysStoppedAnimation<Color>(scoreColor),
                                 minHeight: 4)),
@@ -711,7 +737,7 @@ class _AuditLocationDetailSheetState extends State<AuditLocationDetailSheet> {
                       horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                       color: _scoreColor(widget.loc.auditScore)
-                          .withOpacity(0.12),
+                          .withValues(alpha:0.12),
                       borderRadius: BorderRadius.circular(10)),
                   child: Text(
                       '${widget.loc.auditScore!.toStringAsFixed(0)}%',
@@ -761,10 +787,10 @@ class _AuditLocationDetailSheetState extends State<AuditLocationDetailSheet> {
                             return Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                  color: color.withOpacity(0.05),
+                                  color: color.withValues(alpha:0.05),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                      color: color.withOpacity(0.3))),
+                                      color: color.withValues(alpha:0.3))),
                               child: Column(
                                   crossAxisAlignment:
                                       CrossAxisAlignment.start,
@@ -775,7 +801,7 @@ class _AuditLocationDetailSheetState extends State<AuditLocationDetailSheet> {
                                           height: 44,
                                           decoration: BoxDecoration(
                                               color:
-                                                  color.withOpacity(0.12),
+                                                  color.withValues(alpha:0.12),
                                               shape: BoxShape.circle),
                                           child: Center(
                                               child: Text(
