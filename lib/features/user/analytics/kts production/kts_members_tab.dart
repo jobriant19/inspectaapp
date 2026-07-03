@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../core/utils/jabatan_helper.dart';
+
 class KTSAppColors {
   static const primary = Color(0xFFF59E0B);
   static const primaryLight = Color(0xFFFEF3C7);
@@ -23,6 +25,9 @@ class KTSMemberData {
   final bool isSelf;
   final String? avatarUrl;
   final Color? avatarColor;
+  final int? idJabatan;
+  final String? jabatanNama;
+  final bool? isVerificator;
 
   const KTSMemberData({
     required this.name,
@@ -32,6 +37,9 @@ class KTSMemberData {
     this.isSelf = false,
     this.avatarUrl,
     this.avatarColor,
+    this.idJabatan,
+    this.jabatanNama,
+    this.isVerificator,
   });
 }
 
@@ -169,54 +177,57 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
   Future<List<KTSMemberData>> _fetchKtsAnggotaData(
       int month, int year, String? unitId) async {
     try {
+      var userQuery = _supabase
+          .from('User')
+          .select(
+              'id_user, nama, gambar_user, id_unit, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
+          .or('id_jabatan.is.null,id_jabatan.neq.6');
+      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
+      final List<dynamic> users = await userQuery;
+      if (users.isEmpty) return [];
+
+      final userIds = users.map((u) => u['id_user'].toString()).toList();
+
       final List<dynamic> temuanRes = await _supabase
           .from('temuan')
-          .select(
-              'id_user, id_penyelesaian, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit))')
+          .select('id_user, id_penyelesaian')
           .eq('jenis_temuan', 'KTS Production')
           .gte('created_at', DateTime(year, month, 1).toIso8601String())
           .lte('created_at',
-              DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String());
+              DateTime(year, month + 1, 0, 23, 59, 59).toIso8601String())
+          .inFilter('id_user', userIds);
 
-      if (temuanRes.isEmpty) return [];
-
-      final Map<String, Map<String, dynamic>> grouped = {};
+      final Map<String, Map<String, int>> stats = {};
       for (final t in temuanRes) {
-        final user = t['User_Creator'] as Map<String, dynamic>?;
-        if (user == null) continue;
         final uid = t['id_user']?.toString() ?? '';
         if (uid.isEmpty) continue;
-        if (unitId != null) {
-          final userUnitId = user['id_unit']?.toString();
-          if (userUnitId != unitId) continue;
-        }
-        grouped.putIfAbsent(uid, () => {
-          'nama': user['nama'] ?? '-',
-          'gambar_user': user['gambar_user'],
-          'unitName': (user['unit'] as Map<String, dynamic>?)?['nama_unit'],
-          'temuan': 0,
-          'selesai': 0,
-        });
-        grouped[uid]!['temuan'] = (grouped[uid]!['temuan'] as int) + 1;
+        stats.putIfAbsent(uid, () => {'temuan': 0, 'selesai': 0});
+        stats[uid]!['temuan'] = stats[uid]!['temuan']! + 1;
         if (t['id_penyelesaian'] != null) {
-          grouped[uid]!['selesai'] = (grouped[uid]!['selesai'] as int) + 1;
+          stats[uid]!['selesai'] = stats[uid]!['selesai']! + 1;
         }
       }
 
-      return grouped.entries.map((e) {
-        final uid = e.key;
-        final v = e.value;
+      return users.map((u) {
+        final uid = u['id_user']?.toString() ?? '';
+        final s = stats[uid] ?? {'temuan': 0, 'selesai': 0};
         return KTSMemberData(
-          name: v['nama'] as String? ?? '-',
-          unitName: v['unitName'] as String?,
-          findings: v['temuan'] as int,
-          completed: v['selesai'] as int,
+          name: u['nama'] as String? ?? '-',
+          unitName: (u['unit'] as Map<String, dynamic>?)?['nama_unit'] as String?,
+          findings: s['temuan']!,
+          completed: s['selesai']!,
           isSelf: uid == widget.userId,
-          avatarUrl: v['gambar_user'] as String?,
+          avatarUrl: u['gambar_user'] as String?,
           avatarColor: const Color(0xFFFBBF24),
+          idJabatan: u['id_jabatan'] as int?,
+          jabatanNama: (u['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
+          isVerificator: u['is_verificator'] as bool?,
         );
       }).toList()
-        ..sort((a, b) => b.findings.compareTo(a.findings));
+        ..sort((a, b) {
+          final c = b.findings.compareTo(a.findings);
+          return c != 0 ? c : a.name.compareTo(b.name);
+        });
     } catch (e) {
       debugPrint('Error fetching KTS Anggota: $e');
       return [];
@@ -229,53 +240,56 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
       final start = DateTime(date.year, date.month, date.day);
       final end = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
+      var userQuery = _supabase
+          .from('User')
+          .select(
+              'id_user, nama, gambar_user, id_unit, id_jabatan, is_verificator, unit!user_id_unit_fkey(nama_unit), jabatan!User_id_jabatan_fkey(nama_jabatan)')
+          .or('id_jabatan.is.null,id_jabatan.neq.6');
+      if (unitId != null) userQuery = userQuery.eq('id_unit', unitId);
+      final List<dynamic> users = await userQuery;
+      if (users.isEmpty) return [];
+
+      final userIds = users.map((u) => u['id_user'].toString()).toList();
+
       final List<dynamic> temuanRes = await _supabase
           .from('temuan')
-          .select(
-              'id_user, id_penyelesaian, User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_unit, unit!user_id_unit_fkey(nama_unit))')
+          .select('id_user, id_penyelesaian')
           .eq('jenis_temuan', 'KTS Production')
           .gte('created_at', start.toIso8601String())
-          .lte('created_at', end.toIso8601String());
+          .lte('created_at', end.toIso8601String())
+          .inFilter('id_user', userIds);
 
-      if (temuanRes.isEmpty) return [];
-
-      final Map<String, Map<String, dynamic>> grouped = {};
+      final Map<String, Map<String, int>> stats = {};
       for (final t in temuanRes) {
-        final user = t['User_Creator'] as Map<String, dynamic>?;
-        if (user == null) continue;
         final uid = t['id_user']?.toString() ?? '';
         if (uid.isEmpty) continue;
-        if (unitId != null) {
-          final userUnitId = user['id_unit']?.toString();
-          if (userUnitId != unitId) continue;
-        }
-        grouped.putIfAbsent(uid, () => {
-          'nama': user['nama'] ?? '-',
-          'gambar_user': user['gambar_user'],
-          'unitName': (user['unit'] as Map<String, dynamic>?)?['nama_unit'],
-          'temuan': 0,
-          'selesai': 0,
-        });
-        grouped[uid]!['temuan'] = (grouped[uid]!['temuan'] as int) + 1;
+        stats.putIfAbsent(uid, () => {'temuan': 0, 'selesai': 0});
+        stats[uid]!['temuan'] = stats[uid]!['temuan']! + 1;
         if (t['id_penyelesaian'] != null) {
-          grouped[uid]!['selesai'] = (grouped[uid]!['selesai'] as int) + 1;
+          stats[uid]!['selesai'] = stats[uid]!['selesai']! + 1;
         }
       }
 
-      return grouped.entries.map((e) {
-        final uid = e.key;
-        final v = e.value;
+      return users.map((u) {
+        final uid = u['id_user']?.toString() ?? '';
+        final s = stats[uid] ?? {'temuan': 0, 'selesai': 0};
         return KTSMemberData(
-          name: v['nama'] as String? ?? '-',
-          unitName: v['unitName'] as String?,
-          findings: v['temuan'] as int,
-          completed: v['selesai'] as int,
+          name: u['nama'] as String? ?? '-',
+          unitName: (u['unit'] as Map<String, dynamic>?)?['nama_unit'] as String?,
+          findings: s['temuan']!,
+          completed: s['selesai']!,
           isSelf: uid == widget.userId,
-          avatarUrl: v['gambar_user'] as String?,
+          avatarUrl: u['gambar_user'] as String?,
           avatarColor: const Color(0xFFFBBF24),
+          idJabatan: u['id_jabatan'] as int?,
+          jabatanNama: (u['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
+          isVerificator: u['is_verificator'] as bool?,
         );
       }).toList()
-        ..sort((a, b) => b.findings.compareTo(a.findings));
+        ..sort((a, b) {
+          final c = b.findings.compareTo(a.findings);
+          return c != 0 ? c : a.name.compareTo(b.name);
+        });
     } catch (e) {
       debugPrint('Error fetching KTS Anggota daily: $e');
       return [];
@@ -886,14 +900,75 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
     );
   }
 
-  Widget _buildFilterButton({
-    required String label,
-    required VoidCallback onTap,
-    IconData icon = Icons.keyboard_arrow_down_rounded,
-    bool isActive = false,
-  }) {
+  Widget _buildMemberTimeFilterButton() {
+    final isActive = _filterMode == 'daily';
+    final modeLabel = _filterMode == 'daily'
+        ? (widget.lang == 'ID' ? 'Harian' : widget.lang == 'ZH' ? '按日' : 'Daily')
+        : (widget.lang == 'ID' ? 'Bulanan' : widget.lang == 'ZH' ? '按月' : 'Monthly');
+    final valueLabel = _filterMode == 'daily' && _selectedDate != null
+        ? DateFormat('d MMM yyyy',
+                widget.lang == 'ID' ? 'id_ID' : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
+            .format(_selectedDate!)
+        : _translatedMonths[_selectedMonthIndex];
+
     return GestureDetector(
-      onTap: onTap,
+      onTap: _showMonthPicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: isActive ? KTSAppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? KTSAppColors.primary : KTSAppColors.primaryLight,
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+                color: KTSAppColors.primary.withValues(alpha: 0.10),
+                blurRadius: 6,
+                offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.calendar_month_rounded,
+                    size: 15,
+                    color: isActive ? Colors.white : KTSAppColors.primary),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text('$modeLabel · $valueLabel',
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : KTSAppColors.primary)),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : KTSAppColors.primary, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildMemberGroupFilterButton() {
+    final isActive = _selectedUnitId != null;
+    final label = _selectedUnitId == null
+        ? getTxt('semua_grup_anggota')
+        : (_unitList.firstWhere(
+                (u) => u['id_unit'].toString() == _selectedUnitId,
+                orElse: () => {'nama_unit': getTxt('semua_grup')})['nama_unit']
+            as String);
+
+    return GestureDetector(
+      onTap: _showGroupPicker,
       child: Container(
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -901,34 +976,28 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
           color: isActive ? KTSAppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color:
-                isActive ? KTSAppColors.primary : KTSAppColors.primaryLight,
+            color: isActive ? KTSAppColors.primary : KTSAppColors.primaryLight,
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: KTSAppColors.primary.withValues(alpha:0.10),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            )
+                color: KTSAppColors.primary.withValues(alpha: 0.10),
+                blurRadius: 6,
+                offset: const Offset(0, 2)),
           ],
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isActive ? Colors.white : KTSAppColors.primary,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
+        child: Row(children: [
+          Expanded(
+            child: Text(label,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : KTSAppColors.primary)),
           ),
-          const SizedBox(width: 4),
-          Icon(icon,
-              color: isActive ? Colors.white : KTSAppColors.primary,
-              size: 18),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : KTSAppColors.primary, size: 18),
         ]),
       ),
     );
@@ -940,20 +1009,16 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: List.generate(cols.length, (i) {
-          final isFirst = i == 0;
           return Expanded(
             flex: flex[i],
-            child: Padding(
-              padding: EdgeInsets.only(left: isFirst ? 44 : 0),
-              child: Text(
-                cols[i],
-                textAlign: isFirst ? TextAlign.left : TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: KTSAppColors.textSecondary,
-                    letterSpacing: 0.2),
-              ),
+            child: Text(
+              cols[i],
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: KTSAppColors.textSecondary,
+                  letterSpacing: 0.2),
             ),
           );
         }),
@@ -976,33 +1041,43 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
       child: Row(children: [
         Expanded(
             flex: 3,
-            child: Row(children: [
-              _KTSAvatar(
-                  name: m.name,
-                  avatarUrl: m.avatarUrl,
-                  color: m.avatarColor,
-                  size: 34),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text(m.name,
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: KTSAppColors.textPrimary),
-                        overflow: TextOverflow.ellipsis),
-                    if (m.unitName != null && m.unitName!.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(m.unitName!,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _KTSAvatar(
+                    name: m.name,
+                    avatarUrl: m.avatarUrl,
+                    color: m.avatarColor,
+                    size: 36),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(m.name,
+                          maxLines: 1,
                           style: const TextStyle(
-                              fontSize: 11,
-                              color: KTSAppColors.textSecondary),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: KTSAppColors.textPrimary),
                           overflow: TextOverflow.ellipsis),
-                    ],
-                  ])),
-            ])),
+                      if (m.unitName != null && m.unitName!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(m.unitName!,
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: KTSAppColors.textSecondary),
+                            overflow: TextOverflow.ellipsis),
+                      ],
+                      const SizedBox(height: 4),
+                      _buildJabatanBadge(
+                          idJabatan: m.idJabatan,
+                          jabatanNama: m.jabatanNama,
+                          isVerificator: m.isVerificator),
+                    ])),
+              ],
+            )),
         Expanded(
             flex: 1,
             child: Text('${m.findings}',
@@ -1019,6 +1094,39 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                     color: completedColor))),
+      ]),
+    );
+  }
+
+  Widget _buildJabatanBadge({
+    required int? idJabatan,
+    required String? jabatanNama,
+    required bool? isVerificator,
+  }) {
+    final label = JabatanHelper.getDisplayRole(
+      isVerificatorFlag: isVerificator,
+      idJabatan: idJabatan,
+      jabatanFromDb: jabatanNama,
+      lang: widget.lang,
+    );
+    if (label.isEmpty) return const SizedBox.shrink();
+    final color = JabatanHelper.getPrimaryColor(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    final icon = JabatanHelper.getRoleIcon(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 10, color: color),
+        const SizedBox(width: 3),
+        Text(label,
+            style: TextStyle(
+                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
       ]),
     );
   }
@@ -1048,23 +1156,37 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(children: [
         Expanded(
-          flex: 3,
-          child: Row(children: [
+        flex: 3,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
             _KTSAvatar(
                 name: self.name,
                 avatarUrl: self.avatarUrl,
                 color: self.avatarColor,
-                size: 34),
+                size: 36),
             const SizedBox(width: 10),
             Expanded(
-                child: Text(self.name,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: KTSAppColors.textPrimary),
-                    overflow: TextOverflow.ellipsis)),
-          ]),
+                child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(self.name,
+                      maxLines: 1,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: KTSAppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 4),
+                  _buildJabatanBadge(
+                      idJabatan: self.idJabatan,
+                      jabatanNama: self.jabatanNama,
+                      isVerificator: self.isVerificator),
+                ])),
+          ],
         ),
+      ),
         Expanded(
           flex: 1,
           child: Text('${self.findings}',
@@ -1451,44 +1573,33 @@ class _KtsMembersTabState extends State<KtsMembersTab> {
         padding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(children: [
-          _buildFilterButton(
-            label: _filterMode == 'daily' && _selectedDate != null
-                ? DateFormat(
-                        'd MMM yyyy',
-                        widget.lang == 'ID'
-                            ? 'id_ID'
-                            : widget.lang == 'EN'
-                                ? 'en_US'
-                                : 'zh_CN')
-                    .format(_selectedDate!)
-                : _translatedMonths[_selectedMonthIndex],
-            isActive: true,
-            onTap: _showMonthPicker,
-          ),
+          Expanded(child: _buildMemberTimeFilterButton()),
           const SizedBox(width: 10),
-          Expanded(
-              child: _buildFilterButton(
-            label: _selectedUnitId == null
-                ? getTxt('semua_grup_anggota')
-                : (_unitList.firstWhere(
-                        (u) =>
-                            u['id_unit'].toString() == _selectedUnitId,
-                        orElse: () =>
-                            {'nama_unit': getTxt('semua_grup')})['nama_unit']
-                    as String),
-            onTap: _showGroupPicker,
-          )),
+          Expanded(child: _buildMemberGroupFilterButton()),
         ]),
       ),
       // LAST UPDATED
       Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Text(_lastUpdatedText,
-            style: const TextStyle(
-                fontSize: 11,
-                color: KTSAppColors.textSecondary,
-                height: 1.4)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: KTSAppColors.primaryLight,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.access_time_filled_rounded,
+                  size: 13, color: KTSAppColors.primary),
+              const SizedBox(width: 6),
+              Text(_lastUpdatedText,
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: KTSAppColors.textPrimary)),
+            ]),
+          ),
+        ),
       ),
       _buildTableHeader(
           [getTxt('nama'), getTxt('temuan'), getTxt('selesai')],
