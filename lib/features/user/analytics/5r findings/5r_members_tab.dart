@@ -343,20 +343,15 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
       color: const Color(0xFFF8FAFF),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(children: List.generate(cols.length, (i) {
-        final isFirst = i == 0;
         return Expanded(
-          flex: isFirst ? 3 : 1,
-          child: Padding(
-            padding: EdgeInsets.only(left: isFirst ? 44 : 0),
-            child: Text(cols[i],
-                textAlign:
-                    isFirst ? TextAlign.left : TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: _AppColors.textSecondary,
-                    letterSpacing: 0.2)),
-          ),
+          flex: i == 0 ? 3 : 1,
+          child: Text(cols[i],
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: _AppColors.textSecondary,
+                  letterSpacing: 0.2)),
         );
       })),
     );
@@ -374,15 +369,12 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
       child: Row(children: [
         Expanded(
           flex: 3,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 44),
-            child: Text(widget.getTxt('target_bulanan'),
-                textAlign: TextAlign.left,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: _AppColors.primary)),
-          ),
+          child: Text(widget.getTxt('target_bulanan'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: _AppColors.primary)),
         ),
         Expanded(
           flex: 1,
