@@ -268,14 +268,28 @@ class FiveRLocationTab extends StatelessWidget {
     ]);
   }
 
-  // ── Widget helpers ──────────────────────────────────────────────────────────
-
   Widget _buildLastUpdatedWidget() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Text(lastUpdatedText,
-          style: const TextStyle(
-              fontSize: 11, color: _AppColors.textSecondary, height: 1.4)),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: _AppColors.primaryLight,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.access_time_filled_rounded,
+                size: 13, color: _AppColors.primary),
+            const SizedBox(width: 6),
+            Text(lastUpdatedText,
+                style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _AppColors.textPrimary)),
+          ]),
+        ),
+      ),
     );
   }
 
@@ -319,7 +333,7 @@ class FiveRLocationTab extends StatelessWidget {
         Expanded(
             flex: 3,
             child: Text(cols[1],
-                textAlign: TextAlign.left,
+                textAlign: TextAlign.center,
                 style: const TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
