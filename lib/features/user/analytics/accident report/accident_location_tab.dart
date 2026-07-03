@@ -31,6 +31,10 @@ class AccidentLocationTab extends StatefulWidget {
   final List<String> translatedLocationLevels;
   final List<String> levelBackends;
 
+  // SPECIFIC LOCATION FILTER
+  final String? selectedLocationId;
+  final String? selectedLocationName;
+
   final Widget Function({
     required String    label,
     required VoidCallback onTap,
@@ -51,6 +55,8 @@ class AccidentLocationTab extends StatefulWidget {
     required this.selectedLocationLevel,
     required this.translatedLocationLevels,
     required this.levelBackends,
+    this.selectedLocationId,
+    this.selectedLocationName,
     required this.buildFilterBtn,
     required this.showMonthPicker,
     required this.showLevelPicker,
@@ -71,20 +77,22 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
     int?      selectedMonthIndex,
     DateTime? selectedDate,
     String?   levelBackend,
+    String?   specificLocationId,
   }) {
-    final mode     = filterMode         ?? widget.filterMode;
-    final monthIdx = selectedMonthIndex ?? widget.selectedMonthIndex;
-    final date     = selectedDate       ?? widget.selectedDate;
-    final backend  = levelBackend       ?? _levelBackend;
+    final mode       = filterMode         ?? widget.filterMode;
+    final monthIdx    = selectedMonthIndex ?? widget.selectedMonthIndex;
+    final date        = selectedDate       ?? widget.selectedDate;
+    final backend      = levelBackend       ?? _levelBackend;
+    final specificId  = specificLocationId ?? widget.selectedLocationId;
 
     final month = monthIdx + 1;
     final year  = DateTime.now().year;
 
     setState(() {
       if (mode == 'daily' && date != null) {
-        locationFuture = _fetchLocationDaily(date, backend);
+        locationFuture = _fetchLocationDaily(date, backend, specificId);
       } else {
-        locationFuture = _fetchLocation(month, year, backend);
+        locationFuture = _fetchLocation(month, year, backend, specificId);
       }
     });
   }
@@ -106,14 +114,18 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
   }
 
   // MONTHLY FETCH
-  Future<List<LocationData>> _fetchLocation(int month, int year, String level) async {
+  Future<List<LocationData>> _fetchLocation(
+      int month, int year, String level, String? specificLocationId) async {
     try {
       final ll      = level.toLowerCase();
       final idCol   = _idColFor(ll);
       final nameCol = _nameColFor(ll);
 
-      final List<dynamic> locations =
-          await _supabase.from(ll).select('$idCol, $nameCol');
+      var locQuery = _supabase.from(ll).select('$idCol, $nameCol, id_pic');
+      if (specificLocationId != null) {
+        locQuery = locQuery.eq(idCol, specificLocationId);
+      }
+      final List<dynamic> locations = await locQuery;
       final List<dynamic> reportRes = await _supabase
           .from('accident_report')
           .select(idCol)
@@ -129,22 +141,35 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
         countMap[id] = (countMap[id] ?? 0) + 1;
       }
 
-      final List<dynamic> picRes = await _supabase
-          .from('User')
-          .select('$idCol, nama')
-          .not(idCol, 'is', null);
+      // Ambil id_pic dari tabel level (lokasi/unit/subunit/area), lalu join ke User
+      final picIds = locations
+          .map((loc) => loc['id_pic']?.toString())
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toSet()
+          .toList();
+
       final Map<String, String> picMap = {};
-      for (final p in picRes) {
-        final locId = p[idCol]?.toString() ?? '';
-        if (locId.isEmpty || picMap.containsKey(locId)) continue;
-        picMap[locId] = p['nama']?.toString() ?? 'PIC belum diatur';
+      if (picIds.isNotEmpty) {
+        final List<dynamic> picRes = await _supabase
+            .from('User')
+            .select('id_user, nama')
+            .inFilter('id_user', picIds);
+        for (final p in picRes) {
+          final userId = p['id_user']?.toString() ?? '';
+          if (userId.isEmpty) continue;
+          picMap[userId] = p['nama']?.toString() ?? 'PIC belum diatur';
+        }
       }
 
       return locations.map<LocationData>((loc) {
-        final id = loc[idCol]?.toString() ?? '';
+        final id    = loc[idCol]?.toString() ?? '';
+        final picId = loc['id_pic']?.toString();
         return LocationData(
           name:  loc[nameCol]?.toString() ?? '-',
-          pic:   picMap[id] ?? 'PIC belum diatur',
+          pic:   (picId != null && picMap.containsKey(picId))
+              ? picMap[picId]!
+              : 'PIC belum diatur',
           value: (countMap[id] ?? 0).toString(),
         );
       }).toList()
@@ -156,7 +181,8 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
   }
 
   // DAILY FETCH
-  Future<List<LocationData>> _fetchLocationDaily(DateTime date, String level) async {
+  Future<List<LocationData>> _fetchLocationDaily(
+      DateTime date, String level, String? specificLocationId) async {
     try {
       final start   = DateTime(date.year, date.month, date.day);
       final end     = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -164,7 +190,11 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
       final idCol   = _idColFor(ll);
       final nameCol = _nameColFor(ll);
 
-      final locations  = await _supabase.from(ll).select('$idCol, $nameCol');
+      var locQuery = _supabase.from(ll).select('$idCol, $nameCol, id_pic');
+      if (specificLocationId != null) {
+        locQuery = locQuery.eq(idCol, specificLocationId);
+      }
+      final locations  = await locQuery;
       final reportList = await _supabase
           .from('accident_report')
           .select(idCol)
@@ -178,11 +208,37 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
         countMap[id] = (countMap[id] ?? 0) + 1;
       }
 
-      return (locations as List<dynamic>).map((loc) => LocationData(
-        name:  loc[nameCol]?.toString() ?? '-',
-        pic:   '-',
-        value: (countMap[loc[idCol]?.toString() ?? ''] ?? 0).toString(),
-      )).toList()
+      // Ambil id_pic dari tabel level (lokasi/unit/subunit/area), lalu join ke User
+      final picIds = (locations as List<dynamic>)
+          .map((loc) => loc['id_pic']?.toString())
+          .where((id) => id != null && id.isNotEmpty)
+          .cast<String>()
+          .toSet()
+          .toList();
+
+      final Map<String, String> picMap = {};
+      if (picIds.isNotEmpty) {
+        final List<dynamic> picRes = await _supabase
+            .from('User')
+            .select('id_user, nama')
+            .inFilter('id_user', picIds);
+        for (final p in picRes) {
+          final userId = p['id_user']?.toString() ?? '';
+          if (userId.isEmpty) continue;
+          picMap[userId] = p['nama']?.toString() ?? 'PIC belum diatur';
+        }
+      }
+
+      return locations.map<LocationData>((loc) {
+        final picId = loc['id_pic']?.toString();
+        return LocationData(
+          name:  loc[nameCol]?.toString() ?? '-',
+          pic:   (picId != null && picMap.containsKey(picId))
+              ? picMap[picId]!
+              : 'PIC belum diatur',
+          value: (countMap[loc[idCol]?.toString() ?? ''] ?? 0).toString(),
+        );
+      }).toList()
         ..sort((a, b) => (int.tryParse(b.value ?? '0') ?? 0)
             .compareTo(int.tryParse(a.value ?? '0') ?? 0));
     } catch (e) {
@@ -305,7 +361,14 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
 
   // LEVEL FILTER BUTTON
   Widget _buildLocationLevelFilterButton() {
-    final isActive = widget.selectedLocationLevel != widget.translatedLocationLevels[0];
+    final hasSpecificLocation =
+        widget.selectedLocationName != null && widget.selectedLocationName!.isNotEmpty;
+    final isActive = hasSpecificLocation ||
+        widget.selectedLocationLevel != widget.translatedLocationLevels[0];
+    final label = hasSpecificLocation
+        ? widget.selectedLocationName!
+        : widget.selectedLocationLevel;
+
     return GestureDetector(
       onTap: widget.showLevelPicker,
       child: Container(
@@ -323,7 +386,7 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
         ),
         child: Row(children: [
           Expanded(
-            child: Text(widget.selectedLocationLevel,
+            child: Text(label,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,

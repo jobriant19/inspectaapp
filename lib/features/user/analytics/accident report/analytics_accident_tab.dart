@@ -8,13 +8,13 @@ import 'accident_members_tab.dart';
 import 'accident_recurring_tab.dart';
 
 class _C {
-  static const primary         = Color(0xFF0EA5E9);
   static const textPrimary     = Color(0xFF0C4A6E);
   static const textSecondary   = Color(0xFF64748B);
   static const textMuted       = Color(0xFFBDBDBD);
   static const red             = Color(0xFFEF4444);
   static const green           = Color(0xFF10B981);
   static const orange          = Color(0xFFF97316);
+  static const divider         = Color(0xFFE0F2FE);
 }
 
 class AnalyticsAccidentTab extends StatefulWidget {
@@ -39,9 +39,18 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
   String  _selectedLocationLevel = 'Lokasi';
   DateTime? _lastUpdated;
 
+  // SPECIFIC LOCATION FILTER (Location Tab)
+  String? _selectedSpecificLocationId;
+  String? _selectedSpecificLocationName;
+
   // CHART
   bool _isChartExpanded      = false;
   bool _isChartLoadingForTab = false;
+
+  // POPUP GUARD (mencegah popup terbuka dobel)
+  bool _isMonthPickerOpen = false;
+  bool _isGroupPickerOpen = false;
+  bool _isLevelPickerOpen = false;
 
   // DATA FUTURES
   final _membersTabKey = GlobalKey<AccidentMembersTabState>();
@@ -108,6 +117,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
       selectedMonthIndex: _selectedMonthIndex,
       selectedDate:       _selectedDate,
       levelBackend:       _levelBackend,
+      specificLocationId: _selectedSpecificLocationId,
     );
   }
 
@@ -475,6 +485,8 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
       selectedLocationLevel:    _selectedLocationLevel,
       translatedLocationLevels: _translatedLocationLevels,
       levelBackends:            _levelBackends,
+      selectedLocationId:       _selectedSpecificLocationId,
+      selectedLocationName:     _selectedSpecificLocationName,
       lastUpdatedText:          _lastUpdatedText,
       buildFilterBtn: ({
         required String    label,
@@ -542,6 +554,9 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
 
   // MONTH / DAILY PICKER
   void _showMonthPicker(VoidCallback onChanged) async {
+    if (_isMonthPickerOpen) return;
+    _isMonthPickerOpen = true;
+
     String tempMode = _filterMode;
     int tempMonthIdx = _selectedMonthIndex;
     DateTime tempDate = _selectedDate ?? DateTime.now();
@@ -661,6 +676,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
         ),
       )),
     );
+    _isMonthPickerOpen = false;
   }
 
   Widget _buildDailyCalendar(DateTime selectedDate, ValueChanged<DateTime> onChange,
@@ -760,6 +776,9 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
 
   // GROUP PICKER
   void _showGroupPicker() async {
+    if (_isGroupPickerOpen) return;
+    _isGroupPickerOpen = true;
+
     final allItem = {'id_unit': null, 'nama_unit': _t('Semua Grup', 'All Groups', '所有组')};
     final items   = [allItem, ..._unitList];
     final ctrl    = TextEditingController();
@@ -782,7 +801,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
                 color: Color(0xFFE0F2FE),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
               child: Row(children: [
-                const Icon(Icons.group_rounded, color: _C.primary, size: 20),
+                const Icon(Icons.group_rounded, color: _C.red, size: 20),
                 const SizedBox(width: 8),
                 Expanded(child: Text(_t('Pilih Grup', 'Select Group', '选择组'),
                     style: const TextStyle(fontWeight: FontWeight.bold,
@@ -803,7 +822,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
                 decoration: InputDecoration(
                   hintText: _t('Cari...', 'Search...', '搜索...'),
                   hintStyle: const TextStyle(fontSize: 13, color: _C.textMuted),
-                  prefixIcon: const Icon(Icons.search, color: _C.primary, size: 18),
+                  prefixIcon: const Icon(Icons.search, color: _C.red, size: 18),
                   filled: true, fillColor: const Color(0xFFF0F9FF),
                   contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(30),
@@ -811,7 +830,7 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
                   enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30),
                       borderSide: const BorderSide(color: Color(0xFFE0F2FE))),
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30),
-                      borderSide: const BorderSide(color: _C.primary, width: 1.5)),
+                      borderSide: const BorderSide(color: _C.red, width: 1.5)),
                 ),
               ),
             ),
@@ -836,25 +855,25 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
                       color: isSel ? const Color(0xFFE0F2FE) : Colors.white,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: isSel ? _C.primary : const Color(0xFFE0F2FE),
+                          color: isSel ? _C.red : const Color(0xFFE0F2FE),
                           width: isSel ? 1.5 : 1)),
                     child: Row(children: [
                       Container(
                         width: 36, height: 36,
                         decoration: BoxDecoration(
-                          color: isSel ? _C.primary : const Color(0xFFF0F9FF),
+                          color: isSel ? _C.red : const Color(0xFFF0F9FF),
                           borderRadius: BorderRadius.circular(10)),
                         child: Center(child: Text(
                           lbl.isNotEmpty ? lbl[0].toUpperCase() : '?',
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15,
-                              color: isSel ? Colors.white : _C.primary))),
+                              color: isSel ? Colors.white : _C.red))),
                       ),
                       const SizedBox(width: 12),
                       Expanded(child: Text(lbl, style: TextStyle(
                           fontSize: 13,
                           fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                          color: isSel ? _C.primary : _C.textPrimary))),
-                      if (isSel) const Icon(Icons.check_circle_rounded, color: _C.primary, size: 18),
+                          color: isSel ? _C.red : _C.textPrimary))),
+                      if (isSel) const Icon(Icons.check_circle_rounded, color: _C.red, size: 18),
                     ]),
                   ),
                 );
@@ -864,70 +883,388 @@ class _AnalyticsAccidentTabState extends State<AnalyticsAccidentTab>
         ),
       )),
     );
+    _isGroupPickerOpen = false;
   }
 
-  // LEVEL PICKER
+  // LEVEL & SPECIFIC LOCATION PICKER
   void _showLevelPicker() async {
-    await showDialog<String>(
+    if (_isLevelPickerOpen) return;
+    _isLevelPickerOpen = true;
+
+    String tempLevelLabel = _selectedLocationLevel;
+    String? tempSelectedId = _selectedSpecificLocationId;
+    final searchCtrl = TextEditingController();
+    List<Map<String, dynamic>> items = [];
+    bool levelDropdownOpen = false;
+
+    final GlobalKey levelBtnKey = GlobalKey();
+    final GlobalKey stackKey = GlobalKey();
+    double dropdownTop = 102;
+    double dropdownRight = 14;
+
+    IconData levelIcon(String label) {
+      final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
+      return [
+        Icons.location_city_rounded, // LOCATION
+        Icons.business_rounded,      // UNIT
+        Icons.layers_rounded,        // SUBUNIT
+        Icons.place_rounded,         // AREA
+      ][idx];
+    }
+
+    Color levelColor(String label) {
+      final idx = _translatedLocationLevels.indexOf(label).clamp(0, 3);
+      return [
+        const Color(0xFF10B981), // LOCATION
+        const Color(0xFF6366F1), // UNIT
+        const Color(0xFFFBBF24), // SUBUNIT
+        const Color(0xFFF472B6), // AREA
+      ][idx];
+    }
+
+    Future<List<Map<String, dynamic>>> fetchItemsForLevel(String levelLabel) async {
+      final levelBackend = _levelBackends[
+          _translatedLocationLevels.indexOf(levelLabel).clamp(0, 3)];
+      final levelLower = levelBackend.toLowerCase();
+      final idMap = {'lokasi': 'id_lokasi', 'unit': 'id_unit', 'subunit': 'id_subunit', 'area': 'id_area'};
+      final nameMap = {'lokasi': 'nama_lokasi', 'unit': 'nama_unit', 'subunit': 'nama_subunit', 'area': 'nama_area'};
+      final idCol = idMap[levelLower] ?? 'id_lokasi';
+      final nameCol = nameMap[levelLower] ?? 'nama_lokasi';
+      try {
+        final res = await _supabase.from(levelLower).select('$idCol, $nameCol').order(nameCol);
+        return List<Map<String, dynamic>>.from(res)
+            .map((e) => {'id': e[idCol]?.toString() ?? '', 'name': e[nameCol]?.toString() ?? '-'})
+            .toList();
+      } catch (e) {
+        debugPrint('Error fetching level items: $e');
+        return [];
+      }
+    }
+
+    // FETCH DATA DULU SEBELUM DIALOG DIBUKA -> POPUP LANGSUNG MUNCUL DENGAN DATA SIAP, TANPA SPINNER
+    items = await fetchItemsForLevel(tempLevelLabel);
+
+    if (!mounted) {
+      _isLevelPickerOpen = false;
+      return;
+    }
+
+    await showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.5),
-          decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE0F2FE), width: 1.5)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-              decoration: const BoxDecoration(
-                color: Color(0xFFE0F2FE),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-              child: Row(children: [
-                const Icon(Icons.tune_rounded, color: _C.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(child: Text(_t('Pilih Level', 'Select Level', '选择级别'),
-                    style: const TextStyle(fontWeight: FontWeight.bold,
-                        fontSize: 15, color: _C.textPrimary))),
-                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSecondary),
-                    onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
-              ]),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) {
+          final query = searchCtrl.text.trim().toLowerCase();
+          final filteredItems = query.isEmpty
+              ? items
+              : items.where((e) => (e['name'] as String).toLowerCase().contains(query)).toList();
+          final currentLevelColor = levelColor(tempLevelLabel);
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              width: 340,
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFE0F2FE), width: 1.5)),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(key: stackKey, clipBehavior: Clip.none, children: [
+                  Column(children: [
+                    // HEADER
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                      child: Row(children: [
+                        const Icon(Icons.tune_rounded, color: _C.red, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(_t('Pilih Lokasi', 'Select Location', '选择位置'),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary))),
+                        IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSecondary),
+                          onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                      ]),
+                    ),
+                    // SEARCH + LEVEL DROPDOWN TRIGGER
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                        Expanded(
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: _C.red.withValues(alpha: 0.35), width: 1.3),
+                              boxShadow: [BoxShadow(
+                                  color: _C.red.withValues(alpha: 0.08),
+                                  blurRadius: 6, offset: const Offset(0, 2))],
+                            ),
+                            child: TextField(
+                              controller: searchCtrl,
+                              onChanged: (_) => setSt(() {}),
+                              style: const TextStyle(fontSize: 13, color: _C.textPrimary, fontWeight: FontWeight.w500),
+                              decoration: InputDecoration(
+                                hintText: _t('Cari...', 'Search...', '搜索...'),
+                                hintStyle: const TextStyle(fontSize: 12.5, color: _C.textMuted),
+                                prefixIcon: const Icon(Icons.search_rounded, color: _C.red, size: 19),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          key: levelBtnKey,
+                          onTap: () {
+                            final btnBox = levelBtnKey.currentContext!
+                                .findRenderObject() as RenderBox;
+                            final stackBox = stackKey.currentContext!
+                                .findRenderObject() as RenderBox;
+                            final btnPos = btnBox.localToGlobal(Offset.zero,
+                                ancestor: stackBox);
+                            setSt(() {
+                              dropdownTop = btnPos.dy + btnBox.size.height + 6;
+                              dropdownRight = stackBox.size.width -
+                                  (btnPos.dx + btnBox.size.width);
+                              levelDropdownOpen = !levelDropdownOpen;
+                            });
+                          },
+                          child: Container(
+                            width: 132,
+                            height: 44,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: currentLevelColor,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [BoxShadow(
+                                  color: currentLevelColor.withValues(alpha: 0.30),
+                                  blurRadius: 8, offset: const Offset(0, 3))],
+                            ),
+                            child: Row(children: [
+                              Icon(levelIcon(tempLevelLabel), color: Colors.white, size: 16),
+                              const SizedBox(width: 6),
+                              Expanded(child: Text(tempLevelLabel,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white))),
+                              AnimatedRotation(
+                                turns: levelDropdownOpen ? 0.5 : 0,
+                                duration: const Duration(milliseconds: 200),
+                                child: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 18),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      ]),
+                    ),
+                    const Divider(height: 1, color: _C.divider),
+                    // HASIL
+                    Expanded(
+                      child: ListView(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              children: [
+                                // OPSI "SEMUA"
+                                InkWell(
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    setState(() {
+                                      _selectedLocationLevel = tempLevelLabel;
+                                      _selectedSpecificLocationId = null;
+                                      _selectedSpecificLocationName = null;
+                                    });
+                                    _fetchAll(fromTabFilter: true);
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: tempSelectedId == null
+                                          ? currentLevelColor.withValues(alpha: 0.10)
+                                          : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: tempSelectedId == null ? currentLevelColor : _C.divider,
+                                        width: tempSelectedId == null ? 1.5 : 1),
+                                    ),
+                                    child: Row(children: [
+                                      Icon(Icons.apps_rounded,
+                                          size: 18,
+                                          color: tempSelectedId == null ? currentLevelColor : _C.textSecondary),
+                                      const SizedBox(width: 10),
+                                      Expanded(child: Text('${_t('Semua', 'All', '全部')} ($tempLevelLabel)',
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: tempSelectedId == null ? FontWeight.bold : FontWeight.w500,
+                                              color: tempSelectedId == null ? currentLevelColor : _C.textPrimary))),
+                                      if (tempSelectedId == null)
+                                        Icon(Icons.check_circle_rounded, color: currentLevelColor, size: 18),
+                                    ]),
+                                  ),
+                                ),
+                                if (filteredItems.isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 24),
+                                    child: Center(
+                                      child: Text(_t('Tidak ada data untuk level ini.',
+                                          'No data for this level.', '此级别没有数据。'),
+                                          style: const TextStyle(fontSize: 12.5, color: _C.textSecondary)),
+                                    ),
+                                  )
+                                else
+                                  ...filteredItems.map((item) {
+                                    final isSel = item['id'] == tempSelectedId;
+                                    return InkWell(
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        setState(() {
+                                          _selectedLocationLevel = tempLevelLabel;
+                                          _selectedSpecificLocationId = item['id'] as String;
+                                          _selectedSpecificLocationName = item['name'] as String;
+                                        });
+                                        _fetchAll(fromTabFilter: true);
+                                      },
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                        decoration: BoxDecoration(
+                                          color: isSel ? currentLevelColor.withValues(alpha: 0.10) : Colors.white,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isSel ? currentLevelColor : _C.divider,
+                                            width: isSel ? 1.5 : 1),
+                                        ),
+                                        child: Row(children: [
+                                          Container(
+                                            width: 34, height: 34,
+                                            decoration: BoxDecoration(
+                                              color: isSel ? currentLevelColor : const Color(0xFFF8FAFF),
+                                              borderRadius: BorderRadius.circular(9),
+                                            ),
+                                            child: Icon(levelIcon(tempLevelLabel),
+                                                size: 17, color: isSel ? Colors.white : currentLevelColor),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(item['name'] as String,
+                                                    style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                                        color: isSel ? currentLevelColor : _C.textPrimary),
+                                                    overflow: TextOverflow.ellipsis),
+                                                const SizedBox(height: 4),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                                  decoration: BoxDecoration(
+                                                    color: currentLevelColor.withValues(alpha: 0.12),
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    border: Border.all(color: currentLevelColor.withValues(alpha: 0.4)),
+                                                  ),
+                                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                                    Icon(levelIcon(tempLevelLabel), size: 9, color: currentLevelColor),
+                                                    const SizedBox(width: 3),
+                                                    Text(tempLevelLabel,
+                                                        style: TextStyle(
+                                                            fontSize: 9, fontWeight: FontWeight.w700, color: currentLevelColor)),
+                                                  ]),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          if (isSel)
+                                            Icon(Icons.check_circle_rounded, color: currentLevelColor, size: 18),
+                                        ]),
+                                      ),
+                                    );
+                                  }),
+                              ],
+                            ),
+                    ),
+                  ]),
+
+                  // BARRIER
+                  if (levelDropdownOpen)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: () => setSt(() => levelDropdownOpen = false),
+                        child: Container(color: Colors.transparent),
+                      ),
+                    ),
+
+                  // DROPDOWN PANEL
+                  if (levelDropdownOpen)
+                    Positioned(
+                      top: dropdownTop,
+                      right: dropdownRight,
+                      width: 132,
+                      child: Material(
+                        elevation: 10,
+                        borderRadius: BorderRadius.circular(12),
+                        shadowColor: Colors.black.withValues(alpha: 0.25),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: _C.divider),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: _translatedLocationLevels.map((lvl) {
+                              final isSel = lvl == tempLevelLabel;
+                              final color = levelColor(lvl);
+                              return InkWell(
+                                onTap: () async {
+                                  tempLevelLabel = lvl;
+                                  tempSelectedId = null;
+                                  searchCtrl.clear();
+                                  levelDropdownOpen = false;
+                                  items = []; // KOSONGKAN DULU biar tidak nyangkut hasil level lama
+                                  setSt(() {});
+                                  final res = await fetchItemsForLevel(lvl);
+                                  items = res;
+                                  setSt(() {});
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: isSel ? color.withValues(alpha: 0.12) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(children: [
+                                    Icon(levelIcon(lvl), size: 16, color: isSel ? color : _C.textSecondary),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(lvl,
+                                        style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                                            color: isSel ? color : _C.textPrimary))),
+                                    if (isSel) Icon(Icons.check_rounded, size: 15, color: color),
+                                  ]),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                ]),
+              ),
             ),
-            Flexible(child: ListView.builder(
-              padding: const EdgeInsets.only(bottom: 12),
-              itemCount: _translatedLocationLevels.length,
-              itemBuilder: (_, i) {
-                final lbl   = _translatedLocationLevels[i];
-                final isSel = lbl == _selectedLocationLevel;
-                return InkWell(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    setState(() => _selectedLocationLevel = lbl);
-                    _fetchAll(fromTabFilter: true);
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSel ? const Color(0xFFE0F2FE) : Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: isSel ? _C.primary : const Color(0xFFE0F2FE), width: 1)),
-                    child: Row(children: [
-                      Expanded(child: Text(lbl, style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                          color: isSel ? _C.primary : _C.textPrimary))),
-                      if (isSel) const Icon(Icons.check_circle_rounded, color: _C.primary, size: 16),
-                    ]),
-                  ),
-                );
-              },
-            )),
-          ]),
-        ),
+          );
+        },
       ),
     );
+    _isLevelPickerOpen = false;
   }
 }
 
