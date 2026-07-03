@@ -940,7 +940,6 @@ class _Analytics5RTabState extends State<Analytics5RTab>
     return '${getTxt('diperbarui_pada')} $formattedDate (GMT+7)';
   }
 
-  // BUILD
   @override
   Widget build(BuildContext context) {
     return Column(children: [

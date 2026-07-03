@@ -42,25 +42,24 @@ class MemberData5R {
   });
 }
 
-// ─── Widget utama ─────────────────────────────────────────────────────────────
 class FiveRMembersTab extends StatefulWidget {
   final String lang;
 
-  // Filter state dari parent
+  // FILTER STATE
   final String    filterMode;
   final int       selectedMonthIndex;
   final DateTime? selectedDate;
   final String?   selectedUnitId;
   final List<Map<String, dynamic>> unitList;
 
-  // Target dari parent
+  // TARGET
   final int targetAnggota;
   final int targetAnggotaSelesai;
 
-  // Last-updated text
+  // LAST UPDATED
   final String lastUpdatedText;
 
-  // Shared UI builders dari parent
+  // SHARED UI BUILDER
   final Widget Function({
     required String    label,
     required VoidCallback onTap,
@@ -71,7 +70,6 @@ class FiveRMembersTab extends StatefulWidget {
   final void Function(VoidCallback onChanged) showMonthPicker;
   final VoidCallback showGroupPicker;
 
-  // i18n helper dari parent
   final String Function(String key) getTxt;
 
   const FiveRMembersTab({
@@ -100,7 +98,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
 
   Future<List<MemberData5R>>? membersFuture;
 
-  // ─── Public: dipanggil parent saat filter berubah ─────────────────────────
   void fetchData({
     String?   filterMode,
     int?      selectedMonthIndex,
@@ -124,7 +121,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     });
   }
 
-  // ─── Public: untuk chart di parent ────────────────────────────────────────
   Future<List<MemberData5R>>? get currentFuture => membersFuture;
 
   @override
@@ -133,7 +129,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     fetchData();
   }
 
-  // ─── Fetch (monthly) ──────────────────────────────────────────────────────
   Future<List<MemberData5R>> _fetchAnggotaData(
       int month, int year, String? unitId) async {
     try {
@@ -195,7 +190,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     }
   }
 
-  // ─── Fetch (daily) ────────────────────────────────────────────────────────
   Future<List<MemberData5R>> _fetchAnggotaDataDaily(
       DateTime date, String? unitId) async {
     try {
@@ -262,13 +256,10 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     }
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  BUILD
-  // ══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      // Filter row
+      // FILTER ROW
       Container(
         color: Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -278,7 +269,7 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
           Expanded(child: _buildMemberGroupFilterButton()),
         ]),
       ),
-      // Last updated
+      // LAST UPDATED
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Center(
@@ -301,11 +292,11 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
           ),
         ),
       ),
-      // Table header
+      // TABLE HEADER
       _buildTableHeader(),
-      // Target row
+      // TARGET ROW
       _buildTargetRow(),
-      // List
+      // LIST
       Expanded(child: membersFuture == null
           ? _buildShimmer()
           : FutureBuilder<List<MemberData5R>>(
@@ -348,7 +339,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     ]);
   }
 
-  // ─── Table header ─────────────────────────────────────────────────────────
   Widget _buildTableHeader() {
     final cols = [
       widget.getTxt('nama'),
@@ -373,7 +363,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     );
   }
 
-  // ─── Target row ───────────────────────────────────────────────────────────
   Widget _buildTargetRow() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
@@ -414,7 +403,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     );
   }
 
-  // ─── Member row ───────────────────────────────────────────────────────────
   Widget _buildMemberRow(MemberData5R m) {
     final target = widget.targetAnggota;
     final findingsColor = (target > 0 && m.findings >= target)
@@ -480,7 +468,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     );
   }
 
-  // ─── Self pinned row ──────────────────────────────────────────────────────
   Widget _buildSelfPinnedRow(MemberData5R self) {
     final target = widget.targetAnggota;
     final findingsColor = (target > 0 && self.findings >= target)
@@ -500,7 +487,7 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
                 color: _AppColors.selfHighlightBorder, width: 1.5)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha:0.05),
               blurRadius: 6,
               offset: const Offset(0, -2))
         ],
@@ -559,7 +546,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     );
   }
 
-  // ─── Shimmer ──────────────────────────────────────────────────────────────
   Widget _buildShimmer() {
     return Shimmer.fromColors(
       baseColor: Colors.grey[200]!,
@@ -616,7 +602,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     );
   }
 
-  // ─── Jabatan badge (ikon + warna sesuai JabatanHelper) ─────────────────────
   Widget _buildJabatanBadge({
     required int?    idJabatan,
     required String? jabatanNama,
@@ -636,9 +621,9 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha:0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.4), width: 1),
+        border: Border.all(color: color.withValues(alpha:0.4), width: 1),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 10, color: color),
@@ -650,7 +635,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     );
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
   String get _monthLabel {
     final locale = widget.lang == 'ID'
         ? 'id_ID'
@@ -659,7 +643,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
         .format(DateTime(2000, widget.selectedMonthIndex + 1));
   }
 
-  // ─── Time filter button (kalender + mode + nilai terpilih) ────────────────
   Widget _buildMemberTimeFilterButton() {
     final isActive = widget.filterMode == 'daily';
     final modeLabel = widget.filterMode == 'daily'
@@ -684,7 +667,7 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
@@ -711,7 +694,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
     );
   }
 
-  // ─── Group filter button (fill, tulisan center, arrow kanan) ──────────────
   Widget _buildMemberGroupFilterButton() {
     final isActive = widget.selectedUnitId != null;
     final label = widget.selectedUnitId == null
@@ -734,7 +716,7 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
             width: 1.5,
           ),
           boxShadow: [BoxShadow(
-              color: _AppColors.primary.withOpacity(0.10), blurRadius: 6, offset: const Offset(0, 2))],
+              color: _AppColors.primary.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
           Expanded(
@@ -752,7 +734,6 @@ class FiveRMembersTabState extends State<FiveRMembersTab> {
   }
 }
 
-// ─── Avatar helper ────────────────────────────────────────────────────────────
 class _Avatar5R extends StatelessWidget {
   final String  name;
   final Color?  color;
@@ -777,9 +758,9 @@ class _Avatar5R extends StatelessWidget {
     return Container(
       width: size, height: size,
       decoration: BoxDecoration(
-          color: bg.withOpacity(0.15),
+          color: bg.withValues(alpha:0.15),
           shape: BoxShape.circle,
-          border: Border.all(color: bg.withOpacity(0.3), width: 1)),
+          border: Border.all(color: bg.withValues(alpha:0.3), width: 1)),
       child: Center(child: Text(initials,
           style: TextStyle(
               fontSize: size * 0.35,

@@ -208,7 +208,7 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
     ]);
   }
 
-  // ── Empty state khusus Professional & Visitor ──────────────────────────────
+  // EMPTY STATE PROFESSIONAL & VISITOR
   Widget _buildEmptyState() {
     final isProfessional = widget.selectedInspectionRole == widget.getTxt('profesional');
     final isVisitor = widget.selectedInspectionRole == widget.getTxt('visitor');
@@ -445,7 +445,7 @@ class _FiveRInspectionTabState extends State<FiveRInspectionTab> {
     );
   }
 
-  // ─── Jabatan badge (ikon + warna sesuai JabatanHelper) ─────────────────────
+  // ROLE BADGE
   Widget _buildJabatanBadge({
     required int?    idJabatan,
     required String? jabatanNama,
