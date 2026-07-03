@@ -4,11 +4,13 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
 class _C {
-  static const textPrimary   = Color(0xFF0C4A6E);
-  static const textSecondary = Color(0xFF64748B);
-  static const textMuted     = Color(0xFFBDBDBD);
-  static const divider       = Color(0xFFE0F2FE);
-  static const red           = Color(0xFFEF4444);
+  static const textPrimary    = Color(0xFF0C4A6E);
+  static const textSecondary  = Color(0xFF64748B);
+  static const textMuted      = Color(0xFFBDBDBD);
+  static const divider        = Color(0xFFE0F2FE);
+  static const red            = Color(0xFFEF4444);
+  static const redLight       = Color(0xFFFEE2E2);
+  static const redBorderLight = Color(0xFFFCA5A5);
 }
 
 class LocationData {
@@ -212,33 +214,13 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
         color: Colors.transparent,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
         child: Row(children: [
-          widget.buildFilterBtn(
-            label: widget.filterMode == 'daily' && widget.selectedDate != null
-                ? DateFormat('d MMM yyyy',
-                        widget.lang == 'ID' ? 'id_ID'
-                        : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
-                    .format(widget.selectedDate!)
-                : _monthLabel,
-            isActive: true,
-            onTap: () => widget.showMonthPicker(fetchData),
-          ),
+          Expanded(child: _buildLocationTimeFilterButton()),
           const SizedBox(width: 10),
-          Expanded(child: widget.buildFilterBtn(
-            label: widget.selectedLocationLevel,
-            onTap: widget.showLevelPicker,
-          )),
+          Expanded(child: _buildLocationLevelFilterButton()),
         ]),
       ),
       // LAST UPDATED
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(widget.lastUpdatedText,
-              style: const TextStyle(
-                  fontSize: 11, color: _C.textSecondary, height: 1.4)),
-        ),
-      ),
+      _buildLastUpdatedWidget(),
       _buildTableHeader(),
       // LIST
       Expanded(child: locationFuture == null
@@ -268,6 +250,149 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
     ]);
   }
 
+  // TIME FILTER BUTTON
+  Widget _buildLocationTimeFilterButton() {
+    final isActive = widget.filterMode == 'daily';
+    final modeLabel = widget.filterMode == 'daily'
+        ? _t('Harian', 'Daily', '按日')
+        : _t('Bulanan', 'Monthly', '按月');
+    final valueLabel = widget.filterMode == 'daily' && widget.selectedDate != null
+        ? DateFormat('d MMM yyyy',
+                widget.lang == 'ID' ? 'id_ID'
+                : widget.lang == 'EN' ? 'en_US' : 'zh_CN')
+            .format(widget.selectedDate!)
+        : _monthLabel;
+
+    return GestureDetector(
+      onTap: () => widget.showMonthPicker(fetchData),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: isActive ? _C.red : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _C.red : _C.redBorderLight,
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _C.red.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.calendar_month_rounded, size: 15,
+                    color: isActive ? Colors.white : _C.red),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text('$modeLabel · $valueLabel',
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
+                          color: isActive ? Colors.white : _C.red)),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : _C.red, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  // LEVEL FILTER BUTTON
+  Widget _buildLocationLevelFilterButton() {
+    final isActive = widget.selectedLocationLevel != widget.translatedLocationLevels[0];
+    return GestureDetector(
+      onTap: widget.showLevelPicker,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isActive ? _C.red : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? _C.red : _C.redBorderLight,
+            width: 1.5,
+          ),
+          boxShadow: [BoxShadow(
+              color: _C.red.withValues(alpha:0.10), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Text(widget.selectedLocationLevel,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.white : _C.red)),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              color: isActive ? Colors.white : _C.red, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  // LAST UPDATED
+  Widget _buildLastUpdatedWidget() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: _C.redLight,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.access_time_filled_rounded,
+                size: 13, color: _C.red),
+            const SizedBox(width: 6),
+            Text(widget.lastUpdatedText,
+                style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: _C.textPrimary)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // PIC BADGE
+  Widget _buildPicBadge(String picName) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: _C.red.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _C.red.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.assignment_ind_rounded, size: 10, color: _C.red),
+        const SizedBox(width: 3),
+        Flexible(
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(
+                  text: 'PIC : ',
+                  style: TextStyle(
+                      fontSize: 9.5, fontWeight: FontWeight.w700, color: _C.red)),
+              TextSpan(
+                  text: picName,
+                  style: TextStyle(
+                      fontSize: 9.5, fontWeight: FontWeight.w700, color: _C.red)),
+            ]),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ]),
+    );
+  }
+
   // TABLE HEADER
   Widget _buildTableHeader() {
     return Container(
@@ -284,7 +409,7 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
         Expanded(
           flex: 3,
           child: Text(_t('Lokasi', 'Location', '位置'),
-              textAlign: TextAlign.left,
+              textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
                   color: _C.textSecondary, letterSpacing: 0.2)),
         ),
@@ -328,10 +453,8 @@ class AccidentLocationTabState extends State<AccidentLocationTab> {
                 style: const TextStyle(fontSize: 13,
                     fontWeight: FontWeight.w600, color: _C.textPrimary),
                 overflow: TextOverflow.ellipsis),
-            Text(loc.pic,
-                style: const TextStyle(
-                    fontSize: 11.5, color: _C.textSecondary),
-                overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
+            _buildPicBadge(loc.pic),
           ])),
         ])),
         SizedBox(
