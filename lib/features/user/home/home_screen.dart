@@ -1271,11 +1271,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildNavItem(Icons.home_outlined, Icons.home_rounded, 0),
-                    _buildNavItem(Icons.explore_outlined, Icons.explore, 1),
+                    _buildNavItem(Icons.home_outlined, Icons.home_rounded, 0, getTxt('home')),
+                    _buildNavItem(Icons.explore_outlined, Icons.explore, 1, getTxt('explore')),
                     const SizedBox(width: 56), // ruang tombol +
-                    _buildNavItem(Icons.pie_chart_outline, Icons.pie_chart, 2),
-                    _buildNavItem(Icons.emoji_events_outlined, Icons.emoji_events, 3),
+                    _buildNavItem(Icons.pie_chart_outline, Icons.pie_chart, 2, getTxt('analytics')),
+                    _buildNavItem(Icons.emoji_events_outlined, Icons.emoji_events, 3, getTxt('ranking')),
                   ],
                 ),
               ),
@@ -1349,27 +1349,44 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Widget _buildNavItem(IconData outlineIcon, IconData filledIcon, int index) {
+  Widget _buildNavItem(IconData outlineIcon, IconData filledIcon, int index, String label) {
     final bool isActive = _currentIndex == index;
+    const Color activeColor = Color(0xFF00C9E4);
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 50, height: 65,
-        child: Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: EdgeInsets.all(isActive ? 10 : 0),
-            decoration: BoxDecoration(
-              color: isActive ? const Color(0xFF00C9E4).withValues(alpha:0.15) : Colors.transparent,
-              shape: BoxShape.circle,
+        width: 64,
+        height: 65,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: EdgeInsets.all(isActive ? 7 : 0),
+              decoration: BoxDecoration(
+                color: isActive ? activeColor.withValues(alpha: 0.15) : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isActive ? filledIcon : outlineIcon,
+                size: 24,
+                color: isActive ? activeColor : Colors.grey.shade400,
+              ),
             ),
-            child: Icon(
-              isActive ? filledIcon : outlineIcon,
-              size: 28,
-              color: isActive ? const Color(0xFF00C9E4) : Colors.grey.shade400,
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 9.5,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                color: isActive ? activeColor : Colors.grey.shade400,
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

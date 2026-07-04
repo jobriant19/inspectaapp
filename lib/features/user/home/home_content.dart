@@ -80,6 +80,7 @@ class HomeContent extends StatefulWidget {
 }
 
 class HomeContentState extends State<HomeContent> {
+  static const double _kSectionGap = 20;
   Future<List<Map<String, dynamic>>>? _pendingAuditsFuture;
   final GlobalKey<HomeLatestActivityState> _latestActivityKey =
       GlobalKey<HomeLatestActivityState>();
@@ -214,19 +215,17 @@ class HomeContentState extends State<HomeContent> {
         children: [
           // Info Card
           widget.isUserDataLoading ? _buildInfoCardSkeleton() : widget.buildInfoCard(),
+          const SizedBox(height: _kSectionGap),
 
-          // Inspection
-          _SectionLabel(text: _t('inspeksi')),
-          const SizedBox(height: 10),
           _buildChooseModeButton(),
           _buildPendingAuditSection(),
 
           if (widget.isExecVerificator) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: _kSectionGap),
             _buildExecVerifButton(),
           ],
 
-          const SizedBox(height: 25),
+          const SizedBox(height: _kSectionGap),
 
           // Browse & Manage
           _SectionLabel(text: _t('telusur')),
@@ -397,7 +396,6 @@ class HomeContentState extends State<HomeContent> {
   }
 
   // Pending Audit Section
-  // Pending Audit Section
   Widget _buildPendingAuditSection() {
     // ✅ BARU: sembunyikan jika tidak berada di PT ATMI Solo
     if (!widget.isAtAtmi) return const SizedBox.shrink();
@@ -411,10 +409,13 @@ class HomeContentState extends State<HomeContent> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 25),
+            const SizedBox(height: _kSectionGap),
             _SectionLabel(text: _t('audit_tasks')),
             const SizedBox(height: 10),
-            ...tasks.map(_buildAuditTaskCard),
+            for (int i = 0; i < tasks.length; i++) ...[
+              _buildAuditTaskCard(tasks[i]),
+              if (i != tasks.length - 1) const SizedBox(height: 10),
+            ],
           ],
         );
       },
@@ -472,7 +473,6 @@ class HomeContentState extends State<HomeContent> {
       },
       child: Container(
         width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
@@ -700,12 +700,9 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 25),
-      child: Text(
-        text,
-        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black54),
-      ),
+    return Text(
+      text,
+      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black54),
     );
   }
 }

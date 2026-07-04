@@ -176,7 +176,6 @@ class _UserInfoCardState extends State<UserInfoCard> {
     final pointProgress = _getPointProgress(_monthlyPoin);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 25),
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
