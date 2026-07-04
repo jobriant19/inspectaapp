@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui';
 import 'dart:async';
+import '../user/home/popup/home_point_popup.dart';
 import 'auth_service.dart';
 import '../admin/home/admin_home_screen.dart';
 import '../user/home/home_screen.dart';
@@ -214,6 +215,8 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         } else {
           // User via Google
+          if (!mounted) return;
+          await warmupPointPopupFonts();
           if (!mounted) return;
           Navigator.pushReplacement(
             context,
@@ -497,6 +500,8 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
       } else {
+        if (!mounted) return;
+        await warmupPointPopupFonts();
         if (!mounted) return;
         Navigator.pushReplacement(
           context,

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../admin/home/admin_home_screen.dart';
 import '../user/home/home_screen.dart';
 import '../auth/login_screen.dart';
+import '../user/home/popup/home_point_popup.dart';
 import 'onboarding_screen.dart';
 import '../../core/utils/font_warmup.dart';
 
@@ -196,6 +197,8 @@ class _SplashScreenState extends State<SplashScreen> {
       }
 
       // ── Alur User biasa ───────────────────────────────────────────────────
+      await warmupPointPopupFonts();
+
       return () => Navigator.pushReplacement(
         context,
         _slideRoute(HomeScreen(
