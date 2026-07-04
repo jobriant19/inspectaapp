@@ -40,6 +40,10 @@ Future<void> showLoginPointDialog(
   if (ModalRoute.of(context)?.isCurrent != true) return;
 
   final completer = Completer<void>();
+  // ── Flag penanda: sedang menjalankan proses "Ambil & Bagikan" ──
+  // Mencegah completer selesai lebih awal akibat Navigator.pop()
+  // memicu .then() sebelum proses share (dan popup berhasil share) selesai.
+  bool isHandlingShareFlow = false;
 
   showDialog(
     context: context,
@@ -57,20 +61,19 @@ Future<void> showLoginPointDialog(
         if (!completer.isCompleted) completer.complete();
       },
       onClaimedAndShared: (receiverUser) async {
+        isHandlingShareFlow = true; // tandai SEBELUM pop
         Navigator.of(ctx).pop();
         await onClaimedAndShared(receiverUser);
         if (!completer.isCompleted) completer.complete();
       },
     ),
   ).then((_) {
-    if (!completer.isCompleted) completer.complete();
+    if (!isHandlingShareFlow && !completer.isCompleted) {
+      completer.complete();
+    }
   });
 
-  await Future.any([
-    completer.future,
-    Future.delayed(const Duration(seconds: 10)),
-  ]);
-  if (!completer.isCompleted) completer.complete();
+  await completer.future;
 }
 
 Future<void> showPenaltyDialog(
@@ -134,25 +137,226 @@ Future<void> handleSharePoints(
     } catch (_) {}
 
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Row(children: [
-        const Icon(Icons.local_fire_department_rounded, color: Colors.white, size: 16),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            lang == 'ID'
-                ? '${receiverUser['nama']} mendapat +$sharedAmt poin! Bonus +$bonusAmt poin untukmu.'
-                : '${receiverUser['nama']} gets +$sharedAmt points! Bonus +$bonusAmt points for you.',
-          ),
-        ),
-      ]),
-      backgroundColor: const Color(0xFF16A34A),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      margin: const EdgeInsets.all(16),
-    ));
+    // Menunggu pop up sukses benar-benar ditutup (klik "Awesome!" ATAU klik area luar)
+    // sebelum lanjut ke proses berikutnya (mis. News Popup), agar urutan tampil rapi.
+    await _showShareSuccessDialog(
+      context,
+      receiverName: receiverUser['nama']?.toString() ?? '-',
+      sharedAmt: sharedAmt,
+      bonusAmt: bonusAmt,
+      lang: lang,
+    );
   } catch (e) {
     debugPrint('Error sharing points: $e');
+  }
+}
+
+Future<void> _showShareSuccessDialog(
+  BuildContext context, {
+  required String receiverName,
+  required int sharedAmt,
+  required int bonusAmt,
+  required String lang,
+}) async {
+  final completer = Completer<void>();
+
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    barrierColor: Colors.black.withValues(alpha: 0.55),
+    builder: (ctx) => _ShareSuccessDialog(
+      receiverName: receiverName,
+      sharedAmt: sharedAmt,
+      bonusAmt: bonusAmt,
+      lang: lang,
+      onDismiss: () {
+        if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+        if (!completer.isCompleted) completer.complete();
+      },
+    ),
+  ).then((_) {
+    if (!completer.isCompleted) completer.complete();
+  });
+
+  await completer.future;
+}
+
+class _ShareSuccessDialog extends StatefulWidget {
+  final String receiverName;
+  final int sharedAmt;
+  final int bonusAmt;
+  final String lang;
+  final VoidCallback onDismiss;
+
+  const _ShareSuccessDialog({
+    required this.receiverName,
+    required this.sharedAmt,
+    required this.bonusAmt,
+    required this.lang,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_ShareSuccessDialog> createState() => _ShareSuccessDialogState();
+}
+
+class _ShareSuccessDialogState extends State<_ShareSuccessDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scaleAnim, _fadeAnim, _slideAnim;
+
+  static const Map<String, Map<String, String>> _txt = {
+    'ID': {
+      'title': 'Berhasil Berbagi Poin!',
+      'received': 'menerima',
+      'bonus': 'Kamu mendapat bonus',
+      'ok': 'Tutup',
+    },
+    'EN': {
+      'title': 'Points Shared Successfully!',
+      'received': 'received',
+      'bonus': 'You earned a bonus of',
+      'ok': 'Close',
+    },
+    'ZH': {
+      'title': '积分分享成功！',
+      'received': '获得了',
+      'bonus': '您获得了奖励',
+      'ok': '关闭',
+    },
+  };
+
+  Map<String, String> get t => _txt[widget.lang] ?? _txt['ID']!;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 520));
+    _scaleAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
+    _fadeAnim  = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slideAnim = Tween<double>(begin: 40, end: 0).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    const Color green = Color(0xFF16A34A);
+    const Color greenLight = Color(0xFFF0FDF4);
+    const Color greenMid = Color(0xFFDCFCE7);
+
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) => Opacity(
+        opacity: _fadeAnim.value,
+        child: Transform.translate(
+          offset: Offset(0, _slideAnim.value),
+          child: Transform.scale(scale: _scaleAnim.value, child: child),
+        ),
+      ),
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: green.withValues(alpha: 0.18), width: 1.5),
+              boxShadow: [
+                BoxShadow(color: green.withValues(alpha: 0.18), blurRadius: 40, spreadRadius: 4, offset: const Offset(0, 12)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                  decoration: const BoxDecoration(
+                    color: greenMid,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                  ),
+                  child: Column(children: [
+                    _PulsingRing(
+                      color: green,
+                      child: Container(
+                        width: 72, height: 72,
+                        decoration: BoxDecoration(
+                          color: green.withValues(alpha: 0.12), shape: BoxShape.circle,
+                          border: Border.all(color: green.withValues(alpha: 0.35), width: 2),
+                        ),
+                        child: const Icon(Icons.local_fire_department_rounded, color: green, size: 36),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(t['title']!,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w800, color: green)),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      decoration: BoxDecoration(color: green, borderRadius: BorderRadius.circular(50)),
+                      child: Text('+${widget.sharedAmt} Poin',
+                          style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
+                    ),
+                  ]),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                  child: Column(children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: greenLight, borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: green.withValues(alpha: 0.12)),
+                      ),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: GoogleFonts.poppins(
+                              fontSize: 12.5, fontWeight: FontWeight.w500,
+                              color: const Color(0xFF14532D), height: 1.6),
+                          children: [
+                            TextSpan(
+                              text: widget.receiverName,
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            TextSpan(text: ' ${t['received']!} '),
+                            TextSpan(
+                              text: '+${widget.sharedAmt} poin',
+                              style: const TextStyle(fontWeight: FontWeight.w800, color: green),
+                            ),
+                            const TextSpan(text: '.\n'),
+                            TextSpan(text: '${t['bonus']!} +${widget.bonusAmt} poin.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity, height: 50,
+                      child: ElevatedButton(
+                        onPressed: widget.onDismiss,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: green, foregroundColor: Colors.white, elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: Text(t['ok']!,
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -182,9 +386,11 @@ class _LoginPointDialog extends StatefulWidget {
 class _LoginPointDialogState extends State<_LoginPointDialog>
     with SingleTickerProviderStateMixin {
   static const Color _brightBlue = Color(0xFF00E0FF);
+  static const Color _titleBlue = Color(0xFF0EA5E9);
   bool _showUserPicker = false;
   List<Map<String, dynamic>> _users = [];
   bool _isLoadingUsers = false;
+  int _shareAmount = 5;
   late AnimationController _pulseCtrl;
   late Animation<double> _pulseAnim;
 
@@ -229,15 +435,27 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
 
   Future<void> _loadUsers() async {
     if (_users.isNotEmpty) return;
-    setState(() => _isLoadingUsers = true);
+    if (mounted) setState(() => _isLoadingUsers = true);
     try {
-      var query = _sb
-          .from('User')
-          .select('id_user, nama, id_jabatan, is_verificator, jabatan(nama_jabatan)')
-          .neq('id_user', widget.userId);
-      if (widget.userLokasiId != null) query = query.eq('id_lokasi', widget.userLokasiId!);
-      final data = await query.order('nama').limit(50);
-      if (mounted) setState(() { _users = List<Map<String, dynamic>>.from(data); _isLoadingUsers = false; });
+      // Ambil daftar user & nominal share poin secara PARALEL (lebih cepat)
+      final results = await Future.wait<dynamic>([
+        _sb
+            .from('User')
+            .select('id_user, nama, id_jabatan, is_verificator, jabatan(nama_jabatan)')
+            .neq('id_user', widget.userId)
+            .order('nama')
+            .limit(500),
+        _getShareAmount(),
+      ]);
+      final data = results[0] as List<dynamic>;
+      final amt = results[1] as int;
+      if (mounted) {
+        setState(() {
+          _users = List<Map<String, dynamic>>.from(data);
+          _shareAmount = amt;
+          _isLoadingUsers = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading users: $e');
       if (mounted) setState(() => _isLoadingUsers = false);
@@ -292,6 +510,151 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
     );
   }
 
+  static const Map<String, Map<String, String>> _confirmTxt = {
+    'ID': {
+      'title': 'Konfirmasi Berbagi Poin',
+      'desc': 'Bagikan poin ke',
+      'cancel': 'Batal',
+      'confirm': 'Ya, Bagikan',
+    },
+    'EN': {
+      'title': 'Confirm Share Points',
+      'desc': 'Share points to',
+      'cancel': 'Cancel',
+      'confirm': 'Yes, Share',
+    },
+    'ZH': {
+      'title': '确认分享积分',
+      'desc': '分享积分给',
+      'cancel': '取消',
+      'confirm': '是的，分享',
+    },
+  };
+
+  Future<void> _showConfirmShareDialog(Map<String, dynamic> user) async {
+    final ct = _confirmTxt[widget.lang] ?? _confirmTxt['ID']!;
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(22, 26, 22, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                  color: _titleBlue.withValues(alpha: 0.25),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _titleBlue.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.local_fire_department_rounded,
+                    color: _titleBlue, size: 34),
+              ),
+              const SizedBox(height: 14),
+              Text(ct['title']!,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF1E3A8A))),
+              const SizedBox(height: 10),
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, color: Colors.grey.shade600, height: 1.5),
+                  children: [
+                    TextSpan(text: '${ct['desc']!} '),
+                    TextSpan(
+                      text: user['nama']?.toString() ?? '-',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1E3A8A)),
+                    ),
+                    const TextSpan(text: '?'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF16A34A).withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: const Color(0xFF16A34A).withValues(alpha: 0.3)),
+                ),
+                child: Text('+$_shareAmount poin',
+                    style: GoogleFonts.poppins(
+                        color: const Color(0xFF16A34A),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14)),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(dialogCtx).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.grey.shade300),
+                        foregroundColor: Colors.grey.shade600,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text(ct['cancel']!,
+                          style:
+                              GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(dialogCtx).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _titleBlue,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text(ct['confirm']!,
+                          style:
+                              GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      widget.onClaimedAndShared(user);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -300,7 +663,7 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           margin: const EdgeInsets.symmetric(horizontal: 20),
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.88),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(28),
@@ -370,7 +733,10 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
           ),
           const SizedBox(height: 10),
           _ActionButton(
-            onTap: () async { await _loadUsers(); setState(() => _showUserPicker = true); },
+            onTap: () {
+              setState(() => _showUserPicker = true);
+              _loadUsers();
+            },
             color: const Color(0xFF00C9E4),
             icon: Icons.local_fire_department_rounded,
             label: t['share']!,
@@ -415,9 +781,9 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
                     t['share_title']!,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: const Color(0xFF1E3A8A)),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: _titleBlue),
                   ),
                 ),
               ],
@@ -427,19 +793,42 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
           // INFO BOX 
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: _brightBlue.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _brightBlue.withValues(alpha: 0.35)),
+              gradient: LinearGradient(
+                colors: [
+                  _titleBlue.withValues(alpha: 0.14),
+                  _brightBlue.withValues(alpha: 0.10),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _titleBlue.withValues(alpha: 0.45), width: 1.4),
+              boxShadow: [
+                BoxShadow(
+                    color: _titleBlue.withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3)),
+              ],
             ),
             child: Row(children: [
-              const Icon(Icons.info_outline, color: _brightBlue, size: 16),
-              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: _titleBlue.withValues(alpha: 0.16),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.info_rounded, color: _titleBlue, size: 16),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                   child: Text(t['share_info']!,
-                      style: const TextStyle(
-                          fontSize: 11, color: Color(0xFF0891B2)))),
+                      style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF0369A1),
+                          height: 1.4))),
             ]),
           ),
           const SizedBox(height: 12),
@@ -504,7 +893,7 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
 
           // USER LIST
           SizedBox(
-            height: 260,
+            height: MediaQuery.of(context).size.height * 0.42,
             child: _isLoadingUsers
                 ? const Center(
                     child: CircularProgressIndicator(color: _brightBlue))
@@ -518,7 +907,7 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
                         itemBuilder: (_, i) {
                           final u = filtered[i];
                           return GestureDetector(
-                            onTap: () => widget.onClaimedAndShared(u),
+                            onTap: () => _showConfirmShareDialog(u),
                             child: Container(
                               margin: const EdgeInsets.only(bottom: 10),
                               padding: const EdgeInsets.all(12),
@@ -588,50 +977,46 @@ class _LoginPointDialogState extends State<_LoginPointDialog>
                                   const SizedBox(width: 8),
 
                                   // BADGE POIN
-                                  FutureBuilder<int>(
-                                    future: _getShareAmount(),
-                                    builder: (_, snap) {
-                                      final amt = snap.data ?? 5;
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 10, vertical: 7),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF16A34A)
-                                              .withValues(alpha: 0.10),
-                                          borderRadius:
-                                              BorderRadius.circular(14),
-                                          border: Border.all(
-                                              color: const Color(0xFF16A34A)
-                                                  .withValues(alpha: 0.35)),
-                                        ),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text('Dapat',
-                                                style: TextStyle(
-                                                    color: Colors.grey.shade600,
-                                                    fontSize: 9,
-                                                    fontWeight:
-                                                        FontWeight.w600)),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(Icons.add_rounded,
-                                                    size: 12,
-                                                    color: Color(0xFF16A34A)),
-                                                Text('$amt poin',
-                                                    style: const TextStyle(
-                                                        color:
-                                                            Color(0xFF16A34A),
-                                                        fontWeight:
-                                                            FontWeight.w800,
-                                                        fontSize: 12.5)),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 13, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFF16A34A),
+                                          Color(0xFF22C55E),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(
+                                            color: const Color(0xFF16A34A)
+                                                .withValues(alpha: 0.35),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 3)),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.add_rounded,
+                                            size: 17, color: Colors.white),
+                                        const SizedBox(width: 2),
+                                        Text('$_shareAmount',
+                                            style: GoogleFonts.poppins(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 19)),
+                                        const SizedBox(width: 4),
+                                        Text('poin',
+                                            style: GoogleFonts.poppins(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 12)),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),

@@ -107,10 +107,6 @@ class HomeNewsPopup {
       if (unseenItems.isEmpty) return;
       if (!context.mounted) return;
 
-      await _markAsSeen(userId, unseenItems);
-
-      if (!context.mounted) return;
-
       showGeneralDialog(
         context: context,
         barrierDismissible: true,
@@ -132,7 +128,9 @@ class HomeNewsPopup {
           items: unseenItems,
           lang: lang,
         ),
-      );
+      ).then((_) {
+        _markAsSeen(userId, unseenItems);
+      });
     } catch (e) {
       debugPrint('HomeNewsPopup error: $e');
     }
