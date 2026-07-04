@@ -5,7 +5,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../../core/services/gemini_recurring_service.dart';
 import '../../../../core/utils/jabatan_helper.dart';
 import '../../finding/finding_detail_screen.dart';
-import '../../home/kts_finding_card.dart';
+import '../../home/card/kts_finding_card.dart';
 
 class _AppColors {
   static const primary = Color(0xFF0EA5E9);

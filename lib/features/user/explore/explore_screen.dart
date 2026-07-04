@@ -5,7 +5,7 @@ import '../finding/finding_detail_screen.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../home/kts_finding_card.dart';
+import '../home/card/kts_finding_card.dart';
 import '../ktsproduksi/kts_detail_screen.dart';
 
 class ExploreScreen extends StatefulWidget {

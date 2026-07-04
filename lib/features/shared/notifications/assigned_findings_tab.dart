@@ -4,8 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../user/finding/finding_detail_screen.dart';
-import '../../user/home/finding_card.dart';
-import '../../user/home/kts_finding_card.dart';
+import '../../user/home/card/finding_card.dart';
+import '../../user/home/card/kts_finding_card.dart';
 import '../../user/ktsproduksi/kts_detail_screen.dart';
 
 class AssignedFindingsTab extends StatefulWidget {

@@ -3,8 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import '../finding/finding_detail_screen.dart';
 import '../ktsproduksi/kts_detail_screen.dart';
-import 'finding_card.dart';
-import 'kts_finding_card.dart';
+import 'card/finding_card.dart';
+import 'card/kts_finding_card.dart';
 
 // Supabase shorthand
 final _sb = Supabase.instance.client;
