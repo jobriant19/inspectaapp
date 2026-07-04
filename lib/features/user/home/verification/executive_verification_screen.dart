@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../core/services/notification_service.dart';
+import '../../../../core/services/notification_service.dart';
 
 // Tambahkan di luar class, di bawah semua import
 void unawaited(Future<void> future) {

@@ -9,7 +9,7 @@ import 'location/location_screen.dart';
 import '../ktsproduksi/kts_produksi_screen.dart';
 import '../accident/accident_report_screen.dart';
 import 'choose_mode_sheet.dart';
-import 'verification_intro_screen.dart';
+import 'verification/verification_intro_screen.dart';
 import 'home_latest_activity.dart';
 
 // Supabase shorthand
