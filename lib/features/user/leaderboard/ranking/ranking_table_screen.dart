@@ -104,10 +104,10 @@ class RankingTableScreen {
     final String nameCol =
         lang == 'ID' ? 'Nama' : lang == 'ZH' ? '姓名' : 'Name';
     final String scoreCol = lang == 'ID'
-        ? 'Poin Bulan Ini'
+        ? 'Poin'
         : lang == 'ZH'
-        ? '本月积分'
-        : 'Monthly Points';
+        ? '积分'
+        : 'Points';
 
     return Container(
       color: const Color(0xFFF8FAFF),
