@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'leaderboard_detail_screen.dart';
+import 'detail/leaderboard_detail_screen.dart';
 
 class SeasonHistory {
   final int year;

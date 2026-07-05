@@ -3,8 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/utils/jabatan_helper.dart';
-import 'user_profile_modal.dart';
+import '../../../../core/utils/jabatan_helper.dart';
+import '../user_profile_modal.dart';
 
 class AppColors {
   static const primaryColor   = Color(0xFF0EA5E9);

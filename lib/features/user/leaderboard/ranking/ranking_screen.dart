@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'ranking_podium_screen.dart';
 import '../season_history_screen.dart';
-import '../leaderboard_detail_screen.dart' show LocationFilter;
+import '../detail/leaderboard_detail_screen.dart' show LocationFilter;
 import 'ranking_table_screen.dart';
 
 class _AppColors {
