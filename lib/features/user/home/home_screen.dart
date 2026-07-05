@@ -9,7 +9,7 @@ import '../../shared/account/account_screen.dart';
 import '../explore/explore_screen.dart';
 import '../analytics/analytics_screen.dart';
 import '../../shared/notifications/notification_screen.dart';
-import '../leaderboard/ranking_screen.dart';
+import '../leaderboard/ranking/ranking_screen.dart';
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
