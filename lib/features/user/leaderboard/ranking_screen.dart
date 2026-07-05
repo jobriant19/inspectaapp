@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
+import 'ranking_podium_screen.dart';
 import 'riwayat_musim_screen.dart';
 import 'package:shimmer/shimmer.dart';
 import 'user_profile_modal.dart';
@@ -23,7 +24,7 @@ class _AppColors {
 }
 
 // Model Data
-class _RankMember {
+class RankMember {
   final String id;
   final int rank;
   final String name;
@@ -33,7 +34,7 @@ class _RankMember {
   final Color avatarColor;
   final bool isSelf;
 
-  const _RankMember({
+  const RankMember({
     required this.id,
     required this.rank,
     required this.name,
@@ -65,9 +66,9 @@ class RankingScreen extends StatefulWidget {
 
 class _RankingScreenState extends State<RankingScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  Future<List<_RankMember>>? _leaderboardFuture;
+  Future<List<RankMember>>? _leaderboardFuture;
   DateTime? _lastUpdated;
-  _RankMember? _selfData;
+  RankMember? _selfData;
 
   // ── Filter Waktu ───────────────────────────────────────────────────────────
   String _timeFilterMode = 'monthly'; // 'monthly' atau 'daily'
@@ -264,7 +265,7 @@ class _RankingScreenState extends State<RankingScreen> {
     });
   }
 
-  Future<List<_RankMember>> _fetchLeaderboardFromLogPoin(DateTime now) async {
+  Future<List<RankMember>> _fetchLeaderboardFromLogPoin(DateTime now) async {
     try {
       final currentUserId = _supabase.auth.currentUser?.id;
 
@@ -340,12 +341,12 @@ class _RankingScreenState extends State<RankingScreen> {
             (b['monthlyPoints'] as int).compareTo(a['monthlyPoints'] as int),
       );
 
-      final List<_RankMember> members = [];
+      final List<RankMember> members = [];
       for (int i = 0; i < combined.length; i++) {
         final item = combined[i];
         final uid = item['id_user'] as String;
         members.add(
-          _RankMember(
+          RankMember(
             id: uid,
             rank: i + 1,
             name: item['nama'] as String,
@@ -358,7 +359,7 @@ class _RankingScreenState extends State<RankingScreen> {
         );
       }
 
-      _RankMember? foundSelf;
+      RankMember? foundSelf;
       try {
         foundSelf = members.firstWhere((m) => m.isSelf);
       } catch (_) {}
@@ -960,7 +961,12 @@ class _RankingScreenState extends State<RankingScreen> {
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
                 slivers: [
-                  SliverToBoxAdapter(child: _buildSkySection()),
+                  SliverToBoxAdapter(
+                    child: RankingPodiumScreen(
+                      leaderboardFuture: _leaderboardFuture,
+                      lang: widget.lang,
+                    ),
+                  ),
                   SliverToBoxAdapter(child: _buildLastUpdated()),
                   SliverToBoxAdapter(child: _buildSeasonBanner()),
                   // ── Filter Lokasi Bar ──
@@ -968,7 +974,7 @@ class _RankingScreenState extends State<RankingScreen> {
                   SliverToBoxAdapter(child: _buildLocationFilterBar()),
                   SliverToBoxAdapter(child: _buildTableHeader()),
                   SliverToBoxAdapter(child: _buildTargetRow()),
-                  FutureBuilder<List<_RankMember>>(
+                  FutureBuilder<List<RankMember>>(
                     future: _leaderboardFuture,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting &&
@@ -1319,242 +1325,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Sky Section (tidak berubah, salin dari kode asli)
-  Widget _buildSkySection() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      height: 300,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0EA5E9).withValues(alpha:0.4),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xFF1E90FF),
-                      Color(0xFF41B8F5),
-                      Color(0xFF7DD3FC),
-                      Color(0xFFBAE6FD),
-                    ],
-                    stops: [0.0, 0.35, 0.65, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: -30,
-              right: 30,
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Colors.white.withValues(alpha:0.35),
-                      Colors.white.withValues(alpha:0.12),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.5, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: -20,
-              bottom: 40,
-              child: _buildFantasyCloud(160, 0.92),
-            ),
-            Positioned(
-              right: -30,
-              bottom: 30,
-              child: _buildFantasyCloud(140, 0.85),
-            ),
-            Positioned(left: 10, top: 30, child: _buildFantasyCloud(80, 0.65)),
-            Positioned(right: 20, top: 15, child: _buildFantasyCloud(65, 0.55)),
-            Positioned(left: 80, top: 55, child: _buildFantasyCloud(90, 0.45)),
-            Positioned(
-              right: 28,
-              top: 52,
-              child: Transform.rotate(
-                angle: -0.15,
-                child: const Text(
-                  '✈',
-                  style: TextStyle(fontSize: 16, color: Colors.white70),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 48,
-              top: 90,
-              child: Transform.rotate(
-                angle: 0.1,
-                child: const Text(
-                  '✈',
-                  style: TextStyle(fontSize: 11, color: Colors.white54),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 4,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.white.withValues(alpha:0.3),
-                      Colors.white.withValues(alpha:0.5),
-                      Colors.white.withValues(alpha:0.3),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            FutureBuilder<List<_RankMember>>(
-              future: _leaderboardFuture,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData &&
-                    snapshot.connectionState == ConnectionState.waiting) {
-                  return const _PodiumShimmerPlaceholder();
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Text(
-                      getTxt('no_podium_data'),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        height: 1.5,
-                      ),
-                    ),
-                  );
-                }
-
-                final members = snapshot.data!;
-                _RankMember? top1, top2, top3;
-                try {
-                  top1 = members.firstWhere((m) => m.rank == 1);
-                } catch (_) {}
-                try {
-                  top2 = members.firstWhere((m) => m.rank == 2);
-                } catch (_) {}
-                try {
-                  top3 = members.firstWhere((m) => m.rank == 3);
-                } catch (_) {}
-
-                return Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        if (top2 != null)
-                          _PodiumMember(member: top2, position: 2)
-                        else
-                          const SizedBox(width: 95),
-                        if (top1 != null)
-                          _PodiumMember(member: top1, position: 1)
-                        else
-                          const SizedBox(width: 105),
-                        if (top3 != null)
-                          _PodiumMember(member: top3, position: 3)
-                        else
-                          const SizedBox(width: 95),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFantasyCloud(double width, double opacity) {
-    final h = width * 0.5;
-    return Opacity(
-      opacity: opacity,
-      child: SizedBox(
-        width: width,
-        height: h + 10,
-        child: Stack(
-          children: [
-            Positioned(
-              left: 0,
-              bottom: 0,
-              child: Container(
-                width: width,
-                height: h * 0.55,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(100),
-                ),
-              ),
-            ),
-            Positioned(
-              left: width * 0.05,
-              bottom: h * 0.35,
-              child: Container(
-                width: width * 0.38,
-                height: width * 0.38,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Positioned(
-              left: width * 0.28,
-              bottom: h * 0.42,
-              child: Container(
-                width: width * 0.44,
-                height: width * 0.44,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Positioned(
-              right: width * 0.05,
-              bottom: h * 0.3,
-              child: Container(
-                width: width * 0.32,
-                height: width * 0.32,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildLastUpdated() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -1673,7 +1443,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  void _showUserProfileModal(_RankMember member) {
+  void _showUserProfileModal(RankMember member) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1697,7 +1467,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  Widget _buildRankRow(_RankMember m) {
+  Widget _buildRankRow(RankMember m) {
     final isTop3 = m.isTop3;
     return InkWell(
       onTap: () => _showUserProfileModal(m),
@@ -1850,288 +1620,6 @@ class _RankingScreenState extends State<RankingScreen> {
   }
 }
 
-class _PodiumMember extends StatelessWidget {
-  final _RankMember member;
-  final int position;
-
-  const _PodiumMember({required this.member, required this.position});
-
-  // Tinggi platform podium: #1 paling menjulang
-  double get _platformHeight => position == 1
-      ? 115.0
-      : position == 2
-      ? 82.0
-      : 66.0;
-  double get _avatarSize => position == 1
-      ? 66.0
-      : position == 2
-      ? 54.0
-      : 50.0;
-  double get _columnWidth => position == 1 ? 108.0 : 92.0;
-
-  // Warna platform: kristal/kaca berwarna medali
-  Color get _platformColor => member.medalColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final bool isFirst = position == 1;
-
-    return SizedBox(
-      width: _columnWidth,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // ── Mahkota animasi juara 1 ──────────────────────────
-          if (isFirst) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFD700).withValues(alpha:0.25),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: const Color(0xFFFFD700).withValues(alpha:0.6),
-                  width: 1,
-                ),
-              ),
-              child: const Text(
-                '👑  #1',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFFFFD700),
-                  shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-          ],
-
-          // ── Lingkaran Avatar + Glow ──────────────────────────
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              // Lingkaran glow luar
-              Container(
-                width: _avatarSize + 14,
-                height: _avatarSize + 14,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _platformColor.withValues(alpha:isFirst ? 0.25 : 0.18),
-                ),
-              ),
-              // Ring border medali
-              Container(
-                width: _avatarSize + 5,
-                height: _avatarSize + 5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: _platformColor,
-                    width: isFirst ? 2.5 : 2.0,
-                  ),
-                ),
-              ),
-              // Avatar
-              _Avatar(
-                name: member.name,
-                avatarUrl: member.avatarUrl,
-                color: member.avatarColor,
-                size: _avatarSize,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 5),
-
-          // Nama
-          Text(
-            member.name.split(' ').first,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: isFirst ? 13.5 : 12.0,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-              shadows: const [
-                Shadow(
-                  color: Colors.black54,
-                  blurRadius: 6,
-                  offset: Offset(0, 1),
-                ),
-              ],
-            ),
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-          ),
-
-          const SizedBox(height: 5),
-
-          // Platform Podium bergaya kristal
-          Container(
-            height: _platformHeight,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(14),
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  _platformColor.withValues(alpha:0.70),
-                  _platformColor.withValues(alpha:0.45),
-                  _platformColor.withValues(alpha:0.25),
-                ],
-              ),
-              border: Border(
-                top: BorderSide(
-                  color: Colors.white.withValues(alpha:0.7),
-                  width: 1.5,
-                ),
-                left: BorderSide(
-                  color: Colors.white.withValues(alpha:0.3),
-                  width: 1,
-                ),
-                right: BorderSide(
-                  color: _platformColor.withValues(alpha:0.5),
-                  width: 1,
-                ),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: _platformColor.withValues(alpha:0.45),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha:0.15),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 6,
-                  top: 8,
-                  bottom: 8,
-                  child: Container(
-                    width: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha:0.35),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${member.rank}',
-                        style: TextStyle(
-                          fontSize: isFirst ? 36 : 28,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          height: 1.0,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withValues(alpha:0.35),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha:0.22),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha:0.45),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Text(
-                          '${member.score} Pts',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: isFirst ? 12.5 : 11.0,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PodiumShimmerPlaceholder extends StatelessWidget {
-  const _PodiumShimmerPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: _AppColors.primaryDark.withValues(alpha:0.5),
-      highlightColor: _AppColors.primary.withValues(alpha:0.5),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _buildShimmerBlock(height: 100, avatarSize: 58), // Peringkat 2
-            _buildShimmerBlock(height: 130, avatarSize: 68), // Peringkat 1
-            _buildShimmerBlock(height: 100, avatarSize: 58), // Peringkat 3
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildShimmerBlock({
-    required double height,
-    required double avatarSize,
-  }) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Container(
-          height: avatarSize,
-          width: avatarSize,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          height: height,
-          width: 95,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _RankRowShimmerPlaceholder extends StatelessWidget {
   const _RankRowShimmerPlaceholder();
 
@@ -2180,7 +1668,7 @@ class _RankRowShimmerPlaceholder extends StatelessWidget {
 }
 
 class _RankBadge extends StatelessWidget {
-  final _RankMember member;
+  final RankMember member;
   const _RankBadge({required this.member});
 
   @override
