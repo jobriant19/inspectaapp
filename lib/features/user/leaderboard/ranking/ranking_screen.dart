@@ -985,6 +985,8 @@ class _RankingScreenState extends State<RankingScreen> {
               child: RankingPodiumScreen(
                 leaderboardFuture: _leaderboardFuture,
                 lang: widget.lang,
+                isDaily: _timeFilterMode == 'daily' && _selectedDay != null,
+                selectedDay: _selectedDay,
               ),
             ),
             SliverPersistentHeader(
@@ -1010,6 +1012,7 @@ class _RankingScreenState extends State<RankingScreen> {
               leaderboardFuture: _leaderboardFuture,
               lang: widget.lang,
               getTxt: getTxt,
+              isDaily: _timeFilterMode == 'daily' && _selectedDay != null,
             ),
           ],
         ),
@@ -1023,7 +1026,7 @@ class _RankingScreenState extends State<RankingScreen> {
       onTap: _showLocationPicker,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: isFiltered ? _AppColors.primaryLight : Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -1044,15 +1047,15 @@ class _RankingScreenState extends State<RankingScreen> {
           children: [
             Icon(
               Icons.location_on_rounded,
-              size: 16,
+              size: 14,
               color: isFiltered ? _AppColors.primary : _AppColors.textSecondary,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 5),
             Flexible(
               child: Text(
                 _selectedLocation.displayName,
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 11,
                   fontWeight: isFiltered ? FontWeight.w700 : FontWeight.w600,
                   color:
                       isFiltered ? _AppColors.primary : _AppColors.textPrimary,
@@ -1079,16 +1082,16 @@ class _RankingScreenState extends State<RankingScreen> {
                   ),
                   child: const Icon(
                     Icons.close_rounded,
-                    size: 12,
+                    size: 11,
                     color: _AppColors.primary,
                   ),
                 ),
               ),
             ],
-            const SizedBox(width: 4),
+            const SizedBox(width: 3),
             Icon(
               Icons.keyboard_arrow_down_rounded,
-              size: 16,
+              size: 14,
               color: isFiltered ? _AppColors.primary : _AppColors.textSecondary,
             ),
           ],
@@ -1102,21 +1105,15 @@ class _RankingScreenState extends State<RankingScreen> {
         : widget.lang == 'ZH' ? 'zh_CN' : 'en_US';
     final isDaily = _timeFilterMode == 'daily' && _selectedDay != null;
 
-    final String modeLabel = isDaily
-        ? (widget.lang == 'ID' ? 'Harian' : widget.lang == 'ZH' ? '按日' : 'Daily')
-        : (widget.lang == 'ID' ? 'Bulanan' : widget.lang == 'ZH' ? '按月' : 'Monthly');
-
-    final String valueLabel = isDaily
+    final String label = isDaily
         ? DateFormat('d MMM yyyy', locale).format(_selectedDay!)
-        : DateFormat('MMMM yyyy', locale).format(DateTime.now());
-
-    final String label = '$modeLabel · $valueLabel';
+        : DateFormat('MMM yyyy', locale).format(DateTime.now());
 
     return GestureDetector(
       onTap: _showTimeFilterPicker,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: isDaily ? _AppColors.primaryLight : Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -1129,12 +1126,12 @@ class _RankingScreenState extends State<RankingScreen> {
             blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.access_time_rounded, size: 16,
+          Icon(Icons.access_time_rounded, size: 14,
             color: isDaily ? _AppColors.primary : _AppColors.textSecondary),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Flexible(child: Text(label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 10.5,
               fontWeight: isDaily ? FontWeight.w700 : FontWeight.w600,
               color: isDaily ? _AppColors.primary : _AppColors.textPrimary,
             ),
@@ -1151,12 +1148,12 @@ class _RankingScreenState extends State<RankingScreen> {
                 decoration: BoxDecoration(
                   color: _AppColors.primary.withValues(alpha: 0.15),
                   shape: BoxShape.circle),
-                child: const Icon(Icons.close_rounded, size: 12, color: _AppColors.primary),
+                child: const Icon(Icons.close_rounded, size: 11, color: _AppColors.primary),
               ),
             ),
           ],
-          const SizedBox(width: 4),
-          Icon(Icons.keyboard_arrow_down_rounded, size: 16,
+          const SizedBox(width: 3),
+          Icon(Icons.keyboard_arrow_down_rounded, size: 14,
             color: isDaily ? _AppColors.primary : _AppColors.textSecondary),
         ]),
       ),
@@ -1196,7 +1193,7 @@ class _RankingScreenState extends State<RankingScreen> {
         );
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -1213,13 +1210,13 @@ class _RankingScreenState extends State<RankingScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.history_rounded,
-                size: 16, color: _AppColors.textSecondary),
-            const SizedBox(width: 6),
+                size: 14, color: _AppColors.textSecondary),
+            const SizedBox(width: 5),
             Flexible(
               child: Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                   color: _AppColors.textPrimary,
                 ),

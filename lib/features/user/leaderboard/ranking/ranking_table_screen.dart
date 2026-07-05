@@ -25,6 +25,7 @@ class RankingTableScreen {
     required Future<List<RankMember>>? leaderboardFuture,
     required String lang,
     required String Function(String key) getTxt,
+    bool isDaily = false,
   }) {
     final double systemBottomInset = MediaQuery.of(context).viewPadding.bottom;
     final double safeBottom = systemBottomInset > 0 ? systemBottomInset : 8;
@@ -69,8 +70,38 @@ class RankingTableScreen {
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Center(child: Text(getTxt('no_rank_data'))),
+                padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/team_illustration.png',
+                        height: 120,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _noRankTitle(lang),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _TableColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _noRankSubtitle(lang, isDaily),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: _TableColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             );
           }
@@ -96,6 +127,38 @@ class RankingTableScreen {
         ),
       ),
     ];
+  }
+
+  static String _noRankTitle(String lang) {
+    switch (lang) {
+      case 'EN':
+        return 'No Ranking Data Yet';
+      case 'ZH':
+        return '暂无排名数据';
+      default:
+        return 'Belum Ada Data Peringkat';
+    }
+  }
+
+  static String _noRankSubtitle(String lang, bool isDaily) {
+    if (isDaily) {
+      switch (lang) {
+        case 'EN':
+          return 'Data will appear here once points activity is recorded for this day.';
+        case 'ZH':
+          return '当天一旦有积分活动记录，数据将显示在此处。';
+        default:
+          return 'Data akan muncul di sini setelah ada aktivitas poin pada tanggal ini.';
+      }
+    }
+    switch (lang) {
+      case 'EN':
+        return 'Data will appear here once points activity is recorded this month.';
+      case 'ZH':
+        return '本月一旦有积分活动记录，数据将显示在此处。';
+      default:
+        return 'Data akan muncul di sini setelah ada aktivitas poin bulan ini.';
+    }
   }
 
   static Widget _buildTableHeader(String lang) {

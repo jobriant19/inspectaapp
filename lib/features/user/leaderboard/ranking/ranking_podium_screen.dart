@@ -16,11 +16,15 @@ class _PodiumColors {
 class RankingPodiumScreen extends StatefulWidget {
   final Future<List<RankMember>>? leaderboardFuture;
   final String lang;
+  final bool isDaily;
+  final DateTime? selectedDay;
 
   const RankingPodiumScreen({
     super.key,
     required this.leaderboardFuture,
     required this.lang,
+    this.isDaily = false,
+    this.selectedDay,
   });
 
   @override
@@ -55,14 +59,35 @@ class _RankingPodiumScreenState extends State<RankingPodiumScreen>
     super.dispose();
   }
 
-  String get _noPodiumDataText {
+  String get _noPodiumTitle {
     switch (widget.lang) {
       case 'EN':
-        return 'No ranking data available\nfor this month yet.';
+        return 'No Ranking Data Yet';
       case 'ZH':
-        return '本月暂无\n排名数据。';
+        return '暂无排名数据';
       default:
-        return 'Belum ada data peringkat\nuntuk bulan ini.';
+        return 'Belum Ada Data Peringkat';
+    }
+  }
+
+  String get _noPodiumSubtitle {
+    if (widget.isDaily) {
+      switch (widget.lang) {
+        case 'EN':
+          return 'Rankings will appear here once\nactivity is recorded for this day.';
+        case 'ZH':
+          return '当天一旦有活动记录，\n排名将显示在此处。';
+        default:
+          return 'Peringkat akan muncul di sini setelah\nada aktivitas tercatat pada tanggal ini.';
+      }
+    }
+    switch (widget.lang) {
+      case 'EN':
+        return 'Rankings will appear here once\nactivity is recorded this month.';
+      case 'ZH':
+        return '本月一旦有活动记录，\n排名将显示在此处。';
+      default:
+        return 'Peringkat akan muncul di sini setelah\nada aktivitas tercatat bulan ini.';
     }
   }
 
@@ -278,12 +303,81 @@ class _RankingPodiumScreenState extends State<RankingPodiumScreen>
                           return const _PodiumShimmerPlaceholder();
                         }
                         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return Center(
-                            child: Text(
-                              _noPodiumDataText,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                  color: Colors.white70, height: 1.5),
+                          return Align(
+                            alignment: const Alignment(0, -0.25),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 28),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 20),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0B3550).withValues(alpha: 0.78),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.45),
+                                    width: 1.2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.16),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                          color: Colors.white.withValues(alpha: 0.5)),
+                                    ),
+                                    child: Icon(
+                                      widget.isDaily
+                                          ? Icons.today_rounded
+                                          : Icons.emoji_events_outlined,
+                                      color: Colors.white,
+                                      size: 26,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    _noPodiumTitle,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black87,
+                                          blurRadius: 6,
+                                          offset: Offset(0, 1),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _noPodiumSubtitle,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11.5,
+                                      height: 1.4,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black87,
+                                          blurRadius: 5,
+                                          offset: Offset(0, 1),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         }
