@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
-
+import 'package:google_fonts/google_fonts.dart';
+import '../../../core/utils/jabatan_helper.dart';
 import 'user_profile_modal.dart';
 
 class AppColors {
@@ -31,6 +32,9 @@ class LeaderboardMember {
   final String? avatarUrl;
   final int score;
   final int monthlyPoints; // poin dari log_poin bulan ini
+  final int? idJabatan;
+  final String? jabatanNama;
+  final bool? isVerificator;
 
   LeaderboardMember({
     this.idUser,
@@ -39,6 +43,9 @@ class LeaderboardMember {
     this.avatarUrl,
     required this.score,
     this.monthlyPoints = 0,
+    this.idJabatan,
+    this.jabatanNama,
+    this.isVerificator,
   });
 
   String get altitudeLabel => '${score * 10} ft';
@@ -100,6 +107,7 @@ const Map<String, Map<String, String>> leaderboardTexts = {
     'no_chart_data': 'Tidak ada data grafik untuk bulan ini.',
     'no_daily_data': 'Tidak ada data untuk tanggal ini.',
     'season': 'Musim',
+    'current_season': 'Musim Aktif',
     'time_left': 'Sisa waktu',
     'days': 'hari',
     'per_day': '/hari',
@@ -140,6 +148,7 @@ const Map<String, Map<String, String>> leaderboardTexts = {
     'no_chart_data': 'No chart data for this month.',
     'no_daily_data': 'No data for this date.',
     'season': 'Season',
+    'current_season': 'Active Season',
     'time_left': 'Time left',
     'days': 'days',
     'per_day': '/day',
@@ -180,6 +189,7 @@ const Map<String, Map<String, String>> leaderboardTexts = {
     'no_chart_data': '本月暂无图表数据。',
     'no_daily_data': '该日期暂无数据。',
     'season': '赛季',
+    'current_season': '当前赛季',
     'time_left': '剩余时间',
     'days': '天',
     'per_day': '/天',
@@ -443,7 +453,9 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
       // 3. Ambil profil user dengan filter lokasi
       var userQuery = _supabase
           .from('User')
-          .select('id_user, nama, gambar_user')
+          .select(
+            'id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)',
+          )
           .inFilter('id_user', monthlyMap.keys.toList())
           .or('is_visitor.is.null,is_visitor.eq.false');
 
@@ -464,10 +476,13 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
       for (final user in userData) {
         final uid = user['id_user']?.toString() ?? '';
         combined.add({
-          'uid'        : uid,
-          'nama'       : user['nama'] as String,
-          'gambar_user': user['gambar_user'] as String?,
-          'poin'       : monthlyMap[uid] ?? 0,
+          'uid'            : uid,
+          'nama'           : user['nama'] as String,
+          'gambar_user'    : user['gambar_user'] as String?,
+          'poin'           : monthlyMap[uid] ?? 0,
+          'id_jabatan'     : user['id_jabatan'] as int?,
+          'is_verificator' : user['is_verificator'] as bool?,
+          'jabatan_nama'   : (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
         });
       }
       combined.sort((a, b) =>
@@ -483,6 +498,9 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           avatarUrl    : item['gambar_user'] as String?,
           score        : item['poin'] as int,
           monthlyPoints: item['poin'] as int,
+          idJabatan    : item['id_jabatan'] as int?,
+          jabatanNama  : item['jabatan_nama'] as String?,
+          isVerificator: item['is_verificator'] as bool?,
         );
       }).toList();
     } catch (e) {
@@ -519,7 +537,9 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
       // 3. Ambil profil user dengan filter lokasi
       var userQuery = _supabase
           .from('User')
-          .select('id_user, nama, gambar_user')
+          .select(
+            'id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)',
+          )
           .inFilter('id_user', dailyMap.keys.toList())
           .or('is_visitor.is.null,is_visitor.eq.false');
 
@@ -542,10 +562,13 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
         final dp = dailyMap[uid] ?? 0;
         if (dp > 0) {
           combined.add({
-            'uid'        : uid,
-            'nama'       : user['nama'] as String,
-            'gambar_user': user['gambar_user'] as String?,
-            'poin'       : dp,
+            'uid'            : uid,
+            'nama'           : user['nama'] as String,
+            'gambar_user'    : user['gambar_user'] as String?,
+            'poin'           : dp,
+            'id_jabatan'     : user['id_jabatan'] as int?,
+            'is_verificator' : user['is_verificator'] as bool?,
+            'jabatan_nama'   : (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?,
           });
         }
       }
@@ -562,6 +585,9 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           avatarUrl    : item['gambar_user'] as String?,
           score        : item['poin'] as int,
           monthlyPoints: item['poin'] as int,
+          idJabatan    : item['id_jabatan'] as int?,
+          jabatanNama  : item['jabatan_nama'] as String?,
+          isVerificator: item['is_verificator'] as bool?,
         );
       }).toList();
     } catch (e) {
@@ -933,18 +959,23 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1D72F3)),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           _getTxt('appbar_title'),
-          style: const TextStyle(
-              color: Color(0xFF0C4A6E), fontWeight: FontWeight.bold),
+          style: GoogleFonts.poppins(
+            color: const Color(0xFF1D72F3),
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+          ),
         ),
         backgroundColor: Colors.white,
         elevation: 1,
-        iconTheme: const IconThemeData(color: Color(0xFF0C4A6E)),
         centerTitle: true,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
       ),
       body: ListView(
         children: [
@@ -966,6 +997,8 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
     final diff = endOfMonth.difference(now);
     final daysLeft = diff.inDays;
     final hoursLeft = diff.inHours % 24;
+    final isOngoing = !diff.isNegative;
+    final isCurrentSeason = now.year == widget.year && now.month == widget.month;
 
     String timeLeftStr;
     if (diff.isNegative) {
@@ -988,65 +1021,242 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
               : '$hoursLeft hrs';
     }
 
+    final String statusLabel = isOngoing
+        ? (widget.lang == 'ID'
+            ? 'Sedang Berlangsung'
+            : widget.lang == 'ZH'
+                ? '进行中'
+                : 'Ongoing')
+        : (widget.lang == 'ID'
+            ? 'Berakhir'
+            : widget.lang == 'ZH'
+                ? '已结束'
+                : 'Ended');
+
+    // Warna diambil konsisten dari season_history_screen.dart & ranking_screen.dart
+    const seasonGreen = Color(0xFF059669);
+    const seasonGreenBg = Color(0xFFECFDF5);
+    const seasonGreenBorder = Color(0xFFA7F3D0);
+
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0C4A6E), Color(0xFF0EA5E9)],
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Row 1: badge "Season" + status Ongoing/Ended — dual-style sama seperti season_history_screen.dart
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_getTxt('season'),
-                  style: const TextStyle(fontSize: 11, color: Colors.white70)),
-              const SizedBox(height: 3),
-              Text(widget.seasonTitle,
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white)),
+              Flexible(
+                fit: FlexFit.loose,
+                child: isCurrentSeason
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF4F46E5), Color(0xFF0EA5E9)],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF4F46E5).withValues(alpha: 0.30),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.bolt_rounded, size: 13, color: Colors.white),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                _getTxt('current_season'),
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.outlined_flag_rounded,
+                                size: 12, color: Color(0xFF64748B)),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                '${_getTxt('season')} ${widget.year}',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 8),
+              if (isOngoing)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF059669).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: const Color(0xFF059669).withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF059669),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        statusLabel,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF94A3B8),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        statusLabel,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(_getTxt('time_left'),
-                  style: const TextStyle(fontSize: 11, color: Colors.white70)),
-              Text(
-                timeLeftStr,
-                style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFFFCD34D)),
-              ),
-              const SizedBox(height: 4),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.history_rounded, size: 13),
-                label: Text(_getTxt('history')),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white38),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  textStyle: const TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w600),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          const SizedBox(height: 12),
+          // Row 2: chip periode — sama seperti _buildSeasonBanner() di ranking_screen.dart
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: seasonGreenBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: seasonGreenBorder),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.calendar_month_rounded,
+                    size: 16, color: seasonGreen),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    widget.seasonTitle,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: seasonGreen,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Row 3: chip sisa waktu — dilebarkan penuh & boleh 2 baris agar terlihat jelas, tidak terpotong
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFBAE6FD)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.timer_rounded,
+                    size: 16, color: AppColors.primaryColor),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    '${_getTxt('time_left')} $timeLeftStr',
+                    textAlign: TextAlign.center,
+                    softWrap: true,
+                    maxLines: 2,
+                    overflow: TextOverflow.visible,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primaryColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1606,9 +1816,6 @@ Widget _buildPieInfoCard({
 
     final yLabels = List.generate(6, (i) => (maxVal / 5 * i).round());
 
-    // Format label bulan
-    final monthStr = _selectedDate.month.toString();
-
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.fromLTRB(0, 12, 12, 0),
@@ -1939,50 +2146,63 @@ Widget _buildPieInfoCard({
       ),
       child: Column(
         children: [
-          // Header
+          // Header — samakan dengan ranking_table_screen.dart
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            ),
+            color: const Color(0xFFF8FAFF),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               children: [
-                _th('Rank', 44),
+                SizedBox(
+                  width: 48,
+                  child: Text(
+                    widget.lang == 'ID' ? 'Rank' : widget.lang == 'ZH' ? '排名' : 'Rank',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary),
+                  ),
+                ),
                 Expanded(
                   child: Text(_getTxt('name_col'),
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w700,
-                      color: AppColors.textSecondary))),
-                _th(
-                  widget.lang == 'ID' ? 'Poin Bulan Ini'
-                  : widget.lang == 'ZH' ? '本月积分'
-                  : 'Monthly Pts',
-                  90, center: true),
+                      fontSize: 12.5, fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary)),
+                ),
+                SizedBox(
+                  width: 100,
+                  child: Text(
+                    widget.lang == 'ID' ? 'Poin' : widget.lang == 'ZH' ? '积分' : 'Points',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary),
+                  ),
+                ),
               ],
             ),
           ),
-          // Target row
+          // Target row — samakan dengan ranking_table_screen.dart
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
-              border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            decoration: const BoxDecoration(
+              color: AppColors.primaryLight,
+              border: Border(bottom: BorderSide(color: AppColors.primaryLight)),
             ),
             child: Row(
               children: [
-                const SizedBox(width: 44),
                 Expanded(
                   child: Text(_getTxt('monthly_target'),
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700,
+                      fontSize: 13, fontWeight: FontWeight.w700,
                       color: AppColors.primaryColor))),
                 const SizedBox(
-                  width: 90,
+                  width: 100,
                   child: Text('1000',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w800,
+                      fontSize: 13, fontWeight: FontWeight.w700,
                       color: AppColors.primaryColor))),
               ],
             ),
@@ -2016,52 +2236,27 @@ Widget _buildPieInfoCard({
     );
   }
 
-  Widget _th(String text, double width, {bool center = false}) {
-    return SizedBox(
-      width: width,
-      child: Text(text,
-          textAlign: center ? TextAlign.center : TextAlign.start,
-          style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textSecondary)),
-    );
-  }
-
   Widget _buildRankRow(LeaderboardMember item) {
-    Color? leftBorder;
-    Color bgColor = Colors.white;
-    Color scoreColor = AppColors.primaryDark;
+    final isTop3 = item.rank <= 3;
+    Color medalColor;
     Widget badge;
-    String? subLabel;
 
     if (item.rank == 1) {
-      leftBorder = AppColors.gold;
-      bgColor    = const Color(0xFFFFFBEB);
-      scoreColor = AppColors.gold;
-      badge      = const Text('🥇', style: TextStyle(fontSize: 20));
-      subLabel   = _getTxt('first_class');
+      medalColor = AppColors.gold;
+      badge = const Text('🥇', style: TextStyle(fontSize: 22));
     } else if (item.rank == 2) {
-      leftBorder = AppColors.silver;
-      bgColor    = const Color(0xFFF8FAFC);
-      scoreColor = AppColors.silver;
-      badge      = const Text('🥈', style: TextStyle(fontSize: 20));
-      subLabel   = _getTxt('business_class');
+      medalColor = AppColors.silver;
+      badge = const Text('🥈', style: TextStyle(fontSize: 22));
     } else if (item.rank == 3) {
-      leftBorder = AppColors.bronze;
-      bgColor    = const Color(0xFFFDF6EE);
-      scoreColor = AppColors.bronze;
-      badge      = const Text('🥉', style: TextStyle(fontSize: 20));
-      subLabel   = _getTxt('premium_class');
+      medalColor = AppColors.bronze;
+      badge = const Text('🥉', style: TextStyle(fontSize: 22));
     } else {
-      badge = SizedBox(
-        width: 28,
-        child: Text('${item.rank}',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 12, fontWeight: FontWeight.w700,
-            color: AppColors.textSecondary)),
-      );
+      medalColor = AppColors.textSecondary;
+      badge = Text('${item.rank}',
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 13.5, fontWeight: FontWeight.w600,
+          color: AppColors.textSecondary));
     }
 
     return InkWell(
@@ -2086,70 +2281,116 @@ Widget _buildPieInfoCard({
       },
       child: Container(
         decoration: BoxDecoration(
-          color: bgColor,
+          color: isTop3 ? medalColor.withValues(alpha: 0.04) : Colors.white,
           border: Border(
-            bottom: BorderSide(color: AppColors.border, width: 0.5),
-            left: leftBorder != null
-                ? BorderSide(color: leftBorder, width: 3)
+            bottom: const BorderSide(color: AppColors.border, width: 1),
+            left: isTop3
+                ? BorderSide(color: medalColor, width: 3)
                 : BorderSide.none,
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         child: Row(
           children: [
-            SizedBox(width: 44, child: Center(child: badge)),
+            SizedBox(width: 48, child: Center(child: badge)),
+            const SizedBox(width: 14),
             Expanded(
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 15,
-                    backgroundImage: (item.avatarUrl != null && item.avatarUrl!.isNotEmpty)
-                        ? NetworkImage(item.avatarUrl!)
-                        : null,
-                    backgroundColor: AppColors.primaryLight,
-                    child: (item.avatarUrl == null || item.avatarUrl!.isEmpty)
-                        ? Text(
-                            item.name.trim().split(' ').take(2)
-                                .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
-                                .join(),
-                            style: const TextStyle(
-                              fontSize: 10, fontWeight: FontWeight.w700,
-                              color: AppColors.primaryColor))
-                        : null,
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: isTop3
+                          ? Border.all(color: medalColor.withValues(alpha: 0.6), width: 2)
+                          : null,
+                      boxShadow: isTop3
+                          ? [BoxShadow(color: medalColor.withValues(alpha: 0.25), blurRadius: 6)]
+                          : null,
+                    ),
+                    child: CircleAvatar(
+                      radius: 17,
+                      backgroundImage: (item.avatarUrl != null && item.avatarUrl!.isNotEmpty)
+                          ? NetworkImage(item.avatarUrl!)
+                          : null,
+                      backgroundColor: AppColors.primaryLight,
+                      child: (item.avatarUrl == null || item.avatarUrl!.isEmpty)
+                          ? Text(
+                              item.name.trim().split(' ').take(2)
+                                  .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
+                                  .join(),
+                              style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700,
+                                color: AppColors.primaryColor))
+                          : null,
+                    ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(item.name,
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: item.rank <= 3 ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 13,
+                            fontWeight: isTop3 ? FontWeight.w700 : FontWeight.w500,
                             color: AppColors.textPrimary),
                           overflow: TextOverflow.ellipsis),
-                        if (subLabel != null)
-                          Text(subLabel,
-                            style: TextStyle(
-                              fontSize: 9, fontWeight: FontWeight.w700,
-                              color: scoreColor)),
+                        const SizedBox(height: 4),
+                        _buildJabatanBadge(
+                          idJabatan: item.idJabatan,
+                          jabatanNama: item.jabatanNama,
+                          isVerificator: item.isVerificator,
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-            // Monthly Points
             SizedBox(
-              width: 90,
+              width: 100,
               child: Text('${item.monthlyPoints}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14, fontWeight: FontWeight.w800,
-                  color: scoreColor))),
+                  color: isTop3 ? medalColor : AppColors.primaryDark))),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildJabatanBadge({
+    required int?    idJabatan,
+    required String? jabatanNama,
+    required bool?   isVerificator,
+  }) {
+    final label = JabatanHelper.getDisplayRole(
+      isVerificatorFlag: isVerificator,
+      idJabatan: idJabatan,
+      jabatanFromDb: jabatanNama,
+      lang: widget.lang,
+    );
+    if (label.isEmpty) return const SizedBox.shrink();
+    final color = JabatanHelper.getPrimaryColor(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    final icon = JabatanHelper.getRoleIcon(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 10, color: color),
+        const SizedBox(width: 3),
+        Text(label,
+            style: TextStyle(
+                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
+      ]),
     );
   }
 }

@@ -359,49 +359,61 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: seasonGreenBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: seasonGreenBorder),
-            ),
+          IntrinsicHeight(
             child: Row(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.calendar_month_rounded,
-                    size: 18, color: seasonGreen),
-                const SizedBox(width: 8),
-                Text(
-                  '${item.monthName(widget.lang)} ${item.year}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: seasonGreen,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: seasonGreenBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: seasonGreenBorder),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_month_rounded,
+                          size: 18, color: seasonGreen),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${item.monthName(widget.lang)} ${item.year}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: seasonGreen,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: rangeBlueBg,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: rangeBlueBorder),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.timer_rounded, size: 15, color: rangeBlue),
-                const SizedBox(width: 6),
-                Text(
-                  item.dateRange(widget.lang),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: rangeBlue,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: rangeBlueBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: rangeBlueBorder),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.timer_rounded, size: 15, color: rangeBlue),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            item.dateRange(widget.lang),
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: rangeBlue,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
