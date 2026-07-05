@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'leaderboard_detail_screen.dart';
-
-// ── Models ────────────────────────────────────────────────────────────────────
 
 class SeasonHistory {
   final int year;
@@ -39,7 +38,6 @@ class SeasonHistory {
     return '${formatter.format(firstDay)} - ${formatter.format(lastDay)}';
   }
 
-  /// Status bulan: 'ongoing', 'ended'
   String get status {
     final now = DateTime.now();
     if (year == now.year && month == now.month) return 'ongoing';
@@ -60,8 +58,6 @@ class SeasonWinner {
     required this.score,
   });
 }
-
-// ── Translations ──────────────────────────────────────────────────────────────
 
 const Map<String, Map<String, String>> _riwayatTexts = {
   'ID': {
@@ -114,8 +110,6 @@ const Map<String, Map<String, String>> _riwayatTexts = {
   },
 };
 
-// ── Screen ────────────────────────────────────────────────────────────────────
-
 class RiwayatMusimScreen extends StatefulWidget {
   final String lang;
   const RiwayatMusimScreen({super.key, required this.lang});
@@ -128,7 +122,6 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   late final Future<List<SeasonHistory>> _historyFuture;
 
-  // Cache pemenang per bulan-tahun agar tidak fetch ulang
   final Map<String, Future<List<SeasonWinner>>> _winnerCache = {};
 
   String _t(String key) =>
@@ -173,14 +166,12 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
         final startOfMonth = DateTime(year, month, 1).toIso8601String();
         final endOfMonth = DateTime(year, month + 1, 1).toIso8601String();
 
-        // 1. Ambil semua log_poin bulan tersebut
         final List<dynamic> logData = await _supabase
             .from('log_poin')
             .select('id_user, poin')
             .gte('created_at', startOfMonth)
             .lt('created_at', endOfMonth);
-
-        // 2. Hitung total poin per user
+        
         final Map<String, int> monthlyMap = {};
         for (final log in logData) {
           final uid = log['id_user']?.toString() ?? '';
@@ -191,14 +182,12 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
 
         if (monthlyMap.isEmpty) return <SeasonWinner>[];
 
-        // 3. Ambil profil user
         final List<dynamic> userData = await _supabase
             .from('User')
             .select('id_user, nama, gambar_user')
             .inFilter('id_user', monthlyMap.keys.toList())
             .or('is_visitor.is.null,is_visitor.eq.false');
 
-        // 4. Gabungkan & urutkan
         final List<Map<String, dynamic>> combined = [];
         for (final user in userData) {
           final uid = user['id_user']?.toString() ?? '';
@@ -212,7 +201,6 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
         combined.sort((a, b) =>
             (b['poin'] as int).compareTo(a['poin'] as int));
 
-        // 5. Ambil top 3
         return combined.take(3).toList().asMap().entries.map((e) {
           final item = e.value;
           return SeasonWinner(
@@ -230,8 +218,6 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
     return _winnerCache[key]!;
   }
 
-  // ── Build ───────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -241,14 +227,14 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
         future: _historyFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return _buildHistoryShimmer();
           }
           if (snapshot.hasError ||
               !snapshot.hasData ||
               snapshot.data!.isEmpty) {
             return Center(
               child: Text(_t('no_history'),
-                  style: const TextStyle(color: Color(0xFF64748B))),
+                  style: GoogleFonts.poppins(color: const Color(0xFF64748B))),
             );
           }
 
@@ -269,28 +255,25 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios),
+        icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1D72F3)),
         onPressed: () => Navigator.of(context).pop(),
       ),
       title: Text(
         _t('title'),
-        style: const TextStyle(
-            color: Color(0xFF0C4A6E), fontWeight: FontWeight.bold),
+        style: GoogleFonts.poppins(
+          color: const Color(0xFF1D72F3),
+          fontWeight: FontWeight.bold,
+          fontSize: 17,
+        ),
       ),
       backgroundColor: Colors.white,
       elevation: 1,
       centerTitle: true,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.black.withValues(alpha: 0.08),
-      iconTheme: const IconThemeData(color: Color(0xFF0C4A6E)),
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: const Color(0xFFE0F2FE)),
-      ),
+      iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
     );
   }
-
-  // ── Season Card ─────────────────────────────────────────────────────────────
 
   Widget _buildSeasonCard(SeasonHistory item) {
     final isOngoing = item.status == 'ongoing';
@@ -317,7 +300,7 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
           boxShadow: [
             BoxShadow(
               color: isOngoing
-                  ? const Color(0xFF0EA5E9).withValues(alpha: 0.15)
+                  ? const Color(0xFF059669).withValues(alpha: 0.15)
                   : Colors.black.withValues(alpha: 0.05),
               blurRadius: 16,
               offset: const Offset(0, 4),
@@ -325,24 +308,20 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
           ],
           border: Border.all(
             color: isOngoing
-                ? const Color(0xFF0EA5E9).withValues(alpha: 0.4)
+                ? const Color(0xFF059669).withValues(alpha: 0.4)
                 : const Color(0xFFE2E8F0),
             width: isOngoing ? 1.5 : 1,
           ),
         ),
         child: Column(
           children: [
-            // ── Header Card ──
             _buildCardHeader(item, isOngoing, isCurrentMonth),
-            // ── Divider ──
             Container(
               height: 1,
               margin: const EdgeInsets.symmetric(horizontal: 16),
               color: const Color(0xFFF1F5F9),
             ),
-            // ── Winners Section ──
             _buildWinnersSection(item),
-            // ── Footer ──
             _buildCardFooter(item, isOngoing),
           ],
         ),
@@ -351,67 +330,154 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
   }
 
   Widget _buildCardHeader(SeasonHistory item, bool isOngoing, bool isCurrentMonth) {
+    const seasonGreen = Color(0xFF059669);
+    const seasonGreenBg = Color(0xFFECFDF5);
+    const seasonGreenBorder = Color(0xFFA7F3D0);
+    const rangeBlue = Color(0xFF0EA5E9);
+    const rangeBlueBg = Color(0xFFE0F2FE);
+    const rangeBlueBorder = Color(0xFFBAE6FD);
+
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: isOngoing
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF0C4A6E), Color(0xFF0EA5E9)],
-              )
-            : null,
-        color: isOngoing ? null : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Info musim
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                fit: FlexFit.loose,
+                child: _buildSeasonLabelBadge(item, isCurrentMonth),
+              ),
+              const SizedBox(width: 8),
+              _buildStatusBadge(item.status, isOngoing),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: seasonGreenBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: seasonGreenBorder),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Label musim kecil
-                Text(
-                  isCurrentMonth
-                      ? _t('current_season')
-                      : '${_t('season')} ${item.year}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: isOngoing
-                        ? Colors.white.withValues(alpha: 0.8)
-                        : const Color(0xFF94A3B8),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                // Nama bulan + tahun
+                const Icon(Icons.calendar_month_rounded,
+                    size: 18, color: seasonGreen),
+                const SizedBox(width: 8),
                 Text(
                   '${item.monthName(widget.lang)} ${item.year}',
-                  style: TextStyle(
-                    fontSize: 20,
+                  style: GoogleFonts.poppins(
+                    fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    color: isOngoing ? Colors.white : const Color(0xFF0C4A6E),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Rentang tanggal
-                Text(
-                  item.dateRange(widget.lang),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isOngoing
-                        ? Colors.white.withValues(alpha: 0.75)
-                        : const Color(0xFF64748B),
+                    color: seasonGreen,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          // Badge status
-          _buildStatusBadge(item.status, isOngoing),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: rangeBlueBg,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: rangeBlueBorder),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.timer_rounded, size: 15, color: rangeBlue),
+                const SizedBox(width: 6),
+                Text(
+                  item.dateRange(widget.lang),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: rangeBlue,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeasonLabelBadge(SeasonHistory item, bool isCurrentMonth) {
+    if (isCurrentMonth) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF4F46E5), Color(0xFF0EA5E9)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF4F46E5).withValues(alpha: 0.30),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.bolt_rounded, size: 13, color: Colors.white),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                _t('current_season'),
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.outlined_flag_rounded,
+              size: 12, color: Color(0xFF64748B)),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              '${_t('season')} ${item.year}',
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+                color: const Color(0xFF475569),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -422,29 +488,29 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.25),
+          color: const Color(0xFF059669).withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
+          border: Border.all(
+              color: const Color(0xFF059669).withValues(alpha: 0.35)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Dot animasi (simulasi dengan Container)
             Container(
               width: 6,
               height: 6,
               decoration: const BoxDecoration(
-                color: Color(0xFF4ADE80),
+                color: Color(0xFF059669),
                 shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 5),
             Text(
               _t('ongoing'),
-              style: const TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
+                color: const Color(0xFF059669),
               ),
             ),
           ],
@@ -472,18 +538,16 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
           const SizedBox(width: 5),
           Text(
             _t('ended'),
-            style: const TextStyle(
+            style: GoogleFonts.poppins(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF64748B),
+              color: const Color(0xFF64748B),
             ),
           ),
         ],
       ),
     );
   }
-
-  // ── Winners Section ─────────────────────────────────────────────────────────
 
   Widget _buildWinnersSection(SeasonHistory item) {
     final isOngoing = item.status == 'ongoing';
@@ -503,7 +567,6 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                 orElse: () => winners.first,
               );
 
-        // Label berbeda untuk ongoing vs ended
         final sectionLabel = isOngoing
             ? _t('winners_temp')
             : _t('winners');
@@ -527,7 +590,7 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                   const SizedBox(width: 6),
                   Text(
                     sectionLabel,
-                    style: TextStyle(
+                    style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: isOngoing
@@ -535,7 +598,6 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                           : const Color(0xFF0C4A6E),
                     ),
                   ),
-                  // Badge "sementara" untuk ongoing
                   if (isOngoing) ...[
                     const SizedBox(width: 6),
                     Container(
@@ -553,10 +615,10 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                             : widget.lang == 'ZH'
                                 ? '实时'
                                 : 'Live',
-                        style: const TextStyle(
+                        style: GoogleFonts.poppins(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF0EA5E9),
+                          color: const Color(0xFF0EA5E9),
                         ),
                       ),
                     ),
@@ -575,8 +637,8 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                       const SizedBox(width: 6),
                       Text(
                         _t('no_winner'),
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF94A3B8)),
+                        style: GoogleFonts.poppins(
+                            fontSize: 12, color: const Color(0xFF94A3B8)),
                       ),
                     ],
                   ),
@@ -607,13 +669,12 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
       ),
       child: Row(
         children: [
-          // Medali — jam pasir untuk ongoing, trofi untuk ended
           Text(
             isOngoing ? '🏃' : '🥇',
             style: const TextStyle(fontSize: 26),
           ),
           const SizedBox(width: 12),
-          // Avatar
+          // AVATAR
           Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -665,14 +726,14 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          // Nama & skor
+          // NAME & SCORE
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   winner.name,
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                     color: isOngoing
@@ -685,7 +746,7 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                 const SizedBox(height: 2),
                 Text(
                   '${winner.score} ${_t('pts')}',
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: isOngoing
@@ -696,7 +757,7 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
               ],
             ),
           ),
-          // Badge #1
+          // BADGE #1
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -710,7 +771,7 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
             ),
             child: Text(
               '#1',
-              style: const TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,
@@ -722,14 +783,12 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
     );
   }
 
-  // ── Card Footer ─────────────────────────────────────────────────────────────
-
   Widget _buildCardFooter(SeasonHistory item, bool isOngoing) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
       child: Row(
         children: [
-          // Peserta
+          // PARTICIPANT
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
@@ -744,17 +803,17 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                 const SizedBox(width: 5),
                 Text(
                   '${item.participants} ${_t('participants')}',
-                  style: const TextStyle(
+                  style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF0369A1),
+                    color: const Color(0xFF0369A1),
                   ),
                 ),
               ],
             ),
           ),
           const Spacer(),
-          // Tombol detail
+          // VIEW DETAIL BUTTON
           Container(
             padding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -771,7 +830,7 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
               children: [
                 Text(
                   _t('view_detail'),
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: isOngoing
@@ -792,8 +851,6 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
       ),
     );
   }
-
-  // ── Shimmer & Helpers ────────────────────────────────────────────────────────
 
   Widget _buildWinnersShimmer() {
     return Padding(
@@ -827,6 +884,25 @@ class _RiwayatMusimScreenState extends State<RiwayatMusimScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryShimmer() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      itemCount: 3,
+      itemBuilder: (context, index) => Shimmer.fromColors(
+        baseColor: Colors.grey[200]!,
+        highlightColor: Colors.grey[50]!,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          height: 250,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
           ),
         ),
       ),
