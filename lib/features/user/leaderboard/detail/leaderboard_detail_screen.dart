@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../filter/ranking_location_filter.dart';
 import 'leaderboard_podium_screen.dart';
 import 'leaderboard_table_screen.dart';
 
@@ -222,20 +223,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
   Future<List<LeaderboardMember>>? _leaderboardFuture;
 
-  // State untuk filter lokasi hierarkis
   LocationFilter _selectedLocation = const LocationFilter(displayName: 'Semua Lokasi');
-
-  // Data lokasi
-  List<Map<String, dynamic>> _lokasiList = [];
-
-  // State sementara dalam bottom sheet
-  String? _tempLokasiId;
-  String? _tempUnitId;
-  String? _tempSubunitId;
-  String? _tempAreaId;
-  List<Map<String, dynamic>> _tempUnitList = [];
-  List<Map<String, dynamic>> _tempSubunitList = [];
-  List<Map<String, dynamic>> _tempAreaList = [];
 
   FilterType _filterType = FilterType.monthly;
   DateTime _selectedDate = DateTime.now();
@@ -255,7 +243,7 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
       displayName: leaderboardTexts[widget.lang]?['all_locations'] ??
           leaderboardTexts['ID']!['all_locations']!,
     );
-    _fetchLokasi().then((_) => _fetchData());
+    _fetchData();
   }
 
 
@@ -263,66 +251,6 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
       leaderboardTexts[widget.lang]?[key] ??
       leaderboardTexts['ID']![key] ??
       key;
-
-  // ── Fetch Lokasi Hierarkis ────────────────────────────────────────────────
-
-  Future<void> _fetchLokasi() async {
-    try {
-      final response = await _supabase
-          .from('lokasi')
-          .select('id_lokasi, nama_lokasi')
-          .order('nama_lokasi');
-      if (mounted) {
-        setState(() {
-          _lokasiList = List<Map<String, dynamic>>.from(response);
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching lokasi: $e');
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchUnitByLokasi(String idLokasi) async {
-    try {
-      final response = await _supabase
-          .from('unit')
-          .select('id_unit, nama_unit')
-          .eq('id_lokasi', idLokasi)
-          .order('nama_unit');
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('Error fetching unit: $e');
-      return [];
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchSubunitByUnit(String idUnit) async {
-    try {
-      final response = await _supabase
-          .from('subunit')
-          .select('id_subunit, nama_subunit')
-          .eq('id_unit', idUnit)
-          .order('nama_subunit');
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('Error fetching subunit: $e');
-      return [];
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchAreaBySubunit(String idSubunit) async {
-    try {
-      final response = await _supabase
-          .from('area')
-          .select('id_area, nama_area')
-          .eq('id_subunit', idSubunit)
-          .order('nama_area');
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('Error fetching area: $e');
-      return [];
-    }
-  }
 
   void _fetchData() {
     setState(() {
@@ -546,318 +474,20 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
     }
   }
 
-  // ── Bottom Sheet Filter Lokasi ────────────────────────────────────────────
+  // ── Filter Lokasi ─────────────────────────────────────────────────────────
 
   void _showLocationPicker() async {
-    _tempLokasiId  = _selectedLocation.idLokasi;
-    _tempUnitId    = _selectedLocation.idUnit;
-    _tempSubunitId = _selectedLocation.idSubunit;
-    _tempAreaId    = _selectedLocation.idArea;
-
-    _tempUnitList    = [];
-    _tempSubunitList = [];
-    _tempAreaList    = [];
-
-    if (_tempLokasiId != null) {
-      _tempUnitList = await _fetchUnitByLokasi(_tempLokasiId!);
-    }
-    if (_tempUnitId != null && _tempUnitList.isNotEmpty) {
-      _tempSubunitList = await _fetchSubunitByUnit(_tempUnitId!);
-    }
-    if (_tempSubunitId != null && _tempSubunitList.isNotEmpty) {
-      _tempAreaList = await _fetchAreaBySubunit(_tempSubunitId!);
-    }
-
-    if (!mounted) return;
-    showModalBottomSheet(
+    final result = await RankingLocationFilter.show(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _buildLocationBottomSheet(ctx),
+      lang: widget.lang,
+      currentSelection: _selectedLocation,
     );
-  }
-
-  Widget _buildLocationBottomSheet(BuildContext ctx) {
-    return StatefulBuilder(
-      builder: (context, setSheetState) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              // Handle bar
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    const Icon(Icons.location_on_rounded,
-                        color: AppColors.primaryColor),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _getTxt('filter_location_title'), // <-- terjemahan
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        setSheetState(() {
-                          _tempLokasiId = null;
-                          _tempUnitId = null;
-                          _tempSubunitId = null;
-                          _tempAreaId = null;
-                          _tempUnitList = [];
-                          _tempSubunitList = [];
-                          _tempAreaList = [];
-                        });
-                      },
-                      child: Text(
-                        _getTxt('reset'), // <-- terjemahan
-                        style: const TextStyle(color: AppColors.primaryColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              // Content
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Level 1: Lokasi
-                      _buildFilterSection(
-                        label: _getTxt('label_lokasi'), // <-- terjemahan
-                        icon: Icons.business_rounded,
-                        selectedId: _tempLokasiId,
-                        items: _lokasiList,
-                        idKey: 'id_lokasi',
-                        nameKey: 'nama_lokasi',
-                        onSelect: (id, name) async {
-                          final units = await _fetchUnitByLokasi(id);
-                          setSheetState(() {
-                            _tempLokasiId = id;
-                            _tempUnitId = null;
-                            _tempSubunitId = null;
-                            _tempAreaId = null;
-                            _tempUnitList = units;
-                            _tempSubunitList = [];
-                            _tempAreaList = [];
-                          });
-                        },
-                      ),
-                      // Level 2: Unit
-                      if (_tempLokasiId != null && _tempUnitList.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        _buildFilterSection(
-                          label: _getTxt('label_unit'), // <-- terjemahan
-                          icon: Icons.account_tree_rounded,
-                          selectedId: _tempUnitId,
-                          items: _tempUnitList,
-                          idKey: 'id_unit',
-                          nameKey: 'nama_unit',
-                          onSelect: (id, name) async {
-                            final subunits = await _fetchSubunitByUnit(id);
-                            setSheetState(() {
-                              _tempUnitId = id;
-                              _tempSubunitId = null;
-                              _tempAreaId = null;
-                              _tempSubunitList = subunits;
-                              _tempAreaList = [];
-                            });
-                          },
-                        ),
-                      ],
-                      // Level 3: Subunit
-                      if (_tempUnitId != null && _tempSubunitList.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        _buildFilterSection(
-                          label: _getTxt('label_subunit'), // <-- terjemahan
-                          icon: Icons.folder_open_rounded,
-                          selectedId: _tempSubunitId,
-                          items: _tempSubunitList,
-                          idKey: 'id_subunit',
-                          nameKey: 'nama_subunit',
-                          onSelect: (id, name) async {
-                            final areas = await _fetchAreaBySubunit(id);
-                            setSheetState(() {
-                              _tempSubunitId = id;
-                              _tempAreaId = null;
-                              _tempAreaList = areas;
-                            });
-                          },
-                        ),
-                      ],
-                      // Level 4: Area
-                      if (_tempSubunitId != null && _tempAreaList.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        _buildFilterSection(
-                          label: _getTxt('label_area'), // <-- terjemahan
-                          icon: Icons.map_rounded,
-                          selectedId: _tempAreaId,
-                          items: _tempAreaList,
-                          idKey: 'id_area',
-                          nameKey: 'nama_area',
-                          onSelect: (id, name) {
-                            setSheetState(() {
-                              _tempAreaId = id;
-                            });
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              // Tombol Terapkan
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                    16, 8, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      String displayName = _getTxt('all_locations'); // <-- terjemahan
-                      if (_tempAreaId != null && _tempAreaList.isNotEmpty) {
-                        displayName = _tempAreaList.firstWhere(
-                          (e) => e['id_area'] == _tempAreaId,
-                          orElse: () => {'nama_area': _getTxt('label_area')},
-                        )['nama_area'];
-                      } else if (_tempSubunitId != null &&
-                          _tempSubunitList.isNotEmpty) {
-                        displayName = _tempSubunitList.firstWhere(
-                          (e) => e['id_subunit'] == _tempSubunitId,
-                          orElse: () =>
-                              {'nama_subunit': _getTxt('label_subunit')},
-                        )['nama_subunit'];
-                      } else if (_tempUnitId != null &&
-                          _tempUnitList.isNotEmpty) {
-                        displayName = _tempUnitList.firstWhere(
-                          (e) => e['id_unit'] == _tempUnitId,
-                          orElse: () => {'nama_unit': _getTxt('label_unit')},
-                        )['nama_unit'];
-                      } else if (_tempLokasiId != null &&
-                          _lokasiList.isNotEmpty) {
-                        displayName = _lokasiList.firstWhere(
-                          (e) => e['id_lokasi'] == _tempLokasiId,
-                          orElse: () =>
-                              {'nama_lokasi': _getTxt('label_lokasi')},
-                        )['nama_lokasi'];
-                      }
-
-                      setState(() {
-                        _selectedLocation = LocationFilter(
-                          idLokasi: _tempLokasiId,
-                          idUnit: _tempUnitId,
-                          idSubunit: _tempSubunitId,
-                          idArea: _tempAreaId,
-                          displayName: displayName,
-                        );
-                        _fetchData();
-                      });
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryColor,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text(
-                      _getTxt('apply_filter'), // <-- terjemahan
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildFilterSection({
-    required String label,
-    required IconData icon,
-    required String? selectedId,
-    required List<Map<String, dynamic>> items,
-    required String idKey,
-    required String nameKey,
-    required Function(String id, String name) onSelect,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 14, color: AppColors.primaryColor),
-            const SizedBox(width: 6),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: items.map((item) {
-            final id = item[idKey].toString();
-            final name = item[nameKey] as String;
-            final isSelected = selectedId == id;
-            return GestureDetector(
-              onTap: () => onSelect(id, name),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primaryColor : Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.primaryColor
-                        : AppColors.border,
-                  ),
-                ),
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight:
-                        isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
+    if (result != null) {
+      setState(() {
+        _selectedLocation = result;
+      });
+      _fetchData();
+    }
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
