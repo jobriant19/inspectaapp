@@ -16,11 +16,13 @@ class _PodiumColors {
 class LeaderboardPodiumScreen extends StatefulWidget {
   final Future<List<LeaderboardMember>>? leaderboardFuture;
   final String lang;
+  final bool isDaily;
 
   const LeaderboardPodiumScreen({
     super.key,
     required this.leaderboardFuture,
     required this.lang,
+    this.isDaily = false,
   });
 
   @override
@@ -68,13 +70,23 @@ class _LeaderboardPodiumScreenState extends State<LeaderboardPodiumScreen>
   }
 
   String get _noPodiumSubtitle {
+    if (widget.isDaily) {
+      switch (widget.lang) {
+        case 'EN':
+          return 'Rankings will appear here once\nactivity is recorded for this day.';
+        case 'ZH':
+          return '当天一旦有活动记录，\n排名将显示在此处。';
+        default:
+          return 'Peringkat akan muncul di sini setelah\nada aktivitas tercatat pada tanggal ini.';
+      }
+    }
     switch (widget.lang) {
       case 'EN':
-        return 'Rankings will appear here once\nactivity is recorded for this period.';
+        return 'Rankings will appear here once\nactivity is recorded this month.';
       case 'ZH':
-        return '本期一旦有活动记录，\n排名将显示在此处。';
+        return '本月一旦有活动记录，\n排名将显示在此处。';
       default:
-        return 'Peringkat akan muncul di sini setelah\nada aktivitas tercatat untuk periode ini.';
+        return 'Peringkat akan muncul di sini setelah\nada aktivitas tercatat bulan ini.';
     }
   }
 
@@ -321,8 +333,10 @@ class _LeaderboardPodiumScreenState extends State<LeaderboardPodiumScreen>
                                       border: Border.all(
                                           color: Colors.white.withValues(alpha: 0.5)),
                                     ),
-                                    child: const Icon(
-                                      Icons.emoji_events_outlined,
+                                    child: Icon(
+                                      widget.isDaily
+                                          ? Icons.today_rounded
+                                          : Icons.emoji_events_outlined,
                                       color: Colors.white,
                                       size: 26,
                                     ),

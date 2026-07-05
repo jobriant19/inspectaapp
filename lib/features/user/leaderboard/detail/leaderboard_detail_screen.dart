@@ -894,10 +894,12 @@ class _LeaderboardDetailScreenState extends State<LeaderboardDetailScreen> {
           LeaderboardPodiumScreen(
             leaderboardFuture: _leaderboardFuture,
             lang: widget.lang,
+            isDaily: _filterType == FilterType.daily,
           ),
           LeaderboardTableScreen(
             leaderboardFuture: _leaderboardFuture,
             lang: widget.lang,
+            isDaily: _filterType == FilterType.daily,
           ),
         ],
       ),

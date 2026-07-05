@@ -7,17 +7,40 @@ import 'leaderboard_detail_screen.dart' show LeaderboardMember, AppColors, leade
 class LeaderboardTableScreen extends StatelessWidget {
   final Future<List<LeaderboardMember>>? leaderboardFuture;
   final String lang;
+  final bool isDaily;
 
   const LeaderboardTableScreen({
     super.key,
     required this.leaderboardFuture,
     required this.lang,
+    this.isDaily = false,
   });
 
   String _getTxt(String key) =>
       leaderboardTexts[lang]?[key] ??
       leaderboardTexts['ID']![key] ??
       key;
+
+  String get _noRankDataSub {
+    if (isDaily) {
+      switch (lang) {
+        case 'EN':
+          return 'Data will appear here once points activity is recorded for this day.';
+        case 'ZH':
+          return '当天一旦有积分活动记录，数据将显示在此处。';
+        default:
+          return 'Data akan muncul di sini setelah ada aktivitas poin pada tanggal ini.';
+      }
+    }
+    switch (lang) {
+      case 'EN':
+        return 'Data will appear here once points activity is recorded this month.';
+      case 'ZH':
+        return '本月一旦有积分活动记录，数据将显示在此处。';
+      default:
+        return 'Data akan muncul di sini setelah ada aktivitas poin bulan ini.';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +155,7 @@ class LeaderboardTableScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          _getTxt('no_rank_data_sub'),
+                          _noRankDataSub,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 12,
