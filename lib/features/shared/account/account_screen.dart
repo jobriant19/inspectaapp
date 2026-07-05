@@ -311,7 +311,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF1D72F3).withOpacity(0.1) : Colors.grey.shade100,
+                      color: isSelected ? const Color(0xFF1D72F3).withValues(alpha:0.1) : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(15),
                       border: isSelected ? Border.all(color: const Color(0xFF1D72F3), width: 2) : null,
                     ),
@@ -345,7 +345,7 @@ class _AccountScreenState extends State<AccountScreen> {
         title: Text(getTxt('title'), style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Color(0xFF1D72F3))),
         backgroundColor: Colors.white,
         elevation: 1,
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha:0.08),
         iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
       ),
@@ -432,7 +432,7 @@ class _AccountScreenState extends State<AccountScreen> {
                           fontSize: 16),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.withOpacity(0.1),
+                      backgroundColor: Colors.red.withValues(alpha:0.1),
                       elevation: 0,
                       minimumSize: const Size(double.infinity, 50),
                       shape:
@@ -569,7 +569,7 @@ class _AccountScreenState extends State<AccountScreen> {
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha:0.04),
               blurRadius: 10,
             ),
           ],
@@ -666,7 +666,7 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
           boxShadow: [
             BoxShadow(
-              color: gradientColors.last.withOpacity(0.4),
+              color: gradientColors.last.withValues(alpha:0.4),
               blurRadius: 15,
               offset: const Offset(0, 8),
             ),
@@ -678,15 +678,15 @@ class _AccountScreenState extends State<AccountScreen> {
             children: [
               Positioned(
                 right: -50, top: -40,
-                child: CircleAvatar(radius: 90, backgroundColor: Colors.white.withOpacity(0.06)),
+                child: CircleAvatar(radius: 90, backgroundColor: Colors.white.withValues(alpha:0.06)),
               ),
               Positioned(
                 right: 20, bottom: -70,
-                child: CircleAvatar(radius: 70, backgroundColor: Colors.white.withOpacity(0.04)),
+                child: CircleAvatar(radius: 70, backgroundColor: Colors.white.withValues(alpha:0.04)),
               ),
               Positioned(
                 left: -30, bottom: -20,
-                child: CircleAvatar(radius: 50, backgroundColor: Colors.black.withOpacity(0.05)),
+                child: CircleAvatar(radius: 50, backgroundColor: Colors.black.withValues(alpha:0.05)),
               ),
               Padding(
                 padding: const EdgeInsets.all(20),
@@ -694,7 +694,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   children: [
                     CircleAvatar(
                       radius: 35,
-                      backgroundColor: Colors.white.withOpacity(0.8),
+                      backgroundColor: Colors.white.withValues(alpha:0.8),
                       backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
                       child: _userImage == null ? const Icon(Icons.person, color: Color(0xFF1D72F3), size: 35) : null,
                     ),
@@ -709,23 +709,23 @@ class _AccountScreenState extends State<AccountScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.15),
+                              color: Colors.black.withValues(alpha:0.15),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
                               _userJabatan,
-                              style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.95), fontWeight: FontWeight.w500),
+                              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha:0.95), fontWeight: FontWeight.w500),
                             ),
                           ),
                           const SizedBox(height: 8),
                           Row(
                             children: [
-                              Icon(Icons.location_on, color: Colors.white.withOpacity(0.8), size: 16),
+                              Icon(Icons.location_on, color: Colors.white.withValues(alpha:0.8), size: 16),
                               const SizedBox(width: 5),
                               Expanded(
                                 child: Text(
                                   _userLokasiSpesifik,
-                                  style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+                                  style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha:0.8)),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -775,7 +775,7 @@ class _AccountScreenState extends State<AccountScreen> {
           borderRadius: BorderRadius.circular(25),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha:0.05),
               blurRadius: 10,
             ),
           ],
