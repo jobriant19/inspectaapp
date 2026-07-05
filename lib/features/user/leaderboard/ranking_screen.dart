@@ -1327,13 +1327,33 @@ class _RankingScreenState extends State<RankingScreen> {
 
   Widget _buildLastUpdated() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      child: Text(
-        _lastUpdatedText,
-        style: const TextStyle(
-          fontSize: 11,
-          color: _AppColors.textSecondary,
-          height: 1.4,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: _AppColors.primaryLight,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.access_time_filled_rounded,
+                size: 13,
+                color: _AppColors.primary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _lastUpdatedText,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: _AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
