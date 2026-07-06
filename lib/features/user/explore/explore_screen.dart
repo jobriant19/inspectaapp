@@ -572,6 +572,8 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       'tab:${_tabController.index}_' +
       'chips:${sortedChips.join("+")}_' +
       'loc:${_appliedLocationFilter?['id']}_' +
+      'locall:${_appliedLocationFilter?['all']}_' +
+      'loclevel:${_appliedLocationFilter?['level']}_' +
       'type:${_appliedInspectionType}_' +
       'sort:${_appliedSortOrder}_' +
       'jenis:$_appliedJenisTemuan';
@@ -664,12 +666,26 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       // Filter lokasi dari bottom sheet (sembunyikan jika KTS)
       if (_appliedLocationFilter != null && _appliedJenisTemuan != 'kts') {
         final level = _appliedLocationFilter!['level'] as int;
-        final id = _appliedLocationFilter!['id'].toString();
-        switch (level) {
-          case 0: query = query.eq('id_lokasi', id); break;
-          case 1: query = query.eq('id_unit', id); break;
-          case 2: query = query.eq('id_subunit', id); break;
-          case 3: query = query.eq('id_area', id); break;
+        final isAllLevel = _appliedLocationFilter!['all'] == true;
+
+        if (isAllLevel) {
+          // "Semua Lokasi/Unit/Subunit/Area" dipilih -> tampilkan semua temuan
+          // yang memiliki data pada level tersebut (id tidak null),
+          // tanpa dibatasi ke satu id spesifik.
+          switch (level) {
+            case 0: query = query.not('id_lokasi', 'is', null); break;
+            case 1: query = query.not('id_unit', 'is', null); break;
+            case 2: query = query.not('id_subunit', 'is', null); break;
+            case 3: query = query.not('id_area', 'is', null); break;
+          }
+        } else {
+          final id = _appliedLocationFilter!['id'].toString();
+          switch (level) {
+            case 0: query = query.eq('id_lokasi', id); break;
+            case 1: query = query.eq('id_unit', id); break;
+            case 2: query = query.eq('id_subunit', id); break;
+            case 3: query = query.eq('id_area', id); break;
+          }
         }
       }
 
