@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../detail/leaderboard_detail_screen.dart';
 import 'package:shimmer/shimmer.dart';
@@ -66,9 +67,6 @@ Map<_LocCategory, _CategoryMeta> _categoryMeta(String lang) {
 class RankingLocationFilter {
   RankingLocationFilter._();
 
-  /// Menampilkan bottom sheet filter lokasi.
-  /// Mengembalikan [LocationFilter] baru jika user menekan "Terapkan Filter",
-  /// atau `null` jika sheet ditutup tanpa menerapkan filter.
   static Future<LocationFilter?> show({
     required BuildContext context,
     required String lang,
@@ -77,6 +75,8 @@ class RankingLocationFilter {
     return showModalBottomSheet<LocationFilter>(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _LocationFilterSheet(
         lang: lang,
@@ -111,7 +111,9 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
 
   _LocCategory _activeCategory = _LocCategory.lokasi;
   String _searchQuery = '';
-  _LocItem? _selectedItem; // null = "Semua ..."
+  _LocItem? _selectedItem;
+
+  bool get _isFilterActive => _selectedItem != null;
 
   @override
   void initState() {
@@ -272,58 +274,56 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
     final list = _filtered(_listFor(_activeCategory));
     final showAllCard = _searchQuery.trim().isEmpty;
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.82,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Handle bar
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.75,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
           ),
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Row(
-              children: [
-                const Icon(Icons.location_on_rounded, color: Color(0xFF0EA5E9)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _t(widget.lang, 'Filter Lokasi', 'Filter Location', '筛选位置'),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0C4A6E),
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 16, 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.map_rounded,
+                        color: Color(0xFF1D72F3), size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _t(widget.lang, 'Filter Lokasi', 'Filter Location', '筛选位置'),
+                        style: GoogleFonts.poppins(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1D72F3),
+                        ),
+                      ),
                     ),
-                  ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1D72F3).withValues(alpha: 0.10),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 18,
+                          color: Color(0xFF1D72F3),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _selectedItem = null;
-                      _searchCtrl.clear();
-                      _searchQuery = '';
-                      _activeCategory = _LocCategory.lokasi;
-                    });
-                  },
-                  child: Text(
-                    _t(widget.lang, 'Reset', 'Reset', '重置'),
-                    style: const TextStyle(color: Color(0xFF0EA5E9)),
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
           const Divider(height: 1),
           // Search + Tabs (FIXED, tidak ikut scroll)
           Padding(
@@ -361,29 +361,75 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
                     ],
                   ),
           ),
-          // Tombol Terapkan (FIXED)
+          // Tombol Reset & Terapkan (FIXED)
           Padding(
             padding: EdgeInsets.fromLTRB(
                 16, 8, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context, _buildResult()),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0EA5E9),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              children: [
+                if (_isFilterActive) ...[
+                  Expanded(
+                    flex: 1,
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedItem = null;
+                            _searchCtrl.clear();
+                            _searchQuery = '';
+                            _activeCategory = _LocCategory.lokasi;
+                          });
+                        },
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor:
+                              const Color(0xFF1D72F3).withValues(alpha: 0.10),
+                          side: const BorderSide(
+                              color: Color(0xFF1D72F3), width: 1.4),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: Text(
+                          _t(widget.lang, 'Reset', 'Reset', '重置'),
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFF1D72F3),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  flex: _isFilterActive ? 2 : 1,
+                  child: SizedBox(
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, _buildResult()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1D72F3),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(
+                        _t(widget.lang, 'Terapkan Filter', 'Apply Filter', '应用筛选'),
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                child: Text(
-                  _t(widget.lang, 'Terapkan Filter', 'Apply Filter', '应用筛选'),
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
+              ],
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
