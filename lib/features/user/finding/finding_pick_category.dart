@@ -214,11 +214,11 @@ class _FindingPickCategoryDialogState
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E3A8A).withValues(alpha: 0.1),
+                      color: const Color(0xFF1D72F3).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.category_outlined,
-                        color: Color(0xFF1E3A8A), size: 20),
+                        color: Color(0xFF1D72F3), size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -234,7 +234,7 @@ class _FindingPickCategoryDialogState
                           style: GoogleFonts.poppins(
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1E3A8A),
+                            color: const Color(0xFF1D72F3),
                           ),
                         ),
                         Text(
@@ -244,7 +244,10 @@ class _FindingPickCategoryDialogState
                                   ? '选择发现类别和子类别'
                                   : 'Choose finding category & subcategory',
                           style: GoogleFonts.poppins(
-                              fontSize: 11, color: Colors.grey.shade500),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF475569),
+                          ),
                         ),
                       ],
                     ),
@@ -263,7 +266,11 @@ class _FindingPickCategoryDialogState
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: TextField(
                 controller: _searchController,
-                style: GoogleFonts.poppins(fontSize: 14),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF0F172A),
+                ),
                 decoration: InputDecoration(
                   hintText: widget.lang == 'ID'
                       ? 'Cari kategori atau subkategori...'
@@ -273,21 +280,24 @@ class _FindingPickCategoryDialogState
                   hintStyle: GoogleFonts.poppins(
                       color: Colors.grey.shade400, fontSize: 13),
                   prefixIcon:
-                      const Icon(Icons.search, color: Color(0xFF1E3A8A)),
+                      const Icon(Icons.search_rounded, color: Color(0xFF1D72F3)),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
+                    borderSide: const BorderSide(
+                        color: Color(0xFF1D72F3), width: 1.3),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide(color: Colors.grey.shade200),
+                    borderSide: BorderSide(
+                        color: const Color(0xFF1D72F3).withValues(alpha: 0.35),
+                        width: 1.3),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(30),
                     borderSide: const BorderSide(
-                        color: Color(0xFF00C9E4), width: 1.5),
+                        color: Color(0xFF1D72F3), width: 1.8),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
                       vertical: 0, horizontal: 20),
@@ -305,7 +315,7 @@ class _FindingPickCategoryDialogState
                   child: Text(
                     '${_filteredCategories.length} ${widget.lang == 'ID' ? 'kategori ditemukan' : widget.lang == 'ZH' ? '找到的类别' : 'categories found'}',
                     style: GoogleFonts.poppins(
-                        fontSize: 12, color: Colors.grey.shade500),
+                        fontSize: 12, color: Color(0xFF1D72F3), fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
