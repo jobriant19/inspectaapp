@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/services/location_service.dart';
+import '../../../core/utils/jabatan_helper.dart';
 import 'resolution_camera_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -112,7 +114,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           area(nama_area),
           kategoritemuan(nama_kategoritemuan),
           subkategoritemuan(nama_subkategoritemuan),
-          User_PIC:User!temuan_id_penanggung_jawab_fkey(nama, gambar_user),
+          User_PIC:User!temuan_id_penanggung_jawab_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)),
           User_Creator:User!temuan_id_user_fkey(nama, gambar_user),
           penyelesaian!temuan_id_penyelesaian_fkey( 
             *,
@@ -863,21 +865,25 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             physics: const BouncingScrollPhysics(),
             slivers: [
               _buildSliverAppBar(context),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
               _buildImageHeader(data),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildTitleSection(data),
                       const SizedBox(height: 16),
                       _buildInspectionBadges(data),
-                      const SizedBox(height: 20),
-                      _buildDetailedInfoSection(data),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
+                      _buildPICSection(data),
+                      const SizedBox(height: 16),
+                      _buildDeadlineSection(data),
+                      const SizedBox(height: 16),
                       _buildFindingInfoGrid(data),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
 
                       if (isFinished && resolutionData != null)
                         _buildCompletedResolutionSection(resolutionData)
@@ -915,34 +921,39 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
   }
 
   SliverAppBar _buildSliverAppBar(BuildContext context) {
-    // ... (kode sama)
     return SliverAppBar(
       pinned: true,
-      floating: true,
+      floating: false,
       backgroundColor: const Color(0xFFF8FAFC),
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       leading: IconButton(
         icon: const Icon(
           Icons.arrow_back_ios_new_rounded,
-          color: Colors.black87,
+          color: Color(0xFF1D72F3),
         ),
         onPressed: () => Navigator.of(context).pop(),
       ),
       centerTitle: true,
       title: Text(
         _texts['detail_title']!,
-        style: const TextStyle(
+        style: GoogleFonts.poppins(
           fontWeight: FontWeight.bold,
           fontSize: 18,
-          color: Colors.black87,
+          color: Color(0xFF1D72F3),
+        ),
+      ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(
+          height: 1,
+          color: const Color(0xFFE2E8F0),
         ),
       ),
     );
   }
 
   SliverToBoxAdapter _buildImageHeader(Map<String, dynamic> data) {
-    // ... (kode sama)
     final imageUrl = data['gambar_temuan'] as String?;
     final idTemuan = data['id_temuan'];
 
@@ -955,24 +966,27 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             aspectRatio: 16 / 10,
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(20),
-                image: imageUrl != null && imageUrl.isNotEmpty
-                    ? DecorationImage(
-                        image: NetworkImage(imageUrl),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
+                border: Border.all(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  width: 1.5,
+                ),
               ),
-              child: imageUrl == null || imageUrl.isEmpty
-                  ? const Center(
-                      child: Icon(
-                        Icons.image_not_supported_rounded,
-                        color: Colors.grey,
-                        size: 50,
-                      ),
-                    )
-                  : null,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18.5),
+                child: Container(
+                  color: Colors.grey.shade200,
+                  child: imageUrl != null && imageUrl.isNotEmpty
+                      ? Image.network(imageUrl, fit: BoxFit.cover)
+                      : const Center(
+                          child: Icon(
+                            Icons.image_not_supported_rounded,
+                            color: Colors.grey,
+                            size: 50,
+                          ),
+                        ),
+                ),
+              ),
             ),
           ),
         ),
@@ -982,12 +996,16 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
   Widget _buildTitleSection(Map<String, dynamic> data) {
     final title = data['judul_temuan'] as String? ?? 'Tanpa Judul';
-    final location = _formatLocation(data);
     final status = (data['status_temuan'] ?? '').toString();
     final s = status.toLowerCase();
     final isFinished =
         ['closed', 'selesai', 'done', 'completed'].any((e) => s.contains(e));
     final poin = data['poin_temuan'] as int? ?? 0;
+    final deskripsi = data['deskripsi_temuan'] as String?;
+    final jenis = (data['jenis_temuan'] ?? '').toString();
+    final isKts = jenis == 'KTS Production';
+    final jenisLabel = isKts ? 'KTS' : '5R';
+    final jenisColor = isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1005,109 +1023,258 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Status + Poin row
+          // Baris 1: Judul (kiri) + Badge 5R/KTS & Poin (kanan, posisi tetap)
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: isFinished
-                      ? const Color(0xFFF0FDF4)
-                      : const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isFinished
-                        ? const Color(0xFF16A34A).withValues(alpha:0.3)
-                        : const Color(0xFFDC2626).withValues(alpha:0.3),
-                  ),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(
-                    isFinished
-                        ? Icons.check_circle_rounded
-                        : Icons.pending_actions_rounded,
-                    size: 13,
-                    color: isFinished
-                        ? const Color(0xFF16A34A)
-                        : const Color(0xFFDC2626),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    isFinished
-                        ? _texts['finish']!
-                        : (_texts['err_proof_required'] != null
-                            ? (widget.lang == 'ID'
-                                ? 'Belum Selesai'
-                                : widget.lang == 'ZH'
-                                    ? '未完成'
-                                    : 'Unfinished')
-                            : 'Pending'),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isFinished
-                          ? const Color(0xFF16A34A)
-                          : const Color(0xFFDC2626),
-                    ),
-                  ),
-                ]),
-              ),
-              const Spacer(),
-              if (poin > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)],
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.local_fire_department_rounded,
-                        size: 13, color: Colors.white),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$poin Poin',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ]),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Judul
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Lokasi
-          Row(
-            children: [
-              Icon(Icons.location_on_rounded,
-                  color: const Color(0xFF0EA5E9), size: 16),
-              const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  location,
-                  style: const TextStyle(
-                      fontSize: 13, color: Color(0xFF64748B)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF0F172A),
+                    height: 1.3,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                decoration: BoxDecoration(
+                  color: jenisColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(color: jenisColor, width: 1.2),
+                ),
+                child: Text(
+                  jenisLabel,
+                  style: GoogleFonts.poppins(
+                    color: jenisColor,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              if (poin > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0D9488), Color(0xFF2DD4BF)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0D9488).withValues(alpha: 0.35),
+                        blurRadius: 7,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.local_fire_department_rounded,
+                          size: 13, color: Colors.white),
+                      const SizedBox(width: 3),
+                      Text('$poin',
+                          style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12)),
+                      const SizedBox(width: 2),
+                      Text(_poinLabelDetail(),
+                          style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 9.5)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Baris 2: Badge Lokasi (kiri) + Status (flush kanan, sejajar edge badge poin)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Flexible(child: _buildLocationBadgeDetail(data)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isFinished
+                          ? const Color(0xFFF0FDF4)
+                          : const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isFinished
+                            ? const Color(0xFF16A34A).withValues(alpha: 0.35)
+                            : const Color(0xFFDC2626).withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isFinished
+                              ? Icons.check_circle_rounded
+                              : Icons.pending_actions_rounded,
+                          size: 14,
+                          color: isFinished
+                              ? const Color(0xFF16A34A)
+                              : const Color(0xFFDC2626),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          isFinished
+                              ? _texts['finish']!
+                              : (widget.lang == 'ID'
+                                  ? 'Belum Selesai'
+                                  : widget.lang == 'ZH'
+                                      ? '未完成'
+                                      : 'Unfinished'),
+                          style: GoogleFonts.poppins(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: isFinished
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFFDC2626),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],
+          ),
+
+          // Baris 3: Notes (jika ada deskripsi)
+          if (deskripsi != null && deskripsi.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(height: 1, color: const Color(0xFFF1F5F9)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.description_rounded, size: 16, color: Color(0xFF1D72F3)),
+                const SizedBox(width: 8),
+                Text(
+                  widget.lang == 'ID'
+                      ? 'Catatan'
+                      : widget.lang == 'ZH'
+                          ? '备注'
+                          : 'Notes',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1D72F3),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Text(
+                deskripsi,
+                style: GoogleFonts.poppins(
+                  color: const Color(0xFF334155),
+                  height: 1.6,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // === HELPER BARU untuk badge lokasi & label poin di detail screen ===
+  String _poinLabelDetail() {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Pts';
+      case 'ZH':
+        return '积分';
+      default:
+        return 'Poin';
+    }
+  }
+
+  Map<String, dynamic> _locationBadgeInfoDetail(Map<String, dynamic> item) {
+    if (item['area'] != null && item['area']['nama_area'] != null) {
+      return {
+        'label': item['area']['nama_area'].toString(),
+        'icon': Icons.place_rounded,
+        'color': const Color(0xFFF472B6),
+      };
+    }
+    if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
+      return {
+        'label': item['subunit']['nama_subunit'].toString(),
+        'icon': Icons.layers_rounded,
+        'color': const Color(0xFFFBBF24),
+      };
+    }
+    if (item['unit'] != null && item['unit']['nama_unit'] != null) {
+      return {
+        'label': item['unit']['nama_unit'].toString(),
+        'icon': Icons.business_rounded,
+        'color': const Color(0xFF6366F1),
+      };
+    }
+    if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
+      return {
+        'label': item['lokasi']['nama_lokasi'].toString(),
+        'icon': Icons.location_city_rounded,
+        'color': const Color(0xFF10B981),
+      };
+    }
+    return {
+      'label': '-',
+      'icon': Icons.location_off_rounded,
+      'color': const Color(0xFF94A3B8),
+    };
+  }
+
+  Widget _buildLocationBadgeDetail(Map<String, dynamic> data) {
+    final loc = _locationBadgeInfoDetail(data);
+    final Color color = loc['color'] as Color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(loc['icon'] as IconData, size: 12, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              loc['label'] as String,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                  fontSize: 11.5, fontWeight: FontWeight.w700, color: color),
+            ),
           ),
         ],
       ),
@@ -1161,7 +1328,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         data['subkategoritemuan']?['nama_subkategoritemuan'] as String? ??
             '-';
     final createdAt = data['created_at'] as String?;
-    final deadline = data['target_waktu_selesai'] as String?;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1179,12 +1345,12 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section title
+          // Section title (Reported By)
           _sectionHeader(
-              Icons.info_outline_rounded, _texts['created_by']!,
+              Icons.info_outline_rounded, _texts['reported_by']!,
               color: const Color(0xFF0EA5E9)),
           const SizedBox(height: 12),
-          // Creator
+          // Reporter
           Row(
             children: [
               CircleAvatar(
@@ -1213,23 +1379,17 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           const SizedBox(height: 16),
           Container(height: 1, color: const Color(0xFFF1F5F9)),
           const SizedBox(height: 16),
-          // Info rows
-          _infoChip(Icons.calendar_today_outlined,
+          // Info rows (Deadline dihapus — sudah ada section tersendiri)
+          _infoChipBlue(Icons.calendar_today_outlined,
               _texts['reported_on']!, _formatDateTime(createdAt)),
-          if (deadline != null) ...[
-            const SizedBox(height: 12),
-            _infoChip(Icons.timer_outlined,
-                widget.lang == 'ID' ? 'Tenggat Waktu' : 'Deadline',
-                _formatDateTime(deadline)),
-          ],
           const SizedBox(height: 16),
           Container(height: 1, color: const Color(0xFFF1F5F9)),
           const SizedBox(height: 16),
-          _infoChip(Icons.category_outlined,
+          _infoChipBlue(Icons.category_outlined,
               _texts['category']!, category),
           if (subCategory != '-') ...[
             const SizedBox(height: 12),
-            _infoChip(Icons.label_important_outline,
+            _infoChipBlue(Icons.label_important_outline,
                 _texts['subcategory']!, subCategory),
           ],
         ],
@@ -1296,194 +1456,210 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  Widget _buildDetailedInfoSection(Map<String, dynamic> data) {
-    final assignee = data['User_PIC'] as Map<String, dynamic>?;
-    final deadline = data['target_waktu_selesai'] as String?;
-    final poin = data['poin_temuan'] as int?;
-    final eskalasi = data['eskalasi'] as String?;
-    final deskripsi = data['deskripsi_temuan'] as String?;
-
-    return Column(
+  // === HELPER BARU: chip info dengan icon & label biru, nilai tetap hitam ===
+  Widget _infoChipBlue(IconData icon, String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Deskripsi
-        if (deskripsi != null && deskripsi.isNotEmpty) ...[
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha:0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4))
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _sectionHeader(Icons.notes_rounded,
-                    widget.lang == 'ID'
-                        ? 'Catatan'
-                        : widget.lang == 'ZH'
-                            ? '备注'
-                            : 'Notes'),
-                const SizedBox(height: 12),
-                Text(deskripsi,
-                    style: const TextStyle(
-                        color: Color(0xFF334155),
-                        height: 1.6,
-                        fontSize: 14)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-
-        // PIC
-        if (assignee != null) ...[
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha:0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4))
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _sectionHeader(
-                  Icons.person_pin_rounded,
-                  widget.lang == 'ID'
-                      ? 'Penanggung Jawab'
-                      : widget.lang == 'ZH'
-                          ? '负责人'
-                          : 'Person in Charge',
-                  color: const Color(0xFF7C3AED),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: const Color(0xFFF5F3FF),
-                      backgroundImage: (assignee['gambar_user'] != null)
-                          ? NetworkImage(assignee['gambar_user'])
-                          : null,
-                      child: (assignee['gambar_user'] == null)
-                          ? const Icon(Icons.person,
-                              color: Color(0xFF7C3AED))
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            assignee['nama'] ?? '-',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: Color(0xFF0F172A)),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.lang == 'ID'
-                                ? 'Ditugaskan untuk menyelesaikan'
-                                : widget.lang == 'ZH'
-                                    ? '负责解决此问题'
-                                    : 'Assigned to resolve',
-                            style: const TextStyle(
-                                color: Color(0xFF94A3B8), fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-
-        // Status & Detail lainnya
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha:0.04),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4))
-            ],
+            color: const Color(0xFF1D72F3).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
+          child: Icon(icon, size: 15, color: const Color(0xFF1D72F3)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _sectionHeader(Icons.analytics_outlined,
-                  widget.lang == 'ID'
-                      ? 'Detail Temuan'
-                      : widget.lang == 'ZH'
-                          ? '发现详情'
-                          : 'Finding Details',
-                  color: const Color(0xFF0EA5E9)),
-              const SizedBox(height: 16),
-              _infoChip(Icons.task_alt_outlined,
-                  widget.lang == 'ID' ? 'Status' : 'Status',
-                  data['status_temuan'] ?? '-'),
-              if (deadline != null) ...[
-                const SizedBox(height: 12),
-                _infoChip(
-                  Icons.calendar_month_outlined,
+              Text(label,
+                  style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: const Color(0xFF1D72F3),
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(value,
+                  style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF0F172A))),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPICSection(Map<String, dynamic> data) {
+    final assignee = data['User_PIC'] as Map<String, dynamic>?;
+    if (assignee == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(
+            Icons.person_pin_rounded,
+            widget.lang == 'ID'
+                ? 'Penanggung Jawab'
+                : widget.lang == 'ZH'
+                    ? '负责人'
+                    : 'Person in Charge',
+            color: const Color(0xFF7C3AED),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFFF5F3FF),
+                backgroundImage: (assignee['gambar_user'] != null)
+                    ? NetworkImage(assignee['gambar_user'])
+                    : null,
+                child: (assignee['gambar_user'] == null)
+                    ? const Icon(Icons.person, color: Color(0xFF7C3AED))
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      assignee['nama'] ?? '-',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildPICJabatanBadge(assignee),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === HELPER BARU: badge jabatan PIC, style sama seperti 5r_members_tab.dart ===
+  Widget _buildPICJabatanBadge(Map<String, dynamic> assignee) {
+    final idJabatan = assignee['id_jabatan'] as int?;
+    final isVerificator = assignee['is_verificator'] as bool?;
+    final jabatanNama =
+        (assignee['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?;
+
+    final label = JabatanHelper.getDisplayRole(
+      isVerificatorFlag: isVerificator,
+      idJabatan: idJabatan,
+      jabatanFromDb: jabatanNama,
+      lang: widget.lang,
+    );
+    if (label.isEmpty) return const SizedBox.shrink();
+
+    final color = JabatanHelper.getPrimaryColor(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    final icon = JabatanHelper.getRoleIcon(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+                fontSize: 10.5, fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeadlineSection(Map<String, dynamic> data) {
+    final deadline = data['target_waktu_selesai'] as String?;
+    if (deadline == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFECACA)),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.timer_outlined,
+                size: 18, color: Color(0xFFDC2626)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   widget.lang == 'ID'
                       ? 'Tenggat Waktu'
                       : widget.lang == 'ZH'
                           ? '截止日期'
                           : 'Deadline',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFDC2626),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
                   _formatDateTime(deadline, format: 'dd MMMM yyyy'),
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFDC2626),
+                  ),
                 ),
               ],
-              if (poin != null && poin > 0) ...[
-                const SizedBox(height: 12),
-                _infoChip(
-                  Icons.star_outline_rounded,
-                  widget.lang == 'ID'
-                      ? 'Poin Temuan'
-                      : widget.lang == 'ZH'
-                          ? '发现积分'
-                          : 'Finding Points',
-                  '$poin Poin',
-                ),
-              ],
-              if (eskalasi != null && eskalasi.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _infoChip(
-                  Icons.escalator_warning_outlined,
-                  widget.lang == 'ID'
-                      ? 'Level Eskalasi'
-                      : widget.lang == 'ZH'
-                          ? '升级级别'
-                          : 'Escalation Level',
-                  eskalasi,
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1735,10 +1911,10 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             const SizedBox(width: 10),
             Text(
               _texts['resolution']!,
-              style: const TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
+                color: const Color(0xFF0F172A),
               ),
             ),
           ],
@@ -1766,13 +1942,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 children: [
                   Text(
                     _texts['upload_proof']!,
-                    style: const TextStyle(
+                    style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
-                      color: Color(0xFF475569),
+                      color: const Color(0xFF475569),
                     ),
                   ),
-                  const Text(' *', style: TextStyle(color: Colors.redAccent)),
+                  Text(' *', style: GoogleFonts.poppins(color: Colors.redAccent)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1801,8 +1977,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                         const SizedBox(height: 10),
                         Text(
                           _texts['upload_proof']!,
-                          style: const TextStyle(
-                            color: Color(0xFF16A34A),
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFF16A34A),
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
                           ),
@@ -1847,8 +2023,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                             const SizedBox(width: 6),
                             Text(
                               _texts['change_photo']!,
-                              style: const TextStyle(
-                                color: Color(0xFF16A34A),
+                              style: GoogleFonts.poppins(
+                                color: const Color(0xFF16A34A),
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13,
                               ),
@@ -1866,10 +2042,10 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 children: [
                   Text(
                     _texts['resolution_notes']!,
-                    style: const TextStyle(
+                    style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
-                      color: Color(0xFF475569),
+                      color: const Color(0xFF475569),
                     ),
                   ),
                 ],
@@ -1878,10 +2054,10 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               TextField(
                 controller: _resolutionNotesController,
                 maxLines: 3,
-                style: const TextStyle(fontSize: 15),
+                style: GoogleFonts.poppins(fontSize: 15),
                 decoration: InputDecoration(
                   hintText: _texts['resolution_notes_hint'],
-                  hintStyle: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 15),
+                  hintStyle: GoogleFonts.poppins(color: const Color(0xFFCBD5E1), fontSize: 15),
                   filled: true,
                   fillColor: const Color(0xFFF0FDF4),
                   border: OutlineInputBorder(
@@ -1908,21 +2084,22 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                     : widget.lang == 'EN'
                         ? 'Cost (Optional)'
                         : 'Biaya Penyelesaian (Opsional)',
-                style: const TextStyle(
+                style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
-                  color: Color(0xFF475569),
+                  color: const Color(0xFF475569),
                 ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: _resolutionCostController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: const TextStyle(fontSize: 15),
+                style: GoogleFonts.poppins(fontSize: 15),
                 decoration: InputDecoration(
                   hintText: widget.lang == 'ZH' ? '例如：50000' : widget.lang == 'EN' ? 'Example: 50000' : 'Contoh: 50000',
                   prefixText: 'Rp ',
-                  hintStyle: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 15),
+                  prefixStyle: GoogleFonts.poppins(fontSize: 15, color: const Color(0xFF0F172A)),
+                  hintStyle: GoogleFonts.poppins(color: const Color(0xFFCBD5E1), fontSize: 15),
                   filled: true,
                   fillColor: const Color(0xFFF0FDF4),
                   border: OutlineInputBorder(
@@ -2131,11 +2308,11 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           child: ElevatedButton(
             onPressed: _isFinishing ? null : () => _finishFinding(),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00C9E4),
+              backgroundColor: const Color(0xFF1D72F3),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               elevation: 2,
-              shadowColor: const Color(0xFF00C9E4).withValues(alpha:0.4),
+              shadowColor: const Color(0xFF1D72F3).withValues(alpha:0.4),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
             ),
@@ -2145,7 +2322,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 const Icon(Icons.save_outlined, size: 20),
                 const SizedBox(width: 8),
                 Text(_texts['finish']!,
-                    style: const TextStyle(
+                    style: GoogleFonts.poppins(
                         fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
@@ -2159,8 +2336,8 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           child: OutlinedButton(
             onPressed: _isFinishing ? null : () => _finishFinding(createNewAfter: true),
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF00C9E4), width: 1.5),
-              foregroundColor: const Color(0xFF00C9E4),
+              side: const BorderSide(color: Color(0xFF1D72F3), width: 1.5),
+              foregroundColor: const Color(0xFF1D72F3),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
@@ -2171,7 +2348,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 const Icon(Icons.add_circle_outline, size: 20),
                 const SizedBox(width: 8),
                 Text(_texts['finish_and_new']!,
-                    style: const TextStyle(
+                    style: GoogleFonts.poppins(
                         fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
@@ -2239,6 +2416,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'finish_success': 'Temuan berhasil diselesaikan!',
         'finish_fail': 'Gagal menyelesaikan temuan',
         'created_by': 'Dibuat oleh', // <-- BARU
+        'reported_by': 'Dilaporkan oleh',
         'resolved_by': 'Diselesaikan oleh', // <-- BARU
         'completed_on': 'Selesai pada', // <-- BARU
         'resolution_result': 'Hasil Penyelesaian', // <-- BARU
@@ -2279,6 +2457,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'finish_success': 'Finding finished successfully!',
         'finish_fail': 'Failed to finish finding',
         'created_by': 'Created by', // <-- BARU
+        'reported_by': 'Reported by',
         'resolved_by': 'Resolved by', // <-- BARU
         'completed_on': 'Completed on', // <-- BARU
         'resolution_result': 'Solution Result', // <-- BARU
@@ -2319,6 +2498,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'finish_success': '发现已成功完成！',
         'finish_fail': '完成发现失败',
         'created_by': '创建者', // <-- BARU
+        'reported_by': '报告者',
         'resolved_by': '解决者', // <-- BARU
         'completed_on': '完成于', // <-- BARU
         'resolution_result': '解决方案结果', // <-- BARU
