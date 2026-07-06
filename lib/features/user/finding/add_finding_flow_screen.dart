@@ -2,14 +2,14 @@ import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-
 import '../../../core/utils/image_picker_helper.dart';
-import 'camera_finding_screen.dart';
+import 'finding_location_filter.dart';
 
 class AddFindingFlowScreen extends StatefulWidget {
   final String lang;
@@ -546,11 +546,11 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   // Picker Methods
   // ================================================
   void _showLocationPicker() async {
-    final result = await showModalBottomSheet<Map<String, dynamic>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => FullLocationPickerBottomSheet(
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha:0.4),
+      builder: (ctx) => FindingLocationFilterScreen(
         lang: widget.lang,
         isProMode: widget.isProMode,
         userRole: _currentUserProfile?['jabatan']?['nama_jabatan'] ?? 'Staff',
@@ -760,13 +760,13 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           shadowColor: Colors.black12,
           surfaceTintColor: Colors.white,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1E3A8A)),
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1D72F3)),
             onPressed: () => Navigator.pop(context, null),
           ),
           title: Text(
             _texts['title']!,
-            style: const TextStyle(
-                color: Color(0xFF1E3A8A),
+            style: GoogleFonts.poppins(
+                color: Color(0xFF1D72F3),
                 fontWeight: FontWeight.bold,
                 fontSize: 18),
           ),
@@ -784,18 +784,13 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Location Card
-                  _buildSectionTitle(_texts['location']!),
-                  _buildPickerCard(
-                    icon: Icons.location_on_outlined,
-                    text: _selectedLocation?['nama'] ?? _texts['select_location']!,
-                    onTap: _showLocationPicker,
-                    hasValue: _selectedLocation != null,
-                  ),
+                  _buildIconSectionTitle(Icons.map_rounded, _texts['location']!),
+                  _buildLocationPickerCard(),
                   const SizedBox(height: 20),
 
                   // Image Section
                   if (_imageXFile != null) ...[
-                    _buildSectionTitle(_texts['photo']!),
+                    _buildIconSectionTitle(Icons.photo_camera_rounded, _texts['photo']!),
                     _buildImageCard(),
                     const SizedBox(height: 20),
                   ],
@@ -807,16 +802,15 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   ],
 
                   // Title
-                  _buildSectionTitle(_texts['form_title']!, isRequired: true),
+                  _buildIconSectionTitle(Icons.edit_note_rounded, _texts['form_title']!, isRequired: true),
                   _buildTextField(
                     controller: _titleCtrl,
                     hint: _texts['form_title_hint']!,
-                    icon: Icons.title_outlined,
                   ),
                   const SizedBox(height: 20),
 
                   // Notes
-                  _buildSectionTitle(_texts['notes']!),
+                  _buildIconSectionTitle(Icons.sticky_note_2_outlined, _texts['notes']!, isRequired: true),
                   _buildTextField(
                     controller: _notesCtrl,
                     hint: _texts['notes_hint']!,
@@ -826,7 +820,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   const SizedBox(height: 20),
 
                   // Category
-                  _buildSectionTitle(_texts['category']!, isRequired: true),
+                  _buildIconSectionTitle(Icons.category_outlined, _texts['category']!, isRequired: true),
                   _buildPickerCard(
                     icon: Icons.category_outlined,
                     text: _selectedCategory?['nama'] ?? _texts['select_category']!,
@@ -836,7 +830,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   const SizedBox(height: 20),
 
                   // Due Date
-                  _buildSectionTitle(_texts['due_date']!, isOptional: true),
+                  _buildIconSectionTitle(Icons.calendar_today_outlined, _texts['due_date']!, isRequired: true),
                   _buildPickerCard(
                     icon: Icons.calendar_today_outlined,
                     text: _selectedDueDate != null
@@ -848,7 +842,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   const SizedBox(height: 20),
 
                   // Assignee - ALWAYS VISIBLE (not just Pro mode)
-                  _buildSectionTitle(_texts['assignee']!, isOptional: true),
+                  _buildIconSectionTitle(Icons.person_outline, _texts['assignee']!, isRequired: true),
                   _buildPickerCard(
                     icon: Icons.person_outline,
                     text: _selectedAssignee?['nama'] ?? _texts['select_assignee']!,
@@ -988,6 +982,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1D72F3), width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha:0.12),
@@ -1163,11 +1158,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     );
   }
 
-  Widget _buildSavingIndicator() {
-    // Tidak digunakan lagi — loading pakai overlay
-    return const SizedBox.shrink();
-  }
-
   Widget _buildActionButtons() {
     return Column(
       children: [
@@ -1176,11 +1166,11 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           child: ElevatedButton(
             onPressed: () => _saveFinding(),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF00C9E4),
+              backgroundColor: const Color(0xFF1D72F3),
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 20),
               elevation: 2,
-              shadowColor: const Color(0xFF00C9E4).withValues(alpha:0.4),
+              shadowColor: const Color(0xFF1D72F3).withValues(alpha:0.4),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
             ),
@@ -1190,7 +1180,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                 const Icon(Icons.save_outlined, size: 20),
                 const SizedBox(width: 8),
                 Text(_texts['btn_save']!,
-                    style: const TextStyle(
+                    style: GoogleFonts.poppins(
                         fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
@@ -1202,9 +1192,9 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           child: OutlinedButton(
             onPressed: () => _saveFinding(createNewAfter: true),
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF00C9E4), width: 1.5),
-              foregroundColor: const Color(0xFF00C9E4),
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: const BorderSide(color: Color(0xFF1D72F3), width: 1.5),
+              foregroundColor: const Color(0xFF1D72F3),
+              padding: const EdgeInsets.symmetric(vertical: 20),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
             ),
@@ -1214,7 +1204,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                 const Icon(Icons.add_circle_outline, size: 20),
                 const SizedBox(width: 8),
                 Text(_texts['btn_save_new']!,
-                    style: const TextStyle(
+                    style: GoogleFonts.poppins(
                         fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
@@ -1252,10 +1242,40 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     );
   }
 
+  Widget _buildIconSectionTitle(IconData icon, String title,
+      {bool isRequired = false, bool isOptional = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF1D72F3)),
+          const SizedBox(width: 6),
+          Text(title,
+              style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: const Color(0xFF1D72F3))),
+          if (isRequired)
+            const Text(' *',
+                style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14)),
+          if (isOptional)
+            Text(' (${_texts['optional']})',
+                style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String hint,
-    required IconData icon,
+    IconData? icon,
     int maxLines = 1,
     String? label,
   }) {
@@ -1266,7 +1286,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         labelText: label,
         hintText: hint,
         hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-        prefixIcon: Icon(icon, color: const Color(0xFF1E3A8A), size: 20),
+        prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF1E3A8A), size: 20) : null,
         filled: true,
         fillColor: Colors.white,
         enabledBorder: OutlineInputBorder(
@@ -1280,6 +1300,55 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+  }
+
+  Widget _buildLocationPickerCard() {
+    final bool hasValue = _selectedLocation != null;
+    return GestureDetector(
+      onTap: _showLocationPicker,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: hasValue ? const Color(0xFFE0F2FE) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasValue ? const Color(0xFF1D72F3) : Colors.grey.shade200,
+            width: hasValue ? 1.5 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha:0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.map_rounded,
+                color: const Color(0xFF1D72F3), size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedLocation?['nama'] ?? _texts['select_location']!,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: hasValue ? FontWeight.w600 : FontWeight.normal,
+                  color: hasValue ? const Color(0xFF0F172A) : Colors.grey.shade500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(
+              hasValue ? Icons.arrow_forward_ios_rounded : Icons.arrow_drop_down,
+              size: hasValue ? 16 : 24,
+              color: const Color(0xFF1D72F3),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1347,10 +1416,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   void _setupTranslations() {
     const Map<String, Map<String, String>> translationData = {
       'EN': {
-        'title': 'Add Finding',
-        'photo': 'Photo',
+        'title': 'Add 5R Finding',
+        'photo': '5R Finding Photo',
         'retake': 'Retake',
-        'location': 'Location',
+        'location': 'Specific Location',
         'select_location': 'Select Location',
         'form_title': 'Title',
         'form_title_hint': 'Object and problem of the finding...',
@@ -1381,10 +1450,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'visitor_company_hint': 'Enter company or institution name...',
       },
       'ID': {
-        'title': 'Masukkan Temuan',
-        'photo': 'Foto',
+        'title': 'Buat Temuan 5R',
+        'photo': 'Foto Temuan 5R',
         'retake': 'Ulangi',
-        'location': 'Lokasi',
+        'location': 'Lokasi Spesifik',
         'select_location': 'Pilih Lokasi',
         'form_title': 'Judul',
         'form_title_hint': 'Tulis objek dan masalah temuan...',
@@ -1415,10 +1484,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'visitor_company_hint': 'Masukkan nama perusahaan atau institusi...',
       },
       'ZH': {
-        'title': '输入发现',
-        'photo': '照片',
+        'title': '输入5R发现',
+        'photo': '5R发现照片',
         'retake': '重拍',
-        'location': '地点',
+        'location': '具体地点',
         'select_location': '选择地点',
         'form_title': '标题',
         'form_title_hint': '编写发现的对象和问题...',
@@ -2695,776 +2764,4 @@ class EscalationPickerBottomSheet extends StatelessWidget {
       ),
     );
   }
-}
-
-// ==================================================================
-// BOTTOM SHEET: FULL LOCATION PICKER
-// - 4 tab independen: Lokasi / Unit / Sub-Unit / Area
-// - Klik tab → load data level tersebut (lazy load)
-// - Search global: mencari di semua level sekaligus
-// - Aturan pro/non-pro tetap berlaku
-// ==================================================================
-class FullLocationPickerBottomSheet extends StatefulWidget {
-  final String lang;
-  final bool isProMode;
-  final String userRole;
-  final String? userLokasiId;
-  final String? userUnitId;
-  final String? userSubunitId;
-  final String? userAreaId;
-
-  // Pre-selection dari form (bisa dari CameraFindingScreen)
-  final String? preSelectedLokasiId;
-  final String? preSelectedUnitId;
-  final String? preSelectedSubunitId;
-  final String? preSelectedAreaId;
-
-  const FullLocationPickerBottomSheet({
-    super.key,
-    required this.lang,
-    required this.isProMode,
-    required this.userRole,
-    this.userLokasiId,
-    this.userUnitId,
-    this.userSubunitId,
-    this.userAreaId,
-    this.preSelectedLokasiId,
-    this.preSelectedUnitId,
-    this.preSelectedSubunitId,
-    this.preSelectedAreaId,
-  });
-
-  @override
-  State<FullLocationPickerBottomSheet> createState() =>
-      _FullLocationPickerBottomSheetState();
-}
-
-class _FullLocationPickerBottomSheetState
-    extends State<FullLocationPickerBottomSheet>
-    with SingleTickerProviderStateMixin {
-
-  late TabController _tabCtrl;
-  final _searchCtrl = TextEditingController();
-
-  // ── Data mentah per level (null = belum pernah di-load) ──
-  List<Map<String, dynamic>>? _lokasiData;
-  List<Map<String, dynamic>>? _unitData;
-  List<Map<String, dynamic>>? _subunitData;
-  List<Map<String, dynamic>>? _areaData;
-
-  // ── Hasil search global (null = belum search) ──
-  List<_SearchResult>? _searchResults;
-
-  bool _isSearching = false;
-
-  // ── Loading state per level ──
-  final _loading = {0: false, 1: false, 2: false, 3: false};
-
-  bool get _isProAccess =>
-      widget.isProMode || widget.userRole == 'Eksekutif';
-
-  // ── Helper teks ──
-  String _t(String id, String en, String zh) {
-    if (widget.lang == 'EN') return en;
-    if (widget.lang == 'ZH') return zh;
-    return id;
-  }
-
-  static const _tabIcons = [
-    Icons.location_city_rounded,
-    Icons.business_rounded,
-    Icons.layers_outlined,
-    Icons.place_rounded,
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 4, vsync: this)
-      ..addListener(_onTabChanged);
-    _searchCtrl.addListener(_onSearchChanged);
-    // Load tab pertama langsung
-    _loadTabData(0);
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.removeListener(_onTabChanged);
-    _tabCtrl.dispose();
-    _searchCtrl.removeListener(_onSearchChanged);
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  void _onTabChanged() {
-    if (_tabCtrl.indexIsChanging) return;
-    _loadTabData(_tabCtrl.index);
-  }
-
-  // ── Load data saat tab diklik, skip jika sudah pernah load ──
-  Future<void> _loadTabData(int tabIndex) async {
-    if (_getDataForTab(tabIndex) != null) return;
-
-    setState(() => _loading[tabIndex] = true);
-
-    try {
-      final supabase = Supabase.instance.client;
-      List<dynamic> raw = [];
-
-      switch (tabIndex) {
-        case 0: // Lokasi
-          if (_isProAccess) {
-            raw = await supabase
-                .from('lokasi')
-                .select('id_lokasi, nama_lokasi')
-                .order('nama_lokasi');
-          } else if (widget.userLokasiId != null) {
-            // Non-pro: hanya lokasi milik user
-            raw = await supabase
-                .from('lokasi')
-                .select('id_lokasi, nama_lokasi')
-                .eq('id_lokasi', widget.userLokasiId!);
-          }
-          break;
-
-        case 1: // Unit
-          if (_isProAccess) {
-            raw = await supabase
-                .from('unit')
-                .select('id_unit, nama_unit, id_lokasi')
-                .order('nama_unit');
-          } else if (widget.userLokasiId != null) {
-            // Non-pro: hanya unit di lokasi user
-            // Jika user punya unit spesifik, tampilkan hanya itu
-            if (widget.userUnitId != null) {
-              raw = await supabase
-                  .from('unit')
-                  .select('id_unit, nama_unit, id_lokasi')
-                  .eq('id_lokasi', widget.userLokasiId!)
-                  .eq('id_unit', widget.userUnitId!)
-                  .order('nama_unit');
-            } else {
-              raw = await supabase
-                  .from('unit')
-                  .select('id_unit, nama_unit, id_lokasi')
-                  .eq('id_lokasi', widget.userLokasiId!)
-                  .order('nama_unit');
-            }
-          }
-          break;
-
-        case 2: // Subunit
-          if (_isProAccess) {
-            raw = await supabase
-                .from('subunit')
-                .select('id_subunit, nama_subunit, id_unit, id_lokasi')
-                .order('nama_subunit');
-          } else if (widget.userLokasiId != null) {
-            // Non-pro: filter by lokasi, unit, dan subunit user
-            var q = supabase
-                .from('subunit')
-                .select('id_subunit, nama_subunit, id_unit, id_lokasi')
-                .eq('id_lokasi', widget.userLokasiId!);
-            if (widget.userUnitId != null) {
-              q = q.eq('id_unit', widget.userUnitId!);
-            }
-            if (widget.userSubunitId != null) {
-              q = q.eq('id_subunit', widget.userSubunitId!);
-            }
-            raw = await q.order('nama_subunit');
-          }
-          break;
-
-        case 3: // Area
-          if (_isProAccess) {
-            raw = await supabase
-                .from('area')
-                .select('id_area, nama_area, id_subunit, id_unit, id_lokasi')
-                .order('nama_area');
-          } else if (widget.userLokasiId != null) {
-            // Non-pro: filter by lokasi, unit, subunit, dan area user
-            var q = supabase
-                .from('area')
-                .select('id_area, nama_area, id_subunit, id_unit, id_lokasi')
-                .eq('id_lokasi', widget.userLokasiId!);
-            if (widget.userUnitId != null) {
-              q = q.eq('id_unit', widget.userUnitId!);
-            }
-            if (widget.userSubunitId != null) {
-              q = q.eq('id_subunit', widget.userSubunitId!);
-            }
-            if (widget.userAreaId != null) {
-              q = q.eq('id_area', widget.userAreaId!);
-            }
-            raw = await q.order('nama_area');
-          }
-          break;
-      }
-
-      if (!mounted) return;
-      final list = List<Map<String, dynamic>>.from(raw);
-      setState(() {
-        switch (tabIndex) {
-          case 0: _lokasiData  = list; break;
-          case 1: _unitData    = list; break;
-          case 2: _subunitData = list; break;
-          case 3: _areaData    = list; break;
-        }
-        _loading[tabIndex] = false;
-      });
-    } catch (e) {
-      debugPrint('Error load tab $tabIndex: $e');
-      if (mounted) setState(() => _loading[tabIndex] = false);
-    }
-  }
-
-  List<Map<String, dynamic>>? _getDataForTab(int index) {
-    return [_lokasiData, _unitData, _subunitData, _areaData][index];
-  }
-
-  // ── Search global — cari di semua level ──
-  Future<void> _onSearchChanged() async {
-    final q = _searchCtrl.text.trim();
-    if (q.isEmpty) {
-      setState(() { _searchResults = null; _isSearching = false; });
-      return;
-    }
-
-    setState(() => _isSearching = true);
-
-    // Pastikan semua level sudah di-load
-    for (int i = 0; i < 4; i++) {
-      await _loadTabData(i);
-    }
-
-    final qLow = q.toLowerCase();
-    final results = <_SearchResult>[];
-
-    void addFromList(
-      List<Map<String, dynamic>>? data,
-      int tabIndex,
-      String idKey,
-      String nameKey,
-      String levelLabel,
-    ) {
-      if (data == null) return;
-      for (final item in data) {
-        final name = (item[nameKey] ?? '').toString();
-        if (name.toLowerCase().contains(qLow)) {
-          results.add(_SearchResult(
-            tabIndex: tabIndex,
-            id: item[idKey]?.toString() ?? '',
-            name: name,
-            levelLabel: levelLabel,
-            raw: item,
-          ));
-        }
-      }
-    }
-
-    addFromList(_lokasiData,  0, 'id_lokasi',  'nama_lokasi',  _t('Lokasi',   'Location', '地点'));
-    addFromList(_unitData,    1, 'id_unit',    'nama_unit',    'Unit');
-    addFromList(_subunitData, 2, 'id_subunit', 'nama_subunit', 'Sub-Unit');
-    addFromList(_areaData,    3, 'id_area',    'nama_area',    'Area');
-
-    if (mounted) setState(() { _searchResults = results; _isSearching = false; });
-  }
-
-  // ── Pilih item dan kembalikan result map ──
-  void _selectItem({
-    required int tabIndex,
-    required Map<String, dynamic> raw,
-  }) {
-    final Map<String, dynamic> result = {};
-    final parts = <String>[];
-
-    switch (tabIndex) {
-      case 0:
-        result['id_lokasi'] = raw['id_lokasi'];
-        parts.add(raw['nama_lokasi'] ?? '');
-        break;
-      case 1:
-        result['id_lokasi'] = raw['id_lokasi'];
-        result['id_unit']   = raw['id_unit'];
-        parts.add(raw['nama_unit'] ?? '');
-        break;
-      case 2:
-        result['id_lokasi']  = raw['id_lokasi'];
-        result['id_unit']    = raw['id_unit'];
-        result['id_subunit'] = raw['id_subunit'];
-        parts.add(raw['nama_subunit'] ?? '');
-        break;
-      case 3:
-        result['id_lokasi']  = raw['id_lokasi'];
-        result['id_unit']    = raw['id_unit'];
-        result['id_subunit'] = raw['id_subunit'];
-        result['id_area']    = raw['id_area'];
-        parts.add(raw['nama_area'] ?? '');
-        break;
-    }
-
-    result['nama'] = parts.join(' / ');
-    Navigator.pop(context, result);
-  }
-
-  // ── Build satu baris item ──
-  Widget _buildItem({
-    required int tabIndex,
-    required Map<String, dynamic> raw,
-    required String displayName,
-    required bool isSelected,
-    String? subtitle,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? const Color(0xFF00C9E4).withValues(alpha:0.05)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isSelected
-              ? const Color(0xFF00C9E4).withValues(alpha:0.45)
-              : Colors.grey.shade200,
-          width: isSelected ? 1.5 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha:0.03),
-            blurRadius: 4, offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _selectItem(tabIndex: tabIndex, raw: raw),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF00C9E4).withValues(alpha:0.12)
-                        : const Color(0xFF1E3A8A).withValues(alpha:0.07),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    _tabIcons[tabIndex],
-                    color: isSelected
-                        ? const Color(0xFF00C9E4)
-                        : const Color(0xFF1E3A8A),
-                    size: 16,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        displayName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: isSelected
-                              ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected
-                              ? const Color(0xFF00C9E4)
-                              : const Color(0xFF1A1A2E),
-                        ),
-                      ),
-                      if (subtitle != null)
-                        Text(subtitle,
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade500)),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => _selectItem(tabIndex: tabIndex, raw: raw),
-                  style: TextButton.styleFrom(
-                    backgroundColor: const Color(0xFFE0F7FA),
-                    foregroundColor: const Color(0xFF0891B2),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18)),
-                  ),
-                  child: Text(
-                    _t('Pilih', 'Select', '选择'),
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Konten search results ──
-  Widget _buildSearchResults() {
-    if (_isSearching) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.only(top: 48),
-          child: CircularProgressIndicator(
-              color: Color(0xFF00C9E4), strokeWidth: 2),
-        ),
-      );
-    }
-
-    final results = _searchResults ?? [];
-    if (results.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 48),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.search_off_rounded,
-                  size: 44, color: Colors.grey.shade300),
-              const SizedBox(height: 10),
-              Text(
-                _t('Tidak ada hasil', 'No results found', '没有结果'),
-                style: TextStyle(color: Colors.grey.shade500),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final labels = [
-      _t('Lokasi', 'Location', '地点'),
-      'Unit', 'Sub-Unit', 'Area',
-    ];
-
-    // Kelompokkan per level
-    final grouped = <int, List<_SearchResult>>{};
-    for (final r in results) {
-      grouped.putIfAbsent(r.tabIndex, () => []).add(r);
-    }
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      children: [
-        for (final entry in grouped.entries) ...[
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6, top: 4),
-            child: Row(children: [
-              Icon(_tabIcons[entry.key],
-                  size: 13, color: const Color(0xFF00C9E4)),
-              const SizedBox(width: 6),
-              Text(
-                labels[entry.key],
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E3A8A),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${entry.value.length}',
-                  style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E3A8A)),
-                ),
-              ),
-            ]),
-          ),
-          for (final r in entry.value)
-            _buildItem(
-              tabIndex: r.tabIndex,
-              raw: r.raw,
-              displayName: r.name,
-              isSelected: false,
-            ),
-        ],
-      ],
-    );
-  }
-
-  // ── Konten per tab ──
-  Widget _buildTabContent(int tabIndex) {
-    final isLoading = _loading[tabIndex] == true;
-    final data = _getDataForTab(tabIndex);
-
-    if (isLoading || data == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.only(top: 48),
-          child: CircularProgressIndicator(
-              color: Color(0xFF00C9E4), strokeWidth: 2),
-        ),
-      );
-    }
-
-    if (data.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 48),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.location_off_rounded,
-                  size: 44, color: Colors.grey.shade300),
-              const SizedBox(height: 10),
-              Text(
-                _t('Data tidak tersedia', 'No data available', '没有数据'),
-                style: TextStyle(color: Colors.grey.shade500),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Key & name per tab
-    final keys = [
-      ('id_lokasi', 'nama_lokasi'),
-      ('id_unit',   'nama_unit'),
-      ('id_subunit','nama_subunit'),
-      ('id_area',   'nama_area'),
-    ];
-    final preSelected = [
-      widget.preSelectedLokasiId,
-      widget.preSelectedUnitId,
-      widget.preSelectedSubunitId,
-      widget.preSelectedAreaId,
-    ];
-    final (idKey, nameKey) = keys[tabIndex];
-
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: data.length,
-      itemBuilder: (_, i) {
-        final item = data[i];
-        final id   = item[idKey]?.toString() ?? '';
-        final name = item[nameKey]?.toString() ?? '';
-        return _buildItem(
-          tabIndex: tabIndex,
-          raw: item,
-          displayName: name,
-          isSelected: id == preSelected[tabIndex],
-        );
-      },
-    );
-  }
-
-  // ── Tab label dengan dot indicator jika ada pre-selection ──
-  Widget _buildTabLabel(String label, String? preSelectedId) {
-    return Tab(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700)),
-          if (preSelectedId != null) ...[
-            const SizedBox(width: 4),
-            Container(
-              width: 6, height: 6,
-              decoration: const BoxDecoration(
-                  color: Color(0xFF00C9E4), shape: BoxShape.circle),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isSearchActive = _searchCtrl.text.trim().isNotEmpty;
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.9,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFF),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          // ── Handle ──
-          Container(
-            margin: const EdgeInsets.only(top: 10),
-            width: 40, height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-
-          // ── Header ──
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(8, 10, 8, 0),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.close,
-                      color: Color(0xFF1E3A8A), size: 20),
-                  onPressed: () => Navigator.pop(context),
-                ),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _t('PILIH LOKASI', 'SELECT LOCATION', '选择地点'),
-                        style: const TextStyle(
-                          color: Color(0xFF1E3A8A),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                      if (!_isProAccess)
-                        Text(
-                          _t('Lokasi Saya', 'My Location', '我的位置'),
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.orange.shade600),
-                        ),
-                    ],
-                  ),
-                ),
-                // Badge jumlah item di tab aktif
-                if (!isSearchActive)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${_getDataForTab(_tabCtrl.index)?.length ?? 0}',
-                      style: const TextStyle(
-                          color: Color(0xFF1E3A8A),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // ── 4 Tab (selalu tampil) ──
-          Container(
-            color: Colors.white,
-            child: TabBar(
-              controller: _tabCtrl,
-              isScrollable: false,
-              indicatorColor: const Color(0xFF00C9E4),
-              indicatorWeight: 2.5,
-              labelColor: const Color(0xFF00C9E4),
-              unselectedLabelColor: Colors.grey.shade500,
-              tabs: [
-                _buildTabLabel(
-                    _t('Lokasi', 'Location', '地点'),
-                    widget.preSelectedLokasiId),
-                _buildTabLabel('Unit', widget.preSelectedUnitId),
-                _buildTabLabel('Sub-Unit', widget.preSelectedSubunitId),
-                _buildTabLabel('Area', widget.preSelectedAreaId),
-              ],
-            ),
-          ),
-
-          Divider(color: Colors.grey.shade200, height: 1),
-
-          // ── Search bar global ──
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: _t(
-                  'Cari lokasi, unit, sub-unit, area...',
-                  'Search location, unit, sub-unit, area...',
-                  '搜索地点、单位、子单位、区域...',
-                ),
-                hintStyle: TextStyle(
-                    color: Colors.grey.shade400, fontSize: 13),
-                prefixIcon: const Icon(Icons.search,
-                    color: Color(0xFF1E3A8A), size: 20),
-                suffixIcon: isSearchActive
-                    ? IconButton(
-                        icon: Icon(Icons.clear,
-                            color: Colors.grey.shade400, size: 18),
-                        onPressed: () {
-                          _searchCtrl.clear();
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.grey.shade200)),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: BorderSide(color: Colors.grey.shade200)),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(28),
-                    borderSide: const BorderSide(
-                        color: Color(0xFF00C9E4), width: 1.5)),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
-              ),
-            ),
-          ),
-
-          Divider(color: Colors.grey.shade100, height: 1),
-
-          // ── Konten: search results ATAU tab view ──
-          Expanded(
-            child: isSearchActive
-                ? _buildSearchResults()
-                : TabBarView(
-                    controller: _tabCtrl,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: List.generate(4, _buildTabContent),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Model ringan untuk hasil search global ──
-class _SearchResult {
-  final int tabIndex;
-  final String id;
-  final String name;
-  final String levelLabel;
-  final Map<String, dynamic> raw;
-
-  const _SearchResult({
-    required this.tabIndex,
-    required this.id,
-    required this.name,
-    required this.levelLabel,
-    required this.raw,
-  });
 }
