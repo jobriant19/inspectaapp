@@ -10,6 +10,7 @@ import '../../../core/utils/image_picker_helper.dart';
 import 'finding_location_filter.dart';
 import 'finding_pick_category.dart';
 import 'finding_pick_deadline.dart';
+import 'finding_pick_pic.dart';
 
 class AddFindingFlowScreen extends StatefulWidget {
   final String lang;
@@ -104,7 +105,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       if (user == null) return;
       final profile = await Supabase.instance.client
         .from('User')
-        .select('id_user, nama, is_visitor, id_jabatan, id_lokasi, id_unit, id_subunit, id_area, jabatan!User_id_jabatan_fkey(nama_jabatan)')
+        .select('id_user, nama, gambar_user, is_visitor, is_verificator, id_jabatan, id_lokasi, id_unit, id_subunit, id_area, jabatan!User_id_jabatan_fkey(nama_jabatan)')
         .eq('id_user', user.id)
         .single();
       if (mounted) {
@@ -117,6 +118,9 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
             _selectedAssignee = {
               'id_user': profile['id_user'],
               'nama': profile['nama'],
+              'gambar_user': profile['gambar_user'],
+              'id_jabatan': profile['id_jabatan'],
+              'is_verificator': profile['is_verificator'],
               'jabatan': profile['jabatan'],
             };
           }
@@ -584,24 +588,11 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   }
 
   void _showAssigneePicker() async {
-    // Prioritas: lokasi temuan yang dipilih → lokasi user login → null (tampilkan semua)
-    final String? lokasiId = (_selectedLocation?['id_lokasi'] != null
-            ? _selectedLocation!['id_lokasi'].toString()
-            : null) ??
-        _currentUserProfile?['id_lokasi']?.toString();
-
-    final result = await showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => AssigneePickerBottomSheet(
-        lang: widget.lang,
-        locationId: lokasiId,
-        unitId: null,
-        currentUserId: _currentUserProfile?['id_user']?.toString(),
-      ),
+    final result = await showFindingPickPicDialog(
+      context,
+      lang: widget.lang,
+      currentUserId: _currentUserProfile?['id_user']?.toString(),
+      selectedUserId: _selectedAssignee?['id_user']?.toString(),
     );
     if (result != null) setState(() => _selectedAssignee = result);
   }
@@ -756,13 +747,13 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Location Card
-                  _buildIconSectionTitle(Icons.map_rounded, _texts['location']!),
+                  _buildIconSectionTitle(Icons.map_rounded, _texts['location']!, isRequired: true),
                   _buildLocationPickerCard(),
                   const SizedBox(height: 20),
 
                   // Image Section
                   if (_imageXFile != null) ...[
-                    _buildIconSectionTitle(Icons.photo_camera_rounded, _texts['photo']!),
+                    _buildIconSectionTitle(Icons.photo_camera_rounded, _texts['photo']!, isRequired: true),
                     _buildImageCard(),
                     const SizedBox(height: 20),
                   ],
@@ -806,11 +797,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
                   // Assignee - ALWAYS VISIBLE (not just Pro mode)
                   _buildIconSectionTitle(Icons.person_outline, _texts['assignee']!, isRequired: true),
-                  _buildPickerCard(
-                    icon: Icons.person_outline,
-                    text: _selectedAssignee?['nama'] ?? _texts['select_assignee']!,
+                  FindingPicPickerCard(
+                    lang: widget.lang,
+                    selectedUser: _selectedAssignee,
                     onTap: _showAssigneePicker,
-                    hasValue: _selectedAssignee != null,
                   ),
                   const SizedBox(height: 20),
 
@@ -1328,7 +1318,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                 _selectedLocation?['nama'] ?? _texts['select_location']!,
                 style: GoogleFonts.poppins(
                   fontSize: 15,
-                  fontWeight: hasValue ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: hasValue ? FontWeight.w700 : FontWeight.normal,
                   color: hasValue ? const Color(0xFF0F172A) : Colors.grey.shade500,
                 ),
                 maxLines: 1,
@@ -1591,632 +1581,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       },
     };
     _texts = translationData[widget.lang] ?? translationData['EN']!;
-  }
-}
-
-// ==================================================================
-// BOTTOM SHEET: ASSIGNEE PICKER (with Shimmer, always loads all users at id_lokasi=1)
-// ==================================================================
-class AssigneePickerBottomSheet extends StatefulWidget {
-  final String lang;
-  final String? locationId;
-  final String? unitId;
-  final String? currentUserId;
-
-  const AssigneePickerBottomSheet({
-    super.key,
-    required this.lang,
-    this.locationId,
-    this.unitId,
-    this.currentUserId,
-  });
-
-  @override
-  State<AssigneePickerBottomSheet> createState() =>
-      _AssigneePickerBottomSheetState();
-}
-
-class _AssigneePickerBottomSheetState
-    extends State<AssigneePickerBottomSheet> {
-  // ── Filter hierarki ──
-  List<Map<String, dynamic>> _lokasiList = [];
-  List<Map<String, dynamic>> _unitList = [];
-  List<Map<String, dynamic>> _subunitList = [];
-  List<Map<String, dynamic>> _areaList = [];
-
-  String? _selLokasiId;
-  String? _selUnitId;
-  String? _selSubunitId;
-  String? _selAreaId;
-
-  List<Map<String, dynamic>> _allUsers = [];
-  List<Map<String, dynamic>> _filteredUsers = [];
-  bool _isLoadingLocations = true;
-  bool _isLoadingUsers = false;
-
-  final TextEditingController _searchCtrl = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _searchCtrl.addListener(_onSearch);
-    _loadLocations();
-    _loadUsers(lokasiId: widget.locationId);
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadLocations() async {
-    try {
-      final data = await Supabase.instance.client
-          .from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi');
-      if (mounted) {
-        setState(() {
-          _lokasiList = List<Map<String, dynamic>>.from(data);
-          // Pre-select jika ada locationId dari parent
-          if (widget.locationId != null) {
-            final found = _lokasiList.where(
-                (l) => l['id_lokasi'].toString() == widget.locationId).toList();
-            if (found.isNotEmpty) {
-              _selLokasiId = widget.locationId;
-              _fetchUnit(widget.locationId!).then((units) {
-                if (mounted) setState(() => _unitList = units);
-              });
-            }
-          }
-          _isLoadingLocations = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error load locations: $e');
-      if (mounted) setState(() => _isLoadingLocations = false);
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchUnit(String lokasiId) async {
-    final res = await Supabase.instance.client
-        .from('unit').select('id_unit, nama_unit')
-        .eq('id_lokasi', lokasiId).order('nama_unit');
-    return List<Map<String, dynamic>>.from(res);
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchSubunit(String unitId) async {
-    final res = await Supabase.instance.client
-        .from('subunit').select('id_subunit, nama_subunit')
-        .eq('id_unit', unitId).order('nama_subunit');
-    return List<Map<String, dynamic>>.from(res);
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchArea(String subunitId) async {
-    final res = await Supabase.instance.client
-        .from('area').select('id_area, nama_area')
-        .eq('id_subunit', subunitId).order('nama_area');
-    return List<Map<String, dynamic>>.from(res);
-  }
-
-  Future<void> _loadUsers({String? lokasiId, String? unitId,
-      String? subunitId, String? areaId}) async {
-    setState(() => _isLoadingUsers = true);
-    try {
-      dynamic query = Supabase.instance.client
-          .from('User')
-          .select('id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user');
-
-      if (areaId != null) query = query.eq('id_area', areaId);
-      else if (subunitId != null) query = query.eq('id_subunit', subunitId);
-      else if (unitId != null) query = query.eq('id_unit', unitId);
-      else if (lokasiId != null) query = query.eq('id_lokasi', lokasiId);
-
-      final data = await query.order('nama');
-      List<Map<String, dynamic>> users = List<Map<String, dynamic>>.from(data);
-
-      if (widget.currentUserId != null) {
-        users.sort((a, b) {
-          if (a['id_user'] == widget.currentUserId) return -1;
-          if (b['id_user'] == widget.currentUserId) return 1;
-          return (a['nama'] as String).compareTo(b['nama'] as String);
-        });
-      }
-
-      if (mounted) {
-        setState(() {
-          _allUsers = users;
-          _filteredUsers = users;
-          _isLoadingUsers = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error load users: $e');
-      if (mounted) setState(() => _isLoadingUsers = false);
-    }
-  }
-
-  void _applyFilter() {
-    _loadUsers(
-      lokasiId: _selLokasiId,
-      unitId: _selUnitId,
-      subunitId: _selSubunitId,
-      areaId: _selAreaId,
-    );
-  }
-
-  void _onSearch() {
-    final q = _searchCtrl.text.toLowerCase();
-    setState(() {
-      _filteredUsers = _allUsers
-          .where((u) => u['nama'].toString().toLowerCase().contains(q))
-          .toList();
-    });
-  }
-
-  Widget _buildFilterChips({
-    required String label,
-    required IconData icon,
-    required List<Map<String, dynamic>> items,
-    required String idKey,
-    required String nameKey,
-    required String? selectedId,
-    required Function(String id) onSelect,
-  }) {
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 13, color: const Color(0xFF00C9E4)),
-            const SizedBox(width: 6),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E3A8A))),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: items.map((item) {
-            final id = item[idKey].toString();
-            final name = item[nameKey] as String;
-            final isSelected = selectedId == id;
-            return GestureDetector(
-              onTap: () => onSelect(id),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF00C9E4) : Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected
-                        ? const Color(0xFF00C9E4)
-                        : const Color(0xFFBAE6FD),
-                  ),
-                  boxShadow: isSelected ? [
-                    BoxShadow(
-                      color: const Color(0xFF00C9E4).withValues(alpha:0.25),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    )
-                  ] : null,
-                ),
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : const Color(0xFF1E3A8A),
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool hasFilter = _selLokasiId != null;
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Container(
-            margin: const EdgeInsets.only(top: 12, bottom: 8),
-            width: 40, height: 4,
-            decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2)),
-          ),
-
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.person_outline,
-                      color: Color(0xFF1E3A8A), size: 18),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    widget.lang == 'ZH' ? '选择负责人'
-                        : widget.lang == 'EN' ? 'Select Person in Charge'
-                        : 'Pilih Penanggung Jawab',
-                    style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E3A8A)),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.close, color: Colors.grey.shade400),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
-            ),
-          ),
-
-          // Filter Section
-          Container(
-            color: const Color(0xFFF0F9FF),
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined,
-                        size: 14, color: Color(0xFF0EA5E9)),
-                    const SizedBox(width: 6),
-                    Text(
-                      widget.lang == 'EN' ? 'Filter Location'
-                          : widget.lang == 'ZH' ? '筛选位置' : 'Filter Lokasi',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1E3A8A)),
-                    ),
-                    const Spacer(),
-                    if (hasFilter)
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selLokasiId = null;
-                            _selUnitId = null;
-                            _selSubunitId = null;
-                            _selAreaId = null;
-                            _unitList = [];
-                            _subunitList = [];
-                            _areaList = [];
-                          });
-                          _loadUsers();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE0F2FE),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                                color: const Color(0xFFBAE6FD)),
-                          ),
-                          child: Text(
-                            widget.lang == 'EN' ? 'Reset'
-                                : widget.lang == 'ZH' ? '重置' : 'Reset',
-                            style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0369A1)),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                // Lokasi chips
-                _isLoadingLocations
-                    ? const Center(child: CircularProgressIndicator(
-                        color: Color(0xFF00C9E4), strokeWidth: 2))
-                    : _buildFilterChips(
-                        label: widget.lang == 'EN' ? 'Location'
-                            : widget.lang == 'ZH' ? '位置' : 'Lokasi',
-                        icon: Icons.location_city_rounded,
-                        items: _lokasiList,
-                        idKey: 'id_lokasi',
-                        nameKey: 'nama_lokasi',
-                        selectedId: _selLokasiId,
-                        onSelect: (id) async {
-                          final units = await _fetchUnit(id);
-                          setState(() {
-                            _selLokasiId = id;
-                            _selUnitId = null;
-                            _selSubunitId = null;
-                            _selAreaId = null;
-                            _unitList = units;
-                            _subunitList = [];
-                            _areaList = [];
-                          });
-                          _applyFilter();
-                        },
-                      ),
-
-                if (_selLokasiId != null && _unitList.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  _buildFilterChips(
-                    label: 'Unit',
-                    icon: Icons.business_rounded,
-                    items: _unitList,
-                    idKey: 'id_unit',
-                    nameKey: 'nama_unit',
-                    selectedId: _selUnitId,
-                    onSelect: (id) async {
-                      final subs = await _fetchSubunit(id);
-                      setState(() {
-                        _selUnitId = id;
-                        _selSubunitId = null;
-                        _selAreaId = null;
-                        _subunitList = subs;
-                        _areaList = [];
-                      });
-                      _applyFilter();
-                    },
-                  ),
-                ],
-
-                if (_selUnitId != null && _subunitList.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  _buildFilterChips(
-                    label: 'Sub-Unit',
-                    icon: Icons.layers_rounded,
-                    items: _subunitList,
-                    idKey: 'id_subunit',
-                    nameKey: 'nama_subunit',
-                    selectedId: _selSubunitId,
-                    onSelect: (id) async {
-                      final areas = await _fetchArea(id);
-                      setState(() {
-                        _selSubunitId = id;
-                        _selAreaId = null;
-                        _areaList = areas;
-                      });
-                      _applyFilter();
-                    },
-                  ),
-                ],
-
-                if (_selSubunitId != null && _areaList.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  _buildFilterChips(
-                    label: 'Area',
-                    icon: Icons.place_rounded,
-                    items: _areaList,
-                    idKey: 'id_area',
-                    nameKey: 'nama_area',
-                    selectedId: _selAreaId,
-                    onSelect: (id) {
-                      setState(() => _selAreaId = id);
-                      _applyFilter();
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          Divider(color: Colors.grey.shade100, height: 1),
-
-          // Search
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: InputDecoration(
-                hintText: widget.lang == 'ZH' ? '搜索成员...'
-                    : widget.lang == 'EN' ? 'Search member...' : 'Cari anggota...',
-                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                prefixIcon: const Icon(Icons.search_rounded,
-                    color: Color(0xFF1E3A8A), size: 20),
-                suffixIcon: _searchCtrl.text.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(Icons.cancel_rounded,
-                            color: Colors.grey.shade400, size: 18),
-                        onPressed: () { _searchCtrl.clear(); _onSearch(); },
-                      )
-                    : null,
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade200)),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade200)),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                        color: Color(0xFF00C9E4), width: 1.5)),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
-              ),
-            ),
-          ),
-
-          // Count
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-            child: Row(
-              children: [
-                Icon(Icons.group_outlined, size: 14, color: Colors.grey.shade400),
-                const SizedBox(width: 6),
-                Text(
-                  '${_filteredUsers.length} ${widget.lang == 'EN' ? 'members' : 'anggota'}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                ),
-              ],
-            ),
-          ),
-
-          Divider(color: Colors.grey.shade100, height: 12),
-
-          // User List
-          Expanded(
-            child: _isLoadingUsers
-                ? const Center(child: CircularProgressIndicator(
-                    color: Color(0xFF00C9E4), strokeWidth: 2))
-                : _filteredUsers.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.group_off_rounded,
-                                size: 48, color: Colors.grey.shade300),
-                            const SizedBox(height: 12),
-                            Text(
-                              widget.lang == 'EN' ? 'No users found' : 'Tidak ada pengguna',
-                              style: TextStyle(
-                                  color: Colors.grey.shade500, fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                        itemCount: _filteredUsers.length,
-                        itemBuilder: (_, i) {
-                          final user = _filteredUsers[i];
-                          final isMe = user['id_user'] == widget.currentUserId;
-                          final String name = user['nama'] ?? '';
-                          final String role = user['jabatan']?['nama_jabatan'] ?? '';
-                          final String? avatarUrl = user['gambar_user'];
-                          final String initial = name.isNotEmpty
-                              ? name[0].toUpperCase() : '?';
-
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(14),
-                              onTap: () => Navigator.pop(context, user),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 10),
-                                margin: const EdgeInsets.only(bottom: 6),
-                                decoration: BoxDecoration(
-                                  color: isMe
-                                      ? const Color(0xFF00C9E4).withValues(alpha:0.06)
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: isMe
-                                        ? const Color(0xFF00C9E4).withValues(alpha:0.3)
-                                        : Colors.grey.shade100,
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Stack(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 22,
-                                          backgroundColor: const Color(0xFF1E3A8A)
-                                              .withValues(alpha:0.08),
-                                          backgroundImage: avatarUrl != null
-                                              ? NetworkImage(avatarUrl) : null,
-                                          child: avatarUrl == null
-                                              ? Text(initial,
-                                                  style: const TextStyle(
-                                                      color: Color(0xFF1E3A8A),
-                                                      fontWeight: FontWeight.bold))
-                                              : null,
-                                        ),
-                                        if (isMe)
-                                          Positioned(
-                                            bottom: 0, right: 0,
-                                            child: Container(
-                                              width: 14, height: 14,
-                                              decoration: const BoxDecoration(
-                                                  color: Color(0xFF00C9E4),
-                                                  shape: BoxShape.circle),
-                                              child: const Icon(Icons.check,
-                                                  color: Colors.white, size: 10),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(name,
-                                                    style: const TextStyle(
-                                                        fontWeight: FontWeight.w600,
-                                                        fontSize: 14,
-                                                        color: Color(0xFF1A1A2E))),
-                                              ),
-                                              if (isMe)
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                      horizontal: 8, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFF00C9E4)
-                                                        .withValues(alpha:0.1),
-                                                    borderRadius: BorderRadius.circular(10),
-                                                  ),
-                                                  child: const Text('Me',
-                                                    style: TextStyle(
-                                                        fontSize: 11,
-                                                        color: Color(0xFF0891B2),
-                                                        fontWeight: FontWeight.w700),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                          if (role.isNotEmpty)
-                                            Text(role,
-                                                style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey.shade500)),
-                                        ],
-                                      ),
-                                    ),
-                                    Icon(Icons.arrow_forward_ios_rounded,
-                                        size: 14, color: Colors.grey.shade300),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
