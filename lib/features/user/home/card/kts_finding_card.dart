@@ -58,6 +58,16 @@ class KtsFindingCard extends StatelessWidget {
     }
   }
 
+  String? _getCauseFactorName(Map<String, dynamic> data) {
+    final penyelesaianData = data['penyelesaian'];
+    if (penyelesaianData is Map<String, dynamic> &&
+        penyelesaianData['faktor_penyebab'] is Map<String, dynamic>) {
+      final faktorMap = penyelesaianData['faktor_penyebab'] as Map<String, dynamic>;
+      return faktorMap['nama_subkategoritemuan']?.toString();
+    }
+    return null;
+  }
+
   String _formatDate(dynamic value) {
     if (value == null) return '-';
     final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
@@ -116,7 +126,7 @@ class KtsFindingCard extends StatelessWidget {
     final noOrder = (data['no_order'] ?? '-').toString();
     final qty = data['jumlah_item'] ?? 0;
     final dateStr = _formatDate(data['created_at']);
-    final subKategori = data['subkategoritemuan']?['nama_subkategoritemuan'] ?? '';
+    final causeFactorName = _getCauseFactorName(data);
     final sectionName = _getSectionName(data);
 
     return GestureDetector(
@@ -208,13 +218,13 @@ class KtsFindingCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
 
-                    // SUB CATEGORY
-                    if (isResolved && (subKategori.isNotEmpty || sectionName != null))
+                    // FAKTOR PENYEBAB & SECTION (keduanya dari data penyelesaian/solusi)
+                    if (isResolved && (causeFactorName != null || sectionName != null))
                       Padding(
                         padding: const EdgeInsets.only(bottom: 5),
                         child: Row(
                           children: [
-                            if (subKategori.isNotEmpty)
+                            if (causeFactorName != null)
                               Flexible(
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -225,11 +235,11 @@ class KtsFindingCard extends StatelessWidget {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.folder_rounded, size: 11, color: Color(0xFF7C3AED)),
+                                      const Icon(Icons.tag_rounded, size: 11, color: Color(0xFF7C3AED)),
                                       const SizedBox(width: 4),
                                       Flexible(
                                         child: Text(
-                                          subKategori,
+                                          causeFactorName,
                                           style: GoogleFonts.inter(
                                             fontSize: 11,
                                             color: const Color(0xFF7C3AED),
@@ -243,7 +253,7 @@ class KtsFindingCard extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                            if (subKategori.isNotEmpty && sectionName != null)
+                            if (causeFactorName != null && sectionName != null)
                               const SizedBox(width: 6),
                             if (sectionName != null)
                               Flexible(

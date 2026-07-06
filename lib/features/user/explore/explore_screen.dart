@@ -617,7 +617,8 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         penyelesaian!temuan_id_penyelesaian_fkey(
           *,
           User_Solver:User!id_user(nama, gambar_user),
-          section:id_section(nama_section_id, nama_section_en, nama_section_zh)
+          section:id_section(nama_section_id, nama_section_en, nama_section_zh),
+          faktor_penyebab:id_subkategoritemuan_penyebab(id_subkategoritemuan, nama_subkategoritemuan)
         )
       ''');
 
