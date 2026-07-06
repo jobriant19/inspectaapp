@@ -985,9 +985,9 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           timeColor = Colors.red.shade700;
           timeIcon = Icons.warning_amber_rounded;
           final selisihTerlewat = difference.abs();
-          if (selisihTerlewat.inDays > 0) timeText = "${selisihTerlewat.inDays} ${getTxt('hari_terlewat')}";
-          else if (selisihTerlewat.inHours > 0) timeText = "${selisihTerlewat.inHours} ${getTxt('jam_terlewat')}";
-          else timeText = "${selisihTerlewat.inMinutes} ${getTxt('menit_terlewat')}";
+          if (selisihTerlewat.inDays > 0) { timeText = "${selisihTerlewat.inDays} ${getTxt('hari_terlewat')}"; }
+          else if (selisihTerlewat.inHours > 0) { timeText = "${selisihTerlewat.inHours} ${getTxt('jam_terlewat')}"; }
+          else { timeText = "${selisihTerlewat.inMinutes} ${getTxt('menit_terlewat')}"; }
         } else {
           final sisaHari = difference.inDays;
           if (sisaHari == 0) {

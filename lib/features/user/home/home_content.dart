@@ -6,7 +6,7 @@ import '../../audit/form/audit_form_screen.dart';
 import '../../audit/selfie/audit_selfie_screen.dart';
 import '../preventif_maintenance/preventif_maintenance_screen.dart';
 import 'location/location_screen.dart';
-import '../ktsproduksi/kts_produksi_screen.dart';
+import '../ktsproduksi/kts_production_screen.dart';
 import '../accident/accident_report_screen.dart';
 import 'choose_mode_sheet.dart';
 import 'verification/verification_intro_screen.dart';
