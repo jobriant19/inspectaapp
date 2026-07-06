@@ -274,10 +274,16 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
     final list = _filtered(_listFor(_activeCategory));
     final showAllCard = _searchQuery.trim().isEmpty;
 
-    return Dialog(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.pop(context), // Klik di luar popup = sama seperti klik X
+      child: Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-      child: ConstrainedBox(
+      child: GestureDetector(
+        onTap: () {}, // Serap tap di dalam konten agar popup tidak ikut tertutup
+        behavior: HitTestBehavior.opaque,
+        child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
         child: Container(
           height: MediaQuery.of(context).size.height * 0.75,
@@ -370,55 +376,66 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
                 if (_isFilterActive) ...[
                   Expanded(
                     flex: 1,
-                    child: SizedBox(
-                      height: 52,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          setState(() {
-                            _selectedItem = null;
-                            _searchCtrl.clear();
-                            _searchQuery = '';
-                            _activeCategory = _LocCategory.lokasi;
-                          });
-                        },
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor:
-                              const Color(0xFF1D72F3).withValues(alpha: 0.10),
-                          side: const BorderSide(
-                              color: Color(0xFF1D72F3), width: 1.4),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedItem = null;
+                          _searchCtrl.clear();
+                          _searchQuery = '';
+                          _activeCategory = _LocCategory.lokasi;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1F2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
                         ),
-                        child: Text(
-                          _t(widget.lang, 'Reset', 'Reset', '重置'),
-                          style: GoogleFonts.poppins(
-                            color: const Color(0xFF1D72F3),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14.5,
+                        child: Center(
+                          child: Text(
+                            _t(widget.lang, 'Reset', 'Reset', '重置'),
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                 ],
                 Expanded(
                   flex: _isFilterActive ? 2 : 1,
-                  child: SizedBox(
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, _buildResult()),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1D72F3),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context, _buildResult()),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF38BDF8), Color(0xFF0284C7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0284C7).withValues(alpha: 0.3),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      child: Text(
-                        _t(widget.lang, 'Terapkan Filter', 'Apply Filter', '应用筛选'),
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
+                      child: Center(
+                        child: Text(
+                          _t(widget.lang, 'Terapkan Filter', 'Apply Filter', '应用筛选'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                     ),
@@ -430,6 +447,8 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
             ],
           ),
         ),
+        ),
+      ),
       ),
     );
   }
