@@ -19,28 +19,77 @@ class KtsFindingCard extends StatelessWidget {
       'unresolved': 'Belum Selesai',
       'order': 'No. Order',
       'qty': 'Jumlah',
+      'poin_label': 'Poin',
     },
     'EN': {
       'resolved': 'Finished',
       'unresolved': 'Unfinished',
       'order': 'Order No.',
       'qty': 'Qty',
+      'poin_label': 'Pts',
     },
     'ZH': {
       'resolved': '已完成',
       'unresolved': '未完成',
       'order': '订单号',
       'qty': '数量',
+      'poin_label': '积分',
     },
   };
 
   String _t(String key) => _texts[lang]?[key] ?? key;
+
+  String? _getSectionName(Map<String, dynamic> data) {
+    final penyelesaianData = data['penyelesaian'];
+    Map<String, dynamic>? sectionMap;
+    if (penyelesaianData is Map<String, dynamic> &&
+        penyelesaianData['section'] is Map<String, dynamic>) {
+      sectionMap = penyelesaianData['section'] as Map<String, dynamic>;
+    }
+    if (sectionMap == null) return null;
+
+    switch (lang) {
+      case 'EN':
+        return (sectionMap['nama_section_en'] ?? sectionMap['nama_section_id'])?.toString();
+      case 'ZH':
+        return (sectionMap['nama_section_zh'] ?? sectionMap['nama_section_id'])?.toString();
+      default:
+        return sectionMap['nama_section_id']?.toString();
+    }
+  }
 
   String _formatDate(dynamic value) {
     if (value == null) return '-';
     final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
     if (dt == null) return '-';
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+  }
+
+  Widget _buildPoinBadge(int poin) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0D9488), Color(0xFF2DD4BF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(11),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFF0D9488).withValues(alpha: 0.35), blurRadius: 7, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.local_fire_department_rounded, size: 13, color: Colors.white),
+          const SizedBox(width: 3),
+          Text('$poin', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+          const SizedBox(width: 2),
+          Text(_t('poin_label'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 9.5)),
+        ],
+      ),
+    );
   }
 
   @override
@@ -67,8 +116,8 @@ class KtsFindingCard extends StatelessWidget {
     final noOrder = (data['no_order'] ?? '-').toString();
     final qty = data['jumlah_item'] ?? 0;
     final dateStr = _formatDate(data['created_at']);
-    final subKategori =
-        data['subkategoritemuan']?['nama_subkategoritemuan'] ?? '';
+    final subKategori = data['subkategoritemuan']?['nama_subkategoritemuan'] ?? '';
+    final sectionName = _getSectionName(data);
 
     return GestureDetector(
       onTap: onTap,
@@ -91,7 +140,7 @@ class KtsFindingCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Gambar
+              // IMAGE
               Container(
                 width: 92,
                 height: 92,
@@ -115,114 +164,121 @@ class KtsFindingCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
 
-              // Konten
+              // CONTENT
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Baris 1: judul
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        height: 1.3,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    // Baris 2: badge KTS + poin (selalu cukup ruang)
                     Row(
-                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Badge KTS
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              height: 1.3,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFBBF24).withValues(alpha:0.15),
                             borderRadius: BorderRadius.circular(9),
                             border: Border.all(color: const Color(0xFFFBBF24), width: 1.2),
                           ),
-                          child: const Text(
+                          child: Text(
                             'KTS',
-                            style: TextStyle(
-                              color: Color(0xFFFBBF24),
+                            style: GoogleFonts.poppins(
+                              color: const Color(0xFFFBBF24),
                               fontWeight: FontWeight.w900,
                               fontSize: 10,
                             ),
                           ),
                         ),
                         const SizedBox(width: 6),
-                        // Poin
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(11),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.local_fire_department_rounded,
-                                  size: 12, color: Colors.white),
-                              const SizedBox(width: 3),
-                              Text('$poin',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 11)),
-                              const SizedBox(width: 2),
-                              const Text('Poin',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 9)),
-                            ],
-                          ),
-                        ),
+                        if (poin > 0) _buildPoinBadge(poin),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
 
-                    // Sub kategori
-                    if (subKategori.isNotEmpty)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 5),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF5F3FF),
-                          borderRadius: BorderRadius.circular(7),
-                        ),
+                    // SUB CATEGORY
+                    if (isResolved && (subKategori.isNotEmpty || sectionName != null))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.folder_rounded,
-                                size: 11, color: Color(0xFF7C3AED)),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                subKategori,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: const Color(0xFF7C3AED),
-                                  fontWeight: FontWeight.w600,
+                            if (subKategori.isNotEmpty)
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF5F3FF),
+                                    borderRadius: BorderRadius.circular(7),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.folder_rounded, size: 11, color: Color(0xFF7C3AED)),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          subKategori,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            color: const Color(0xFF7C3AED),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
+                            if (subKategori.isNotEmpty && sectionName != null)
+                              const SizedBox(width: 6),
+                            if (sectionName != null)
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFECFEFF),
+                                    borderRadius: BorderRadius.circular(7),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.dashboard_rounded, size: 11, color: Color(0xFF0891B2)),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          sectionName,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 11,
+                                            color: const Color(0xFF0891B2),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
 
-                    // Chips: Order & Qty
+                    // CHIPS: ORDER & QUANTITY
                     Row(
                       children: [
                         _buildChip(
@@ -240,44 +296,54 @@ class KtsFindingCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
 
-                    // Tanggal & Status
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today_rounded,
-                            size: 12, color: Color(0xFF94A3B8)),
-                        const SizedBox(width: 4),
-                        Text(
-                          dateStr,
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF64748B),
-                              fontWeight: FontWeight.w500),
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 3),
-                          decoration: BoxDecoration(
-                              color: statusBg,
-                              borderRadius: BorderRadius.circular(18)),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(statusIcon, size: 11, color: statusColor),
-                              const SizedBox(width: 3),
-                              Text(
-                                statusText,
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: statusColor),
-                              ),
-                            ],
+                    // TIME BADGE
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.1),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calendar_month_rounded,
+                              size: 14, color: Color(0xFF64748B)),
+                          const SizedBox(width: 5),
+                          Text(
+                            dateStr,
+                            style: GoogleFonts.poppins(
+                                fontSize: 11.5,
+                                color: const Color(0xFF475569),
+                                fontWeight: FontWeight.w600),
                           ),
-                        ),
-                      ],
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 5),
+                            decoration: BoxDecoration(
+                                color: statusBg,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: statusColor.withValues(alpha: 0.35))),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(statusIcon, size: 13, color: statusColor),
+                                const SizedBox(width: 4),
+                                Text(
+                                  statusText,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: statusColor),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

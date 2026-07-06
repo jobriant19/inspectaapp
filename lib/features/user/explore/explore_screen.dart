@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../finding/finding_detail_screen.dart';
 import 'package:shimmer/shimmer.dart';
@@ -615,7 +616,8 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan),
         penyelesaian!temuan_id_penyelesaian_fkey(
           *,
-          User_Solver:User!id_user(nama, gambar_user)
+          User_Solver:User!id_user(nama, gambar_user),
+          section:id_section(nama_section_id, nama_section_en, nama_section_zh)
         )
       ''');
 
@@ -759,6 +761,87 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     return '-';
   }
 
+  // === HELPER BARU: info badge lokasi (label, ikon, warna) sesuai skema explore_location_filter.dart ===
+  Map<String, dynamic> _locationBadgeInfo(Map<String, dynamic> item, {int? filterLevel}) {
+    if (filterLevel != null) {
+      switch (filterLevel) {
+        case 0:
+          if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
+            return {'label': item['lokasi']['nama_lokasi'].toString(), 'icon': Icons.location_city_rounded, 'color': const Color(0xFF10B981)};
+          }
+          break;
+        case 1:
+          if (item['unit'] != null && item['unit']['nama_unit'] != null) {
+            return {'label': item['unit']['nama_unit'].toString(), 'icon': Icons.business_rounded, 'color': const Color(0xFF6366F1)};
+          }
+          break;
+        case 2:
+          if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
+            return {'label': item['subunit']['nama_subunit'].toString(), 'icon': Icons.layers_rounded, 'color': const Color(0xFFFBBF24)};
+          }
+          break;
+        case 3:
+          if (item['area'] != null && item['area']['nama_area'] != null) {
+            return {'label': item['area']['nama_area'].toString(), 'icon': Icons.place_rounded, 'color': const Color(0xFFF472B6)};
+          }
+          break;
+      }
+    }
+    if (item['area'] != null && item['area']['nama_area'] != null) {
+      return {'label': item['area']['nama_area'].toString(), 'icon': Icons.place_rounded, 'color': const Color(0xFFF472B6)};
+    }
+    if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
+      return {'label': item['subunit']['nama_subunit'].toString(), 'icon': Icons.layers_rounded, 'color': const Color(0xFFFBBF24)};
+    }
+    if (item['unit'] != null && item['unit']['nama_unit'] != null) {
+      return {'label': item['unit']['nama_unit'].toString(), 'icon': Icons.business_rounded, 'color': const Color(0xFF6366F1)};
+    }
+    if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
+      return {'label': item['lokasi']['nama_lokasi'].toString(), 'icon': Icons.location_city_rounded, 'color': const Color(0xFF10B981)};
+    }
+    return {'label': '-', 'icon': Icons.location_off_rounded, 'color': const Color(0xFF94A3B8)};
+  }
+
+  Widget _buildLocationBadgeWidget(Map<String, dynamic> data, {int? filterLevel}) {
+    final loc = _locationBadgeInfo(data, filterLevel: filterLevel);
+    final Color color = loc['color'] as Color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(loc['icon'] as IconData, size: 12, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              loc['label'] as String,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w700, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // === HELPER BARU: label "Poin" mengikuti bahasa aktif ===
+  String _poinLabel() {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Pts';
+      case 'ZH':
+        return '积分';
+      default:
+        return 'Poin';
+    }
+  }
+  
   String _formatDate(dynamic value) {
     if (value == null) return '-';
     final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
@@ -1080,43 +1163,50 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                               );
                             }(),
                             
-                            // ✅ TAMBAHAN: Badge Poin (sama seperti di FindingCard & KtsFindingCard)
+                            // ✅ Badge Poin (warna teal/emerald, ikon medali, label sesuai bahasa)
                             if (poin > 0)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 7, vertical: 5),
+                                    horizontal: 8, vertical: 5),
                                 decoration: BoxDecoration(
                                   gradient: const LinearGradient(
-                                    colors: [Color(0xFFEF4444), Color(0xFFFF6B3D)],
+                                    colors: [Color(0xFF0D9488), Color(0xFF2DD4BF)],
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                   ),
                                   borderRadius: BorderRadius.circular(11),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF0D9488).withValues(alpha: 0.35),
+                                      blurRadius: 7,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     const Icon(
                                       Icons.local_fire_department_rounded,
-                                      size: 12,
+                                      size: 13,
                                       color: Colors.white,
                                     ),
                                     const SizedBox(width: 3),
                                     Text(
                                       '$poin',
-                                      style: const TextStyle(
+                                      style: GoogleFonts.poppins(
                                         color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12,
                                       ),
                                     ),
                                     const SizedBox(width: 2),
-                                    const Text(
-                                      'Poin',
-                                      style: TextStyle(
+                                    Text(
+                                      _poinLabel(),
+                                      style: GoogleFonts.poppins(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w600,
-                                        fontSize: 9,
+                                        fontSize: 9.5,
                                       ),
                                     ),
                                   ],
@@ -1133,52 +1223,56 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                             child: Wrap(spacing: 6, runSpacing: 4, children: badges),
                           ),
 
-                        Row(
-                          children: [
-                            const Icon(Icons.place_rounded, size: 14, color: Color(0xFF94A3B8)),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: Text(
-                                lokasi,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
-                              ),
+                        // ✅ Badge lokasi bergaya kategori (warna & ikon sesuai level lokasi)
+                        Row(children: [
+                          Flexible(
+                            child: _buildLocationBadgeWidget(
+                              data,
+                              filterLevel: _appliedLocationFilter?['level'] as int?,
                             ),
-                          ],
-                        ),
+                          ),
+                        ]),
                         const SizedBox(height: 8),
 
-                        Row(
-                          children: [
-                            const Icon(Icons.calendar_today_rounded, size: 13, color: Color(0xFF94A3B8)),
-                            const SizedBox(width: 5),
-                            Text(
-                              tanggal,
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                              decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(20)),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(statusIcon, size: 13, color: statusColor),
-                                  const SizedBox(width: 4),
-                                  // PERBAIKAN: Gunakan statusText yang sudah dilokalisasi
-                                  Text(
-                                    statusText,
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: statusColor,
-                                    ),
-                                  ),
-                                ],
+                        // ✅ Bar tanggal & status (lebih menonjol, font Poppins)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_month_rounded, size: 15, color: Color(0xFF64748B)),
+                              const SizedBox(width: 6),
+                              Text(
+                                tanggal,
+                                style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF475569), fontWeight: FontWeight.w600),
                               ),
-                            ),
-                          ],
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: statusBg,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(statusIcon, size: 14, color: statusColor),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      statusText,
+                                      style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w700, color: statusColor),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
