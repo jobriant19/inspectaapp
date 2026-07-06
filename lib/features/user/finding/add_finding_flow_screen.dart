@@ -416,7 +416,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.55),
+      barrierColor: Colors.black.withValues(alpha:0.55),
       builder: (dialogContext) {
         Future.delayed(const Duration(milliseconds: 3000), () {
           if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
@@ -436,7 +436,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                 borderRadius: BorderRadius.circular(28),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF16A34A).withOpacity(0.3),
+                    color: const Color(0xFF16A34A).withValues(alpha:0.3),
                     blurRadius: 30,
                     spreadRadius: 5,
                     offset: const Offset(0, 10),
@@ -451,9 +451,9 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                     height: 90,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFF16A34A).withOpacity(0.1),
+                      color: const Color(0xFF16A34A).withValues(alpha:0.1),
                       border: Border.all(
-                        color: const Color(0xFF16A34A).withOpacity(0.3),
+                        color: const Color(0xFF16A34A).withValues(alpha:0.3),
                         width: 2,
                       ),
                     ),
@@ -500,7 +500,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                         value: v,
                         minHeight: 4,
                         backgroundColor:
-                            const Color(0xFF16A34A).withOpacity(0.1),
+                            const Color(0xFF16A34A).withValues(alpha:0.1),
                         valueColor: const AlwaysStoppedAnimation<Color>(
                             Color(0xFF16A34A)),
                       ),
@@ -888,7 +888,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
   Widget _buildBeamLoadingOverlay() {
     return Container(
-      color: Colors.black.withOpacity(0.55),
+      color: Colors.black.withValues(alpha:0.55),
       child: Center(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 40),
@@ -898,7 +898,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
             borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF00C9E4).withOpacity(0.3),
+                color: const Color(0xFF00C9E4).withValues(alpha:0.3),
                 blurRadius: 40,
                 spreadRadius: 8,
               ),
@@ -923,9 +923,9 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                           width: 90, height: 90,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: const Color(0xFF00C9E4).withOpacity(0.06),
+                            color: const Color(0xFF00C9E4).withValues(alpha:0.06),
                             border: Border.all(
-                              color: const Color(0xFF00C9E4).withOpacity(0.15),
+                              color: const Color(0xFF00C9E4).withValues(alpha:0.15),
                               width: 1.5,
                             ),
                           ),
@@ -942,7 +942,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                           width: 65, height: 65,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: const Color(0xFF00C9E4).withOpacity(0.12),
+                            color: const Color(0xFF00C9E4).withValues(alpha:0.12),
                           ),
                         ),
                       ),
@@ -990,7 +990,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
+            color: Colors.black.withValues(alpha:0.12),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -1025,7 +1025,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
                     colors: [
-                      Colors.black.withOpacity(0.6),
+                      Colors.black.withValues(alpha:0.6),
                       Colors.transparent,
                     ],
                   ),
@@ -1041,10 +1041,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
+                    color: Colors.black.withValues(alpha:0.7),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: Colors.white.withOpacity(0.3), width: 1),
+                        color: Colors.white.withValues(alpha:0.3), width: 1),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1076,15 +1076,15 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color(0xFF1E3A8A).withOpacity(0.05),
-            const Color(0xFF00C9E4).withOpacity(0.05),
+            const Color(0xFF1E3A8A).withValues(alpha:0.05),
+            const Color(0xFF00C9E4).withValues(alpha:0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: const Color(0xFF00C9E4).withOpacity(0.3), width: 1.5),
+            color: const Color(0xFF00C9E4).withValues(alpha:0.3), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1094,7 +1094,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00C9E4).withOpacity(0.15),
+                  color: const Color(0xFF00C9E4).withValues(alpha:0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.badge_outlined,
@@ -1138,7 +1138,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 12),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E3A8A).withOpacity(0.08),
+            color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
@@ -1180,7 +1180,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               elevation: 2,
-              shadowColor: const Color(0xFF00C9E4).withOpacity(0.4),
+              shadowColor: const Color(0xFF00C9E4).withValues(alpha:0.4),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
             ),
@@ -1300,13 +1300,13 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: hasValue
-                ? const Color(0xFF00C9E4).withOpacity(0.5)
+                ? const Color(0xFF00C9E4).withValues(alpha:0.5)
                 : Colors.grey.shade200,
             width: hasValue ? 1.5 : 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha:0.04),
               blurRadius: 6,
               offset: const Offset(0, 2),
             )
@@ -1647,7 +1647,7 @@ class _CategoryPickerBottomSheetState
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E3A8A).withOpacity(0.1),
+                    color: const Color(0xFF1E3A8A).withValues(alpha:0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.category_outlined,
@@ -1780,13 +1780,13 @@ class _CategoryPickerBottomSheetState
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                  color: mainColor.withOpacity(0.1),
+                                  color: mainColor.withValues(alpha:0.1),
                                   blurRadius: 8,
                                   offset: const Offset(0, 3),
                                 ),
                               ],
                               border: Border.all(
-                                color: mainColor.withOpacity(0.15),
+                                color: mainColor.withValues(alpha:0.15),
                                 width: 1,
                               ),
                             ),
@@ -1808,7 +1808,7 @@ class _CategoryPickerBottomSheetState
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
                                           color:
-                                              mainColor.withOpacity(0.15),
+                                              mainColor.withValues(alpha:0.15),
                                           borderRadius:
                                               BorderRadius.circular(10),
                                         ),
@@ -1835,7 +1835,7 @@ class _CategoryPickerBottomSheetState
                                             horizontal: 8, vertical: 3),
                                         decoration: BoxDecoration(
                                           color:
-                                              mainColor.withOpacity(0.1),
+                                              mainColor.withValues(alpha:0.1),
                                           borderRadius:
                                               BorderRadius.circular(20),
                                         ),
@@ -1898,7 +1898,7 @@ class _CategoryPickerBottomSheetState
                                             height: 6,
                                             decoration: BoxDecoration(
                                               color: mainColor
-                                                  .withOpacity(0.5),
+                                                  .withValues(alpha:0.5),
                                               shape: BoxShape.circle,
                                             ),
                                           ),
@@ -1922,13 +1922,13 @@ class _CategoryPickerBottomSheetState
                                                       vertical: 3),
                                               decoration: BoxDecoration(
                                                 color: Colors.amber
-                                                    .withOpacity(0.1),
+                                                    .withValues(alpha:0.1),
                                                 borderRadius:
                                                     BorderRadius.circular(
                                                         20),
                                                 border: Border.all(
                                                     color: Colors.amber
-                                                        .withOpacity(0.3)),
+                                                        .withValues(alpha:0.3)),
                                               ),
                                               child: Row(
                                                 mainAxisSize:
@@ -2178,7 +2178,7 @@ class _AssigneePickerBottomSheetState
                   ),
                   boxShadow: isSelected ? [
                     BoxShadow(
-                      color: const Color(0xFF00C9E4).withOpacity(0.25),
+                      color: const Color(0xFF00C9E4).withValues(alpha:0.25),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
                     )
@@ -2229,7 +2229,7 @@ class _AssigneePickerBottomSheetState
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E3A8A).withOpacity(0.08),
+                    color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.person_outline,
@@ -2502,12 +2502,12 @@ class _AssigneePickerBottomSheetState
                                 margin: const EdgeInsets.only(bottom: 6),
                                 decoration: BoxDecoration(
                                   color: isMe
-                                      ? const Color(0xFF00C9E4).withOpacity(0.06)
+                                      ? const Color(0xFF00C9E4).withValues(alpha:0.06)
                                       : Colors.white,
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
                                     color: isMe
-                                        ? const Color(0xFF00C9E4).withOpacity(0.3)
+                                        ? const Color(0xFF00C9E4).withValues(alpha:0.3)
                                         : Colors.grey.shade100,
                                   ),
                                 ),
@@ -2518,7 +2518,7 @@ class _AssigneePickerBottomSheetState
                                         CircleAvatar(
                                           radius: 22,
                                           backgroundColor: const Color(0xFF1E3A8A)
-                                              .withOpacity(0.08),
+                                              .withValues(alpha:0.08),
                                           backgroundImage: avatarUrl != null
                                               ? NetworkImage(avatarUrl) : null,
                                           child: avatarUrl == null
@@ -2562,7 +2562,7 @@ class _AssigneePickerBottomSheetState
                                                       horizontal: 8, vertical: 2),
                                                   decoration: BoxDecoration(
                                                     color: const Color(0xFF00C9E4)
-                                                        .withOpacity(0.1),
+                                                        .withValues(alpha:0.1),
                                                     borderRadius: BorderRadius.circular(10),
                                                   ),
                                                   child: const Text('Me',
@@ -2671,7 +2671,7 @@ class EscalationPickerBottomSheet extends StatelessWidget {
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E3A8A).withOpacity(0.08),
+                    color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.trending_up,
@@ -3019,18 +3019,18 @@ class _FullLocationPickerBottomSheetState
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: isSelected
-            ? const Color(0xFF00C9E4).withOpacity(0.05)
+            ? const Color(0xFF00C9E4).withValues(alpha:0.05)
             : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isSelected
-              ? const Color(0xFF00C9E4).withOpacity(0.45)
+              ? const Color(0xFF00C9E4).withValues(alpha:0.45)
               : Colors.grey.shade200,
           width: isSelected ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha:0.03),
             blurRadius: 4, offset: const Offset(0, 2),
           ),
         ],
@@ -3048,8 +3048,8 @@ class _FullLocationPickerBottomSheetState
                   padding: const EdgeInsets.all(7),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF00C9E4).withOpacity(0.12)
-                        : const Color(0xFF1E3A8A).withOpacity(0.07),
+                        ? const Color(0xFF00C9E4).withValues(alpha:0.12)
+                        : const Color(0xFF1E3A8A).withValues(alpha:0.07),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -3177,7 +3177,7 @@ class _FullLocationPickerBottomSheetState
                 padding: const EdgeInsets.symmetric(
                     horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E3A8A).withOpacity(0.08),
+                  color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -3353,7 +3353,7 @@ class _FullLocationPickerBottomSheetState
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E3A8A).withOpacity(0.08),
+                      color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
