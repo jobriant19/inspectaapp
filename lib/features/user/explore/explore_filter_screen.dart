@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'explore_location_filter.dart';
+import 'explore_section_filter.dart';
+import 'explore_factor_filter.dart';
 
 class ExploreFilterScreen extends StatefulWidget {
   final String lang;
@@ -9,6 +11,9 @@ class ExploreFilterScreen extends StatefulWidget {
   final String initialSortOrder;
   final String initialLocationName;
   final String initialJenisTemuan;
+  final Map<String, dynamic>? initialSectionFilter;
+  final String initialSectionName;
+  final Map<String, dynamic>? initialCauseFactor;
 
   const ExploreFilterScreen({
     super.key,
@@ -18,6 +23,9 @@ class ExploreFilterScreen extends StatefulWidget {
     required this.initialSortOrder,
     required this.initialLocationName,
     required this.initialJenisTemuan,
+    this.initialSectionFilter,
+    this.initialSectionName = '',
+    this.initialCauseFactor,
   });
 
   @override
@@ -30,6 +38,11 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
   late String tempSortOrder;
   late String tempLocationName;
   late String tempJenisTemuan;
+
+  // ── State baru khusus KTS Production ──
+  late Map<String, dynamic>? tempSectionFilter;
+  late String tempSectionName;
+  late Map<String, dynamic>? tempCauseFactor;
 
   final Map<String, Map<String, String>> _texts = {
     'ID': {
@@ -44,10 +57,15 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
       'terlama': 'Temuan Terlama',
       'terbaru': 'Temuan Terbaru',
       'deadline': 'Deadline Terdekat',
+      'kuantitas': 'Kuantitas Terbanyak',
       'reset': 'Reset',
       'terapkan': 'Terapkan',
       'filter_5r': 'Temuan 5R',
       'filter_kts': 'KTS Produksi',
+      'section_penyebab': 'Section Penyebab',
+      'pilih_section': 'Pilih Section',
+      'cause_factor': 'Faktor Penyebab',
+      'pilih_faktor': 'Pilih Faktor Penyebab',
     },
     'EN': {
       'filter_title': 'Sort & Filter Findings',
@@ -61,10 +79,15 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
       'terlama': 'Oldest Findings',
       'terbaru': 'Newest Findings',
       'deadline': 'Nearest Deadline',
+      'kuantitas': 'Most Quantity',
       'reset': 'Reset',
       'terapkan': 'Apply',
       'filter_5r': '5R Findings',
       'filter_kts': 'KTS Production',
+      'section_penyebab': 'Cause Section',
+      'pilih_section': 'Select Section',
+      'cause_factor': 'Cause Factor',
+      'pilih_faktor': 'Select Cause Factor',
     },
     'ZH': {
       'filter_title': '排序和过滤发现',
@@ -78,14 +101,21 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
       'terlama': '最旧的发现',
       'terbaru': '最新发现',
       'deadline': '最近的截止日期',
+      'kuantitas': '数量最多',
       'reset': '重置',
       'terapkan': '应用',
       'filter_5r': '5R发现',
       'filter_kts': 'KTS生产',
+      'section_penyebab': '原因部门',
+      'pilih_section': '选择部门',
+      'cause_factor': '原因因素',
+      'pilih_faktor': '选择原因因素',
     },
   };
 
   String getTxt(String key) => _texts[widget.lang]?[key] ?? key;
+
+  bool get _isKts => tempJenisTemuan == 'kts';
 
   @override
   void initState() {
@@ -94,7 +124,30 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
     tempInspectionType = widget.initialInspectionType;
     tempSortOrder = widget.initialSortOrder;
     tempLocationName = widget.initialLocationName;
-    tempJenisTemuan = widget.initialJenisTemuan;
+    // Default: 5R Findings jika belum ada nilai (mis. pertama kali dibuka)
+    tempJenisTemuan = widget.initialJenisTemuan.isEmpty ? '5r' : widget.initialJenisTemuan;
+    tempSectionFilter = widget.initialSectionFilter;
+    tempSectionName = widget.initialSectionName;
+    tempCauseFactor = widget.initialCauseFactor;
+  }
+
+  void _setJenisTemuan(String value) {
+    setState(() {
+      final newValue = tempJenisTemuan == value ? '' : value;
+      tempJenisTemuan = newValue;
+
+      if (newValue == 'kts') {
+        // Pindah ke KTS -> bersihkan filter lokasi & inspeksi (khusus 5R)
+        tempLocationFilter = null;
+        tempLocationName = '';
+        tempInspectionType = '';
+      } else {
+        // Pindah ke 5R / kosong -> bersihkan filter section & faktor (khusus KTS)
+        tempSectionFilter = null;
+        tempSectionName = '';
+        tempCauseFactor = null;
+      }
+    });
   }
 
   @override
@@ -184,9 +237,7 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
                         children: [
                           Expanded(
                             child: GestureDetector(
-                              onTap: () => setState(() {
-                                tempJenisTemuan = tempJenisTemuan == '5r' ? '' : '5r';
-                              }),
+                              onTap: () => _setJenisTemuan('5r'),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -226,9 +277,7 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
                           ),
                           Expanded(
                             child: GestureDetector(
-                              onTap: () => setState(() {
-                                tempJenisTemuan = tempJenisTemuan == 'kts' ? '' : 'kts';
-                              }),
+                              onTap: () => _setJenisTemuan('kts'),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -269,111 +318,51 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
                       ),
                       const SizedBox(height: 18),
 
-                      _filterLabel(getTxt('lokasi_temuan')),
-                      GestureDetector(
-                        onTap: () async {
-                          final result = await showDialog<Map<String, dynamic>>(
-                            context: context,
-                            barrierDismissible: true,
-                            barrierColor: Colors.transparent,
-                            builder: (ctx) => ExploreLocationFilterScreen(lang: widget.lang),
-                          );
-                          if (result != null) {
-                            setState(() {
-                              if (result['clear'] == true) {
-                                tempLocationFilter = null;
-                                tempLocationName = '';
-                              } else {
-                                tempLocationFilter = result;
-                                tempLocationName = result['name'];
-                              }
-                            });
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: tempLocationName.isEmpty ? Colors.white : const Color(0xFFE0F2FE),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: tempLocationName.isEmpty
-                                  ? const Color(0xFFCBD5E1)
-                                  : const Color(0xFF0284C7),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.maps_home_work_rounded,
-                                size: 20,
-                                color: const Color(0xFF0284C7),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  tempLocationName.isEmpty ? getTxt('pilih_lokasi') : tempLocationName,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: tempLocationName.isEmpty ? FontWeight.normal : FontWeight.w600,
-                                    color: tempLocationName.isEmpty ? Colors.grey : const Color(0xFF0F172A),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (tempLocationName.isNotEmpty)
-                                GestureDetector(
-                                  onTap: () {
-                                    Navigator.pop(context, {'action': 'reset'});
-                                  },
-                                  child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
-                                )
-                              else
-                                const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF0284C7), size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
+                      // ── FINDING LOCATION (5R) atau SECTION CAUSE (KTS) ──
+                      _filterLabel(_isKts ? getTxt('section_penyebab') : getTxt('lokasi_temuan')),
+                      _isKts ? _buildSectionTile() : _buildLocationTile(),
                       const SizedBox(height: 18),
 
-                      _filterLabel(getTxt('temuan_inspeksi')),
-                      Row(
-                        children: ['visitor', 'eksekutif', 'profesional'].map((val) {
-                          final isActive = tempInspectionType == val;
-                          final color = inspColors[val]!;
-                          return Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() {
-                                tempInspectionType = isActive ? '' : val;
-                              }),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                margin: EdgeInsets.only(right: val != 'profesional' ? 8 : 0),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: isActive ? color : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: isActive ? color : const Color(0xFFCBD5E1), width: 1.5),
-                                  boxShadow: isActive
-                                      ? [BoxShadow(color: color.withValues(alpha:0.25), blurRadius: 8, offset: const Offset(0, 3))]
-                                      : [],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    inspLabel[val]!,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: isActive ? Colors.white : color,
+                      // ── INSPECTION FINDING (5R) atau CAUSE FACTOR (KTS) ──
+                      _filterLabel(_isKts ? getTxt('cause_factor') : getTxt('temuan_inspeksi')),
+                      _isKts
+                          ? _buildCauseFactorTile()
+                          : Row(
+                              children: ['visitor', 'eksekutif', 'profesional'].map((val) {
+                                final isActive = tempInspectionType == val;
+                                final color = inspColors[val]!;
+                                return Expanded(
+                                  child: GestureDetector(
+                                    onTap: () => setState(() {
+                                      tempInspectionType = isActive ? '' : val;
+                                    }),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 180),
+                                      margin: EdgeInsets.only(right: val != 'profesional' ? 8 : 0),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      decoration: BoxDecoration(
+                                        color: isActive ? color : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: isActive ? color : const Color(0xFFCBD5E1), width: 1.5),
+                                        boxShadow: isActive
+                                            ? [BoxShadow(color: color.withValues(alpha:0.25), blurRadius: 8, offset: const Offset(0, 3))]
+                                            : [],
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          inspLabel[val]!,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: isActive ? Colors.white : color,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
+                                );
+                              }).toList(),
                             ),
-                          );
-                        }).toList(),
-                      ),
                       const SizedBox(height: 28),
 
                       _filterSectionHeader(getTxt('sort_by')),
@@ -398,10 +387,11 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
                             onTap: (v) => setState(() => tempSortOrder = v),
                           ),
                           const SizedBox(height: 8),
+                          // Untuk KTS Production, opsi ini menjadi "Kuantitas Terbanyak"
                           _buildSortOption(
                             value: 'deadline',
-                            label: getTxt('deadline'),
-                            icon: Icons.timer_rounded,
+                            label: _isKts ? getTxt('kuantitas') : getTxt('deadline'),
+                            icon: _isKts ? Icons.leaderboard_rounded : Icons.timer_rounded,
                             currentValue: tempSortOrder,
                             onTap: (v) => setState(() => tempSortOrder = v),
                           ),
@@ -455,6 +445,9 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
                             'sortOrder': tempSortOrder,
                             'locationName': tempLocationName,
                             'jenisTemuan': tempJenisTemuan,
+                            'sectionFilter': tempSectionFilter,
+                            'sectionName': tempSectionName,
+                            'causeFactor': tempCauseFactor,
                           });
                         },
                         child: Container(
@@ -488,6 +481,201 @@ class _ExploreFilterScreenState extends State<ExploreFilterScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // ── Tile Finding Location (5R, perilaku original dipertahankan) ──
+  Widget _buildLocationTile() {
+    return GestureDetector(
+      onTap: () async {
+        final result = await showDialog<Map<String, dynamic>>(
+          context: context,
+          barrierDismissible: true,
+          barrierColor: Colors.transparent,
+          builder: (ctx) => ExploreLocationFilterScreen(lang: widget.lang),
+        );
+        if (result != null) {
+          setState(() {
+            if (result['clear'] == true) {
+              tempLocationFilter = null;
+              tempLocationName = '';
+            } else {
+              tempLocationFilter = result;
+              tempLocationName = result['name'];
+            }
+          });
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: tempLocationName.isEmpty ? Colors.white : const Color(0xFFE0F2FE),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: tempLocationName.isEmpty
+                ? const Color(0xFFCBD5E1)
+                : const Color(0xFF0284C7),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.maps_home_work_rounded,
+              size: 20,
+              color: Color(0xFF0284C7),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                tempLocationName.isEmpty ? getTxt('pilih_lokasi') : tempLocationName,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: tempLocationName.isEmpty ? FontWeight.normal : FontWeight.w600,
+                  color: tempLocationName.isEmpty ? Colors.grey : const Color(0xFF0F172A),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (tempLocationName.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(context, {'action': 'reset'});
+                },
+                child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
+              )
+            else
+              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF0284C7), size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Tile Section Cause (KTS Production) ──
+  Widget _buildSectionTile() {
+    return GestureDetector(
+      onTap: () async {
+        final result = await showDialog<Map<String, dynamic>>(
+          context: context,
+          barrierDismissible: true,
+          barrierColor: Colors.transparent,
+          builder: (ctx) => ExploreSectionFilterScreen(lang: widget.lang),
+        );
+        if (result != null) {
+          setState(() {
+            tempSectionFilter = result;
+            tempSectionName = result['name'];
+          });
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: tempSectionName.isEmpty ? Colors.white : const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: tempSectionName.isEmpty
+                ? const Color(0xFFCBD5E1)
+                : const Color(0xFFD97706),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.square_foot_rounded,
+              size: 20,
+              color: Color(0xFFD97706),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                tempSectionName.isEmpty ? getTxt('pilih_section') : tempSectionName,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: tempSectionName.isEmpty ? FontWeight.normal : FontWeight.w600,
+                  color: tempSectionName.isEmpty ? Colors.grey : const Color(0xFF0F172A),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (tempSectionName.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(context, {'action': 'reset'});
+                },
+                child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
+              )
+            else
+              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFD97706), size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Tile Cause Factor (KTS Production) ──
+  Widget _buildCauseFactorTile() {
+    final hasValue = tempCauseFactor != null && (tempCauseFactor!['name']?.toString().isNotEmpty ?? false);
+    return GestureDetector(
+      onTap: () async {
+        final result = await showDialog<Map<String, dynamic>>(
+          context: context,
+          barrierDismissible: true,
+          barrierColor: Colors.transparent,
+          builder: (ctx) => ExploreFactorFilterScreen(lang: widget.lang),
+        );
+        if (result != null) {
+          setState(() {
+            tempCauseFactor = result;
+          });
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: hasValue ? const Color(0xFFFFFBEB) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasValue ? const Color(0xFFD97706) : const Color(0xFFCBD5E1),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.category_rounded,
+              size: 20,
+              color: Color(0xFFD97706),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                hasValue ? tempCauseFactor!['name'].toString() : getTxt('pilih_faktor'),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: hasValue ? FontWeight.w600 : FontWeight.normal,
+                  color: hasValue ? const Color(0xFF0F172A) : Colors.grey,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (hasValue)
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(context, {'action': 'reset'});
+                },
+                child: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 20),
+              )
+            else
+              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFD97706), size: 16),
+          ],
         ),
       ),
     );

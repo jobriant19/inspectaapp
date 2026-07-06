@@ -36,7 +36,10 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   Map<String, dynamic>? _appliedLocationFilter;
   String _appliedInspectionType = ''; // 'visitor', 'eksekutif', 'profesional'
   String _appliedSortOrder = 'terbaru'; // 'terbaru', 'terlama', 'deadline'
-  String _appliedJenisTemuan = ''; // '' = semua, '5r' = 5R, 'kts' = KTS Production
+  String _appliedJenisTemuan = '';
+  Map<String, dynamic>? _appliedSectionFilter; 
+  String _selectedSectionName = '';
+  Map<String, dynamic>? _appliedCauseFactor;
 
   // State untuk UI di BottomSheet
   String _selectedLokasiName = '';
@@ -464,10 +467,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15,
-                    vertical: 5,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(15, 5, 15, 80),
                   physics: const BouncingScrollPhysics(),
                   itemCount: allData.length,
                   itemBuilder: (context, index) {
@@ -526,7 +526,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     );
   }
 
-  // --- METHOD UNTUK MENAMPILKAN POPUP FILTER (kini di explore_filter_screen.dart) ---
   void _showFilterBottomSheet(BuildContext context) async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -538,6 +537,9 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         initialSortOrder: _appliedSortOrder,
         initialLocationName: _selectedLokasiName,
         initialJenisTemuan: _appliedJenisTemuan,
+        initialSectionFilter: _appliedSectionFilter,
+        initialSectionName: _selectedSectionName,
+        initialCauseFactor: _appliedCauseFactor,
       ),
     );
 
@@ -550,7 +552,10 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         _appliedInspectionType = '';
         _appliedSortOrder = 'terbaru';
         _selectedLokasiName = '';
-        _appliedJenisTemuan = '';
+        _appliedJenisTemuan = ''; // kembali ke default 5R Findings
+        _appliedSectionFilter = null;
+        _selectedSectionName = '';
+        _appliedCauseFactor = null;
         _activeChips = {};
       });
       _loadFindings();
@@ -561,6 +566,9 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         _appliedSortOrder = result['sortOrder'];
         _selectedLokasiName = result['locationName'];
         _appliedJenisTemuan = result['jenisTemuan'];
+        _appliedSectionFilter = result['sectionFilter'];
+        _selectedSectionName = result['sectionName'] ?? '';
+        _appliedCauseFactor = result['causeFactor'];
         _activeChips = {};
       });
       _loadFindings();
@@ -570,13 +578,17 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   void _loadFindings() {
     final sortedChips = _activeChips.toList()..sort();
     String cacheKey =
-      'tab:${_tabController.index}_' +
-      'chips:${sortedChips.join("+")}_' +
-      'loc:${_appliedLocationFilter?['id']}_' +
-      'locall:${_appliedLocationFilter?['all']}_' +
-      'loclevel:${_appliedLocationFilter?['level']}_' +
-      'type:${_appliedInspectionType}_' +
-      'sort:${_appliedSortOrder}_' +
+      'tab:${_tabController.index}_'
+      'chips:${sortedChips.join("+")}_'
+      'loc:${_appliedLocationFilter?['id']}_'
+      'locall:${_appliedLocationFilter?['all']}_'
+      'loclevel:${_appliedLocationFilter?['level']}_'
+      'sectionid:${_appliedSectionFilter?['id']}_'
+      'sectionall:${_appliedSectionFilter?['all']}_'
+      'sectionlevel:${_appliedSectionFilter?['level']}_'
+      'factor:${_appliedCauseFactor?['id']}_'
+      'type:${_appliedInspectionType}_'
+      'sort:${_appliedSortOrder}_'
       'jenis:$_appliedJenisTemuan';
 
     if (_findingsCache.containsKey(cacheKey)) {
@@ -604,6 +616,13 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
 
   Future<List<Map<String, dynamic>>> _fetchFindings() async {
     try {
+      final bool isKtsMode = _appliedJenisTemuan == 'kts';
+      final bool needsInnerPenyelesaian =
+          isKtsMode && (_appliedSectionFilter != null || _appliedCauseFactor != null);
+      final String penyelesaianRelation = needsInnerPenyelesaian
+          ? 'penyelesaian!temuan_id_penyelesaian_fkey!inner'
+          : 'penyelesaian!temuan_id_penyelesaian_fkey';
+
       var query = Supabase.instance.client.from('temuan').select('''
         id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan,
         poin_temuan, target_waktu_selesai, jenis_temuan,
@@ -614,7 +633,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         no_order, jumlah_item, nama_item_manual,
         item_produksi:id_item(id_item, nama_item, gambar_item),
         subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan),
-        penyelesaian!temuan_id_penyelesaian_fkey(
+        $penyelesaianRelation(
           *,
           User_Solver:User!id_user(nama, gambar_user),
           section:id_section(nama_section_id, nama_section_en, nama_section_zh),
@@ -634,6 +653,24 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         query = query.neq('jenis_temuan', 'KTS Production');
       } else if (_appliedJenisTemuan == 'kts') {
         query = query.eq('jenis_temuan', 'KTS Production');
+      }
+
+      // Filter Section Penyebab & Cause Factor (khusus KTS Production)
+      if (isKtsMode) {
+        if (_appliedSectionFilter != null) {
+          if (_appliedSectionFilter!['all'] == true) {
+            // Simplifikasi: "Semua Section" = KTS yang sudah memiliki section penyebab tercatat
+            query = query.not('penyelesaian.id_section', 'is', null);
+          } else {
+            query = query.eq('penyelesaian.id_section', _appliedSectionFilter!['id'].toString());
+          }
+        }
+        if (_appliedCauseFactor != null) {
+          query = query.eq(
+            'penyelesaian.id_subkategoritemuan_penyebab',
+            _appliedCauseFactor!['id'].toString(),
+          );
+        }
       }
 
       // Filter Chips
@@ -706,6 +743,9 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           case 'terlama':
             return query.order('created_at', ascending: true);
           case 'deadline':
+            if (isKtsMode) {
+              return query.order('jumlah_item', ascending: false, nullsFirst: false);
+            }
             return query.order('target_waktu_selesai', ascending: true, nullsFirst: false);
           case 'terbaru':
           default:
@@ -717,49 +757,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       debugPrint("Terjadi kesalahan saat fetch findings: $error");
       return [];
     }
-  }
-
-  String _formatLocation(Map<String, dynamic> item, {int? filterLevel}) {
-    // Jika ada filter lokasi aktif, tampilkan level yang difilter
-    // agar label card sesuai dengan yang difilter pengguna
-    if (filterLevel != null) {
-      switch (filterLevel) {
-        case 0: // Lokasi
-          if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
-            return item['lokasi']['nama_lokasi'].toString();
-          }
-          break;
-        case 1: // Unit
-          if (item['unit'] != null && item['unit']['nama_unit'] != null) {
-            return item['unit']['nama_unit'].toString();
-          }
-          break;
-        case 2: // Subunit
-          if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
-            return item['subunit']['nama_subunit'].toString();
-          }
-          break;
-        case 3: // Area
-          if (item['area'] != null && item['area']['nama_area'] != null) {
-            return item['area']['nama_area'].toString();
-          }
-          break;
-      }
-    }
-    // Default: tampilkan lokasi paling spesifik
-    if (item['area'] != null && item['area']['nama_area'] != null) {
-      return item['area']['nama_area'].toString();
-    }
-    if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
-      return item['subunit']['nama_subunit'].toString();
-    }
-    if (item['unit'] != null && item['unit']['nama_unit'] != null) {
-      return item['unit']['nama_unit'].toString();
-    }
-    if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
-      return item['lokasi']['nama_lokasi'].toString();
-    }
-    return '-';
   }
 
   // === HELPER BARU: info badge lokasi (label, ikon, warna) sesuai skema explore_location_filter.dart ===
@@ -854,10 +851,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     // --- A. PARSING DATA & VARIABEL DASAR ---
     final transformedImageUrl = _getTransformedImageUrl((data['gambar_temuan'] ?? '').toString());
     final title = (data['judul_temuan'] ?? '-').toString();
-    final lokasi = _formatLocation(
-      data,
-      filterLevel: _appliedLocationFilter?['level'] as int?,
-    );
     final tanggal = _formatDate(data['created_at']);
     final poin = int.tryParse((data['poin_temuan'] ?? 0).toString()) ?? 0;
     final status = (data['status_temuan'] ?? '').toString();
