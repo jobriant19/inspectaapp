@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../detail/leaderboard_detail_screen.dart';
+import 'package:shimmer/shimmer.dart';
 
 String _t(String lang, String id, String en, String zh) =>
     lang == 'ID' ? id : lang == 'ZH' ? zh : en;
@@ -36,26 +37,26 @@ class _CategoryMeta {
 Map<_LocCategory, _CategoryMeta> _categoryMeta(String lang) {
   return {
     _LocCategory.lokasi: _CategoryMeta(
-      icon: Icons.business_rounded,
-      color: const Color(0xFF0EA5E9),
+      icon: Icons.location_city_rounded,
+      color: const Color(0xFF10B981),
       label: _t(lang, 'Lokasi', 'Location', '位置'),
       allLabel: _t(lang, 'Semua Lokasi', 'All Locations', '所有位置'),
     ),
     _LocCategory.unit: _CategoryMeta(
-      icon: Icons.account_tree_rounded,
+      icon: Icons.business_rounded,
       color: const Color(0xFF6366F1),
       label: _t(lang, 'Unit', 'Unit', '单位'),
       allLabel: _t(lang, 'Semua Unit', 'All Units', '所有单位'),
     ),
     _LocCategory.subunit: _CategoryMeta(
-      icon: Icons.folder_open_rounded,
-      color: const Color(0xFF14B8A6),
+      icon: Icons.layers_rounded,
+      color: const Color(0xFFFBBF24),
       label: _t(lang, 'Subunit', 'Subunit', '子单位'),
       allLabel: _t(lang, 'Semua Subunit', 'All Subunits', '所有子单位'),
     ),
     _LocCategory.area: _CategoryMeta(
-      icon: Icons.map_rounded,
-      color: const Color(0xFFF97316),
+      icon: Icons.place_rounded,
+      color: const Color(0xFFF472B6),
       label: _t(lang, 'Area', 'Area', '区域'),
       allLabel: _t(lang, 'Semua Area', 'All Areas', '所有区域'),
     ),
@@ -338,7 +339,7 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
           // List hasil (HANYA bagian ini yang scroll)
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
+                ? _buildShimmerList()
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     children: [
@@ -394,17 +395,31 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
       'Search location, unit, subunit, area...',
       '搜索位置、单位、子单位、区域...',
     );
+    final bool isFocused = _searchQuery.isNotEmpty;
     return Container(
+      height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isFocused
+              ? const Color(0xFF0EA5E9)
+              : const Color(0xFF0EA5E9).withValues(alpha: 0.35),
+          width: 1.4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0EA5E9).withValues(alpha: 0.10),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
-          const SizedBox(width: 8),
+          const Icon(Icons.search_rounded, size: 21, color: Color(0xFF0EA5E9)),
+          const SizedBox(width: 10),
           Expanded(
             child: TextField(
               controller: _searchCtrl,
@@ -414,9 +429,13 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
                 border: InputBorder.none,
                 isDense: true,
                 hintStyle:
-                    const TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+                    const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
               ),
-              style: const TextStyle(fontSize: 13, color: Color(0xFF0C4A6E)),
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF0C4A6E),
+              ),
             ),
           ),
           if (_searchQuery.isNotEmpty)
@@ -425,10 +444,60 @@ class _LocationFilterSheetState extends State<_LocationFilterSheet> {
                 _searchCtrl.clear();
                 _onSearchChanged('');
               },
-              child: const Icon(Icons.close_rounded,
-                  size: 16, color: Color(0xFF94A3B8)),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close_rounded,
+                    size: 14, color: Color(0xFF0EA5E9)),
+              ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[200]!,
+      highlightColor: Colors.grey[50]!,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        itemCount: 6,
+        itemBuilder: (_, __) => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(height: 14, width: 140, color: Colors.white),
+                    const SizedBox(height: 8),
+                    Container(height: 16, width: 70, color: Colors.white),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
