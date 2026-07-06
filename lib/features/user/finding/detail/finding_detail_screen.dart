@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/utils/jabatan_helper.dart';
+import '../../../../core/utils/jabatan_helper.dart';
 import 'finding_solution_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/widgets/user_picker_bottom_sheet.dart';
+import '../../../../core/widgets/user_picker_bottom_sheet.dart';
 
 class Comment {
   final String id;
@@ -402,7 +402,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                 ),
                 child: Text(
                   jenisLabel,
-                  style: GoogleFonts.poppins(
+                  style: GoogleFonts.inter(
                     color: jenisColor,
                     fontWeight: FontWeight.w900,
                     fontSize: 10,

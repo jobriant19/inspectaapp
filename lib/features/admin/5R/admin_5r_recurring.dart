@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../../core/services/gemini_recurring_service.dart';
-import '../../user/finding/finding_detail_screen.dart';
+import '../../user/finding/detail/finding_detail_screen.dart';
 import '../../user/home/card/kts_finding_card.dart';
 
 class _AppColors {

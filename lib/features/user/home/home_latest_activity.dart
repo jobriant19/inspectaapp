@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
-import '../finding/finding_detail_screen.dart';
+import '../finding/detail/finding_detail_screen.dart';
 import '../ktsproduksi/kts_detail_screen.dart';
 import 'card/finding_card.dart';
 import 'card/kts_finding_card.dart';
