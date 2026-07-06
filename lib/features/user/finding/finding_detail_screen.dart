@@ -1,16 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
-import '../../../core/services/location_service.dart';
 import '../../../core/utils/jabatan_helper.dart';
-import 'resolution_camera_screen.dart';
+import 'finding_solution_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/widgets/user_picker_bottom_sheet.dart';
-import 'camera_finding_screen.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 class Comment {
   final String id;
@@ -57,26 +52,16 @@ class FindingDetailScreen extends StatefulWidget {
 }
 
 class _FindingDetailScreenState extends State<FindingDetailScreen> {
-  // Data State
+  // DATA STATE
   late Future<Map<String, dynamic>> _findingDetailFuture;
   Map<String, dynamic>? _currentFindingData;
   late Future<List<Comment>> _commentsFuture;
 
-  // Resolution State
-  XFile? _resolutionImageFile;
-  final _resolutionNotesController = TextEditingController();
-  final _resolutionCostController = TextEditingController();
-  bool _isFinishing = false;
-  bool _isExtending = false;
-  final _extensionReasonController = TextEditingController();
-  DateTime? _extensionNewDate;
-
-  // Comment State
+  // COMMENT STATE
   final _commentController = TextEditingController();
   final List<Map<String, dynamic>> _mentionedUsers = [];
   bool _isPostingComment = false;
 
-  // Dictionary
   late Map<String, String> _texts;
 
   @override
@@ -88,10 +73,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
   @override
   void dispose() {
-    _resolutionNotesController.dispose();
-    _resolutionCostController.dispose();
     _commentController.dispose();
-    _extensionReasonController.dispose();
     super.dispose();
   }
 
@@ -102,7 +84,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     if (!silent) setState(() {});
   }
 
-  // ===== DATA FETCHING =====
   Future<Map<String, dynamic>> _fetchFindingDetails(String findingId) async {
     final response = await Supabase.instance.client
         .from('temuan')
@@ -135,21 +116,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     return response.map((map) => Comment.fromMap(map)).toList();
   }
 
-  // ===== LOGIC ACTIONS =====
-  Future<void> _pickResolutionImage() async {
-    final result = await Navigator.push<XFile>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ResolutionCameraScreen(lang: widget.lang),
-      ),
-    );
-    if (result != null) {
-      setState(() {
-        _resolutionImageFile = result;
-      });
-    }
-  }
-
   Future<void> _postComment() async {
     final content = _commentController.text.trim();
     if (content.isEmpty) return;
@@ -175,7 +141,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
       _commentController.clear();
       _mentionedUsers.clear();
-      _loadData(); // Refresh comment list
+      _loadData();
     } catch (e) {
       _showErrorSnackbar('Gagal mengirim komentar: $e');
     } finally {
@@ -183,466 +149,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     }
   }
 
-  Future<void> _submitExtension() async {
-    if (_extensionReasonController.text.trim().isEmpty) {
-      _showErrorSnackbar(_texts['extension_err_reason']!);
-      return;
-    }
-    if (_extensionNewDate == null) {
-      _showErrorSnackbar(_texts['extension_err_date']!);
-      return;
-    }
-
-    // Validasi: tanggal baru harus setelah deadline lama (jika ada)
-    final currentDeadline = _currentFindingData != null
-        ? DateTime.tryParse(_currentFindingData!['target_waktu_selesai']?.toString() ?? '')
-        : null;
-
-    if (currentDeadline != null && _extensionNewDate!.isBefore(currentDeadline)) {
-      _showErrorSnackbar(_texts['extension_err_date_past']!);
-      return;
-    }
-
-    setState(() => _isExtending = true);
-
-    try {
-      final supabase = Supabase.instance.client;
-
-      // 1. Insert ke tabel perpanjang
-      final perpanjangResponse = await supabase
-          .from('perpanjang')
-          .insert({
-            'waktu_perpanjang': DateTime.now().toIso8601String(),
-            'alasan_perpanjang': _extensionReasonController.text.trim(),
-            'tanggal_selesai': _extensionNewDate!.toIso8601String(),
-          })
-          .select()
-          .single();
-
-      final perpanjangId = perpanjangResponse['id_perpanjang'].toString();
-
-      // 2. Update temuan: set id_perpanjang dan target_waktu_selesai baru
-      await supabase
-          .from('temuan')
-          .update({
-            'id_perpanjang': perpanjangId,
-            'target_waktu_selesai': _extensionNewDate!.toIso8601String(),
-          })
-          .eq('id_temuan', widget.initialData['id_temuan'].toString());
-
-      if (mounted) {
-        Navigator.pop(context); // tutup bottom sheet
-        _showSuccessSnackbar(_texts['extension_success']!);
-        _loadData(); // refresh data
-      }
-    } catch (e) {
-      debugPrint('Extension error: $e');
-      if (mounted) {
-        _showErrorSnackbar('${_texts['extension_fail']!}: $e');
-      }
-    } finally {
-      if (mounted) setState(() => _isExtending = false);
-    }
-  }
-
-  void _showExtensionBottomSheet(Map<String, dynamic> data) {
-    _extensionReasonController.clear();
-    _extensionNewDate = null;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            ),
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Handle bar
-                  Center(
-                    child: Container(
-                      width: 40, height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Header
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E3A8A).withValues(alpha:0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.schedule_rounded,
-                            color: Color(0xFF1E3A8A), size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        _texts['extension']!,
-                        style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E3A8A),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Deadline lama (jika ada)
-                  if (data['target_waktu_selesai'] != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.shade200),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.timer_outlined,
-                              color: Colors.orange.shade700, size: 16),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Deadline saat ini: ${_formatDateTime(data['target_waktu_selesai'], format: 'dd MMM yyyy')}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.orange.shade800,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Alasan
-                  Text(_texts['extension_reason']!,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Color(0xFF475569))),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _extensionReasonController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: _texts['extension_reason_hint']!,
-                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                      filled: true,
-                      fillColor: const Color(0xFFF8FAFF),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF1E3A8A), width: 1),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF1E3A8A), width: 1.5),
-                      ),
-                      contentPadding: const EdgeInsets.all(14),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Pilih tanggal baru
-                  Text(_texts['extension_new_date']!,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Color(0xFF475569))),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: ctx,
-                        initialDate: DateTime.now().add(const Duration(days: 1)),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                        builder: (context, child) => Theme(
-                          data: Theme.of(context).copyWith(
-                            colorScheme: const ColorScheme.light(
-                              primary: Color(0xFF1E3A8A),
-                              onPrimary: Colors.white,
-                            ),
-                          ),
-                          child: child!,
-                        ),
-                      );
-                      if (picked != null) {
-                        setModalState(() => _extensionNewDate = picked);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: _extensionNewDate != null
-                            ? const Color(0xFF1E3A8A).withValues(alpha:0.05)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _extensionNewDate != null
-                              ? const Color(0xFF1E3A8A)
-                              : Colors.grey.shade300,
-                          width: _extensionNewDate != null ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_today_outlined,
-                              color: const Color(0xFF1E3A8A), size: 20),
-                          const SizedBox(width: 12),
-                          Text(
-                            _extensionNewDate != null
-                                ? DateFormat('EEEE, d MMMM yyyy').format(_extensionNewDate!)
-                                : (_texts['extension_new_date']!),
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: _extensionNewDate != null
-                                  ? Colors.black87
-                                  : Colors.grey.shade500,
-                              fontWeight: _extensionNewDate != null
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Tombol submit
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isExtending ? null : _submitExtension,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E3A8A),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: _isExtending
-                          ? const SizedBox(
-                              width: 20, height: 20,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2))
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.schedule_send_rounded, size: 18),
-                                const SizedBox(width: 8),
-                                Text(_texts['extension_submit']!,
-                                    style: const TextStyle(
-                                        fontSize: 15, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _finishFinding({bool createNewAfter = false}) async {
-    // ── Cek lokasi sebelum submit penyelesaian ──
-    final locResult =
-        await LocationService.instance.checkUserAtAtmi(forceRefresh: true);
-
-    if (!locResult.isAtAtmi) {
-      if (!mounted) return;
-      _showLocationBlockedSnackbar();
-      return;
-    }
-
-    if (_resolutionImageFile == null) {
-      _showErrorSnackbar(_texts['err_proof_required']!);
-      return;
-    }
-
-    // Tampilkan loading dialog di tengah layar
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha:0.5),
-      builder: (ctx) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00C9E4).withValues(alpha:0.2),
-                blurRadius: 30,
-                spreadRadius: 4,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(color: Color(0xFF00C9E4)),
-              const SizedBox(height: 20),
-              Text(
-                widget.lang == 'EN'
-                    ? 'Saving resolution...'
-                    : widget.lang == 'ZH'
-                    ? '正在保存...'
-                    : 'Menyimpan penyelesaian...',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1E3A8A),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    setState(() => _isFinishing = true);
-
-    try {
-      final supabase = Supabase.instance.client;
-      final user = supabase.auth.currentUser;
-      if (user == null) throw Exception('User not logged in');
-
-      final imageBytes = await _resolutionImageFile!.readAsBytes();
-      final fileName =
-          'resolution/${widget.initialData['id_temuan']}/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await supabase.storage
-          .from('temuan_images')
-          .uploadBinary(
-            fileName,
-            imageBytes,
-            fileOptions: const FileOptions(contentType: 'image/jpeg'),
-          );
-      final imageUrl = supabase.storage
-          .from('temuan_images')
-          .getPublicUrl(fileName);
-
-      final costText = _resolutionCostController.text.trim();
-      final additionalCost = double.tryParse(costText);
-
-      // Ambil poin dari temuan untuk penyelesaian
-      final temuanData = await supabase
-          .from('temuan')
-          .select('poin_temuan')
-          .eq('id_temuan', widget.initialData['id_temuan'].toString())
-          .maybeSingle();
-
-      final int poinPenyelesaian =
-          (temuanData?['poin_temuan'] as num?)?.toInt() ?? 0;
-
-      final penyelesaianResponse = await supabase
-          .from('penyelesaian')
-          .insert({
-            'id_user': user.id,
-            'gambar_penyelesaian': imageUrl,
-            'catatan_penyelesaian': _resolutionNotesController.text.trim(),
-            'additional_cost': additionalCost,
-            'tanggal_selesai': DateTime.now().toIso8601String(),
-            'poin_penyelesaian': poinPenyelesaian,
-          })
-          .select()
-          .single();
-
-      final penyelesaianId = penyelesaianResponse['id_penyelesaian'].toString();
-
-      await supabase
-          .from('temuan')
-          .update({
-            'status_temuan': 'Selesai',
-            'id_penyelesaian': penyelesaianId,
-          })
-          .eq('id_temuan', widget.initialData['id_temuan'].toString());
-
-      // Tutup loading dialog
-      // Tutup loading dialog terlebih dahulu
-      if (mounted && Navigator.canPop(context)) Navigator.pop(context);
-
-      // Tampilkan success dialog SETELAH loading hilang
-      await _showFinishSuccessDialog();
-
-      if (createNewAfter) {
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CameraFindingScreen(
-              lang: widget.lang,
-              isProMode: false,
-              isVisitorMode: false,
-              selectedLocationName: _formatLocation(widget.initialData),
-            ),
-          ),
-        );
-      } else {
-        if (!mounted) return;
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      // Tutup loading dialog jika error
-      if (mounted && Navigator.canPop(context)) Navigator.pop(context);
-      _showErrorSnackbar('${_texts['finish_fail']}: $e');
-    } finally {
-      if (mounted) setState(() => _isFinishing = false);
-    }
-  }
-
-  void _showLocationBlockedSnackbar() {
-    if (!mounted) return;
-    final msg = widget.lang == 'EN'
-        ? 'You must be at PT ATMI Solo to submit a resolution.'
-        : widget.lang == 'ZH'
-            ? '您必须在PT ATMI Solo区域内才能提交解决方案。'
-            : 'Penyelesaian hanya dapat dilakukan di area PT ATMI Solo.';
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(children: [
-          const Icon(Icons.location_off_rounded, color: Colors.white, size: 16),
-          const SizedBox(width: 8),
-          Expanded(child: Text(msg)),
-        ]),
-        backgroundColor: Colors.orange.shade700,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
   void _showUserMentionPicker() async {
-    // Guard clause untuk memastikan data sudah dimuat
     if (_currentFindingData == null) {
       _showErrorSnackbar('Data temuan belum dimuat sepenuhnya.');
       return;
@@ -653,7 +160,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       isScrollControlled: true,
       builder: (context) => UserPickerBottomSheet(
         lang: widget.lang,
-        // Kirim ID lokasi dari data temuan saat ini
         idArea: _currentFindingData!['id_area'],
         idSubunit: _currentFindingData!['id_subunit'],
         idUnit: _currentFindingData!['id_unit'],
@@ -670,150 +176,23 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     }
   }
 
-  // ===== UI HELPERS =====
-  String _formatLocation(Map<String, dynamic> item) {
-    // ... (kode ini sama seperti sebelumnya, tidak perlu diubah)
-    if (item['area'] != null && item['area']['nama_area'] != null) {
-      return item['area']['nama_area'].toString();
-    }
-    if (item['subunit'] != null && item['subunit']['nama_subunit'] != null) {
-      return item['subunit']['nama_subunit'].toString();
-    }
-    if (item['unit'] != null && item['unit']['nama_unit'] != null) {
-      return item['unit']['nama_unit'].toString();
-    }
-    if (item['lokasi'] != null && item['lokasi']['nama_lokasi'] != null) {
-      return item['lokasi']['nama_lokasi'].toString();
-    }
-    return 'Lokasi tidak diketahui';
-  }
-
   String _formatDateTime(
     String? dateStr, {
     String format = 'dd MMM yyyy, HH:mm',
   }) {
     if (dateStr == null || dateStr.isEmpty) return '-';
     try {
-      // Coba parsing langsung, ini berhasil jika formatnya sudah ISO (ada 'T')
       final dt = DateTime.parse(dateStr).toLocal();
       return DateFormat(format, 'id_ID').format(dt);
     } catch (e) {
-      // Jika gagal, coba ganti spasi dengan 'T' (untuk format dari database)
       try {
         final parsableDateStr = dateStr.replaceFirst(' ', 'T');
         final dt = DateTime.parse(parsableDateStr).toLocal();
         return DateFormat(format, 'id_ID').format(dt);
       } catch (e2) {
-        // Jika masih gagal juga, kembalikan string mentah tapi tanpa mikrodetik
         return dateStr.substring(0, 19).replaceAll('T', ' ');
       }
     }
-  }
-
-  Future<void> _showFinishSuccessDialog() async {
-    if (!mounted) return;
-    final completer = Completer<void>();
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierColor: Colors.black.withValues(alpha:0.55),
-      builder: (dialogContext) {
-        Future.delayed(const Duration(milliseconds: 3000), () {
-          if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
-            Navigator.of(dialogContext).pop();
-            if (!completer.isCompleted) completer.complete();
-          }
-        });
-
-        return Center(
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 36),
-              padding: const EdgeInsets.fromLTRB(24, 30, 24, 24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF16A34A).withValues(alpha:0.3),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF16A34A).withValues(alpha:0.1),
-                      border: Border.all(
-                        color: const Color(0xFF16A34A).withValues(alpha:0.3),
-                        width: 2,
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.verified_rounded,
-                      color: Color(0xFF16A34A),
-                      size: 50,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _texts['finish_success']!,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF16A34A),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.lang == 'EN'
-                        ? 'The finding has been successfully resolved.'
-                        : widget.lang == 'ZH'
-                            ? '该发现已成功解决。'
-                            : 'Temuan berhasil diselesaikan dan poin diberikan.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 1.0, end: 0.0),
-                      duration: const Duration(milliseconds: 3000),
-                      builder: (_, v, __) => LinearProgressIndicator(
-                        value: v,
-                        minHeight: 4,
-                        backgroundColor:
-                            const Color(0xFF16A34A).withValues(alpha:0.1),
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF16A34A)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    ).then((_) {
-      if (!completer.isCompleted) completer.complete();
-    });
-
-    await completer.future;
   }
 
   void _showErrorSnackbar(String message) {
@@ -823,14 +202,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  void _showSuccessSnackbar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
-    );
-  }
-
-  // ===== WIDGET BUILDERS =====
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -849,18 +220,11 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
 
           final data = snapshot.data!;
           _currentFindingData = data;
-          final b = (data['status_temuan'] as String? ?? '').toLowerCase();
-          final isNotFinished = ['belum'].any((e) => b.contains(e));
-          final s = (data['status_temuan'] as String? ?? '').toLowerCase();
-          final isFinished = [
-            'closed',
-            'selesai',
-            'done',
-            'completed',
-          ].any((e) => s.contains(e));
-          final resolutionData = data['penyelesaian'] as Map<String, dynamic>?;
 
-          // Struktur yang benar adalah menempatkan semua widget di dalam Sliver
+          final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+          final picId = data['id_penanggung_jawab']?.toString();
+          final isPIC = currentUserId != null && picId == currentUserId;
+
           return CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
@@ -885,29 +249,19 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                       _buildFindingInfoGrid(data),
                       const SizedBox(height: 16),
 
-                      if (isFinished && resolutionData != null)
-                        _buildCompletedResolutionSection(resolutionData)
-                      else
-                        _buildResolutionSection(),
+                      FindingSolutionScreen(
+                        findingData: data,
+                        lang: widget.lang,
+                        isPIC: isPIC,
+                        onDataChanged: _loadData,
+                      ),
 
                       const SizedBox(height: 24),
                       _buildCommentsSection(),
                       const SizedBox(height: 16),
 
-                      // --- URUTAN YANG BENAR DI SINI ---
-                      // 1. Input Komentar (selalu ada)
                       _buildCommentInputBar(),
 
-                      // 2. Tombol Aksi (hanya jika belum selesai)
-                      if (isNotFinished)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            top: 8.0,
-                          ), // beri jarak dari input komentar
-                          child: _buildActionButtons(),
-                        ),
-
-                      // Beri jarak di bawah agar tidak terlalu mepet
                       const SizedBox(height: 24),
                     ],
                   ),
@@ -1023,7 +377,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Baris 1: Judul (kiri) + Badge 5R/KTS & Poin (kanan, posisi tetap)
+          // LINE 1: TITLE (LEFT) + 5R/KTS & POINTS BADGE (RIGHT)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1098,66 +452,62 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           ),
           const SizedBox(height: 10),
 
-          // Baris 2: Badge Lokasi (kiri) + Status (flush kanan, sejajar edge badge poin)
+          // LINE 2: SPESIFIC LOCATION BADGE (LEFT) + STATUS (RIGHT)
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Flexible(child: _buildLocationBadgeDetail(data)),
               const SizedBox(width: 8),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isFinished
+                      ? const Color(0xFFF0FDF4)
+                      : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isFinished
+                        ? const Color(0xFF16A34A).withValues(alpha: 0.35)
+                        : const Color(0xFFDC2626).withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isFinished
+                          ? Icons.check_circle_rounded
+                          : Icons.pending_actions_rounded,
+                      size: 14,
                       color: isFinished
-                          ? const Color(0xFFF0FDF4)
-                          : const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFDC2626),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      isFinished
+                          ? _texts['finish']!
+                          : (widget.lang == 'ID'
+                              ? 'Belum Selesai'
+                              : widget.lang == 'ZH'
+                                  ? '未完成'
+                                  : 'Unfinished'),
+                      style: GoogleFonts.poppins(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
                         color: isFinished
-                            ? const Color(0xFF16A34A).withValues(alpha: 0.35)
-                            : const Color(0xFFDC2626).withValues(alpha: 0.35),
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFDC2626),
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isFinished
-                              ? Icons.check_circle_rounded
-                              : Icons.pending_actions_rounded,
-                          size: 14,
-                          color: isFinished
-                              ? const Color(0xFF16A34A)
-                              : const Color(0xFFDC2626),
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          isFinished
-                              ? _texts['finish']!
-                              : (widget.lang == 'ID'
-                                  ? 'Belum Selesai'
-                                  : widget.lang == 'ZH'
-                                      ? '未完成'
-                                      : 'Unfinished'),
-                          style: GoogleFonts.poppins(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: isFinished
-                                ? const Color(0xFF16A34A)
-                                : const Color(0xFFDC2626),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
               ),
             ],
           ),
 
-          // Baris 3: Notes (jika ada deskripsi)
+          // LINE 3: NOTES
           if (deskripsi != null && deskripsi.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(height: 1, color: const Color(0xFFF1F5F9)),
@@ -1204,7 +554,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  // === HELPER BARU untuk badge lokasi & label poin di detail screen ===
   String _poinLabelDetail() {
     switch (widget.lang) {
       case 'EN':
@@ -1281,7 +630,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  // WIDGET BARU
   Widget _buildInspectionBadges(Map<String, dynamic> data) {
     final isPro = data['is_pro'] == true;
     final isVisitor = data['is_visitor'] == true;
@@ -1345,12 +693,12 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section title (Reported By)
+          // REPORTED BY
           _sectionHeader(
               Icons.info_outline_rounded, _texts['reported_by']!,
               color: const Color(0xFF0EA5E9)),
           const SizedBox(height: 12),
-          // Reporter
+          // REPORTER
           Row(
             children: [
               CircleAvatar(
@@ -1379,7 +727,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           const SizedBox(height: 16),
           Container(height: 1, color: const Color(0xFFF1F5F9)),
           const SizedBox(height: 16),
-          // Info rows (Deadline dihapus — sudah ada section tersendiri)
+          // INFO ROWS
           _infoChipBlue(Icons.calendar_today_outlined,
               _texts['reported_on']!, _formatDateTime(createdAt)),
           const SizedBox(height: 16),
@@ -1421,42 +769,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  Widget _infoChip(IconData icon, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 15, color: const Color(0xFF64748B)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF94A3B8),
-                      fontWeight: FontWeight.w500)),
-              const SizedBox(height: 2),
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF0F172A))),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // === HELPER BARU: chip info dengan icon & label biru, nilai tetap hitam ===
   Widget _infoChipBlue(IconData icon, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1559,7 +871,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  // === HELPER BARU: badge jabatan PIC, style sama seperti 5r_members_tab.dart ===
   Widget _buildPICJabatanBadge(Map<String, dynamic> assignee) {
     final idJabatan = assignee['id_jabatan'] as int?;
     final isVerificator = assignee['is_verificator'] as bool?;
@@ -1663,478 +974,16 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  Widget _buildCompletedResolutionSection(
-    Map<String, dynamic> resolutionData) {
-    final imageUrl = resolutionData['gambar_penyelesaian'] as String?;
-    final notes = resolutionData['catatan_penyelesaian'] as String?;
-    final cost = resolutionData['additional_cost'] as num?;
-    final completedDate = resolutionData['tanggal_selesai'] as String?;
-    final solver =
-        resolutionData['User_Solver'] as Map<String, dynamic>?;
-    final solverName = solver?['nama'] as String? ?? '...';
-    final solverAvatarUrl = solver?['gambar_user'] as String?;
-
-    String formattedCost = '-';
-    if (cost != null && cost > 0) {
-      formattedCost = NumberFormat.currency(
-              locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0)
-          .format(cost);
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionHeader(
-            Icons.verified_rounded, _texts['resolution_result']!,
-            color: const Color(0xFF16A34A)),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: const Color(0xFFDCFCE7), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF16A34A).withValues(alpha:0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              )
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Foto penyelesaian
-              if (imageUrl != null)
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(20)),
-                  child: Image.network(imageUrl,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: 220),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Badge selesai
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDCFCE7),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.verified_rounded,
-                              color: Color(0xFF16A34A), size: 16),
-                          const SizedBox(width: 8),
-                          Text(
-                            _texts['resolved']!,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: Color(0xFF16A34A)),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Solver
-                    if (solver != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: const Color(0xFFDCFCE7)),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor:
-                                  const Color(0xFFDCFCE7),
-                              backgroundImage: solverAvatarUrl != null
-                                  ? NetworkImage(solverAvatarUrl)
-                                  : null,
-                              child: solverAvatarUrl == null
-                                  ? const Icon(Icons.person,
-                                      color: Color(0xFF16A34A),
-                                      size: 20)
-                                  : null,
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _texts['resolved_by']!,
-                                  style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF94A3B8),
-                                      fontWeight: FontWeight.w500),
-                                ),
-                                Text(
-                                  solverName,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                      color: Color(0xFF0F172A)),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // Tanggal selesai
-                    if (completedDate != null) ...[
-                      const SizedBox(height: 12),
-                      _infoChip(
-                          Icons.event_available_rounded,
-                          _texts['completed_on']!,
-                          _formatDateTime(completedDate)),
-                    ],
-
-                    // Catatan
-                    if (notes != null && notes.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF0FDF4),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: const Color(0xFFBBF7D0)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _texts['notes']!,
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF16A34A),
-                                  fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(notes,
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF166534),
-                                    height: 1.5)),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // Biaya
-                    if (cost != null && cost > 0) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF7ED),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: const Color(0xFFFED7AA)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                                Icons.monetization_on_rounded,
-                                color: Color(0xFFEA580C),
-                                size: 18),
-                            const SizedBox(width: 8),
-                            Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _texts['cost']!,
-                                  style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF92400E),
-                                      fontWeight: FontWeight.w600),
-                                ),
-                                Text(
-                                  formattedCost,
-                                  style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFFEA580C)),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // WIDGET BARU
-  Widget _buildResolutionSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 105, 217, 6).withValues(alpha:0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.build_circle_rounded, size: 16, color: Color.fromARGB(255, 76, 217, 6)),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              _texts['resolution']!,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF0F172A),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF16A34A).withValues(alpha:0.07),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Upload Foto
-              Row(
-                children: [
-                  Text(
-                    _texts['upload_proof']!,
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: const Color(0xFF475569),
-                    ),
-                  ),
-                  Text(' *', style: GoogleFonts.poppins(color: Colors.redAccent)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (_resolutionImageFile == null)
-                GestureDetector(
-                  onTap: _pickResolutionImage,
-                  child: Container(
-                    height: 140,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0FDF4),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFF86EFAC), width: 1.5),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFDCFCE7),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.camera_alt_rounded, color: Color(0xFF16A34A), size: 26),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          _texts['upload_proof']!,
-                          style: GoogleFonts.poppins(
-                            color: const Color(0xFF16A34A),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                Column(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: kIsWeb
-                          ? Image.network(
-                              _resolutionImageFile!.path,
-                              height: 200,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            )
-                          : Image.file(
-                              File(_resolutionImageFile!.path),
-                              height: 200,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            ),
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: _pickResolutionImage,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDCFCE7),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: const Color(0xFF86EFAC)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.edit_rounded, size: 14, color: Color(0xFF16A34A)),
-                            const SizedBox(width: 6),
-                            Text(
-                              _texts['change_photo']!,
-                              style: GoogleFonts.poppins(
-                                color: const Color(0xFF16A34A),
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 16),
-
-              // Catatan
-              Row(
-                children: [
-                  Text(
-                    _texts['resolution_notes']!,
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: const Color(0xFF475569),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _resolutionNotesController,
-                maxLines: 3,
-                style: GoogleFonts.poppins(fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: _texts['resolution_notes_hint'],
-                  hintStyle: GoogleFonts.poppins(color: const Color(0xFFCBD5E1), fontSize: 15),
-                  filled: true,
-                  fillColor: const Color(0xFFF0FDF4),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF86EFAC), width: 1),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF16A34A), width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Biaya
-              Text(
-                widget.lang == 'ZH'
-                    ? '费用（可选）'
-                    : widget.lang == 'EN'
-                        ? 'Cost (Optional)'
-                        : 'Biaya Penyelesaian (Opsional)',
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: const Color(0xFF475569),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _resolutionCostController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: GoogleFonts.poppins(fontSize: 15),
-                decoration: InputDecoration(
-                  hintText: widget.lang == 'ZH' ? '例如：50000' : widget.lang == 'EN' ? 'Example: 50000' : 'Contoh: 50000',
-                  prefixText: 'Rp ',
-                  prefixStyle: GoogleFonts.poppins(fontSize: 15, color: const Color(0xFF0F172A)),
-                  hintStyle: GoogleFonts.poppins(color: const Color(0xFFCBD5E1), fontSize: 15),
-                  filled: true,
-                  fillColor: const Color(0xFFF0FDF4),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF86EFAC), width: 1),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF16A34A), width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildCommentsSection() {
-    // ... (kode sama)
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Aktivitas & Komentar',
-          style: TextStyle(
+        Text(
+          _texts['comments_title']!,
+          style: GoogleFonts.poppins(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1E3A8A),
+            color: const Color(0xFF1D72F3),
           ),
         ),
         const SizedBox(height: 12),
@@ -2145,22 +994,17 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               return const Center(
                 child: Padding(
                   padding: EdgeInsets.all(16.0),
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFF1D72F3),
+                  ),
                 ),
               );
             }
             if (snapshot.hasError) return Text('Error: ${snapshot.error}');
             final comments = snapshot.data ?? [];
             if (comments.isEmpty) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24.0),
-                  child: Text(
-                    'Belum ada komentar.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-              );
+              return _buildEmptyCommentsState();
             }
             return ListView.separated(
               shrinkWrap: true,
@@ -2176,8 +1020,48 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
+  Widget _buildEmptyCommentsState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1D72F3).withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFF1D72F3).withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Image.asset(
+            'assets/images/team_illustration.png',
+            height: 120,
+            fit: BoxFit.contain,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _texts['no_comments_title']!,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1D72F3),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _texts['no_comments_subtitle']!,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF1D72F3).withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCommentItem(Comment comment) {
-    // ... (kode sama)
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2223,7 +1107,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  // WIDGET BARU (disesuaikan untuk mention)
   Widget _buildCommentInputBar() {
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -2282,7 +1165,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               : IconButton(
                   icon: const Icon(Icons.send_rounded),
                   style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E3A8A),
+                    backgroundColor: const Color(0xFF1D72F3),
                     foregroundColor: Colors.white,
                   ),
                   onPressed: _postComment,
@@ -2292,110 +1175,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  // WIDGET BARU
-  Widget _buildActionButtons() {
-    // Cek apakah user yang login adalah penanggung jawab
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-    final picId = _currentFindingData?['id_penanggung_jawab']?.toString();
-    final isPIC = currentUserId != null && picId == currentUserId;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Tombol selesaikan
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _isFinishing ? null : () => _finishFinding(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1D72F3),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              elevation: 2,
-              shadowColor: const Color(0xFF1D72F3).withValues(alpha:0.4),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.save_outlined, size: 20),
-                const SizedBox(width: 8),
-                Text(_texts['finish']!,
-                    style: GoogleFonts.poppins(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Tombol selesaikan & buat baru
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton(
-            onPressed: _isFinishing ? null : () => _finishFinding(createNewAfter: true),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF1D72F3), width: 1.5),
-              foregroundColor: const Color(0xFF1D72F3),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.add_circle_outline, size: 20),
-                const SizedBox(width: 8),
-                Text(_texts['finish_and_new']!,
-                    style: GoogleFonts.poppins(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ),
-
-        // Tombol perpanjang — hanya muncul jika user adalah PIC
-        if (isPIC) ...[
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: _isExtending
-                  ? null
-                  : () => _showExtensionBottomSheet(_currentFindingData!),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF1E3A8A), width: 1.5),
-                foregroundColor: const Color(0xFF1E3A8A),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.schedule_rounded, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    _texts['btn_extend'] ??
-                        (widget.lang == 'EN' ? 'Extend Deadline' : 'Perpanjang Deadline'),
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  // Setup Terjemahan
   void _setupTranslations() {
     const Map<String, Map<String, String>> translations = {
       'ID': {
         'detail_title': 'Detail Temuan',
+        'comments_title': 'Komentar',
+        'no_comments_title': 'Belum Ada Komentar',
+        'no_comments_subtitle': 'Jadilah yang pertama memberikan komentar atau masukan pada temuan ini.',
         'professional': 'Profesional',
         'visitor': 'Visitor',
         'executive': 'Eksekutif',
@@ -2415,13 +1201,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'err_proof_required': 'Bukti penyelesaian wajib diunggah!',
         'finish_success': 'Temuan berhasil diselesaikan!',
         'finish_fail': 'Gagal menyelesaikan temuan',
-        'created_by': 'Dibuat oleh', // <-- BARU
+        'created_by': 'Dibuat oleh', 
         'reported_by': 'Dilaporkan oleh',
-        'resolved_by': 'Diselesaikan oleh', // <-- BARU
-        'completed_on': 'Selesai pada', // <-- BARU
-        'resolution_result': 'Hasil Penyelesaian', // <-- BARU
-        'notes': 'Catatan:', // <-- BARU
-        'cost': 'Biaya yang Dikeluarkan:', // <-- BARU
+        'resolved_by': 'Diselesaikan oleh', 
+        'completed_on': 'Selesai pada', 
+        'resolution_result': 'Hasil Penyelesaian', 
+        'notes': 'Catatan:', 
+        'cost': 'Biaya yang Dikeluarkan:', 
         'resolved': 'Temuan Selesai',
         'extension': 'Perpanjangan Deadline',
         'extension_reason': 'Alasan Perpanjangan',
@@ -2437,6 +1223,9 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       },
       'EN': {
         'detail_title': 'Finding Detail',
+        'comments_title': 'Comments',
+        'no_comments_title': 'No Comments Yet',
+        'no_comments_subtitle': 'Be the first to add a comment or feedback on this finding.',
         'professional': 'Professional',
         'visitor': 'Visitor',
         'executive': 'Executive',
@@ -2456,13 +1245,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'err_proof_required': 'Proof of solution is required!',
         'finish_success': 'Finding finished successfully!',
         'finish_fail': 'Failed to finish finding',
-        'created_by': 'Created by', // <-- BARU
+        'created_by': 'Created by', 
         'reported_by': 'Reported by',
-        'resolved_by': 'Resolved by', // <-- BARU
-        'completed_on': 'Completed on', // <-- BARU
-        'resolution_result': 'Solution Result', // <-- BARU
-        'notes': 'Notes:', // <-- BARU
-        'cost': 'Cost Incurred:', // <-- BARU
+        'resolved_by': 'Resolved by', 
+        'completed_on': 'Completed on', 
+        'resolution_result': 'Solution Result', 
+        'notes': 'Notes:', 
+        'cost': 'Cost Incurred:', 
         'resolved': 'Finding Resolved',
         'extension': 'Deadline Extension',
         'extension_reason': 'Extension Reason',
@@ -2478,6 +1267,9 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       },
       'ZH': {
         'detail_title': '发现详情',
+        'comments_title': '评论',
+        'no_comments_title': '暂无评论',
+        'no_comments_subtitle': '成为第一个对此发现发表评论或反馈的人。',
         'professional': '专业的',
         'visitor': '访客',
         'executive': '行政人员',
@@ -2497,13 +1289,13 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
         'err_proof_required': '必须上传解决方案证明！',
         'finish_success': '发现已成功完成！',
         'finish_fail': '完成发现失败',
-        'created_by': '创建者', // <-- BARU
+        'created_by': '创建者', 
         'reported_by': '报告者',
-        'resolved_by': '解决者', // <-- BARU
-        'completed_on': '完成于', // <-- BARU
-        'resolution_result': '解决方案结果', // <-- BARU
-        'notes': '笔记：', // <-- BARU
-        'cost': '产生的费用：', // <-- BARU
+        'resolved_by': '解决者', 
+        'completed_on': '完成于', 
+        'resolution_result': '解决方案结果', 
+        'notes': '笔记：', 
+        'cost': '产生的费用：', 
         'resolved': '发现已完成',
         'extension': '截止日期延期',
         'extension_reason': '延期原因',
