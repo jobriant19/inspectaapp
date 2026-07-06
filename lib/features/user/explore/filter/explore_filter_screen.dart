@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'explore_location_filter.dart';
-import 'explore_section_filter.dart';
-import 'explore_factor_filter.dart';
+import '5R/explore_location_filter.dart';
+import 'KTS/explore_section_filter.dart';
+import 'KTS/explore_factor_filter.dart';
 
 class ExploreFilterScreen extends StatefulWidget {
   final String lang;
