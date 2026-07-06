@@ -6,10 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/utils/image_picker_helper.dart';
 import 'finding_location_filter.dart';
+import 'finding_pick_category.dart';
 
 class AddFindingFlowScreen extends StatefulWidget {
   final String lang;
@@ -579,14 +579,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   }
 
   void _showCategoryPicker() async {
-    final result = await showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => CategoryPickerBottomSheet(lang: widget.lang),
-    );
+    final result = await showFindingPickCategoryDialog(context, lang: widget.lang);
     if (result != null) setState(() => _selectedCategory = result);
   }
 
@@ -814,19 +807,13 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   _buildTextField(
                     controller: _notesCtrl,
                     hint: _texts['notes_hint']!,
-                    icon: Icons.notes_outlined,
                     maxLines: 3,
                   ),
                   const SizedBox(height: 20),
 
                   // Category
                   _buildIconSectionTitle(Icons.category_outlined, _texts['category']!, isRequired: true),
-                  _buildPickerCard(
-                    icon: Icons.category_outlined,
-                    text: _selectedCategory?['nama'] ?? _texts['select_category']!,
-                    onTap: _showCategoryPicker,
-                    hasValue: _selectedCategory != null,
-                  ),
+                  _buildCategoryPickerCard(),
                   const SizedBox(height: 20),
 
                   // Due Date
@@ -1353,6 +1340,82 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     );
   }
 
+  Widget _buildCategoryPickerCard() {
+    final bool hasValue = _selectedCategory != null;
+    final String kategoriNama = _selectedCategory?['kategori_nama'] ?? '';
+    final String subkategoriNama = _selectedCategory?['subkategori_nama'] ?? '';
+    final IconData icon = hasValue
+        ? FindingPickCategoryDialog.getIconForCategory(kategoriNama)
+        : Icons.category_outlined;
+    final Color iconColor = hasValue
+        ? FindingPickCategoryDialog.getColorForCategory(kategoriNama)
+        : const Color(0xFF1E3A8A);
+
+    return GestureDetector(
+      onTap: _showCategoryPicker,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasValue ? iconColor.withValues(alpha: 0.5) : Colors.grey.shade200,
+            width: hasValue ? 1.5 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: hasValue
+                  ? RichText(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: kategoriNama,
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: iconColor,
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' - $subkategoriNama',
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Text(
+                      _texts['select_category']!,
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+            ),
+            Icon(Icons.arrow_drop_down,
+                color: hasValue ? iconColor : Colors.grey.shade400),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPickerCard({
     required IconData icon,
     required String text,
@@ -1519,525 +1582,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       },
     };
     _texts = translationData[widget.lang] ?? translationData['EN']!;
-  }
-}
-
-// ==================================================================
-// BOTTOM SHEET: CATEGORY PICKER (with Shimmer)
-// ==================================================================
-class CategoryPickerBottomSheet extends StatefulWidget {
-  final String lang;
-  const CategoryPickerBottomSheet({super.key, required this.lang});
-
-  @override
-  State<CategoryPickerBottomSheet> createState() =>
-      _CategoryPickerBottomSheetState();
-}
-
-class _CategoryPickerBottomSheetState
-    extends State<CategoryPickerBottomSheet> {
-  List<Map<String, dynamic>> _allCategories = [];
-  List<Map<String, dynamic>> _filteredCategories = [];
-  bool _isLoading = true;
-  final TextEditingController _searchController = TextEditingController();
-
-  // Color palette for categories
-  static const List<Color> _categoryColors = [
-    Color(0xFF1E3A8A), // Deep Blue
-    Color(0xFF0891B2), // Cyan
-    Color(0xFF059669), // Green
-    Color(0xFFD97706), // Amber
-    Color(0xFFDC2626), // Red
-    Color(0xFF7C3AED), // Purple
-    Color(0xFFDB2777), // Pink
-  ];
-
-  static const List<Color> _categoryLightColors = [
-    Color(0xFFEFF6FF),
-    Color(0xFFECFEFF),
-    Color(0xFFECFDF5),
-    Color(0xFFFFFBEB),
-    Color(0xFFFEF2F2),
-    Color(0xFFF5F3FF),
-    Color(0xFFFDF2F8),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchCategories();
-    _searchController.addListener(_filterCategories);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _fetchCategories() async {
-    try {
-      // Filter hanya jenis_kategori = '5R'
-      final response = await Supabase.instance.client
-          .from('kategoritemuan')
-          .select('*, subkategoritemuan(*)')
-          .eq('jenis_kategori', '5R'); // FILTER JENIS 5R
-      final data = List<Map<String, dynamic>>.from(response);
-      if (mounted) {
-        setState(() {
-          _allCategories = data;
-          _filteredCategories = data;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint("Error fetching categories: $e");
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _filterCategories() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      _filteredCategories = _allCategories.where((category) {
-        final categoryName =
-            category['nama_kategoritemuan'].toString().toLowerCase();
-        final subcategories =
-            List<Map<String, dynamic>>.from(category['subkategoritemuan']);
-        return categoryName.contains(query) ||
-            subcategories.any((sub) => sub['nama_subkategoritemuan']
-                .toString()
-                .toLowerCase()
-                .contains(query));
-      }).toList();
-    });
-  }
-
-  IconData _getIconForCategory(String categoryName) {
-    switch (categoryName) {
-      case 'Ringkas':
-        return Icons.delete_sweep_outlined;
-      case 'Rapi':
-        return Icons.fact_check_outlined;
-      case 'Resik':
-        return Icons.cleaning_services_outlined;
-      case 'Rawat':
-        return Icons.construction_outlined;
-      case 'Tindakan Tidak Aman':
-        return Icons.warning_amber_rounded;
-      case 'Kondisi Tidak Aman':
-        return Icons.dangerous_outlined;
-      case 'Lainnya':
-        return Icons.more_horiz_outlined;
-      default:
-        return Icons.category_outlined;
-    }
-  }
-
-  Widget _buildShimmerLoading() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade200,
-      highlightColor: Colors.grey.shade50,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: 4,
-        itemBuilder: (_, __) => Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header shimmer
-              Container(
-                height: 60,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius:
-                      BorderRadius.vertical(top: Radius.circular(16)),
-                ),
-              ),
-              const Divider(height: 1),
-              // Sub items shimmer
-              ...List.generate(
-                  2,
-                  (_) => Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        child: Row(
-                          children: [
-                            Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle)),
-                            const SizedBox(width: 12),
-                            Container(height: 12, width: 160, color: Colors.white),
-                          ],
-                        ),
-                      )),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFF),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E3A8A).withValues(alpha:0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.category_outlined,
-                      color: Color(0xFF1E3A8A), size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.lang == 'ID'
-                            ? 'Pilih Kategori'
-                            : 'Select Category',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E3A8A),
-                        ),
-                      ),
-                      Text(
-                        widget.lang == 'ID'
-                            ? 'Pilih kategori & subkategori temuan'
-                            : 'Choose finding category & subcategory',
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade500),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: Icon(Icons.close, color: Colors.grey.shade500),
-                ),
-              ],
-            ),
-          ),
-
-          // Search Bar
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: widget.lang == 'ID'
-                    ? 'Cari kategori atau subkategori...'
-                    : 'Search category or subcategory...',
-                hintStyle:
-                    TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                prefixIcon:
-                    const Icon(Icons.search, color: Color(0xFF1E3A8A)),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide:
-                      BorderSide(color: Colors.grey.shade200),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide:
-                      BorderSide(color: Colors.grey.shade200),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: const BorderSide(
-                      color: Color(0xFF00C9E4), width: 1.5),
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 0, horizontal: 20),
-              ),
-            ),
-          ),
-
-          // Count indicator
-          if (!_isLoading)
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${_filteredCategories.length} ${widget.lang == 'ID' ? 'kategori ditemukan' : 'categories found'}',
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade500),
-                ),
-              ),
-            ),
-
-          // List
-          Expanded(
-            child: _isLoading
-                ? _buildShimmerLoading()
-                : _filteredCategories.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.search_off,
-                                size: 48,
-                                color: Colors.grey.shade300),
-                            const SizedBox(height: 8),
-                            Text(
-                              widget.lang == 'ID'
-                                  ? 'Kategori tidak ditemukan'
-                                  : 'Category not found',
-                              style: TextStyle(color: Colors.grey.shade500),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                        itemCount: _filteredCategories.length,
-                        itemBuilder: (context, index) {
-                          final category = _filteredCategories[index];
-                          final subcategories =
-                              List<Map<String, dynamic>>.from(
-                                  category['subkategoritemuan']);
-                          final colorIndex = index % _categoryColors.length;
-                          final mainColor = _categoryColors[colorIndex];
-                          final lightColor =
-                              _categoryLightColors[colorIndex];
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 14),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: mainColor.withValues(alpha:0.1),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                              border: Border.all(
-                                color: mainColor.withValues(alpha:0.15),
-                                width: 1,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Category Header
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 14),
-                                  decoration: BoxDecoration(
-                                    color: lightColor,
-                                    borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(16)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              mainColor.withValues(alpha:0.15),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        child: Icon(
-                                          _getIconForCategory(
-                                              category['nama_kategoritemuan']),
-                                          color: mainColor,
-                                          size: 20,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          category['nama_kategoritemuan'],
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 15,
-                                            color: mainColor,
-                                          ),
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              mainColor.withValues(alpha:0.1),
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                        child: Text(
-                                          '${subcategories.length}',
-                                          style: TextStyle(
-                                            color: mainColor,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                // Subcategories
-                                ...subcategories
-                                    .asMap()
-                                    .entries
-                                    .map((entry) {
-                                  final i = entry.key;
-                                  final sub = entry.value;
-                                  final isLast =
-                                      i == subcategories.length - 1;
-
-                                  return InkWell(
-                                    onTap: () {
-                                      Navigator.pop(context, {
-                                        'id_kategoritemuan_uuid':
-                                            sub['id_kategoritemuan_uuid'],
-                                        'id_subkategoritemuan_uuid':
-                                            sub['id_subkategoritemuan_uuid'],
-                                        'nama':
-                                            sub['nama_subkategoritemuan'],
-                                        'poin':
-                                            sub['poin_subkategoritemuan'],
-                                      });
-                                    },
-                                    borderRadius: isLast
-                                        ? const BorderRadius.vertical(
-                                            bottom: Radius.circular(16))
-                                        : BorderRadius.zero,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 16, vertical: 12),
-                                      decoration: BoxDecoration(
-                                        border: !isLast
-                                            ? Border(
-                                                bottom: BorderSide(
-                                                    color: Colors
-                                                        .grey.shade100,
-                                                    width: 1))
-                                            : null,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            width: 6,
-                                            height: 6,
-                                            decoration: BoxDecoration(
-                                              color: mainColor
-                                                  .withValues(alpha:0.5),
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: Text(
-                                              sub['nama_subkategoritemuan'],
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.black87,
-                                              ),
-                                            ),
-                                          ),
-                                          // Points badge
-                                          if (sub['poin_subkategoritemuan'] !=
-                                              null)
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 3),
-                                              decoration: BoxDecoration(
-                                                color: Colors.amber
-                                                    .withValues(alpha:0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                        20),
-                                                border: Border.all(
-                                                    color: Colors.amber
-                                                        .withValues(alpha:0.3)),
-                                              ),
-                                              child: Row(
-                                                mainAxisSize:
-                                                    MainAxisSize.min,
-                                                children: [
-                                                  const Icon(Icons.local_fire_department_rounded,
-                                                      size: 10,
-                                                      color: Colors.amber),
-                                                  const SizedBox(width: 3),
-                                                  Text(
-                                                    '${sub['poin_subkategoritemuan']}',
-                                                    style: const TextStyle(
-                                                      fontSize: 11,
-                                                      color: Colors.amber,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          const SizedBox(width: 8),
-                                          Icon(Icons.arrow_forward_ios,
-                                              size: 12,
-                                              color:
-                                                  Colors.grey.shade400),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
