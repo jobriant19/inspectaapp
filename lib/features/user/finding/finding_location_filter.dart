@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FindingLocationFilterScreen extends StatefulWidget {
@@ -79,7 +80,9 @@ class _FindingLocationFilterScreenState
     super.initState();
     _tabCtrl = TabController(length: 4, vsync: this)..addListener(_onTabChanged);
     _searchCtrl.addListener(_onSearchChanged);
-    _loadTabData(0);
+    for (int i = 0; i < 4; i++) {
+      _loadTabData(i);
+    }
   }
 
   @override
@@ -173,6 +176,25 @@ class _FindingLocationFilterScreenState
 
   List<Map<String, dynamic>>? _getDataForTab(int index) {
     return [_lokasiData, _unitData, _subunitData, _areaData][index];
+  }
+
+  Widget _buildShimmerList() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade200,
+      highlightColor: Colors.grey.shade100,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+        itemCount: 6,
+        itemBuilder: (_, __) => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          height: 64,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _onSearchChanged() async {
@@ -341,12 +363,7 @@ class _FindingLocationFilterScreenState
 
   Widget _buildSearchResults() {
     if (_isSearching) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.only(top: 48),
-          child: CircularProgressIndicator(color: Color(0xFF1D72F3), strokeWidth: 2),
-        ),
-      );
+      return _buildShimmerList();
     }
 
     final results = _searchResults ?? [];
@@ -405,12 +422,7 @@ class _FindingLocationFilterScreenState
     final data = _getDataForTab(tabIndex);
 
     if (isLoading || data == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.only(top: 48),
-          child: CircularProgressIndicator(color: Color(0xFF1D72F3), strokeWidth: 2),
-        ),
-      );
+      return _buildShimmerList();
     }
 
     if (data.isEmpty) {
@@ -509,9 +521,31 @@ class _FindingLocationFilterScreenState
                             ),
                           ),
                           if (!_isProAccess)
-                            Text(
-                              _t('Lokasi Saya', 'My Location', '我的位置'),
-                              style: GoogleFonts.inter(fontSize: 11, color: Colors.orange.shade600),
+                            Container(
+                              margin: const EdgeInsets.only(top: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1D72F3).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: const Color(0xFF1D72F3).withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.my_location_rounded,
+                                      size: 11, color: Color(0xFF1D72F3)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _t('Lokasi Saya', 'My Location', '我的位置'),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF1D72F3),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                         ],
                       ),
@@ -540,12 +574,6 @@ class _FindingLocationFilterScreenState
                   animation: _tabCtrl,
                   builder: (context, _) {
                     final labels = [_t('Lokasi', 'Location', '地点'), 'Unit', 'Sub-Unit', 'Area'];
-                    final preSelectedFlags = [
-                      widget.preSelectedLokasiId != null,
-                      widget.preSelectedUnitId != null,
-                      widget.preSelectedSubunitId != null,
-                      widget.preSelectedAreaId != null,
-                    ];
                     return Row(
                       children: List.generate(4, (index) {
                         final isActive = _tabCtrl.index == index;
@@ -573,22 +601,7 @@ class _FindingLocationFilterScreenState
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(_tabIcons[index], size: 15, color: isActive ? Colors.white : color),
-                                      if (preSelectedFlags[index]) ...[
-                                        const SizedBox(width: 3),
-                                        Container(
-                                          width: 5, height: 5,
-                                          decoration: BoxDecoration(
-                                            color: isActive ? Colors.white : color,
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
+                                  Icon(_tabIcons[index], size: 15, color: isActive ? Colors.white : color),
                                   const SizedBox(height: 3),
                                   Text(
                                     labels[index],

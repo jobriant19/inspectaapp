@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/utils/image_picker_helper.dart';
 import 'finding_location_filter.dart';
 import 'finding_pick_category.dart';
+import 'finding_pick_deadline.dart';
 
 class AddFindingFlowScreen extends StatefulWidget {
   final String lang;
@@ -606,27 +606,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     if (result != null) setState(() => _selectedAssignee = result);
   }
 
-  void _showDueDatePicker() async {
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: _selectedDueDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-      helpText: _texts['due_date_title'],
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: Color(0xFF00C9E4),
-            onPrimary: Colors.white,
-            onSurface: Colors.black,
-          ),
-        ),
-        child: child!,
-      ),
-    );
-    if (pickedDate != null) setState(() => _selectedDueDate = pickedDate);
-  }
-
   void _showEscalationPicker() async {
     final result = await showModalBottomSheet<String>(
       context: context,
@@ -818,13 +797,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
                   // Due Date
                   _buildIconSectionTitle(Icons.calendar_today_outlined, _texts['due_date']!, isRequired: true),
-                  _buildPickerCard(
-                    icon: Icons.calendar_today_outlined,
-                    text: _selectedDueDate != null
-                        ? DateFormat('EEE, d MMM yyyy').format(_selectedDueDate!)
-                        : _texts['select_date']!,
-                    onTap: _showDueDatePicker,
-                    hasValue: _selectedDueDate != null,
+                  FindingDeadlinePickerCard(
+                    lang: widget.lang,
+                    selectedDate: _selectedDueDate,
+                    onDateSelected: (date) => setState(() => _selectedDueDate = date),
                   ),
                   const SizedBox(height: 20),
 
@@ -1293,20 +1269,51 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
   Widget _buildLocationPickerCard() {
     final bool hasValue = _selectedLocation != null;
+
+    // Tentukan level lokasi yang dipilih (Lokasi/Unit/Sub-Unit/Area)
+    // agar icon & warna konsisten dengan popup Select Location.
+    int levelIndex = 0;
+    IconData levelIcon = Icons.location_city_rounded;
+    if (hasValue) {
+      if (_selectedLocation?['id_area'] != null) {
+        levelIndex = 3;
+        levelIcon = Icons.place_rounded;
+      } else if (_selectedLocation?['id_subunit'] != null) {
+        levelIndex = 2;
+        levelIcon = Icons.layers_outlined;
+      } else if (_selectedLocation?['id_unit'] != null) {
+        levelIndex = 1;
+        levelIcon = Icons.business_rounded;
+      } else {
+        levelIndex = 0;
+        levelIcon = Icons.location_city_rounded;
+      }
+    }
+
+    const List<Color> levelColors = [
+      Color(0xFF10B981), // Lokasi
+      Color(0xFF6366F1), // Unit
+      Color(0xFFFBBF24), // Sub-Unit
+      Color(0xFFF472B6), // Area
+    ];
+
+    final Color activeColor =
+        hasValue ? levelColors[levelIndex] : const Color(0xFF1D72F3);
+
     return GestureDetector(
       onTap: _showLocationPicker,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: hasValue ? const Color(0xFFE0F2FE) : Colors.white,
+          color: hasValue ? activeColor.withValues(alpha: 0.08) : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: hasValue ? const Color(0xFF1D72F3) : Colors.grey.shade200,
+            color: hasValue ? activeColor.withValues(alpha: 0.5) : Colors.grey.shade200,
             width: hasValue ? 1.5 : 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha:0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 6,
               offset: const Offset(0, 2),
             )
@@ -1314,8 +1321,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         ),
         child: Row(
           children: [
-            Icon(Icons.map_rounded,
-                color: const Color(0xFF1D72F3), size: 20),
+            Icon(hasValue ? levelIcon : Icons.map_rounded, color: activeColor, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -1332,7 +1338,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
             Icon(
               hasValue ? Icons.arrow_forward_ios_rounded : Icons.arrow_drop_down,
               size: hasValue ? 16 : 24,
-              color: const Color(0xFF1D72F3),
+              color: activeColor,
             ),
           ],
         ),
@@ -1372,8 +1378,11 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon, color: iconColor, size: 20),
-            const SizedBox(width: 12),
+            // Icon hanya muncul jika sudah ada kategori terpilih
+            if (hasValue) ...[
+              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: hasValue
                   ? RichText(
@@ -1385,7 +1394,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                             text: kategoriNama,
                             style: GoogleFonts.poppins(
                               fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w800,
                               color: iconColor,
                             ),
                           ),
@@ -1393,7 +1402,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                             text: ' - $subkategoriNama',
                             style: GoogleFonts.poppins(
                               fontSize: 15,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w700,
                               color: Colors.black87,
                             ),
                           ),
