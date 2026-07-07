@@ -92,7 +92,7 @@ class HomeContentState extends State<HomeContent> {
       'inspeksi': 'Inspection',
       'choose_mode': 'Choose Mode',
       'telusur': 'Browse & Manage',
-      'lokasi': 'Location',
+      'lokasi': 'Specific Location',
       'laporan': 'Accident Report',
       'kts_produksi': 'Production KTS',
       'verifikasi': 'Verification',
@@ -105,7 +105,7 @@ class HomeContentState extends State<HomeContent> {
       'inspeksi': 'Inspeksi',
       'choose_mode': 'Pilih Mode',
       'telusur': 'Telusur & Atur',
-      'lokasi': 'Lokasi',
+      'lokasi': 'Lokasi Spesifik',
       'laporan': 'Laporan Kecelakaan',
       'kts_produksi': 'KTS Produksi',
       'verifikasi': 'Verifikasi',
@@ -118,7 +118,7 @@ class HomeContentState extends State<HomeContent> {
       'inspeksi': '检查',
       'choose_mode': '选择模式',
       'telusur': '浏览与管理',
-      'lokasi': '地点',
+      'lokasi': '特定地点',
       'laporan': '事故报告',
       'kts_produksi': '生产KTS',
       'verifikasi': '验证',
@@ -210,7 +210,12 @@ class HomeContentState extends State<HomeContent> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(left: 20, right: 20, top: 10, bottom: 10),
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 10,
+        bottom: 12,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -232,9 +237,9 @@ class HomeContentState extends State<HomeContent> {
           _SectionLabel(text: _t('telusur')),
           const SizedBox(height: 8),
           _buildNavTile(
-            icon: Icons.location_on,
-            iconColor: Colors.lightBlue,
-            iconBg: Colors.blue.withValues(alpha:0.1),
+            icon: Icons.map,
+            iconColor: Colors.green,
+            iconBg: Colors.green.withValues(alpha:0.1),
             label: _t('lokasi'),
             onTap: () => _push(LocationScreen(
               lang: widget.lang,
@@ -720,8 +725,8 @@ class HomeContentState extends State<HomeContent> {
           child: Icon(icon, color: iconColor, size: 24),
         ),
         title: Text(label,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Color(0xFF1E3A8A))),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black38),
+            style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black)),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black),
         onTap: onTap,
       ),
     );

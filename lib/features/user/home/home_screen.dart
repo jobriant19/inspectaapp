@@ -1049,7 +1049,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
-      extendBody: true, // agar konten tidak terpotong navbar bawaan HP
+      extendBody: false, // agar konten tidak terpotong navbar bawaan HP
       body: Stack(
         children: [
           _buildBgBlob(top: -100, left: -50, size: 350, opacity: 0.25),
