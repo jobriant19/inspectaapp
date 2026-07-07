@@ -136,30 +136,24 @@ class _FindingLocationFilterScreenState
   }
 
   bool _isInUserScope(int tabIndex, Map<String, dynamic> raw) {
-    if (_userSpecificId == null) return true;
     const idKeys = ['id_lokasi', 'id_unit', 'id_subunit', 'id_area'];
     final itemId = raw[idKeys[tabIndex]]?.toString() ?? '';
 
-    switch (_userSpecificType) {
-      case 'lokasi':
-        if (tabIndex == 0) return itemId == _userSpecificId;
-        return raw['id_lokasi']?.toString() == _userSpecificId;
-      case 'unit':
-        if (tabIndex == 0) {
-          final units = raw['unit'] as List?;
-          return units != null &&
-              units.any((u) => u['id_unit']?.toString() == _userSpecificId);
-        }
-        if (tabIndex == 1) return itemId == _userSpecificId;
-        return raw['id_unit']?.toString() == _userSpecificId;
-      case 'subunit':
-        if (tabIndex == 0 || tabIndex == 1) return false;
-        if (tabIndex == 2) return itemId == _userSpecificId;
-        return raw['id_subunit']?.toString() == _userSpecificId;
-      case 'area':
-        return tabIndex == 3 && itemId == _userSpecificId;
+    switch (tabIndex) {
+      case 0:
+        if (widget.userLokasiId == null) return false;
+        return itemId == widget.userLokasiId;
+      case 1:
+        if (widget.userUnitId == null) return false;
+        return itemId == widget.userUnitId;
+      case 2:
+        if (widget.userSubunitId == null) return false;
+        return itemId == widget.userSubunitId;
+      case 3:
+        if (widget.userAreaId == null) return false;
+        return itemId == widget.userAreaId;
       default:
-        return true;
+        return false;
     }
   }
 
@@ -632,16 +626,31 @@ class _FindingLocationFilterScreenState
     }
 
     if (data.isEmpty) {
+      final color = _tabColors[tabIndex];
+      final emptyMessages = [
+        _t('Lokasi tidak ditemukan', 'Location not found', '未找到位置'),
+        _t('Unit tidak ditemukan', 'Unit not found', '未找到单位'),
+        _t('Subunit tidak ditemukan', 'Subunit not found', '未找到子单位'),
+        _t('Area tidak ditemukan', 'Area not found', '未找到区域'),
+      ];
       return Center(
         child: Padding(
-          padding: const EdgeInsets.only(top: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.location_off_rounded, size: 44, color: Colors.grey.shade300),
-              const SizedBox(height: 10),
-              Text(_t('Data tidak tersedia', 'No data available', '没有数据'),
-                  style: GoogleFonts.inter(color: Colors.grey.shade500)),
+              Image.asset(
+                'assets/images/team_illustration.png',
+                height: 140,
+                errorBuilder: (_, __, ___) =>
+                    Icon(Icons.location_off_rounded, size: 80, color: color.withValues(alpha: 0.55)),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                emptyMessages[tabIndex],
+                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: color),
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
         ),
