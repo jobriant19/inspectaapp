@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lottie/lottie.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/utils/image_picker_helper.dart';
 import '../add_finding_flow_screen.dart';
 
@@ -60,6 +60,8 @@ class CameraFindingScreen extends StatefulWidget {
   final String? selectedSubunitId;
   final String? selectedAreaId;
   final VoidCallback? onFindingSaved;
+  final String? qrType;
+  final String? qrId;
 
   const CameraFindingScreen({
     super.key,
@@ -72,6 +74,8 @@ class CameraFindingScreen extends StatefulWidget {
     this.selectedSubunitId,
     this.selectedAreaId,
     this.onFindingSaved,
+    this.qrType,
+    this.qrId,
   });
 
   @override
@@ -87,7 +91,37 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
   bool _flashEnabled = false;
   bool _flashSupported = false;
 
+  // ── State hasil resolve lokasi dari QR (diisi async di background) ──
+  String? _resolvedLocationName;
+  String? _resolvedLokasiId;
+  String? _resolvedUnitId;
+  String? _resolvedSubunitId;
+  String? _resolvedAreaId;
+
+  bool get _isQrFlow => widget.qrType != null && widget.qrId != null;
+
+  String get _effectiveLocationName {
+    if (!_isQrFlow) return widget.selectedLocationName;
+    return _resolvedLocationName ?? _txt('resolving_location');
+  }
+
+  String? get _effectiveLokasiId => _isQrFlow ? _resolvedLokasiId : widget.selectedLocationId;
+  String? get _effectiveUnitId => _isQrFlow ? _resolvedUnitId : widget.selectedUnitId;
+  String? get _effectiveSubunitId => _isQrFlow ? _resolvedSubunitId : widget.selectedSubunitId;
+  String? get _effectiveAreaId => _isQrFlow ? _resolvedAreaId : widget.selectedAreaId;
+
+  // Icon & warna ditentukan langsung dari `qrType` (sudah tahu levelnya sejak
+  // kode QR didekode), sehingga TIDAK perlu menunggu fetch Supabase selesai.
   IconData get _locationLevelIcon {
+    final type = widget.qrType;
+    if (type != null) {
+      switch (type) {
+        case 'area': return Icons.place_rounded;
+        case 'subunit': return Icons.layers_rounded;
+        case 'unit': return Icons.business_rounded;
+        default: return Icons.location_city_rounded;
+      }
+    }
     if (widget.selectedAreaId != null) return Icons.place_rounded;
     if (widget.selectedSubunitId != null) return Icons.layers_rounded;
     if (widget.selectedUnitId != null) return Icons.business_rounded;
@@ -95,6 +129,15 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
   }
 
   Color get _locationLevelColor {
+    final type = widget.qrType;
+    if (type != null) {
+      switch (type) {
+        case 'area': return const Color(0xFFF472B6);
+        case 'subunit': return const Color(0xFFFBBF24);
+        case 'unit': return const Color(0xFF6366F1);
+        default: return const Color(0xFF10B981);
+      }
+    }
     if (widget.selectedAreaId != null) return const Color(0xFFF472B6);
     if (widget.selectedSubunitId != null) return const Color(0xFFFBBF24);
     if (widget.selectedUnitId != null) return const Color(0xFF6366F1);
@@ -105,18 +148,24 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
     const Map<String, Map<String, String>> texts = {
       'EN': {
         'choose_location': 'Choose Finding Location',
-        'loading_camera': 'Loading Camera',
-        'preparing': 'Preparing lens for you...',
+        'resolving_location': 'Resolving location...',
+        'error_title': 'Location Failed',
+        'location_not_found': 'Specific location not found.',
+        'close_button': 'Close',
       },
       'ID': {
         'choose_location': 'Pilih Lokasi Temuan',
-        'loading_camera': 'Memuat Kamera',
-        'preparing': 'Menyiapkan lensa untuk Anda...',
+        'resolving_location': 'Memuat lokasi...',
+        'error_title': 'Gagal Memuat Lokasi',
+        'location_not_found': 'Lokasi spesifik tidak ditemukan.',
+        'close_button': 'Tutup',
       },
       'ZH': {
         'choose_location': '选择发现位置',
-        'loading_camera': '正在加载相机',
-        'preparing': '正在为您准备镜头...',
+        'resolving_location': '正在加载位置...',
+        'error_title': '加载位置失败',
+        'location_not_found': '未找到特定位置。',
+        'close_button': '关闭',
       },
     };
     return texts[widget.lang]?[key] ?? texts['ID']![key]!;
@@ -127,6 +176,127 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initCamera();
+    if (_isQrFlow) _resolveQrLocation();
+  }
+
+  Future<void> _resolveQrLocation() async {
+    final supabase = Supabase.instance.client;
+    final type = widget.qrType!;
+    final id = widget.qrId!;
+
+    try {
+      String locationName = '';
+      String? idL, idU, idS, idA;
+
+      if (type == 'lokasi') {
+        final data = await supabase.from('lokasi')
+            .select('id_lokasi, nama_lokasi').eq('id_lokasi', id).single();
+        idL = data['id_lokasi']?.toString();
+        locationName = data['nama_lokasi'] ?? '';
+      } else if (type == 'unit') {
+        final data = await supabase.from('unit')
+            .select('id_unit, nama_unit, lokasi(id_lokasi, nama_lokasi)')
+            .eq('id_unit', id).single();
+        idU = data['id_unit']?.toString();
+        final lokasi = data['lokasi'];
+        idL = lokasi?['id_lokasi']?.toString();
+        locationName = '${lokasi?['nama_lokasi'] ?? ''} / ${data['nama_unit'] ?? ''}';
+      } else if (type == 'subunit') {
+        final data = await supabase.from('subunit')
+            .select('id_subunit, nama_subunit, unit(id_unit, nama_unit, lokasi(id_lokasi, nama_lokasi))')
+            .eq('id_subunit', id).single();
+        idS = data['id_subunit']?.toString();
+        final unit = data['unit'];
+        final lokasi = unit?['lokasi'];
+        idU = unit?['id_unit']?.toString();
+        idL = lokasi?['id_lokasi']?.toString();
+        locationName = '${lokasi?['nama_lokasi'] ?? ''} / ${unit?['nama_unit'] ?? ''} / ${data['nama_subunit'] ?? ''}';
+      } else if (type == 'area') {
+        final data = await supabase.from('area')
+            .select('id_area, nama_area, subunit(id_subunit, nama_subunit, unit(id_unit, nama_unit, lokasi(id_lokasi, nama_lokasi)))')
+            .eq('id_area', id).single();
+        idA = data['id_area']?.toString();
+        final subunit = data['subunit'];
+        final unit = subunit?['unit'];
+        final lokasi = unit?['lokasi'];
+        idS = subunit?['id_subunit']?.toString();
+        idU = unit?['id_unit']?.toString();
+        idL = lokasi?['id_lokasi']?.toString();
+        locationName = '${lokasi?['nama_lokasi'] ?? ''} / ${unit?['nama_unit'] ?? ''} / ${subunit?['nama_subunit'] ?? ''} / ${data['nama_area'] ?? ''}';
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _resolvedLocationName = locationName;
+        _resolvedLokasiId = idL;
+        _resolvedUnitId = idU;
+        _resolvedSubunitId = idS;
+        _resolvedAreaId = idA;
+      });
+    } catch (e) {
+      debugPrint('Error resolving QR location: $e');
+      if (!mounted) return;
+      _showLocationErrorDialog();
+    }
+  }
+
+  void _showLocationErrorDialog() {
+    if (!mounted) return;
+    const redColor = Color(0xFFEF4444);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(color: redColor.withValues(alpha: 0.12), shape: BoxShape.circle),
+                  child: const Icon(Icons.close_rounded, color: redColor, size: 36),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  _txt('error_title'),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A)),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _txt('location_not_found'),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(fontSize: 13.5, color: const Color(0xFF64748B), height: 1.4),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: redColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      Navigator.of(context).pop(null);
+                    },
+                    child: Text(_txt('close_button'), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -233,11 +403,11 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
           isProMode: widget.isProMode,
           isVisitorMode: widget.isVisitorMode,
           initialImageXFile: imageXFile,
-          preSelectedLocationName: widget.selectedLocationName,
-          preSelectedLocationId: widget.selectedLocationId,
-          preSelectedUnitId: widget.selectedUnitId,
-          preSelectedSubunitId: widget.selectedSubunitId,
-          preSelectedAreaId: widget.selectedAreaId,
+          preSelectedLocationName: _effectiveLocationName,
+          preSelectedLocationId: _effectiveLokasiId,
+          preSelectedUnitId: _effectiveUnitId,
+          preSelectedSubunitId: _effectiveSubunitId,
+          preSelectedAreaId: _effectiveAreaId,
           onFindingSaved: widget.onFindingSaved,
         ),
       ),
@@ -274,152 +444,150 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (!_isCameraInitialized || _cameraController == null) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: _CameraLoadingScreen(
-          loadingCamera: _txt('loading_camera'),
-          preparing: _txt('preparing'),
-        ),
-      );
-    }
+    final bool ready = _isCameraInitialized && _cameraController != null;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          CameraPreview(_cameraController!),
+          // Latar hitam polos selalu tampil sebagai dasar. Begitu kamera siap
+          // (yang dalam praktiknya hampir selalu sudah selesai di-warm-up
+          // sebelum layar ini dibuka), CameraPreview langsung menimpanya
+          // tanpa ada layar loading/spinner/teks terpisah sama sekali.
+          if (ready) CameraPreview(_cameraController!) else Container(color: Colors.transparent),
 
-          // TOP BAR
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-                child: Row(
-                  children: [
-                    // BACK BUTTON
-                    _CameraIconButton(
-                      icon: Icons.arrow_back_ios_new_rounded,
-                      onTap: () => Navigator.pop(context, null),
-                      size: 52,
-                    ),
-                    const SizedBox(width: 10),
-                    // SPESIFIC LOCATION LABEL
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 13),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha:0.6),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: _locationLevelColor.withValues(alpha:0.6), width: 1.2),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(_locationLevelIcon,
-                                color: _locationLevelColor, size: 20),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                alignment: Alignment.center,
-                                child: Text(
-                                  widget.selectedLocationName.toUpperCase(),
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14,
-                                    letterSpacing: 0.5,
+          if (ready) ...[
+            // TOP BAR
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                  child: Row(
+                    children: [
+                      // BACK BUTTON
+                      _CameraIconButton(
+                        icon: Icons.arrow_back_ios_new_rounded,
+                        onTap: () => Navigator.pop(context, null),
+                        size: 52,
+                      ),
+                      const SizedBox(width: 10),
+                      // SPESIFIC LOCATION LABEL
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 13),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha:0.6),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: _locationLevelColor.withValues(alpha:0.6), width: 1.2),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(_locationLevelIcon,
+                                  color: _locationLevelColor, size: 20),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                      _effectiveLocationName.toUpperCase(),
+                                      style: GoogleFonts.poppins(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      letterSpacing: 0.5,
+                                    ),
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    overflow: TextOverflow.visible,
+                                    textAlign: TextAlign.center,
                                   ),
-                                  maxLines: 1,
-                                  softWrap: false,
-                                  overflow: TextOverflow.visible,
-                                  textAlign: TextAlign.center,
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    // FLASH BUTTON
-                    _FlashButton(
-                      supported: _flashSupported && _isCameraInitialized,
-                      enabled: _flashEnabled,
-                      onTap: _toggleFlash,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // BOTTOM CONTROLS
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              top: false,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withValues(alpha:0.75),
-                      Colors.transparent,
+                      const SizedBox(width: 10),
+                      // FLASH BUTTON
+                      _FlashButton(
+                        supported: _flashSupported && _isCameraInitialized,
+                        enabled: _flashEnabled,
+                        onTap: _toggleFlash,
+                      ),
                     ],
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _CameraIconButton(
-                      icon: Icons.photo_library_rounded,
-                      onTap: _pickFromGallery,
-                      size: 52,
+              ),
+            ),
+
+            // BOTTOM CONTROLS
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withValues(alpha:0.75),
+                        Colors.transparent,
+                      ],
                     ),
-                    GestureDetector(
-                      onTap: _takePicture,
-                      child: Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(5),
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _CameraIconButton(
+                        icon: Icons.photo_library_rounded,
+                        onTap: _pickFromGallery,
+                        size: 52,
+                      ),
+                      GestureDetector(
+                        onTap: _takePicture,
+                        child: Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 4),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(5),
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    _CameraIconButton(
-                      icon: Icons.flip_camera_ios_rounded,
-                      onTap: _switchCamera,
-                      size: 52,
-                    ),
-                  ],
+                      _CameraIconButton(
+                        icon: Icons.flip_camera_ios_rounded,
+                        onTap: _switchCamera,
+                        size: 52,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -506,116 +674,6 @@ class _FlashButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _CameraLoadingScreen extends StatefulWidget {
-  final String loadingCamera;
-  final String preparing;
-
-  const _CameraLoadingScreen({
-    required this.loadingCamera,
-    required this.preparing,
-  });
-
-  @override
-  State<_CameraLoadingScreen> createState() => _CameraLoadingScreenState();
-}
-
-class _CameraLoadingScreenState extends State<_CameraLoadingScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _fadeAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..forward();
-    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: Container(
-        color: Colors.white,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 220,
-                height: 220,
-                child: _LottieLoader(),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                widget.loadingCamera,
-                style: const TextStyle(
-                  color: Color(0xFF0284C7),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.preparing,
-                style: const TextStyle(
-                  color: Color(0xFF38BDF8),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: 140,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: const LinearProgressIndicator(
-                    minHeight: 3,
-                    backgroundColor: Color(0xFFBAE6FD),
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFF0284C7)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LottieLoader extends StatelessWidget {
-  const _LottieLoader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Lottie.asset(
-      'assets/lottie/camera_loading.json',
-      fit: BoxFit.contain,
-      frameRate: FrameRate.max,
-      errorBuilder: (context, error, stackTrace) {
-        debugPrint('Lottie error: $error');
-        return const Icon(
-          Icons.camera_alt_rounded,
-          size: 90,
-          color: Color(0xFF0284C7),
-        );
-      },
     );
   }
 }

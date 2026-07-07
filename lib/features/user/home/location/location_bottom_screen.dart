@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -484,19 +485,36 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     );
   }
 
-  // ── Tombol QR: tinggi & style disamakan dengan search bar ──
-  Widget _buildQrButton(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => QRScannerScreen(
-            lang: widget.lang,
-            isProMode: widget.isProMode,
-            isVisitorMode: widget.isVisitorMode,
-          ),
+  bool _isOpeningQr = false;
+
+  Future<void> _openQrScanner(BuildContext context) async {
+    if (_isOpeningQr) return;
+    _isOpeningQr = true;
+    await CameraWarmupService.instance.release();
+    unawaited(QrWarmupService.instance.warmUp());
+
+    if (!context.mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QRScannerScreen(
+          lang: widget.lang,
+          isProMode: widget.isProMode,
+          isVisitorMode: widget.isVisitorMode,
         ),
       ),
+    );
+
+    if (mounted) {
+      unawaited(QrWarmupService.instance.release());
+      unawaited(CameraWarmupService.instance.warmUp());
+    }
+    _isOpeningQr = false;
+  }
+
+  Widget _buildQrButton(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _openQrScanner(context),
       child: Container(
         height: 54,
         width: 54,

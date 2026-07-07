@@ -24,6 +24,7 @@ class QRGeneratorScreen extends StatefulWidget {
 class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   late final String _qrData;
   bool _isSaving = false;
+  bool _isPreparing = true;
 
   // Kamus Bahasa
   final Map<String, Map<String, String>> texts = {
@@ -57,13 +58,61 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
   @override
   void initState() {
     super.initState();
-    // Membuat data JSON yang akan dienkripsi ke dalam QR code
-    // Format ini penting untuk dibaca oleh scanner nantinya
-    _qrData = jsonEncode({
-      'v': 1, // Versi data, untuk pengembangan di masa depan
+    _prepareQrData();
+  }
+
+  Future<void> _prepareQrData() async {
+    final supabase = Supabase.instance.client;
+    String? idL, idU, idS, idA;
+
+    try {
+      switch (widget.levelName) {
+        case 'lokasi':
+          idL = widget.levelId;
+          break;
+        case 'unit':
+          final d = await supabase.from('unit')
+              .select('id_lokasi').eq('id_unit', widget.levelId).single();
+          idL = d['id_lokasi']?.toString();
+          idU = widget.levelId;
+          break;
+        case 'subunit':
+          final d = await supabase.from('subunit')
+              .select('id_lokasi, id_unit').eq('id_subunit', widget.levelId).single();
+          idL = d['id_lokasi']?.toString();
+          idU = d['id_unit']?.toString();
+          idS = widget.levelId;
+          break;
+        case 'area':
+          final d = await supabase.from('area')
+              .select('id_lokasi, id_unit, id_subunit').eq('id_area', widget.levelId).single();
+          idL = d['id_lokasi']?.toString();
+          idU = d['id_unit']?.toString();
+          idS = d['id_subunit']?.toString();
+          idA = widget.levelId;
+          break;
+      }
+    } catch (e) {
+      debugPrint('Error preparing QR hierarchy: $e');
+    }
+
+    final data = {
+      'v': 2,
       'type': widget.levelName,
       'id': widget.levelId,
-    });
+      'name': widget.itemName,
+      'idL': idL,
+      'idU': idU,
+      'idS': idS,
+      'idA': idA,
+    };
+
+    if (mounted) {
+      setState(() {
+        _qrData = jsonEncode(data);
+        _isPreparing = false;
+      });
+    }
   }
 
   Future<void> _saveQrCode() async {
@@ -136,11 +185,17 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
                     ),
                   ],
                 ),
-                child: QrImageView(
-                  data: _qrData,
-                  version: QrVersions.auto,
-                  size: 250.0,
-                ),
+                child: _isPreparing
+                    ? const SizedBox(
+                        width: 250,
+                        height: 250,
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : QrImageView(
+                        data: _qrData,
+                        version: QrVersions.auto,
+                        size: 250.0,
+                      ),
               ),
               const SizedBox(height: 20),
               Text(
