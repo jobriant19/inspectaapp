@@ -11,6 +11,7 @@ class UserInfoCard extends StatefulWidget {
   final String? userImage;
   final int userPoin;
   final String userLocationName;
+  final String? userLocationLevel;
   final Map<String, dynamic>? latestLogPoin;
   final bool isLatestLogLoading;
   final String lang;
@@ -25,6 +26,7 @@ class UserInfoCard extends StatefulWidget {
     required this.userRole,
     required this.userPoin,
     required this.userLocationName,
+    this.userLocationLevel,
     required this.lang,
     required this.onViewMoreTap,
     this.userImage,
@@ -104,20 +106,38 @@ class _UserInfoCardState extends State<UserInfoCard> {
     return (points / maxPoints).clamp(0.0, 1.0);
   }
 
+  // Skema warna sama persis dengan _tabColors di finding_location_filter_screen.dart
+  static const Map<String, Color> _levelColors = {
+    'lokasi': Color(0xFF10B981),
+    'unit': Color(0xFF6366F1),
+    'subunit': Color(0xFFFBBF24),
+    'area': Color(0xFFF472B6),
+  };
+
+  Color get _locationColor =>
+      _levelColors[widget.userLocationLevel?.toLowerCase()] ?? const Color(0xFFF472B6);
+
+  /// Membuat varian warna lebih gelap untuk efek gradien (dipakai badge jabatan & lokasi).
+  Color _darken(Color color, [double amount = 0.16]) {
+    final hsl = HSLColor.fromColor(color);
+    final lightness = (hsl.lightness - amount).clamp(0.0, 1.0);
+    return hsl.withLightness(lightness).toColor();
+  }
+
   String _getTxt(String key) {
     final Map<String, Map<String, String>> texts = {
       'EN': {
-        'activity_log': 'Activity Log',
+        'activity_log': 'Activity Log :',
         'view_more': 'View More',
         'latest_activity': 'Location:',
       },
       'ID': {
-        'activity_log': 'Log Aktivitas',
+        'activity_log': 'Log Aktivitas :',
         'view_more': 'Lihat Detail',
         'latest_activity': 'Lokasi:',
       },
       'ZH': {
-        'activity_log': '活动日志',
+        'activity_log': '活动日志 :',
         'view_more': '查看更多',
         'latest_activity': '位置:',
       },
@@ -135,32 +155,48 @@ class _UserInfoCardState extends State<UserInfoCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _getTxt('activity_log'),
-          style: GoogleFonts.poppins(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF475569),
-          ),
-        ),
-        const SizedBox(height: 3),
         Row(
           children: [
-            Icon(
-              isPositive ? Icons.add_circle_outline : Icons.remove_circle_outline,
-              size: 13,
-              color: isPositive ? Colors.green.shade700 : Colors.red.shade700,
+            Text(
+              _getTxt('activity_log'),
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
+              ),
             ),
-            const SizedBox(width: 4),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: isPositive
+                    ? const Color.fromARGB(255, 30, 228, 102)
+                    : const Color.fromARGB(255, 240, 43, 43),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isPositive ? Icons.add_rounded : Icons.remove_rounded,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 6),
             Expanded(
               child: Text(
-                '${isPositive ? '+' : ''}$poin • $deskripsi',
+                deskripsi,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF0F172A),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                  height: 1.3,
                 ),
               ),
             ),
@@ -221,7 +257,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
                 ),
                 child: CircleAvatar(
                   radius: 24,
-                  backgroundColor: const Color(0xFF00C9E4),
+                  backgroundColor: const Color(0xFF1D72F3),
                   backgroundImage: widget.userImage != null
                       ? CachedNetworkImageProvider(widget.userImage!)
                       : null,
@@ -248,18 +284,59 @@ class _UserInfoCardState extends State<UserInfoCard> {
                       ),
                     ),
                     const SizedBox(height: 1),
-                    Text(
-                      (widget.isVerificator == true &&
-                          !widget.userRole.toLowerCase().contains('verif'))
-                          ? (widget.lang == 'ZH' ? '验证者' : 'Verificator')
-                          : widget.userRole,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF334155),
-                      ),
+                    Builder(
+                      builder: (context) {
+                        final String displayRole = (widget.isVerificator == true &&
+                                !widget.userRole.toLowerCase().contains('verif'))
+                            ? (widget.lang == 'ZH' ? '验证者' : 'Verificator')
+                            : widget.userRole;
+                        final Color badgeColor = JabatanHelper.getPrimaryColor(
+                          isVerificatorFlag: widget.isVerificator,
+                          idJabatan: widget.userJabatanId,
+                        );
+                        final IconData badgeIcon = JabatanHelper.getRoleIcon(
+                          isVerificatorFlag: widget.isVerificator,
+                          idJabatan: widget.userJabatanId,
+                        );
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [badgeColor, _darken(badgeColor)],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.75), width: 1.1),
+                            boxShadow: [
+                              BoxShadow(
+                                color: badgeColor.withValues(alpha: 0.35),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(badgeIcon, size: 11.5, color: Colors.white),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  displayRole,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -267,36 +344,49 @@ class _UserInfoCardState extends State<UserInfoCard> {
               const SizedBox(width: 8),
 
               Container(
-                constraints: const BoxConstraints(maxWidth: 130),
+                constraints: const BoxConstraints(maxWidth: 165),
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha:0.55),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [_locationColor, _darken(_locationColor)],
+                  ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha:0.8),
+                    color: Colors.white.withValues(alpha: 0.75),
                     width: 1.2,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _locationColor.withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const Icon(
-                      Icons.place_rounded,
+                      Icons.map,
                       size: 13,
-                      color: Color(0xFF0EA5E9),
+                      color: Colors.white,
                     ),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
                         widget.userLocationName,
                         maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
+                        overflow: TextOverflow.clip,
                         style: GoogleFonts.poppins(
-                          fontSize: 10.5,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: const Color(0xFF0F172A),
-                          height: 1.3,
+                          color: Colors.white,
+                          height: 1.25,
                         ),
                       ),
                     ),
@@ -380,8 +470,9 @@ class _UserInfoCardState extends State<UserInfoCard> {
                           _isLoadingMonthly ? '... P' : '$_monthlyPoin P',
                           style: GoogleFonts.poppins(
                             color: fireColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            letterSpacing: 0.2,
                           ),
                         ),
                       ],
@@ -410,7 +501,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
                               color: Color(0xFF00C9E4),
                             ),
                           ),
-                          Text('...', style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey)),
+                          Text('...', style: GoogleFonts.poppins(fontSize: 11, color: Colors.black, fontWeight: FontWeight.w700)),
                         ],
                       )
                     : widget.latestLogPoin == null
@@ -437,7 +528,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
                   children: [
                     Text(
                       _getTxt('view_more'),
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 12),
                     ),
                     const SizedBox(width: 6),
                     const Icon(Icons.arrow_forward_ios, size: 14),

@@ -60,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isProMode = false;
   bool _isVisitorMode = false;
   String _userLocationName = '...';
+  String? _userLocationLevel;
   int? _userJabatanId;
   // ignore: unused_field
   bool _isLoadingVisitorStatus = true;
@@ -809,7 +810,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       // Resolusi lokasi — cari dari level paling spesifik
-      final locationName = await _resolveLocationName(userRow);
+      final locationData = await _resolveLocationName(userRow);
 
       final bool isVerifFromDb = userRow['is_verificator'] as bool? ?? false;
       final int? jabatanId = userRow['id_jabatan'] as int?;
@@ -842,7 +843,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _userJabatanId = jabatanId;
         _userUnitId = userRow['id_unit']?.toString();
         _userLokasiId = userRow['id_lokasi']?.toString();
-        _userLocationName = locationName;
+        _userLocationName = locationData['name']!;
+        _userLocationLevel = locationData['level'];
         if (latestLog != null) _latestLogPoin = latestLog;
         _isLatestLogLoading = false;
         _isUserDataLoading = false;
@@ -863,7 +865,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── Resolusi lokasi (helper terpisah) ──
-  Future<String> _resolveLocationName(Map<String, dynamic> userRow) async {
+  Future<Map<String, String>> _resolveLocationName(Map<String, dynamic> userRow) async {
     final idArea = userRow['id_area'];
     final idSubunit = userRow['id_subunit'];
     final idUnit = userRow['id_unit'];
@@ -872,19 +874,19 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       if (idArea != null) {
         final d = await _sb.from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
-        return d?['nama_area'] ?? '...';
+        return {'name': d?['nama_area'] ?? '...', 'level': 'area'};
       } else if (idSubunit != null) {
         final d = await _sb.from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
-        return d?['nama_subunit'] ?? '...';
+        return {'name': d?['nama_subunit'] ?? '...', 'level': 'subunit'};
       } else if (idUnit != null) {
         final d = await _sb.from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
-        return d?['nama_unit'] ?? '...';
+        return {'name': d?['nama_unit'] ?? '...', 'level': 'unit'};
       } else if (idLokasi != null) {
         final d = await _sb.from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
-        return d?['nama_lokasi'] ?? '...';
+        return {'name': d?['nama_lokasi'] ?? '...', 'level': 'lokasi'};
       }
     } catch (_) {}
-    return '...';
+    return {'name': '...', 'level': 'lokasi'};
   }
 
   void _showActivityLogDialog(BuildContext context) {
@@ -1465,6 +1467,7 @@ class _HomeScreenState extends State<HomeScreen> {
         userImage: _userImage,
         userPoin: _userPoin,
         userLocationName: _userLocationName,
+        userLocationLevel: _userLocationLevel,
         latestLogPoin: _latestLogPoin,
         isLatestLogLoading: _isLatestLogLoading,
         lang: _lang,
