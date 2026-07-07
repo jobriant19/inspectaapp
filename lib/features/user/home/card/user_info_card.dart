@@ -48,7 +48,7 @@ class _UserInfoCardState extends State<UserInfoCard> {
   void initState() {
     super.initState();
     _monthlyPoin = widget.initialMonthlyPoin ?? 0;
-    _isLoadingMonthly = _monthlyPoin == 0;
+    _isLoadingMonthly = widget.initialMonthlyPoin == null;
     _fetchMonthlyPoin();
   }
 

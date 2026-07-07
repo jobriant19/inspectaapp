@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 class JabatanHelper {
-  // Tentukan apakah user adalah verificator (is_verificator SELALU prioritas utama)
   static bool isVerificator({
     required bool? isVerificatorFlag,
     required int? idJabatan,
@@ -9,7 +8,6 @@ class JabatanHelper {
     return isVerificatorFlag == true;
   }
 
-  // Ambil nama jabatan — is_verificator TRUE selalu menang, abaikan id_jabatan
   static String getDisplayRole({
     required bool? isVerificatorFlag,
     required int? idJabatan,
@@ -31,13 +29,11 @@ class JabatanHelper {
     }
   }
 
-  // Gradient colors — is_verificator TRUE selalu menang, abaikan id_jabatan
   static List<Color> getGradientColors({
     required bool? isVerificatorFlag,
     required int? idJabatan,
   }) {
     if (isVerificatorFlag == true) {
-      // Verificator: Hijau Emerald
       return [const Color(0xFF059669), const Color(0xFF065F46)];
     }
     switch (idJabatan) {
@@ -46,11 +42,10 @@ class JabatanHelper {
       case 3:  return [const Color(0xFF26D0CE), const Color(0xFF1A2980)];
       case 4:  return [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)];
       case 5:  return [const Color(0xFFEC4899), const Color(0xFFDB2777)];
-      default: return [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)]; // Staff
+      default: return [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)]; 
     }
   }
 
-  // Warna utama (stop pertama dari gradient)
   static Color getPrimaryColor({
     required bool? isVerificatorFlag,
     required int? idJabatan,
@@ -61,7 +56,6 @@ class JabatanHelper {
     ).first;
   }
 
-  // Icon badge role
   static IconData getRoleIcon({
     required bool? isVerificatorFlag,
     required int? idJabatan,
@@ -77,7 +71,6 @@ class JabatanHelper {
     }
   }
 
-  // Warna api progress bar (berbasis poin)
   static Color getFireColor({
     required bool? isVerificatorFlag,
     required int? idJabatan,
@@ -90,62 +83,60 @@ class JabatanHelper {
     return Colors.grey.shade400;
   }
 
-  // ── Background gradient UserInfoCard — lebih kontras dan jelas ──
   static List<Color> getCardGradient({
     required bool? isVerificatorFlag,
     required int? idJabatan,
   }) {
     if (isVerificatorFlag == true) {
-      // Verificator: Hijau mint solid-ish
       return [
-        const Color(0xFF6EE7B7), // hijau mint terang
-        const Color(0xFFD1FAE5), // hijau sangat muda
-        const Color(0xFFECFDF5), // hampir putih hijau
-        const Color(0xFF34D399), // hijau medium
+        const Color(0xFF6EE7B7),
+        const Color(0xFFD1FAE5),
+        const Color(0xFFECFDF5),
+        const Color(0xFF34D399),
       ];
     }
     switch (idJabatan) {
-      case 1: // Eksekutif: Pink-Rose tegas
+      case 1: // EKSEKUTIF
         return [
-          const Color(0xFFFDA4AF), // rose terang
-          const Color(0xFFFFE4E6), // rose muda
-          const Color(0xFFFFF1F2), // hampir putih rose
-          const Color(0xFFFB7185), // rose medium
+          const Color(0xFFFDA4AF),
+          const Color(0xFFFFE4E6),
+          const Color(0xFFFFF1F2),
+          const Color(0xFFFB7185),
         ];
-      case 2: // Manager: Biru tegas
+      case 2: // MANAGER
         return [
-          const Color(0xFF93C5FD), // biru terang
-          const Color(0xFFDBEAFE), // biru muda
-          const Color(0xFFEFF6FF), // hampir putih biru
-          const Color(0xFF60A5FA), // biru medium
+          const Color(0xFF93C5FD),
+          const Color(0xFFDBEAFE),
+          const Color(0xFFEFF6FF),
+          const Color(0xFF60A5FA),
         ];
-      case 3: // Kasie: Teal/Cyan tegas
+      case 3: // KASIE
         return [
-          const Color(0xFF67E8F9), // cyan terang
-          const Color(0xFFCFFAFE), // cyan muda
-          const Color(0xFFECFEFF), // hampir putih cyan
-          const Color(0xFF22D3EE), // cyan medium
+          const Color(0xFF67E8F9),
+          const Color(0xFFCFFAFE),
+          const Color(0xFFECFEFF),
+          const Color(0xFF22D3EE),
         ];
-      case 4: 
+      case 4: // STAFF
         return [
-          const Color(0xFFC4B5FD), // ungu terang
-          const Color(0xFFEDE9FE), // ungu muda
-          const Color(0xFFF5F3FF), // hampir putih ungu
-          const Color(0xFFA78BFA), // ungu medium
+          const Color(0xFFC4B5FD),
+          const Color(0xFFEDE9FE),
+          const Color(0xFFF5F3FF),
+          const Color(0xFFA78BFA),
         ];
-      case 5: // HRD: Pink tegas
+      case 5: // HRD
         return [
           const Color(0xFFF9A8D4),
           const Color(0xFFFCE7F3),
           const Color(0xFFFDF2F8),
           const Color(0xFFF472B6),
         ];
-      default: // Staff: Ungu tegas
+      default:
         return [
-          const Color(0xFFC4B5FD), // ungu terang
-          const Color(0xFFEDE9FE), // ungu muda
-          const Color(0xFFF5F3FF), // hampir putih ungu
-          const Color(0xFFA78BFA), // ungu medium
+          const Color(0xFFC4B5FD), 
+          const Color(0xFFEDE9FE),
+          const Color(0xFFF5F3FF),
+          const Color(0xFFA78BFA),
         ];
     }
   }

@@ -89,6 +89,7 @@ class _SplashScreenState extends State<SplashScreen> {
             .select('poin, deskripsi, tipe_aktivitas, created_at')
             .eq('id_user', userId)
             .order('created_at', ascending: false)
+            .order('id', ascending: false)
             .limit(1),
       ]);
 
@@ -102,7 +103,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final bool isAdmin       = idJabatan == 6;
 
       // Resolusi nama lokasi (level paling spesifik)
-      final locationName = await _resolveLocationName(userData);
+      final locationData = await _resolveLocationName(userData);
 
       // Gambar: DB lebih prioritas, fallback ke OAuth meta
       final metaName  = session.user.userMetadata?['full_name']
@@ -206,7 +207,8 @@ class _SplashScreenState extends State<SplashScreen> {
           initialUserPoin:      userData['poin'] as int?,
           initialUserImage:     imageToUse,
           initialUserRole:      userData['jabatan']?['nama_jabatan'] as String?,
-          initialUserLocation:  locationName,
+          initialUserLocation:  locationData['name'],
+          initialUserLocationLevel: locationData['level'],
           initialLatestLog:     latestLog,
           initialUserJabatanId: idJabatan,
           initialIsVerificator: isVerificator,
@@ -221,8 +223,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// Resolusi nama lokasi dari level paling spesifik (area → subunit → unit → lokasi).
-  Future<String> _resolveLocationName(Map<String, dynamic> userData) async {
+  Future<Map<String, String>> _resolveLocationName(Map<String, dynamic> userData) async {
     final idArea    = userData['id_area'];
     final idSubunit = userData['id_subunit'];
     final idUnit    = userData['id_unit'];
@@ -232,22 +233,22 @@ class _SplashScreenState extends State<SplashScreen> {
       if (idArea != null) {
         final d = await Supabase.instance.client
             .from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
-        return d?['nama_area'] ?? '...';
+        return {'name': d?['nama_area'] ?? '...', 'level': 'area'};
       } else if (idSubunit != null) {
         final d = await Supabase.instance.client
             .from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
-        return d?['nama_subunit'] ?? '...';
+        return {'name': d?['nama_subunit'] ?? '...', 'level': 'subunit'};
       } else if (idUnit != null) {
         final d = await Supabase.instance.client
             .from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
-        return d?['nama_unit'] ?? '...';
+        return {'name': d?['nama_unit'] ?? '...', 'level': 'unit'};
       } else if (idLokasi != null) {
         final d = await Supabase.instance.client
             .from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
-        return d?['nama_lokasi'] ?? '...';
+        return {'name': d?['nama_lokasi'] ?? '...', 'level': 'lokasi'};
       }
     } catch (_) {}
-    return '...';
+    return {'name': '...', 'level': 'lokasi'};
   }
 
   // ── Route helpers ────────────────────────────────────────────────────────────

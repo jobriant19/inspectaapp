@@ -30,6 +30,7 @@ class HomeScreen extends StatefulWidget {
   final String? initialUserImage;
   final String? initialUserRole;
   final String? initialUserLocation;
+  final String? initialUserLocationLevel;
   final Map<String, dynamic>? initialLatestLog;
   final int? initialUserJabatanId;
   final bool? initialIsVerificator;
@@ -43,6 +44,7 @@ class HomeScreen extends StatefulWidget {
     this.initialUserImage,
     this.initialUserRole,
     this.initialUserLocation,
+    this.initialUserLocationLevel,
     this.initialLatestLog,
     this.initialUserJabatanId,
     this.initialIsVerificator,
@@ -82,6 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _notificationCount = 0;
   int? _initialMonthlyPoin;
   Map<String, dynamic>? _latestLogPoin;
+  List<Map<String, dynamic>> _monthlyActivityLogs = [];
   bool _isLatestLogLoading = true;
   bool _isExecutiveVerificator = false;
   bool _hasShownLoginDialog = false;
@@ -209,6 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
         : widget.initialUserRole ?? 'Staff';
 
     if (widget.initialUserLocation != null) _userLocationName = widget.initialUserLocation!;
+    if (widget.initialUserLocationLevel != null) _userLocationLevel = widget.initialUserLocationLevel;
     if (widget.initialLatestLog != null) {
       _latestLogPoin = widget.initialLatestLog;
       _isLatestLogLoading = false;
@@ -779,7 +783,11 @@ class _HomeScreenState extends State<HomeScreen> {
       final userAuth = _sb.auth.currentUser;
       if (userAuth == null) return;
 
-      // Fetch user row dan log secara paralel
+      // Fetch user row dan seluruh log_poin bulan ini secara paralel
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+      final startOfNextMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
+
       final results = await Future.wait([
         _sb.from('User')
             .select('nama, email, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
@@ -788,8 +796,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _sb.from('log_poin')
             .select('poin, deskripsi, tipe_aktivitas, created_at')
             .eq('id_user', userAuth.id)
-            .order('created_at', ascending: false)
-            .limit(1),
+            .gte('created_at', startOfMonth)
+            .lt('created_at', startOfNextMonth)
+            .order('created_at', ascending: false),
       ]);
 
       final userRow = results[0] as Map<String, dynamic>?;
@@ -829,6 +838,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final Map<String, dynamic>? latestLog =
           logRows.isNotEmpty ? logRows.first as Map<String, dynamic> : null;
+      final List<Map<String, dynamic>> monthlyLogs =
+          List<Map<String, dynamic>>.from(logRows);
 
       if (!mounted) return;
       final int newPoin = (userRow['poin'] as num?)?.toInt() ?? 0;
@@ -846,6 +857,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _userLocationName = locationData['name']!;
         _userLocationLevel = locationData['level'];
         if (latestLog != null) _latestLogPoin = latestLog;
+        _monthlyActivityLogs = monthlyLogs;
         _isLatestLogLoading = false;
         _isUserDataLoading = false;
         if (!shouldAnimate) _displayedPoin = newPoin;
@@ -898,6 +910,9 @@ class _HomeScreenState extends State<HomeScreen> {
         userRole: _userRole,
         userImage: _userImage,
         userPoin: _userPoin,
+        userJabatanId: _userJabatanId,
+        isVerificator: _isVerifRole,
+        initialLogs: _monthlyActivityLogs,
       ),
     );
   }

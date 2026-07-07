@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../../core/utils/jabatan_helper.dart';
 
 class ActivityLogDialog extends StatefulWidget {
   final String lang;
@@ -10,6 +11,9 @@ class ActivityLogDialog extends StatefulWidget {
   final String? userImage;
   final int userPoin;
   final Map<String, dynamic>? initialLatestLog;
+  final List<Map<String, dynamic>>? initialLogs;
+  final bool? isVerificator;
+  final int? userJabatanId;
 
   const ActivityLogDialog({
     super.key,
@@ -19,6 +23,9 @@ class ActivityLogDialog extends StatefulWidget {
     required this.userPoin,
     this.userImage,
     this.initialLatestLog,
+    this.initialLogs,
+    this.isVerificator,
+    this.userJabatanId,
   });
 
   @override
@@ -34,13 +41,24 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
   void initState() {
     super.initState();
 
-    if (widget.initialLatestLog != null) {
+    if (widget.initialLogs != null && widget.initialLogs!.isNotEmpty) {
+      _logs = List<Map<String, dynamic>>.from(widget.initialLogs!);
+      _monthlyPoin = _sumPoin(_logs);
+      _isLoading = false;
+    } else if (widget.initialLatestLog != null) {
       _logs = [Map<String, dynamic>.from(widget.initialLatestLog!)];
       _isLoading = false;
     }
-
     _fetchLogs();
     _fetchMonthlyPoin();
+  }
+
+  int _sumPoin(List<Map<String, dynamic>> logs) {
+    int total = 0;
+    for (final log in logs) {
+      total += ((log['poin'] as num?)?.toInt() ?? 0);
+    }
+    return total;
   }
 
   Future<void> _fetchLogs() async {
@@ -103,25 +121,22 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
   String _getTxt(String key) {
     final Map<String, Map<String, String>> texts = {
       'EN': {
-        'title': 'Activity Log',
+        'title': 'Your Activity Log History',
         'close': 'Close',
         'empty': 'No activity yet.',
-        'total_points': 'Total Points',
-        'subtitle': 'Your point history',
+        'total_points': 'Total Points This Month',
       },
       'ID': {
-        'title': 'Log Aktivitas',
+        'title': 'Riwayat Log Aktivitas Anda',
         'close': 'Tutup',
         'empty': 'Belum ada aktivitas.',
-        'total_points': 'Total Poin',
-        'subtitle': 'Riwayat poin Anda',
+        'total_points': 'Total Poin Bulan Ini',
       },
       'ZH': {
-        'title': '活动日志',
+        'title': '您的活动日志历史',
         'close': '关闭',
         'empty': '暂无活动。',
-        'total_points': '总积分',
-        'subtitle': '您的积分历史',
+        'total_points': '本月总积分',
       },
     };
     return texts[widget.lang]?[key] ?? key;
@@ -169,10 +184,46 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
     }
   }
 
+  Color _darken(Color color, [double amount = 0.16]) {
+    final hsl = HSLColor.fromColor(color);
+    final lightness = (hsl.lightness - amount).clamp(0.0, 1.0);
+    return hsl.withLightness(lightness).toColor();
+  }
+
   String _formatDate(String? raw) {
-    if (raw == null) return '';
+    if (raw == null) return '-';
     final dt = DateTime.tryParse(raw);
-    if (dt == null) return '';
+    if (dt == null) return '-';
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) {
+      return widget.lang == 'ZH'
+          ? '刚刚'
+          : widget.lang == 'EN'
+              ? 'Just now'
+              : 'Baru saja';
+    }
+    if (diff.inHours < 1) {
+      return widget.lang == 'ZH'
+          ? '${diff.inMinutes}分钟前'
+          : widget.lang == 'EN'
+              ? '${diff.inMinutes} min ago'
+              : '${diff.inMinutes} menit lalu';
+    }
+    if (diff.inDays < 1) {
+      return widget.lang == 'ZH'
+          ? '${diff.inHours}小时前'
+          : widget.lang == 'EN'
+              ? '${diff.inHours} hr ago'
+              : '${diff.inHours} jam lalu';
+    }
+    if (diff.inDays < 7) {
+      return widget.lang == 'ZH'
+          ? '${diff.inDays}天前'
+          : widget.lang == 'EN'
+              ? '${diff.inDays} days ago'
+              : '${diff.inDays} hari lalu';
+    }
     return '${dt.day.toString().padLeft(2, '0')}/'
         '${dt.month.toString().padLeft(2, '0')}/'
         '${dt.year}';
@@ -302,13 +353,21 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      dateStr,
-                      style: GoogleFonts.poppins(
-                        fontSize: 10.5,
-                        color: Colors.grey.shade400,
-                      ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today_rounded,
+                            size: 10, color: Colors.grey.shade400),
+                        const SizedBox(width: 4),
+                        Text(
+                          dateStr,
+                          style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -339,7 +398,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final fireColor = _getFireColor(widget.userPoin);
+    final fireColor = _getFireColor(_monthlyPoin);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -363,17 +422,22 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
             // HEADER
             Container(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF1E3A8A), Color(0xFF0EA5E9)],
+                  colors: JabatanHelper.getCardGradient(
+                    isVerificatorFlag: widget.isVerificator,
+                    idJabatan: widget.userJabatanId,
+                  ),
+                  stops: const [0.0, 0.35, 0.65, 1.0],
                 ),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Column(
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       // AVATAR
                       Container(
@@ -382,7 +446,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                           border: Border.all(color: Colors.white, width: 2.5),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha:0.2),
+                              color: Colors.cyan.withValues(alpha:0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
                             ),
@@ -390,7 +454,7 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                         ),
                         child: CircleAvatar(
                           radius: 28,
-                          backgroundColor: Colors.white.withValues(alpha:0.3),
+                          backgroundColor: const Color(0xFF1D72F3),
                           backgroundImage: widget.userImage != null
                               ? NetworkImage(widget.userImage!)
                               : null,
@@ -412,60 +476,123 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                               style: GoogleFonts.poppins(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: Colors.white,
+                                color: const Color(0xFF0F172A),
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha:0.2),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                widget.userRole,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white.withValues(alpha:0.9),
-                                ),
-                              ),
+                            const SizedBox(height: 3),
+                            Builder(
+                              builder: (context) {
+                                final String displayRole = (widget.isVerificator == true &&
+                                        !widget.userRole.toLowerCase().contains('verif'))
+                                    ? (widget.lang == 'ZH' ? '验证者' : 'Verificator')
+                                    : widget.userRole;
+                                final Color badgeColor = JabatanHelper.getPrimaryColor(
+                                  isVerificatorFlag: widget.isVerificator,
+                                  idJabatan: widget.userJabatanId,
+                                );
+                                final IconData badgeIcon = JabatanHelper.getRoleIcon(
+                                  isVerificatorFlag: widget.isVerificator,
+                                  idJabatan: widget.userJabatanId,
+                                );
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [badgeColor, _darken(badgeColor)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: Colors.white.withValues(alpha: 0.75), width: 1.1),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: badgeColor.withValues(alpha: 0.35),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(badgeIcon, size: 11.5, color: Colors.white),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          displayRole,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
+                        constraints: const BoxConstraints(minWidth: 96),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
+                            horizontal: 14, vertical: 11),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha:0.15),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              fireColor.withValues(alpha: 0.85),
+                              fireColor,
+                              _darken(fireColor, 0.22),
+                            ],
+                            stops: const [0.0, 0.55, 1.0],
+                          ),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha:0.3),
+                            color: Colors.white.withValues(alpha: 0.75),
                             width: 1.2,
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: fireColor.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.local_fire_department_rounded,
-                                color: fireColor, size: 22),
-                            const SizedBox(height: 2),
-                            Text(
-                              '$_monthlyPoin',
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.local_fire_department_rounded,
+                                    color: Colors.white, size: 20),
+                                const SizedBox(width: 5),
+                                Text(
+                                  '$_monthlyPoin',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
                             ),
+                            const SizedBox(height: 3),
                             Text(
                               _getTxt('total_points'),
+                              textAlign: TextAlign.center,
                               style: GoogleFonts.poppins(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white.withValues(alpha:0.75),
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white.withValues(alpha: 0.95),
                               ),
                             ),
                           ],
@@ -474,28 +601,52 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      const Icon(Icons.history_rounded,
-                          color: Colors.white, size: 18),
-                      const SizedBox(width: 6),
-                      Text(
-                        _getTxt('title'),
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(9, 8, 16, 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          width: 1,
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '• ${_getTxt('subtitle')}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha:0.7),
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 5,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(Icons.history_rounded,
+                                color: Color(0xFF0F172A), size: 15),
+                          ),
+                          const SizedBox(width: 9),
+                          Text(
+                            _getTxt('title'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -517,21 +668,21 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
               ),
               child: SizedBox(
                 width: double.infinity,
-                child: TextButton(
+                child: ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF1E3A8A),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1D72F3),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
-                      side: BorderSide(
-                          color: const Color(0xFF1E3A8A).withValues(alpha:0.2)),
                     ),
                   ),
                   child: Text(
                     _getTxt('close'),
                     style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700, fontSize: 14),
+                        fontWeight: FontWeight.w800, fontSize: 14.5),
                   ),
                 ),
               ),

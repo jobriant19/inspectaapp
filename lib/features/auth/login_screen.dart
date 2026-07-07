@@ -326,7 +326,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<String> _resolveLocationName(Map<String, dynamic> userData) async {
+  Future<Map<String, String>> _resolveLocationName(Map<String, dynamic> userData) async {
     final idArea    = userData['id_area'];
     final idSubunit = userData['id_subunit'];
     final idUnit    = userData['id_unit'];
@@ -335,22 +335,22 @@ class _LoginScreenState extends State<LoginScreen> {
       if (idArea != null) {
         final d = await Supabase.instance.client
             .from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
-        return d?['nama_area'] ?? '...';
+        return {'name': d?['nama_area'] ?? '...', 'level': 'area'};
       } else if (idSubunit != null) {
         final d = await Supabase.instance.client
             .from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
-        return d?['nama_subunit'] ?? '...';
+        return {'name': d?['nama_subunit'] ?? '...', 'level': 'subunit'};
       } else if (idUnit != null) {
         final d = await Supabase.instance.client
             .from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
-        return d?['nama_unit'] ?? '...';
+        return {'name': d?['nama_unit'] ?? '...', 'level': 'unit'};
       } else if (idLokasi != null) {
         final d = await Supabase.instance.client
             .from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
-        return d?['nama_lokasi'] ?? '...';
+        return {'name': d?['nama_lokasi'] ?? '...', 'level': 'lokasi'};
       }
     } catch (_) {}
-    return '...';
+    return {'name': '...', 'level': 'lokasi'};
   }
 
   void _submitForm() async {
@@ -392,6 +392,7 @@ class _LoginScreenState extends State<LoginScreen> {
             .select('poin, deskripsi, tipe_aktivitas, created_at')
             .eq('id_user', userId)
             .order('created_at', ascending: false)
+            .order('id', ascending: false)
             .limit(1),
       ]);
 
@@ -404,7 +405,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final bool canShowVerifButton = isVerificator || idJabatan == 1 || idJabatan == 5;
       final bool isAdmin            = idJabatan == 6;
 
-      final locationName = await _resolveLocationName(userData);
+      final locationData = await _resolveLocationName(userData);
 
       if (!mounted) return;
 
@@ -511,7 +512,8 @@ class _LoginScreenState extends State<LoginScreen> {
               initialUserPoin:      userData['poin'],
               initialUserImage:     userData['gambar_user'],
               initialUserRole:      userData['jabatan']?['nama_jabatan'],
-              initialUserLocation:  locationName,
+              initialUserLocation:  locationData['name'],
+              initialUserLocationLevel: locationData['level'],
               initialLatestLog:     latestLog,
               initialUserJabatanId: idJabatan,
               initialIsVerificator: canShowVerifButton,
