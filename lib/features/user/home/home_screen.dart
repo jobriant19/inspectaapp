@@ -721,10 +721,14 @@ class _HomeScreenState extends State<HomeScreen> {
       final userId = _sb.auth.currentUser?.id;
       if (userId == null) return;
       final data = await _sb
-          .from('User').select('is_visitor').eq('id_user', userId).single();
+          .from('User')
+          .select('is_visitor, is_pro_mode')
+          .eq('id_user', userId)
+          .single();
       if (mounted) {
         setState(() {
           _isVisitorMode = data['is_visitor'] ?? false;
+          _isProMode = data['is_pro_mode'] ?? false;
           _isLoadingVisitorStatus = false;
         });
       }
@@ -743,6 +747,19 @@ class _HomeScreenState extends State<HomeScreen> {
       showVisitorStatusDialog(context, isVisitor, _lang);
     } catch (e) {
       debugPrint('Error updating visitor status: $e');
+      _showCustomDialog(title: getTxt('update_failed'), imagePath: 'assets/images/failed.png');
+    }
+  }
+
+  Future<void> _updateProModeStatus(bool isPro) async {
+    setState(() => _isProMode = isPro);
+    try {
+      final userId = _sb.auth.currentUser?.id;
+      if (userId == null) return;
+      await _sb.from('User').update({'is_pro_mode': isPro}).eq('id_user', userId);
+      showProModeStatusDialog(context, isPro, _lang);
+    } catch (e) {
+      debugPrint('Error updating pro mode status: $e');
       _showCustomDialog(title: getTxt('update_failed'), imagePath: 'assets/images/failed.png');
     }
   }
@@ -1430,10 +1447,7 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       onRequestRefresh: () => setState(() => _currentIndex = 1),
       onViewActivityLog: () => _showActivityLogDialog(context),
-      onProModeChanged: (val) {
-        setState(() => _isProMode = val);
-        showProModeStatusDialog(context, val, _lang);
-      },
+      onProModeChanged: _updateProModeStatus,
       onVisitorModeChanged: _updateVisitorStatus,
       isExecVerificator: _isExecutiveVerificator,
       userJabatanId: _userJabatanId,
