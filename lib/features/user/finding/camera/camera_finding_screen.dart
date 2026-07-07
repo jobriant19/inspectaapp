@@ -3,8 +3,8 @@ import 'package:camera/camera.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
-import '../../../core/utils/image_picker_helper.dart';
-import 'add_finding_flow_screen.dart';
+import '../../../../core/utils/image_picker_helper.dart';
+import '../add_finding_flow_screen.dart';
 
 class CameraWarmupService {
   CameraWarmupService._();

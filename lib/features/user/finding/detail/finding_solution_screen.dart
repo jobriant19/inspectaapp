@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/location_service.dart';
-import '../camera_finding_screen.dart';
+import '../camera/camera_finding_screen.dart';
 import '../resolution_camera_screen.dart';
 
 class FindingSolutionScreen extends StatefulWidget {

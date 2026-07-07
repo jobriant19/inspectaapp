@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../shared/code/qr_scanner_screen.dart';
-import '../../finding/camera_finding_screen.dart';
+import '../../finding/camera/camera_finding_screen.dart';
 
 final _sb = Supabase.instance.client;
 
