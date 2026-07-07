@@ -6,6 +6,49 @@ import 'package:lottie/lottie.dart';
 import '../../../core/utils/image_picker_helper.dart';
 import 'add_finding_flow_screen.dart';
 
+class CameraWarmupService {
+  CameraWarmupService._();
+  static final CameraWarmupService instance = CameraWarmupService._();
+
+  CameraController? controller;
+  List<CameraDescription>? cameras;
+  int selectedCameraIndex = 0;
+  bool isWarming = false;
+
+  bool get isReady => controller != null && controller!.value.isInitialized;
+
+  Future<void> warmUp() async {
+    if (isReady || isWarming) return;
+    isWarming = true;
+    try {
+      cameras ??= await availableCameras();
+      if (cameras == null || cameras!.isEmpty) return;
+      final newController = CameraController(
+        cameras![selectedCameraIndex],
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      await newController.initialize();
+      controller = newController;
+    } catch (e) {
+      debugPrint('Error warming up camera: $e');
+    } finally {
+      isWarming = false;
+    }
+  }
+
+  CameraController? takeController() {
+    final c = controller;
+    controller = null;
+    return c;
+  }
+
+  Future<void> release() async {
+    await controller?.dispose();
+    controller = null;
+  }
+}
+
 class CameraFindingScreen extends StatefulWidget {
   final String lang;
   final bool isProMode;
@@ -58,7 +101,6 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
     return const Color(0xFF10B981);
   }
 
-  // ── Teks terlokalisasi ──
   String _txt(String key) {
     const Map<String, Map<String, String>> texts = {
       'EN': {
@@ -106,8 +148,24 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
   }
 
   Future<void> _initCamera() async {
+    final warm = CameraWarmupService.instance;
+
+    if (warm.isReady) {
+      _cameras = warm.cameras;
+      _selectedCameraIndex = warm.selectedCameraIndex;
+      _cameraController = warm.takeController();
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+          _flashEnabled = false;
+        });
+      }
+      await _checkFlashSupport();
+      return;
+    }
+
     try {
-      _cameras = await availableCameras();
+      _cameras = warm.cameras ?? await availableCameras();
       if (_cameras != null && _cameras!.isNotEmpty) {
         await _setCamera(_selectedCameraIndex);
       }
@@ -146,7 +204,6 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
     _setCamera(_selectedCameraIndex);
   }
 
-  /// Cek apakah kamera aktif mendukung flash (Android only).
   Future<void> _checkFlashSupport() async {
     if (_cameraController == null || !_cameraController!.value.isInitialized) return;
     try {
@@ -232,7 +289,6 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ── Preview ──
           CameraPreview(_cameraController!),
 
           // TOP BAR
@@ -246,7 +302,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                 child: Row(
                   children: [
-                    // Tombol kembali
+                    // BACK BUTTON
                     _CameraIconButton(
                       icon: Icons.arrow_back_ios_new_rounded,
                       onTap: () => Navigator.pop(context, null),
@@ -294,7 +350,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
                       ),
                     ),
                     const SizedBox(width: 10),
-                    // ── Flash button (kanan lokasi) ──
+                    // FLASH BUTTON
                     _FlashButton(
                       supported: _flashSupported && _isCameraInitialized,
                       enabled: _flashEnabled,
@@ -306,7 +362,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
             ),
           ),
 
-          // ── Bottom controls ──
+          // BOTTOM CONTROLS
           Positioned(
             bottom: 0,
             left: 0,
@@ -370,7 +426,6 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
   }
 }
 
-// ── Tombol ikon kamera yang konsisten ──
 class _CameraIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -400,8 +455,6 @@ class _CameraIconButton extends StatelessWidget {
   }
 }
 
-/// Flash toggle button untuk top bar CameraFindingScreen.
-/// Hanya aktif di Android saat flash didukung kamera.
 class _FlashButton extends StatelessWidget {
   final bool supported;
   final bool enabled;
@@ -457,7 +510,6 @@ class _FlashButton extends StatelessWidget {
   }
 }
 
-// ── Loading screen dengan Lottie + teks biru ──
 class _CameraLoadingScreen extends StatefulWidget {
   final String loadingCamera;
   final String preparing;
@@ -502,7 +554,6 @@ class _CameraLoadingScreenState extends State<_CameraLoadingScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Lottie — cache agar langsung muncul
               SizedBox(
                 width: 220,
                 height: 220,

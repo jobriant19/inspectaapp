@@ -70,11 +70,13 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
   void initState() {
     super.initState();
     _loadUserSpecificData();
+    CameraWarmupService.instance.warmUp();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    CameraWarmupService.instance.release();
     super.dispose();
   }
 
@@ -930,7 +932,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     );
   }
 
-  void _openCameraFromSearch(_SearchResult result) {
+  Future<void> _openCameraFromSearch(_SearchResult result) async {
     String? idL, idU, idS, idA;
     final raw = result.raw;
     switch (result.type) {
@@ -941,8 +943,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                    idS = raw['id_subunit']?.toString(); idA = result.id; break;
     }
     final onSaved = widget.onFindingSaved;
-    Navigator.pop(context);
-    Navigator.push(context, MaterialPageRoute(
+    final savedResult = await Navigator.push<bool>(context, MaterialPageRoute(
       builder: (_) => CameraFindingScreen(
         lang: widget.lang, isProMode: widget.isProMode,
         isVisitorMode: widget.isVisitorMode,
@@ -952,6 +953,14 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
         onFindingSaved: onSaved,
       ),
     ));
+
+    if (!mounted) return;
+
+    if (savedResult == true) {
+      Navigator.pop(context, true);
+    } else {
+      CameraWarmupService.instance.warmUp();
+    }
   }
 }
 
