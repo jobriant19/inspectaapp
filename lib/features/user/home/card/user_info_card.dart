@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../../../core/utils/jabatan_helper.dart';
 
 class UserInfoCard extends StatefulWidget {
@@ -106,7 +105,6 @@ class _UserInfoCardState extends State<UserInfoCard> {
     return (points / maxPoints).clamp(0.0, 1.0);
   }
 
-  // Skema warna sama persis dengan _tabColors di finding_location_filter_screen.dart
   static const Map<String, Color> _levelColors = {
     'lokasi': Color(0xFF10B981),
     'unit': Color(0xFF6366F1),
@@ -117,7 +115,6 @@ class _UserInfoCardState extends State<UserInfoCard> {
   Color get _locationColor =>
       _levelColors[widget.userLocationLevel?.toLowerCase()] ?? const Color(0xFFF472B6);
 
-  /// Membuat varian warna lebih gelap untuk efek gradien (dipakai badge jabatan & lokasi).
   Color _darken(Color color, [double amount = 0.16]) {
     final hsl = HSLColor.fromColor(color);
     final lightness = (hsl.lightness - amount).clamp(0.0, 1.0);
