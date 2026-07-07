@@ -160,11 +160,13 @@ Future<void> showChooseModeSheet({
 
   if (!context.mounted) return;
 
-  return showModalBottomSheet(
+  return showGeneralDialog<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => _ChooseModeSheet(
+    barrierDismissible: true,
+    barrierLabel: 'ChooseMode',
+    barrierColor: Colors.black38,
+    transitionDuration: const Duration(milliseconds: 250),
+    pageBuilder: (_, __, ___) => _ChooseModeSheet(
       isProMode: isProMode,
       isVisitorMode: isVisitorMode,
       lang: lang,
@@ -172,6 +174,16 @@ Future<void> showChooseModeSheet({
       onVisitorModeChanged: onVisitorModeChanged,
       hideProMode: !proModeVisible,
     ),
+    transitionBuilder: (_, anim, __, child) {
+      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutBack);
+      return Opacity(
+        opacity: anim.value.clamp(0.0, 1.0),
+        child: Transform.scale(
+          scale: 0.85 + (0.15 * curved.value),
+          child: child,
+        ),
+      );
+    },
   );
 }
 
@@ -196,12 +208,9 @@ class _ChooseModeSheet extends StatefulWidget {
   State<_ChooseModeSheet> createState() => _ChooseModeSheetState();
 }
 
-class _ChooseModeSheetState extends State<_ChooseModeSheet>
-    with SingleTickerProviderStateMixin {
+class _ChooseModeSheetState extends State<_ChooseModeSheet> {
   late bool _isProMode;
   late bool _isVisitorMode;
-  late AnimationController _ctrl;
-  late Animation<double> _slideAnim;
 
   static const Map<String, Map<String, String>> _txt = {
     'EN': {
@@ -215,8 +224,6 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
       'pro_off': 'Pro Mode Deactivated',
       'visitor_on': 'Visitor Mode Activated',
       'visitor_off': 'Visitor Mode Deactivated',
-      'active': 'Active',
-      'inactive': 'Inactive',
       'done': 'Done',
     },
     'ID': {
@@ -230,8 +237,6 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
       'pro_off': 'Mode Pro Dinonaktifkan',
       'visitor_on': 'Mode Pengunjung Diaktifkan',
       'visitor_off': 'Mode Pengunjung Dinonaktifkan',
-      'active': 'Aktif',
-      'inactive': 'Nonaktif',
       'done': 'Selesai',
     },
     'ZH': {
@@ -245,8 +250,6 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
       'pro_off': '专业模式已停用',
       'visitor_on': '访客模式已激活',
       'visitor_off': '访客模式已停用',
-      'active': '激活',
-      'inactive': '未激活',
       'done': '完成',
     },
   };
@@ -258,167 +261,139 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
     super.initState();
     _isProMode = widget.isProMode;
     _isVisitorMode = widget.isVisitorMode;
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _slideAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _slideAnim,
-      builder: (_, child) => SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 1),
-          end: Offset.zero,
-        ).animate(_slideAnim),
-        child: child,
-      ),
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // HANDLE BAR
-            const SizedBox(height: 12),
-            Container(
-              width: 44,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(10),
-              ),
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          constraints: const BoxConstraints(maxWidth: 400),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              top: 24,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
             ),
-            const SizedBox(height: 20),
-
-            // HEADER
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00C9E4), Color(0xFF1D72F3)],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.tune_rounded,
-                        color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // HEADER
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
                     children: [
-                      Text(
-                        t('title'),
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1D72F3),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF00C9E4), Color(0xFF1D72F3)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        child: const Icon(Icons.tune_rounded,
+                            color: Colors.white, size: 20),
                       ),
-                      Text(
-                        t('subtitle'),
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.black,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t('title'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF1D72F3),
+                            ),
+                          ),
+                          Text(
+                            t('subtitle'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Colors.black,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // PRO MODE CARD
-            if (!widget.hideProMode) ...[
-              _ModeCard(
-                icon: Icons.workspace_premium_rounded,
-                iconGradient: const LinearGradient(
-                  colors: [Color(0xFF4ADE80), Color(0xFF16A34A)],
                 ),
-                glowColor: const Color(0xFF4ADE80),
-                title: t('pro_title'),
-                description: t('pro_desc'),
-                isActive: _isProMode,
-                activeLabel: t('active'),
-                inactiveLabel: t('inactive'),
-                lang: widget.lang,
-                onChanged: (val) {
-                  setState(() => _isProMode = val);
-                  widget.onProModeChanged(val);
-                },
-              ),
-              const SizedBox(height: 14),
-            ],
 
-            // VISITOR MODE CARD
-            _ModeCard(
-              icon: Icons.visibility_rounded,
-              iconGradient: const LinearGradient(
-                colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
-              ),
-              glowColor: const Color(0xFFFBBF24),
-              title: t('visitor_title'),
-              description: t('visitor_desc'),
-              isActive: _isVisitorMode,
-              activeLabel: t('active'),
-              inactiveLabel: t('inactive'),
-              lang: widget.lang,
-              onChanged: (val) {
-                setState(() => _isVisitorMode = val);
-                widget.onVisitorModeChanged(val);
-              },
-            ),
+                const SizedBox(height: 24),
 
-            const SizedBox(height: 24),
-
-            // DONE BUTTON
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1D72F3),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
+                // PRO MODE CARD
+                if (!widget.hideProMode) ...[
+                  _ModeCard(
+                    icon: Icons.workspace_premium_rounded,
+                    iconGradient: const LinearGradient(
+                      colors: [Color(0xFF4ADE80), Color(0xFF16A34A)],
+                    ),
+                    glowColor: const Color(0xFF4ADE80),
+                    title: t('pro_title'),
+                    description: t('pro_desc'),
+                    isActive: _isProMode,
+                    lang: widget.lang,
+                    onChanged: (val) {
+                      setState(() => _isProMode = val);
+                      widget.onProModeChanged(val);
+                    },
                   ),
-                  child: Text(
-                    t('done'),
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
+                  const SizedBox(height: 14),
+                ],
+
+                // VISITOR MODE CARD
+                _ModeCard(
+                  icon: Icons.visibility_rounded,
+                  iconGradient: const LinearGradient(
+                    colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+                  ),
+                  glowColor: const Color(0xFFFBBF24),
+                  title: t('visitor_title'),
+                  description: t('visitor_desc'),
+                  isActive: _isVisitorMode,
+                  lang: widget.lang,
+                  onChanged: (val) {
+                    setState(() => _isVisitorMode = val);
+                    widget.onVisitorModeChanged(val);
+                  },
+                ),
+
+                const SizedBox(height: 24),
+
+                // DONE BUTTON
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1D72F3),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(
+                        t('done'),
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -432,8 +407,6 @@ class _ModeCard extends StatelessWidget {
   final String title;
   final String description;
   final bool isActive;
-  final String activeLabel;
-  final String inactiveLabel;
   final String lang;
   final ValueChanged<bool> onChanged;
 
@@ -444,8 +417,6 @@ class _ModeCard extends StatelessWidget {
     required this.title,
     required this.description,
     required this.isActive,
-    required this.activeLabel,
-    required this.inactiveLabel,
     required this.lang,
     required this.onChanged,
   });
@@ -506,44 +477,20 @@ class _ModeCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: isActive
-                          ? const Color(0xFF1D72F3)
-                          : Colors.grey.shade700,
-                    ),
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isActive ? const Color(0xFF1D72F3) : Colors.black,
                   ),
-                  const SizedBox(width: 8),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: isActive
-                          ? glowColor.withValues(alpha:0.2)
-                          : Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      isActive ? activeLabel : inactiveLabel,
-                      style: GoogleFonts.poppins(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: isActive ? glowColor : Colors.grey.shade500,
-                      ),
-                    ),
-                  ),
-                ]),
+                ),
                 const SizedBox(height: 3),
                 Text(
                   description,
                   style: GoogleFonts.poppins(
                     fontSize: 11,
-                    color: Colors.grey.shade500,
+                    color: isActive ? Colors.black : Colors.grey.shade500,
                     height: 1.4,
                   ),
                 ),

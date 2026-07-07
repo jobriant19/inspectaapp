@@ -84,6 +84,7 @@ class HomeContentState extends State<HomeContent> {
   Future<List<Map<String, dynamic>>>? _pendingAuditsFuture;
   final GlobalKey<HomeLatestActivityState> _latestActivityKey =
       GlobalKey<HomeLatestActivityState>();
+  bool _isChooseModeSheetOpen = false;
 
   // Dictionary
   static const Map<String, Map<String, String>> _texts = {
@@ -309,48 +310,47 @@ class HomeContentState extends State<HomeContent> {
   Widget _buildChooseModeButton() {
     final anyActive = widget.isProMode || widget.isVisitorMode;
     return GestureDetector(
-      onTap: () => showChooseModeSheet(
-        context: context,
-        isProMode: widget.isProMode,
-        isVisitorMode: widget.isVisitorMode,
-        lang: widget.lang,
-        onProModeChanged: widget.onProModeChanged,
-        onVisitorModeChanged: widget.onVisitorModeChanged,
-      ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
+      onTap: () async {
+        if (_isChooseModeSheetOpen) return;
+        _isChooseModeSheetOpen = true;
+        await showChooseModeSheet(
+          context: context,
+          isProMode: widget.isProMode,
+          isVisitorMode: widget.isVisitorMode,
+          lang: widget.lang,
+          onProModeChanged: widget.onProModeChanged,
+          onVisitorModeChanged: widget.onVisitorModeChanged,
+        );
+        _isChooseModeSheetOpen = false;
+      },
+      child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          gradient: anyActive
-              ? const LinearGradient(
-                  colors: [Color(0xFF00C9E4), Color(0xFF0891B2)],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                )
-              : null,
-          color: anyActive ? null : Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: anyActive ? Colors.transparent : const Color(0xFF1D72F3).withValues(alpha:0.35),
+            color: const Color(0xFF1D72F3).withValues(alpha:0.35),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00C9E4).withValues(alpha:anyActive ? 0.25 : 0.08),
+              color: const Color(0xFF00C9E4).withValues(alpha:0.08),
               blurRadius: 12, offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
+            Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: anyActive ? Colors.white.withValues(alpha:0.2) : const Color(0xFF1D72F3).withValues(alpha:0.1),
-                borderRadius: BorderRadius.circular(10),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF00C9E4), Color(0xFF1D72F3)],
+                ),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(Icons.tune_rounded, size: 20, color: anyActive ? Colors.white : const Color(0xFF1D72F3)),
+              child: const Icon(Icons.tune_rounded, size: 20, color: Colors.white),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -361,19 +361,36 @@ class HomeContentState extends State<HomeContent> {
                     _t('choose_mode'),
                     style: GoogleFonts.poppins(
                       fontSize: 14, fontWeight: FontWeight.w700,
-                      color: anyActive ? Colors.white : const Color(0xFF1D72F3),
+                      color: const Color(0xFF1D72F3),
                     ),
                   ),
-                  if (anyActive) ...[
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        if (widget.isProMode) _ModeBadge(label: _modeBadgeLabel('pro'), color: const Color(0xFF4ADE80)),
-                        if (widget.isProMode && widget.isVisitorMode) const SizedBox(width: 6),
-                        if (widget.isVisitorMode) _ModeBadge(label: _modeBadgeLabel('visitor'), color: const Color(0xFFFBBF24)),
-                      ],
-                    ),
-                  ] else
+                  if (anyActive)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          if (widget.isProMode) ...[
+                            _buildActiveModeBadge(
+                              icon: Icons.workspace_premium_rounded,
+                              label: _modeBadgeLabel('pro'),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF4ADE80), Color(0xFF16A34A)],
+                              ),
+                            ),
+                            if (widget.isVisitorMode) const SizedBox(width: 6),
+                          ],
+                          if (widget.isVisitorMode)
+                            _buildActiveModeBadge(
+                              icon: Icons.visibility_rounded,
+                              label: _modeBadgeLabel('visitor'),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+                              ),
+                            ),
+                        ],
+                      ),
+                    )
+                  else
                     Text(
                       widget.lang == 'ZH' ? '点击以自定义模式'
                           : widget.lang == 'ID' ? 'Ketuk untuk atur mode'
@@ -383,7 +400,7 @@ class HomeContentState extends State<HomeContent> {
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios_rounded, size: 16, color: anyActive ? Colors.white70 : Colors.black),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.black),
           ],
         ),
       ),
@@ -393,6 +410,35 @@ class HomeContentState extends State<HomeContent> {
   String _modeBadgeLabel(String type) {
     if (type == 'pro') return 'Pro';
     return widget.lang == 'ZH' ? '访客' : widget.lang == 'ID' ? 'Pengunjung' : 'Visitor';
+  }
+
+  Widget _buildActiveModeBadge({
+    required IconData icon,
+    required String label,
+    required LinearGradient gradient,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // Pending Audit Section
@@ -703,29 +749,6 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       text,
       style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black54),
-    );
-  }
-}
-
-// Mode Badge
-class _ModeBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  const _ModeBadge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha:0.25),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha:0.5)),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
-      ),
     );
   }
 }
