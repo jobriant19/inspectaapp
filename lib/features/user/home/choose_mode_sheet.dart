@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChooseModeButton extends StatelessWidget {
   final bool isProMode;
@@ -148,8 +148,15 @@ Future<void> showChooseModeSheet({
   required ValueChanged<bool> onProModeChanged,
   required ValueChanged<bool> onVisitorModeChanged,
 }) async {
-  final prefs = await SharedPreferences.getInstance();
-  final bool proModeVisible = prefs.getBool('pro_mode_button_visible') ?? true;
+  bool proModeVisible = true;
+  try {
+    final row = await Supabase.instance.client
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'pro_mode_button_visible')
+        .maybeSingle();
+    proModeVisible = row?['setting_value'] as bool? ?? true;
+  } catch (_) {}
 
   if (!context.mounted) return;
 

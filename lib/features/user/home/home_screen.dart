@@ -471,12 +471,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Load Preventive Maintenance visibility
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _isPreventiveMaintenanceVisible =
-            prefs.getBool('preventive_maintenance_visible') ?? true;
-      });
+    try {
+      final row = await _sb
+          .from('app_settings')
+          .select('setting_value')
+          .eq('setting_key', 'preventive_maintenance_visible')
+          .maybeSingle();
+      if (mounted) {
+        setState(() {
+          _isPreventiveMaintenanceVisible =
+              row?['setting_value'] as bool? ?? true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading preventive_maintenance_visible: $e');
+      if (mounted) {
+        setState(() => _isPreventiveMaintenanceVisible = true);
+      }
     }
 
     // Cek lokasi di background (tidak blokir masuk home)

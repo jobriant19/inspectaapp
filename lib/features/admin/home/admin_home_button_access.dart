@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+final _sb = Supabase.instance.client;
 
 class AdminHomeButtonAccess extends StatelessWidget {
   final String lang;
@@ -10,14 +12,37 @@ class AdminHomeButtonAccess extends StatelessWidget {
     required this.lang,
   });
 
+  static Future<Map<String, bool>> _fetchSettings() async {
+    final Map<String, bool> result = {
+      'pro_mode': true,
+      'preventive_maintenance': true,
+    };
+    try {
+      final rows = await _sb
+          .from('app_settings')
+          .select('setting_key, setting_value')
+          .inFilter('setting_key', [
+        'pro_mode_button_visible',
+        'preventive_maintenance_visible',
+      ]);
+      for (final row in rows) {
+        final key = row['setting_key'] as String;
+        final value = row['setting_value'] as bool? ?? true;
+        if (key == 'pro_mode_button_visible') result['pro_mode'] = value;
+        if (key == 'preventive_maintenance_visible') {
+          result['preventive_maintenance'] = value;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching app_settings: $e');
+    }
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, bool>>(
-      future: SharedPreferences.getInstance().then((p) => {
-            'pro_mode': p.getBool('pro_mode_button_visible') ?? true,
-            'preventive_maintenance':
-                p.getBool('preventive_maintenance_visible') ?? true,
-          }),
+      future: _fetchSettings(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return Container(
@@ -81,8 +106,15 @@ class _ProModeToggleCardState extends State<_ProModeToggleCard> {
       _isVisible = value;
       _isSaving = true;
     });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kKey, value);
+    try {
+      await _sb.from('app_settings').upsert({
+        'setting_key': _kKey,
+        'setting_value': value,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error saving $_kKey: $e');
+    }
     if (mounted) setState(() => _isSaving = false);
   }
 
@@ -243,8 +275,15 @@ class _PreventiveMaintenanceToggleCardState
       _isVisible = value;
       _isSaving = true;
     });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kKey, value);
+    try {
+      await _sb.from('app_settings').upsert({
+        'setting_key': _kKey,
+        'setting_value': value,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error saving $_kKey: $e');
+    }
     if (mounted) setState(() => _isSaving = false);
   }
 
