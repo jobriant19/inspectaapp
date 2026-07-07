@@ -513,7 +513,7 @@ class _ModeCard extends StatelessWidget {
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: isActive
-                          ? const Color(0xFF1E3A8A)
+                          ? const Color(0xFF1D72F3)
                           : Colors.grey.shade700,
                     ),
                   ),

@@ -146,34 +146,31 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
     try {
       final supabase = Supabase.instance.client;
-      final parts = <String>[];
+      String? namaSpesifik;
 
-      if (idLokasi != null) {
-        final d = await supabase.from('lokasi')
-            .select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
-        if (d?['nama_lokasi'] != null) parts.add(d!['nama_lokasi'].toString());
-      }
-      if (idUnit != null) {
-        final d = await supabase.from('unit')
-            .select('nama_unit').eq('id_unit', idUnit).maybeSingle();
-        if (d?['nama_unit'] != null) parts.add(d!['nama_unit'].toString());
-      }
-      if (idSubunit != null) {
-        final d = await supabase.from('subunit')
-            .select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
-        if (d?['nama_subunit'] != null) parts.add(d!['nama_subunit'].toString());
-      }
       if (idArea != null) {
         final d = await supabase.from('area')
             .select('nama_area').eq('id_area', idArea).maybeSingle();
-        if (d?['nama_area'] != null) parts.add(d!['nama_area'].toString());
+        namaSpesifik = d?['nama_area']?.toString();
+      } else if (idSubunit != null) {
+        final d = await supabase.from('subunit')
+            .select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
+        namaSpesifik = d?['nama_subunit']?.toString();
+      } else if (idUnit != null) {
+        final d = await supabase.from('unit')
+            .select('nama_unit').eq('id_unit', idUnit).maybeSingle();
+        namaSpesifik = d?['nama_unit']?.toString();
+      } else if (idLokasi != null) {
+        final d = await supabase.from('lokasi')
+            .select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
+        namaSpesifik = d?['nama_lokasi']?.toString();
       }
 
-      if (mounted && parts.isNotEmpty) {
+      if (mounted && namaSpesifik != null) {
         setState(() {
           _selectedLocation = {
             ...(_selectedLocation ?? {}),
-            'nama': parts.join(' / '),
+            'nama': namaSpesifik,
           };
         });
       }

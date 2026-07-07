@@ -47,8 +47,12 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
 
   // USER SPECIFIC DATA
   String? _userSpecificId;
-  String? _userSpecificType;
   Set<String> _userPicIds = {};
+
+  String? _userLokasiId;
+  String? _userUnitId;
+  String? _userSubunitId;
+  String? _userAreaId;
 
   bool get _hasFullAccess => widget.isProMode || widget.userRole == 'Eksekutif';
 
@@ -86,18 +90,19 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
           .maybeSingle();
 
       if (userData != null) {
+        _userLokasiId  = userData['id_lokasi']?.toString();
+        _userUnitId    = userData['id_unit']?.toString();
+        _userSubunitId = userData['id_subunit']?.toString();
+        _userAreaId    = userData['id_area']?.toString();
+
         if (userData['id_area'] != null) {
           _userSpecificId   = userData['id_area'].toString();
-          _userSpecificType = 'area';
         } else if (userData['id_subunit'] != null) {
           _userSpecificId   = userData['id_subunit'].toString();
-          _userSpecificType = 'subunit';
         } else if (userData['id_unit'] != null) {
           _userSpecificId   = userData['id_unit'].toString();
-          _userSpecificType = 'unit';
         } else if (userData['id_lokasi'] != null) {
           _userSpecificId   = userData['id_lokasi'].toString();
-          _userSpecificType = 'lokasi';
         }
       }
 
@@ -178,29 +183,21 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
   }
 
   bool _isInUserScope(_SearchResult r) {
-    if (_userSpecificId == null) return true;
-
-    switch (_userSpecificType) {
+    switch (r.type) {
       case 'lokasi':
-        if (r.type == 'lokasi') return r.id == _userSpecificId;
-        return r.raw['id_lokasi']?.toString() == _userSpecificId;
+        if (_userLokasiId == null) return false;
+        return r.id == _userLokasiId;
       case 'unit':
-        if (r.type == 'lokasi') {
-          return r.raw['unit'] != null
-              ? (r.raw['unit'] as List).any(
-                  (u) => u['id_unit']?.toString() == _userSpecificId)
-              : false;
-        }
-        if (r.type == 'unit') return r.id == _userSpecificId;
-        return r.raw['id_unit']?.toString() == _userSpecificId;
+        if (_userUnitId == null) return false;
+        return r.id == _userUnitId;
       case 'subunit':
-        if (r.type == 'lokasi' || r.type == 'unit') return false;
-        if (r.type == 'subunit') return r.id == _userSpecificId;
-        return r.raw['id_subunit']?.toString() == _userSpecificId;
+        if (_userSubunitId == null) return false;
+        return r.id == _userSubunitId;
       case 'area':
-        return r.type == 'area' && r.id == _userSpecificId;
+        if (_userAreaId == null) return false;
+        return r.id == _userAreaId;
       default:
-        return true;
+        return false;
     }
   }
 

@@ -53,6 +53,10 @@ class _FindingLocationFilterScreenState
 
   final _loading = {0: false, 1: false, 2: false, 3: false};
 
+  String? _userSpecificId;
+  String? _userSpecificType;
+  Set<String> _userPicIds = {};
+
   bool get _isProAccess => widget.isProMode || widget.userRole == 'Eksekutif';
 
   String _t(String id, String en, String zh) {
@@ -80,9 +84,98 @@ class _FindingLocationFilterScreenState
     super.initState();
     _tabCtrl = TabController(length: 4, vsync: this)..addListener(_onTabChanged);
     _searchCtrl.addListener(_onSearchChanged);
+    _computeUserSpecific();
+    _loadUserPicIds();
     for (int i = 0; i < 4; i++) {
       _loadTabData(i);
     }
+  }
+
+  void _computeUserSpecific() {
+    if (widget.userAreaId != null) {
+      _userSpecificId = widget.userAreaId;
+      _userSpecificType = 'area';
+    } else if (widget.userSubunitId != null) {
+      _userSpecificId = widget.userSubunitId;
+      _userSpecificType = 'subunit';
+    } else if (widget.userUnitId != null) {
+      _userSpecificId = widget.userUnitId;
+      _userSpecificType = 'unit';
+    } else if (widget.userLokasiId != null) {
+      _userSpecificId = widget.userLokasiId;
+      _userSpecificType = 'lokasi';
+    }
+  }
+
+  Future<void> _loadUserPicIds() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+      final supabase = Supabase.instance.client;
+      final results = await Future.wait([
+        supabase.from('lokasi').select('id_lokasi').eq('id_pic', userId),
+        supabase.from('unit').select('id_unit').eq('id_pic', userId),
+        supabase.from('subunit').select('id_subunit').eq('id_pic', userId),
+        supabase.from('area').select('id_area').eq('id_pic', userId),
+      ]);
+      final Set<String> picIds = {};
+      for (final r in results[0] as List) { picIds.add(r['id_lokasi'].toString()); }
+      for (final r in results[1] as List) { picIds.add(r['id_unit'].toString()); }
+      for (final r in results[2] as List) { picIds.add(r['id_subunit'].toString()); }
+      for (final r in results[3] as List) { picIds.add(r['id_area'].toString()); }
+      if (mounted) setState(() => _userPicIds = picIds);
+    } catch (e) {
+      debugPrint('Error loading user pic ids: $e');
+    }
+  }
+
+  bool _isUserSpecificItem(int tabIndex, String id) {
+    if (_userSpecificId == null) return false;
+    const types = ['lokasi', 'unit', 'subunit', 'area'];
+    return types[tabIndex] == _userSpecificType && id == _userSpecificId;
+  }
+
+  bool _isInUserScope(int tabIndex, Map<String, dynamic> raw) {
+    if (_userSpecificId == null) return true;
+    const idKeys = ['id_lokasi', 'id_unit', 'id_subunit', 'id_area'];
+    final itemId = raw[idKeys[tabIndex]]?.toString() ?? '';
+
+    switch (_userSpecificType) {
+      case 'lokasi':
+        if (tabIndex == 0) return itemId == _userSpecificId;
+        return raw['id_lokasi']?.toString() == _userSpecificId;
+      case 'unit':
+        if (tabIndex == 0) {
+          final units = raw['unit'] as List?;
+          return units != null &&
+              units.any((u) => u['id_unit']?.toString() == _userSpecificId);
+        }
+        if (tabIndex == 1) return itemId == _userSpecificId;
+        return raw['id_unit']?.toString() == _userSpecificId;
+      case 'subunit':
+        if (tabIndex == 0 || tabIndex == 1) return false;
+        if (tabIndex == 2) return itemId == _userSpecificId;
+        return raw['id_subunit']?.toString() == _userSpecificId;
+      case 'area':
+        return tabIndex == 3 && itemId == _userSpecificId;
+      default:
+        return true;
+    }
+  }
+
+  void _sortTabList(List<Map<String, dynamic>> list, int tabIndex, String nameKey) {
+    const idKeys = ['id_lokasi', 'id_unit', 'id_subunit', 'id_area'];
+    list.sort((a, b) {
+      final aId = a[idKeys[tabIndex]]?.toString() ?? '';
+      final bId = b[idKeys[tabIndex]]?.toString() ?? '';
+      final aMine = _isUserSpecificItem(tabIndex, aId);
+      final bMine = _isUserSpecificItem(tabIndex, bId);
+      if (aMine != bMine) return aMine ? -1 : 1;
+      final aPic = _userPicIds.contains(aId);
+      final bPic = _userPicIds.contains(bId);
+      if (aPic != bPic) return aPic ? -1 : 1;
+      return (a[nameKey] ?? '').toString().toLowerCase().compareTo((b[nameKey] ?? '').toString().toLowerCase());
+    });
   }
 
   @override
@@ -110,55 +203,41 @@ class _FindingLocationFilterScreenState
 
       switch (tabIndex) {
         case 0:
-          if (_isProAccess) {
-            raw = await supabase.from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi');
-          } else if (widget.userLokasiId != null) {
-            raw = await supabase.from('lokasi').select('id_lokasi, nama_lokasi').eq('id_lokasi', widget.userLokasiId!);
-          }
+          raw = await supabase.from('lokasi')
+              .select('id_lokasi, nama_lokasi, id_pic, unit(id_unit)')
+              .order('nama_lokasi');
           break;
-
         case 1:
-          if (_isProAccess) {
-            raw = await supabase.from('unit').select('id_unit, nama_unit, id_lokasi').order('nama_unit');
-          } else if (widget.userLokasiId != null) {
-            if (widget.userUnitId != null) {
-              raw = await supabase.from('unit').select('id_unit, nama_unit, id_lokasi')
-                  .eq('id_lokasi', widget.userLokasiId!).eq('id_unit', widget.userUnitId!).order('nama_unit');
-            } else {
-              raw = await supabase.from('unit').select('id_unit, nama_unit, id_lokasi')
-                  .eq('id_lokasi', widget.userLokasiId!).order('nama_unit');
-            }
-          }
+          raw = await supabase.from('unit')
+              .select('id_unit, nama_unit, id_lokasi, id_pic, lokasi(nama_lokasi), subunit(id_subunit)')
+              .order('nama_unit');
           break;
-
         case 2:
-          if (_isProAccess) {
-            raw = await supabase.from('subunit').select('id_subunit, nama_subunit, id_unit, id_lokasi').order('nama_subunit');
-          } else if (widget.userLokasiId != null) {
-            var q = supabase.from('subunit').select('id_subunit, nama_subunit, id_unit, id_lokasi')
-                .eq('id_lokasi', widget.userLokasiId!);
-            if (widget.userUnitId != null) q = q.eq('id_unit', widget.userUnitId!);
-            if (widget.userSubunitId != null) q = q.eq('id_subunit', widget.userSubunitId!);
-            raw = await q.order('nama_subunit');
-          }
+          raw = await supabase.from('subunit')
+              .select('id_subunit, nama_subunit, id_unit, id_lokasi, id_pic, unit(nama_unit), area(id_area)')
+              .order('nama_subunit');
           break;
-
         case 3:
-          if (_isProAccess) {
-            raw = await supabase.from('area').select('id_area, nama_area, id_subunit, id_unit, id_lokasi').order('nama_area');
-          } else if (widget.userLokasiId != null) {
-            var q = supabase.from('area').select('id_area, nama_area, id_subunit, id_unit, id_lokasi')
-                .eq('id_lokasi', widget.userLokasiId!);
-            if (widget.userUnitId != null) q = q.eq('id_unit', widget.userUnitId!);
-            if (widget.userSubunitId != null) q = q.eq('id_subunit', widget.userSubunitId!);
-            if (widget.userAreaId != null) q = q.eq('id_area', widget.userAreaId!);
-            raw = await q.order('nama_area');
-          }
+          raw = await supabase.from('area')
+              .select('id_area, nama_area, id_subunit, id_unit, id_lokasi, id_pic, subunit(nama_subunit)')
+              .order('nama_area');
           break;
       }
 
       if (!mounted) return;
-      final list = List<Map<String, dynamic>>.from(raw);
+      List<Map<String, dynamic>> list = List<Map<String, dynamic>>.from(raw);
+
+      if (!_isProAccess) {
+        const idKeys = ['id_lokasi', 'id_unit', 'id_subunit', 'id_area'];
+        list = list.where((item) {
+          final itemId = item[idKeys[tabIndex]]?.toString() ?? '';
+          return _userPicIds.contains(itemId) || _isInUserScope(tabIndex, item);
+        }).toList();
+      }
+
+      const nameKeys = ['nama_lokasi', 'nama_unit', 'nama_subunit', 'nama_area'];
+      _sortTabList(list, tabIndex, nameKeys[tabIndex]);
+
       setState(() {
         switch (tabIndex) {
           case 0: _lokasiData = list; break;
@@ -278,83 +357,210 @@ class _FindingLocationFilterScreenState
   }) {
     final color = _tabColors[tabIndex];
     final labels = [_t('Lokasi', 'Location', '地点'), 'Unit', 'Sub-Unit', 'Area'];
-    final initials = displayName
-        .trim()
-        .split(' ')
-        .take(2)
-        .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
-        .join();
+    final IconData levelIcon = _tabIcons[tabIndex];
+
+    const idKeys = ['id_lokasi', 'id_unit', 'id_subunit', 'id_area'];
+    final itemId = raw[idKeys[tabIndex]]?.toString() ?? '';
+
+    final bool showMyBadge = _isUserSpecificItem(tabIndex, itemId);
+    final bool showPicBadge = _userPicIds.contains(itemId);
+    final bool hasBadge = showMyBadge || showPicBadge;
+
+    Widget pill({required IconData icon, required String label, required Color pillColor}) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: pillColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: pillColor.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 10, color: pillColor),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: pillColor),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget badgeChip({required bool isMyLocation}) {
+      final badgeColor = isMyLocation ? color : const Color(0xFF16A34A);
+      final icon = isMyLocation ? Icons.person_pin_circle_rounded : Icons.verified_rounded;
+      final myLabels = [
+        _t('Lokasi Saya', 'My Location', '我的位置'),
+        _t('Unit Saya', 'My Unit', '我的单位'),
+        _t('Subunit Saya', 'My Subunit', '我的子单位'),
+        _t('Area Saya', 'My Area', '我的区域'),
+      ];
+      final label = isMyLocation
+          ? myLabels[tabIndex]
+          : _t('Tanggung Jawab Saya', 'My Responsibility', '我的责任');
+      return Container(
+        constraints: const BoxConstraints(maxWidth: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: badgeColor.withValues(alpha: 0.5), width: 1),
+          boxShadow: [
+            BoxShadow(color: badgeColor.withValues(alpha: 0.20), blurRadius: 6, offset: const Offset(0, 2)),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 10, color: badgeColor),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(fontSize: 8.5, color: badgeColor, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    String? breadcrumb;
+    if (tabIndex == 1) breadcrumb = raw['lokasi']?['nama_lokasi']?.toString();
+    if (tabIndex == 2) breadcrumb = raw['unit']?['nama_unit']?.toString();
+    if (tabIndex == 3) breadcrumb = raw['subunit']?['nama_subunit']?.toString();
+
+    Widget? breadcrumbPill;
+    if (breadcrumb != null && tabIndex > 0) {
+      final parentColor = _tabColors[tabIndex - 1];
+      breadcrumbPill = pill(icon: _tabIcons[tabIndex - 1], label: breadcrumb, pillColor: parentColor);
+    }
+
+    Widget? subCountPill;
+    switch (tabIndex) {
+      case 0:
+        final units = raw['unit'] as List?;
+        subCountPill = pill(icon: _tabIcons[1], label: '${units?.length ?? 0} Unit', pillColor: _tabColors[1]);
+        break;
+      case 1:
+        final subunits = raw['subunit'] as List?;
+        subCountPill = pill(icon: _tabIcons[2], label: '${subunits?.length ?? 0} Sub-Unit', pillColor: _tabColors[2]);
+        break;
+      case 2:
+        final areas = raw['area'] as List?;
+        subCountPill = pill(icon: _tabIcons[3], label: '${areas?.length ?? 0} Area', pillColor: _tabColors[3]);
+        break;
+      default:
+        subCountPill = null;
+    }
 
     return GestureDetector(
       onTap: () => _selectItem(tabIndex: tabIndex, raw: raw),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE0F2FE) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF1D72F3) : const Color(0xFFE2E8F0),
-            width: isSelected ? 1.5 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(color: color.withValues(alpha:0.06), blurRadius: 6, offset: const Offset(0, 2)),
-          ],
-        ),
-        child: Row(
+        child: Stack(
           children: [
             Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
+              constraints: const BoxConstraints(minHeight: 68),
               decoration: BoxDecoration(
-                color: color.withValues(alpha:0.14),
+                color: isSelected ? const Color(0xFFE0F2FE) : const Color(0xFFF6FAFE),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected ? const Color(0xFF1D72F3) : Colors.blue.withValues(alpha: 0.15),
+                  width: isSelected ? 1.5 : 1,
+                ),
               ),
-              child: Text(
-                initials,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    displayName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: const Color(0xFF0F172A),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(12),
+                        bottomLeft: Radius.circular(12),
+                      ),
+                      child: Container(
+                        width: 80,
+                        color: color.withValues(alpha: 0.1),
+                        child: Center(child: Icon(levelIcon, color: color, size: 28)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha:0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: color.withValues(alpha:0.4)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(_tabIcons[tabIndex], size: 10, color: color),
-                        const SizedBox(width: 3),
-                        Text(
-                          labels[tabIndex],
-                          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: color),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 12, 90, 14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              displayName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: color,
+                                height: 1.25,
+                              ),
+                            ),
+                            if (breadcrumbPill != null) ...[
+                              const SizedBox(height: 6),
+                              breadcrumbPill,
+                            ],
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                pill(icon: levelIcon, label: labels[tabIndex], pillColor: color),
+                                if (subCountPill != null) subCountPill,
+                              ],
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: color, size: 20),
+            if (hasBadge)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (showPicBadge) badgeChip(isMyLocation: false),
+                    if (showPicBadge && showMyBadge) const SizedBox(height: 6),
+                    if (showMyBadge) badgeChip(isMyLocation: true),
+                  ],
+                ),
+              ),
+            if (hasBadge)
+              Positioned(
+                bottom: 10,
+                right: 8,
+                child: Icon(Icons.chevron_right_rounded, color: color, size: 20),
+              )
+            else
+              Positioned(
+                top: 0,
+                bottom: 0,
+                right: 8,
+                child: Center(child: Icon(Icons.chevron_right_rounded, color: color, size: 20)),
+              ),
           ],
         ),
       ),
