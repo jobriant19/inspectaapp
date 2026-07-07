@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lottie/lottie.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/utils/image_picker_helper.dart';
 import '../add_finding_flow_screen.dart';
@@ -152,6 +153,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
         'error_title': 'Location Failed',
         'location_not_found': 'Specific location not found.',
         'close_button': 'Close',
+        'preparing_camera': 'Preparing camera...',
       },
       'ID': {
         'choose_location': 'Pilih Lokasi Temuan',
@@ -159,6 +161,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
         'error_title': 'Gagal Memuat Lokasi',
         'location_not_found': 'Lokasi spesifik tidak ditemukan.',
         'close_button': 'Tutup',
+        'preparing_camera': 'Menyiapkan kamera...',
       },
       'ZH': {
         'choose_location': '选择发现位置',
@@ -166,6 +169,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
         'error_title': '加载位置失败',
         'location_not_found': '未找到特定位置。',
         'close_button': '关闭',
+        'preparing_camera': '正在准备相机...',
       },
     };
     return texts[widget.lang]?[key] ?? texts['ID']![key]!;
@@ -442,6 +446,44 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
     }
   }
 
+  Widget _buildLoadingView() {
+    const accentColor = Color(0xFF1D72F3);
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOut,
+          builder: (context, opacity, child) => Opacity(opacity: opacity, child: child),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 140,
+                height: 140,
+                child: Lottie.asset(
+                  'assets/lottie/camera_loading.json',
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _PulsingText(text: _txt('preparing_camera'), color: accentColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool ready = _isCameraInitialized && _cameraController != null;
@@ -451,11 +493,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Latar hitam polos selalu tampil sebagai dasar. Begitu kamera siap
-          // (yang dalam praktiknya hampir selalu sudah selesai di-warm-up
-          // sebelum layar ini dibuka), CameraPreview langsung menimpanya
-          // tanpa ada layar loading/spinner/teks terpisah sama sekali.
-          if (ready) CameraPreview(_cameraController!) else Container(color: Colors.transparent),
+          if (ready) CameraPreview(_cameraController!) else _buildLoadingView(),
 
           if (ready) ...[
             // TOP BAR
@@ -672,6 +710,47 @@ class _FlashButton extends StatelessWidget {
               size: 52 * 0.45,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PulsingText extends StatefulWidget {
+  final String text;
+  final Color color;
+
+  const _PulsingText({required this.text, required this.color});
+
+  @override
+  State<_PulsingText> createState() => _PulsingTextState();
+}
+
+class _PulsingTextState extends State<_PulsingText> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween(begin: 0.4, end: 1.0).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+      ),
+      child: Text(
+        widget.text,
+        style: GoogleFonts.poppins(
+          color: widget.color,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          letterSpacing: 0.3,
         ),
       ),
     );

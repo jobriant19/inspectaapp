@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lottie/lottie.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+// ignore: unused_import
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../user/finding/camera/camera_finding_screen.dart';
 
 class QrWarmupService {
@@ -100,6 +103,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       'location_not_found': 'Specific location not found.',
       'error_title': 'Scan Failed',
       'ok_button': 'Close',
+      'preparing_camera': 'Preparing camera...',
     },
     'ID': {
       'title': 'Pindai Lokasi Spesifik',
@@ -110,6 +114,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       'location_not_found': 'Lokasi spesifik tidak ditemukan.',
       'error_title': 'Gagal Memindai',
       'ok_button': 'Tutup',
+      'preparing_camera': 'Menyiapkan kamera...',
     },
     'ZH': {
       'title': '扫描特定位置',
@@ -120,6 +125,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       'location_not_found': '未找到特定位置。',
       'error_title': '扫描失败',
       'ok_button': '关闭',
+      'preparing_camera': '正在准备相机...',
     },
   };
 
@@ -309,7 +315,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             MobileScanner(
               controller: _cameraController!,
               onDetect: _handleBarcode,
-              placeholderBuilder: (context, child) => Container(color: Colors.black),
+              placeholderBuilder: (context, child) => _buildLoadingView(),
               errorBuilder: (context, error, child) => Container(
                 color: Colors.black,
                 child: Center(
@@ -318,7 +324,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             )
           else
-            Container(color: Colors.black),
+            _buildLoadingView(),
           _buildScanOverlay(scanSize),
 
           Center(
@@ -458,6 +464,44 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     );
   }
 
+  Widget _buildLoadingView() {
+    const accentColor = Color(0xFF1D72F3);
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOut,
+          builder: (context, opacity, child) => Opacity(opacity: opacity, child: child),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 140,
+                height: 140,
+                child: Lottie.asset(
+                  'assets/lottie/camera_loading.json',
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _PulsingText(text: getTxt('preparing_camera'), color: accentColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildScanOverlay(double scanSize) {
     return IgnorePointer(
       child: LayoutBuilder(
@@ -553,6 +597,47 @@ class _CircleIconButton extends StatelessWidget {
           border: Border.all(color: Colors.white.withValues(alpha: 0.2), width: 1),
         ),
         child: Icon(icon, color: Colors.white, size: 52 * 0.45),
+      ),
+    );
+  }
+}
+
+class _PulsingText extends StatefulWidget {
+  final String text;
+  final Color color;
+
+  const _PulsingText({required this.text, required this.color});
+
+  @override
+  State<_PulsingText> createState() => _PulsingTextState();
+}
+
+class _PulsingTextState extends State<_PulsingText> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween(begin: 0.4, end: 1.0).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+      ),
+      child: Text(
+        widget.text,
+        style: GoogleFonts.poppins(
+          color: widget.color,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          letterSpacing: 0.3,
+        ),
       ),
     );
   }
