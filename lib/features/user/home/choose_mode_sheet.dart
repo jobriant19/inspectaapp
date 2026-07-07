@@ -81,7 +81,7 @@ class ChooseModeButton extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: anyActive ? Colors.white : const Color(0xFF1E3A8A),
+                color: anyActive ? Colors.white : const Color(0xFF1D72F3),
               ),
             ),
             if (anyActive) ...[
@@ -308,7 +308,7 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF00C9E4), Color(0xFF0891B2)],
+                        colors: [Color(0xFF00C9E4), Color(0xFF1D72F3)],
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -324,14 +324,15 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
                         style: GoogleFonts.poppins(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1E3A8A),
+                          color: const Color(0xFF1D72F3),
                         ),
                       ),
                       Text(
                         t('subtitle'),
                         style: GoogleFonts.poppins(
                           fontSize: 12,
-                          color: Colors.grey.shade500,
+                          color: Colors.black,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -394,7 +395,7 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
                 child: ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C9E4),
+                    backgroundColor: const Color(0xFF1D72F3),
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -403,7 +404,7 @@ class _ChooseModeSheetState extends State<_ChooseModeSheet>
                   child: Text(
                     t('done'),
                     style: GoogleFonts.poppins(
-                      fontSize: 15,
+                      fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

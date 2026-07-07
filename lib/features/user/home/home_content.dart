@@ -331,7 +331,7 @@ class HomeContentState extends State<HomeContent> {
           color: anyActive ? null : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: anyActive ? Colors.transparent : const Color(0xFF00C9E4).withValues(alpha:0.35),
+            color: anyActive ? Colors.transparent : const Color(0xFF1D72F3).withValues(alpha:0.35),
             width: 1.5,
           ),
           boxShadow: [
@@ -347,10 +347,10 @@ class HomeContentState extends State<HomeContent> {
               duration: const Duration(milliseconds: 300),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: anyActive ? Colors.white.withValues(alpha:0.2) : const Color(0xFF00C9E4).withValues(alpha:0.1),
+                color: anyActive ? Colors.white.withValues(alpha:0.2) : const Color(0xFF1D72F3).withValues(alpha:0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.tune_rounded, size: 20, color: anyActive ? Colors.white : const Color(0xFF00C9E4)),
+              child: Icon(Icons.tune_rounded, size: 20, color: anyActive ? Colors.white : const Color(0xFF1D72F3)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -361,7 +361,7 @@ class HomeContentState extends State<HomeContent> {
                     _t('choose_mode'),
                     style: GoogleFonts.poppins(
                       fontSize: 14, fontWeight: FontWeight.w700,
-                      color: anyActive ? Colors.white : const Color(0xFF1E3A8A),
+                      color: anyActive ? Colors.white : const Color(0xFF1D72F3),
                     ),
                   ),
                   if (anyActive) ...[
@@ -378,12 +378,12 @@ class HomeContentState extends State<HomeContent> {
                       widget.lang == 'ZH' ? '点击以自定义模式'
                           : widget.lang == 'ID' ? 'Ketuk untuk atur mode'
                           : 'Tap to customize mode',
-                      style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey.shade500),
+                      style: GoogleFonts.poppins(fontSize: 11, color: Colors.black, fontWeight: FontWeight.w700),
                     ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: anyActive ? Colors.white70 : Colors.grey.shade400),
+            Icon(Icons.arrow_forward_ios_rounded, size: 16, color: anyActive ? Colors.white70 : Colors.black),
           ],
         ),
       ),
@@ -518,7 +518,7 @@ class HomeContentState extends State<HomeContent> {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white70),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.white),
           ],
         ),
       ),
@@ -574,7 +574,7 @@ class HomeContentState extends State<HomeContent> {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white70),
+            const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.white),
           ],
         ),
       ),
@@ -643,8 +643,8 @@ class HomeContentState extends State<HomeContent> {
             ),
             const Icon(
               Icons.arrow_forward_ios_rounded,
-              size: 14,
-              color: Colors.white70,
+              size: 16,
+              color: Colors.white,
             ),
           ],
         ),
@@ -702,7 +702,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.black54),
+      style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black54),
     );
   }
 }
