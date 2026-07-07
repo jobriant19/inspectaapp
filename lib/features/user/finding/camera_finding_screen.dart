@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import '../../../core/utils/image_picker_helper.dart';
@@ -40,9 +41,22 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
   bool _isCameraInitialized = false;
-  final ImagePicker _picker = ImagePicker();
   bool _flashEnabled = false;
   bool _flashSupported = false;
+
+  IconData get _locationLevelIcon {
+    if (widget.selectedAreaId != null) return Icons.place_rounded;
+    if (widget.selectedSubunitId != null) return Icons.layers_rounded;
+    if (widget.selectedUnitId != null) return Icons.business_rounded;
+    return Icons.location_city_rounded;
+  }
+
+  Color get _locationLevelColor {
+    if (widget.selectedAreaId != null) return const Color(0xFFF472B6);
+    if (widget.selectedSubunitId != null) return const Color(0xFFFBBF24);
+    if (widget.selectedUnitId != null) return const Color(0xFF6366F1);
+    return const Color(0xFF10B981);
+  }
 
   // ── Teks terlokalisasi ──
   String _txt(String key) {
@@ -114,10 +128,10 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
       if (mounted) {
         setState(() {
           _isCameraInitialized = true;
-          _flashEnabled = false;   // ← reset flash ke off setiap ganti kamera
+          _flashEnabled = false;
         });
       }
-      await _checkFlashSupport(); // ← cek dukungan flash setelah init
+      await _checkFlashSupport();
     } on CameraException catch (e) {
       debugPrint('Error setting camera: ${e.code}\n${e.description}');
     }
@@ -134,8 +148,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
 
   /// Cek apakah kamera aktif mendukung flash (Android only).
   Future<void> _checkFlashSupport() async {
-    if (_cameraController == null ||
-        !_cameraController!.value.isInitialized) return;
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
     try {
       await _cameraController!.setFlashMode(FlashMode.off);
       if (mounted) setState(() => _flashSupported = true);
@@ -145,9 +158,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
   }
 
   Future<void> _toggleFlash() async {
-    if (_cameraController == null ||
-        !_cameraController!.value.isInitialized ||
-        !_flashSupported) return;
+    if (_cameraController == null || !_cameraController!.value.isInitialized || !_flashSupported) return;
     try {
       final next = _flashEnabled ? FlashMode.off : FlashMode.torch;
       await _cameraController!.setFlashMode(next);
@@ -180,9 +191,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
   }
 
   Future<void> _takePicture() async {
-    if (!_isCameraInitialized ||
-        _cameraController == null ||
-        _cameraController!.value.isTakingPicture) return;
+    if (!_isCameraInitialized || _cameraController == null || _cameraController!.value.isTakingPicture) return;
     try {
       final XFile picture = await _cameraController!.takePicture();
       await _navigateToForm(picture);
@@ -226,7 +235,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
           // ── Preview ──
           CameraPreview(_cameraController!),
 
-          // ── Top bar ──
+          // TOP BAR
           Positioned(
             top: 0,
             left: 0,
@@ -244,35 +253,40 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
                       size: 52,
                     ),
                     const SizedBox(width: 10),
-                    // Label lokasi — di tengah
+                    // SPESIFIC LOCATION LABEL
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 13),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
+                          color: Colors.black.withValues(alpha:0.6),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.25), width: 1.2),
+                              color: _locationLevelColor.withValues(alpha:0.6), width: 1.2),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.location_on_rounded,
-                                color: Color(0xFF00C9E4), size: 20),
+                            Icon(_locationLevelIcon,
+                                color: _locationLevelColor, size: 20),
                             const SizedBox(width: 8),
                             Flexible(
-                              child: Text(
-                                widget.selectedLocationName.toUpperCase(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                  letterSpacing: 0.5,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.center,
+                                child: Text(
+                                  widget.selectedLocationName.toUpperCase(),
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    letterSpacing: 0.5,
+                                  ),
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  overflow: TextOverflow.visible,
+                                  textAlign: TextAlign.center,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
                               ),
                             ),
                           ],
@@ -306,7 +320,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
                     colors: [
-                      Colors.black.withOpacity(0.75),
+                      Colors.black.withValues(alpha:0.75),
                       Colors.transparent,
                     ],
                   ),
@@ -376,9 +390,9 @@ class _CameraIconButton extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.5),
+          color: Colors.black.withValues(alpha:0.5),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+          border: Border.all(color: Colors.white.withValues(alpha:0.2), width: 1),
         ),
         child: Icon(icon, color: Colors.white, size: size * 0.45),
       ),
@@ -412,19 +426,19 @@ class _FlashButton extends StatelessWidget {
             height: 52,
             decoration: BoxDecoration(
               color: enabled
-                  ? Colors.yellow.withOpacity(0.20)
-                  : Colors.black.withOpacity(0.50),
+                  ? Colors.yellow.withValues(alpha:0.20)
+                  : Colors.black.withValues(alpha:0.50),
               shape: BoxShape.circle,
               border: Border.all(
                 color: enabled
                     ? Colors.yellow
-                    : Colors.white.withOpacity(0.2),
+                    : Colors.white.withValues(alpha:0.2),
                 width: 1.5,
               ),
               boxShadow: enabled
                   ? [
                       BoxShadow(
-                        color: Colors.yellow.withOpacity(0.30),
+                        color: Colors.yellow.withValues(alpha:0.30),
                         blurRadius: 10,
                         spreadRadius: 1,
                       ),
