@@ -45,6 +45,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearchMode = false;
   String _searchQuery = '';
+  int _preSearchTabLevel = 0;
 
   // USER SPECIFIC DATA
   String? _userSpecificId;
@@ -242,9 +243,16 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
   }
 
   void _onSearchChanged(String value) {
+    final bool willBeSearchMode = value.trim().isNotEmpty;
+
     setState(() {
+      if (willBeSearchMode && !_isSearchMode) {
+        _preSearchTabLevel = _activeTabLevel;
+      }
+
       _searchQuery = value;
-      _isSearchMode = value.trim().isNotEmpty;
+      _isSearchMode = willBeSearchMode;
+
       if (_isSearchMode) {
         final hasMatchOnCurrentTab = _filteredForLevel(_activeTabLevel).isNotEmpty;
         if (!hasMatchOnCurrentTab) {
@@ -255,6 +263,8 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
             }
           }
         }
+      } else {
+        _activeTabLevel = _preSearchTabLevel;
       }
     });
   }
@@ -283,7 +293,8 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
       'subunit_empty': 'Subunit not found',
       'area_empty': 'Area not found',
       'highlight_title': 'Your Locations',
-      'pro_mode_label': 'Professional Mode — All Locations',
+      'pro_mode_label': 'Professional Mode',
+      'exec_mode_label': 'Executive Access',
       'tab_lokasi': 'Location',
       'tab_unit': 'Unit',
       'tab_subunit': 'Subunit',
@@ -307,7 +318,8 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
       'subunit_empty': 'Subunit tidak ditemukan',
       'area_empty': 'Area tidak ditemukan',
       'highlight_title': 'Lokasi Anda',
-      'pro_mode_label': 'Mode Profesional — Semua Lokasi Tampil',
+      'pro_mode_label': 'Mode Profesional',
+      'exec_mode_label': 'Akses Eksekutif',
       'tab_lokasi': 'Lokasi',
       'tab_unit': 'Unit',
       'tab_subunit': 'Subunit',
@@ -331,7 +343,8 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
       'subunit_empty': '未找到子单位',
       'area_empty': '未找到区域',
       'highlight_title': '您的位置',
-      'pro_mode_label': '专业模式 — 显示所有位置',
+      'pro_mode_label': '专业模式',
+      'exec_mode_label': '高管权限',
       'tab_lokasi': '位置',
       'tab_unit': '单位',
       'tab_subunit': '子单位',
@@ -563,7 +576,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
             child: Text(
               label,
               style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
                 fontSize: 13,
                 color: textColor,
               ),
@@ -575,12 +588,20 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     );
   }
 
-  Widget _buildProModeBanner() {
+  Widget _buildAccessBanner() {
+    if (widget.isProMode) {
+      return _buildSectionHeader(
+        icon: Icons.workspace_premium_rounded,
+        label: _bs('pro_mode_label'),
+        gradientColors: const [Color(0xFF4ADE80), Color(0xFF16A34A)],
+        textColor: const Color(0xFF16A34A),
+      );
+    }
     return _buildSectionHeader(
       icon: Icons.workspace_premium_rounded,
-      label: _bs('pro_mode_label'),
-      gradientColors: const [Color(0xFF4ADE80), Color(0xFF16A34A)],
-      textColor: const Color(0xFF16A34A),
+      label: _bs('exec_mode_label'),
+      gradientColors: const [Color(0xFFF87171), Color(0xFFDC2626)],
+      textColor: const Color(0xFFDC2626),
     );
   }
 
@@ -652,7 +673,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     if (results.isEmpty) {
       return Column(
         children: [
-          if (showBanner) _buildProModeBanner(),
+          if (showBanner) _buildAccessBanner(),
           Expanded(child: _buildEmptyState()),
         ],
       );
@@ -662,7 +683,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
       padding: const EdgeInsets.only(top: 10, bottom: 20),
       physics: const BouncingScrollPhysics(),
       children: [
-        if (showBanner) _buildProModeBanner(),
+        if (showBanner) _buildAccessBanner(),
         ...results.map(
           (r) => Padding(
             padding: const EdgeInsets.symmetric(horizontal: 15),
