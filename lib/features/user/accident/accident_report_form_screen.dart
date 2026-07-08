@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shimmer/shimmer.dart';
 
+import '../home/alert/required_field_alert.dart';
 import 'accident_result_popup.dart';
 
 // ============================================================
@@ -680,17 +681,58 @@ class _AccidentReportFormScreenState
 
   // ── Submit ─────────────────────────────────────────────────
   Future<void> _submit() async {
-    if (_titleCtrl.text.trim().isEmpty) { _showError(t['err_title']!); return; }
-    final bool victimFilled = _selectedVictim != null ||
-        (_victimManualName != null && _victimManualName!.trim().isNotEmpty);
-    if (!victimFilled && !_isEdit) { _showError(t['err_victim']!); return; }
-    if (_descCtrl.text.trim().isEmpty) { _showError(t['err_desc']!); return; }
-    if (_incidentDate == null) { _showError(t['err_date']!); return; }
-    if (_incidentTime == null) { _showError(t['err_time']!); return; }
-    if (_selectedLocation == null) { _showError(t['err_location']!); return; }
-    if (_selectedCause == null) { _showError(t['err_cause']!); return; }
-    if (_selectedSeverity == null) { _showError(t['err_severity']!); return; }
-    if (_imageFile == null && _existingImageUrl == null) { _showError(t['err_photo']!); return; }
+    final List<MissingFieldItem> missing = [];
+
+    if (!_isEdit) {
+      final bool victimFilled = _selectedVictim != null ||
+          (_victimManualName != null && _victimManualName!.trim().isNotEmpty);
+      if (!victimFilled) {
+        missing.add(MissingFieldItem(icon: Icons.person_outline, label: t['victim']!));
+      }
+      if (_selectedSupervisor == null) {
+        missing.add(MissingFieldItem(icon: Icons.supervisor_account_outlined, label: t['supervisor']!));
+      }
+      final bool witnessFilled = _selectedWitness != null ||
+          (_witnessManualName != null && _witnessManualName!.trim().isNotEmpty);
+      if (!witnessFilled) {
+        missing.add(MissingFieldItem(icon: Icons.visibility_outlined, label: t['witness']!));
+      }
+    }
+    if (_imageFile == null && _existingImageUrl == null) {
+      missing.add(MissingFieldItem(icon: Icons.photo_camera_rounded, label: t['photo']!));
+    }
+    if (_titleCtrl.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.edit_note_rounded, label: t['title_field']!));
+    }
+    if (_descCtrl.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.description_outlined, label: t['desc']!));
+    }
+    if (_incidentDate == null) {
+      missing.add(MissingFieldItem(icon: Icons.calendar_today_outlined, label: t['date']!));
+    }
+    if (_incidentTime == null) {
+      missing.add(MissingFieldItem(icon: Icons.access_time_rounded, label: t['time']!));
+    }
+    if (_selectedLocation == null) {
+      missing.add(MissingFieldItem(icon: Icons.location_on_outlined, label: t['location']!));
+    }
+    if (_selectedCause == null) {
+      missing.add(MissingFieldItem(icon: Icons.warning_amber_rounded, label: t['cause']!));
+    }
+    if (_selectedSeverity == null) {
+      missing.add(MissingFieldItem(icon: Icons.health_and_safety_outlined, label: t['severity']!));
+    }
+    if (_deptCtrl.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.business_outlined, label: t['dept']!));
+    }
+    if (_actionCtrl.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.medical_services_outlined, label: t['action']!));
+    }
+
+    if (missing.isNotEmpty) {
+      RequiredFieldAlert.show(context, lang: widget.lang, missingFields: missing);
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -813,7 +855,7 @@ class _AccidentReportFormScreenState
                   _buildUserPickerWithManual(
                     label: t['victim']!, selectedUser: _selectedVictim,
                     manualName: _victimManualName, placeholder: t['select_victim']!,
-                    icon: CupertinoIcons.person_fill, isRequired: true,
+                    icon: Icons.person_outline,
                     onPickerTap: () => _showUserPicker(
                       role: 'victim',
                       onSelected: (u) => setState(() {
@@ -833,8 +875,7 @@ class _AccidentReportFormScreenState
                     value: _selectedSupervisor?['nama'],
                     placeholder: (_selectedVictim == null && (_victimManualName == null || _victimManualName!.trim().isEmpty))
                         ? t['supervisor_hint']! : t['select_supervisor']!,
-                    icon: CupertinoIcons.person_badge_plus,
-                    isRequired: false,
+                    icon: Icons.supervisor_account_outlined,
                     isLocked: _selectedVictim == null && (_victimManualName == null || _victimManualName!.trim().isEmpty),
                     onTap: (_selectedVictim == null && (_victimManualName == null || _victimManualName!.trim().isEmpty))
                         ? null
@@ -847,7 +888,7 @@ class _AccidentReportFormScreenState
                   _buildUserPickerWithManual(
                     label: t['witness']!, selectedUser: _selectedWitness,
                     manualName: _witnessManualName, placeholder: t['select_witness']!,
-                    icon: CupertinoIcons.eye_fill, isRequired: false,
+                    icon: Icons.visibility_outlined,
                     onPickerTap: () => _showUserPicker(
                       role: 'witness',
                       onSelected: (u) => setState(() { _selectedWitness = u; _witnessManualName = null; }),
@@ -860,33 +901,31 @@ class _AccidentReportFormScreenState
                 _buildSectionHeader(t['detail_title']!, t['detail_sub']!, CupertinoIcons.doc_text_fill),
                 const SizedBox(height: 14),
                 _buildSectionCard(children: [
-                  _buildLabel(t['photo']!, isRequired: true),
+                  _buildLabel(t['photo']!, icon: Icons.photo_camera_rounded),
                   _buildPhotoWidget(),
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
-                  _buildLabel(t['title_field']!, isRequired: true),
-                  _buildTextField(_titleCtrl, t['title_hint']!, CupertinoIcons.text_cursor),
+                  _buildLabel(t['title_field']!, icon: Icons.edit_note_rounded),
+                  _buildTextField(_titleCtrl, t['title_hint']!),
                   const SizedBox(height: 16),
-                  _buildLabel(t['desc']!, isRequired: true),
-                  _buildTextField(_descCtrl, t['desc_hint']!, CupertinoIcons.doc_text, maxLines: 4),
+                  _buildLabel(t['desc']!, icon: Icons.description_outlined),
+                  _buildTextField(_descCtrl, t['desc_hint']!, maxLines: 4),
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
                   Row(children: [
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      _buildLabel(t['date']!, isRequired: true),
+                      _buildLabel(t['date']!, icon: Icons.calendar_today_outlined),
                       _buildTapField(
-                        icon: CupertinoIcons.calendar,
                         text: _incidentDate != null ? DateFormat('dd/MM/yyyy').format(_incidentDate!) : t['pick_date']!,
                         hasValue: _incidentDate != null, onTap: _pickDate,
                       ),
                     ])),
                     const SizedBox(width: 10),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      _buildLabel(t['time']!, isRequired: true),
+                      _buildLabel(t['time']!, icon: Icons.access_time_rounded),
                       _buildTapField(
-                        icon: CupertinoIcons.clock_fill,
                         text: _incidentTime != null ? _incidentTime!.format(context) : t['pick_time']!,
                         hasValue: _incidentTime != null, onTap: _pickTime,
                       ),
@@ -895,23 +934,20 @@ class _AccidentReportFormScreenState
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
-                  _buildLabel(t['location']!, isRequired: true),
+                  _buildLabel(t['location']!, icon: Icons.location_on_outlined),
                   _buildTapField(
-                    icon: CupertinoIcons.location_fill,
                     text: _selectedLocation?['nama'] ?? t['pick_location']!,
                     hasValue: _selectedLocation != null, onTap: _showLocationPicker,
                   ),
                   const SizedBox(height: 16),
-                  _buildLabel(t['cause']!, isRequired: true),
+                  _buildLabel(t['cause']!, icon: Icons.warning_amber_rounded),
                   _buildTapField(
-                    icon: CupertinoIcons.exclamationmark_triangle_fill,
                     text: _selectedCause ?? t['pick_cause']!,
                     hasValue: _selectedCause != null, onTap: _showCausePicker,
                   ),
                   const SizedBox(height: 16),
-                  _buildLabel(t['severity']!, isRequired: true),
+                  _buildLabel(t['severity']!, icon: Icons.health_and_safety_outlined),
                   _buildTapField(
-                    icon: Icons.health_and_safety_outlined,
                     text: _selectedSeverity ?? t['pick_severity']!,
                     hasValue: _selectedSeverity != null, onTap: _showSeverityPicker,
                     severityColor: _selectedSeverity != null ? _severityColorFrom(_selectedSeverity) : null,
@@ -919,11 +955,11 @@ class _AccidentReportFormScreenState
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
-                  _buildLabel(t['dept']!, isRequired: false),
-                  _buildTextField(_deptCtrl, t['dept_hint']!, CupertinoIcons.building_2_fill),
+                  _buildLabel(t['dept']!, icon: Icons.business_outlined),
+                  _buildTextField(_deptCtrl, t['dept_hint']!),
                   const SizedBox(height: 16),
-                  _buildLabel(t['action']!, isRequired: false),
-                  _buildTextField(_actionCtrl, t['action_hint']!, CupertinoIcons.bandage_fill, maxLines: 3),
+                  _buildLabel(t['action']!, icon: Icons.medical_services_outlined),
+                  _buildTextField(_actionCtrl, t['action_hint']!, maxLines: 3),
                 ]),
               ],
             ),
@@ -934,7 +970,7 @@ class _AccidentReportFormScreenState
       bottomNavigationBar: _isSaving
           ? null
           : Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, _bottomSafeSpacing(context)),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 border: Border(top: BorderSide(color: CupertinoColors.systemGrey5, width: 1)),
@@ -959,6 +995,11 @@ class _AccidentReportFormScreenState
               ),
             ),
     );
+  }
+
+  double _bottomSafeSpacing(BuildContext context) {
+    final double navInset = MediaQuery.of(context).padding.bottom;
+    return navInset > 0 ? navInset + 16 : 28;
   }
 
   // ── UI Helpers ─────────────────────────────────────────────
@@ -1001,24 +1042,25 @@ class _AccidentReportFormScreenState
     );
   }
 
-  Widget _buildLabel(String label, {bool isRequired = false}) {
+  Widget _buildLabel(String label, {required IconData icon}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 2),
       child: Row(children: [
-        Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: const Color(0xFF475569))),
-        if (isRequired) const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed, fontWeight: FontWeight.bold)),
+        Icon(icon, size: 16, color: const Color(0xFF1D72F3)),
+        const SizedBox(width: 6),
+        Text(label, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF1D72F3))),
+        const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed, fontWeight: FontWeight.bold)),
       ]),
     );
   }
 
-  Widget _buildTextField(TextEditingController ctrl, String hint, IconData icon, {int maxLines = 1}) {
+  Widget _buildTextField(TextEditingController ctrl, String hint, {int maxLines = 1}) {
     return TextFormField(
       controller: ctrl, maxLines: maxLines,
       style: GoogleFonts.inter(fontSize: 15, color: Colors.black87),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
-        prefixIcon: maxLines == 1 ? Icon(icon, color: const Color(0xFF2563EB), size: 20) : null,
         filled: true, fillColor: const Color(0xFFF8FAFF),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE0E7FF), width: 1)),
@@ -1028,7 +1070,7 @@ class _AccidentReportFormScreenState
     );
   }
 
-  Widget _buildTapField({required IconData icon, required String text, required VoidCallback onTap, bool hasValue = false, Color? severityColor}) {
+  Widget _buildTapField({required String text, required VoidCallback onTap, bool hasValue = false, Color? severityColor}) {
     final activeColor = severityColor ?? const Color(0xFF2563EB);
     return GestureDetector(
       onTap: onTap,
@@ -1040,8 +1082,6 @@ class _AccidentReportFormScreenState
           border: Border.all(color: hasValue ? activeColor : const Color(0xFFE0E7FF), width: hasValue ? 1.5 : 1),
         ),
         child: Row(children: [
-          Icon(icon, color: hasValue ? activeColor : const Color(0xFFCBD5E1), size: 20),
-          const SizedBox(width: 12),
           Expanded(child: Text(text, style: GoogleFonts.inter(fontSize: 15, color: hasValue ? Colors.black87 : const Color(0xFFCBD5E1), fontWeight: hasValue ? FontWeight.w500 : FontWeight.normal))),
           Icon(CupertinoIcons.chevron_down, color: const Color(0xFF2563EB), size: 18),
         ]),
@@ -1051,10 +1091,10 @@ class _AccidentReportFormScreenState
 
   Widget _buildUserPickerCard({
     required String label, required String? value, required String placeholder,
-    required IconData icon, required bool isRequired, VoidCallback? onTap, bool isLocked = false,
+    required IconData icon, VoidCallback? onTap, bool isLocked = false,
   }) {
     return _buildSectionCard(children: [
-      _buildLabel(label, isRequired: isRequired),
+      _buildLabel(label, icon: icon),
       GestureDetector(
         onTap: onTap,
         child: Container(
@@ -1065,8 +1105,6 @@ class _AccidentReportFormScreenState
             border: Border.all(color: value != null ? const Color(0xFF2563EB) : const Color(0xFFE0E7FF), width: value != null ? 1.5 : 1),
           ),
           child: Row(children: [
-            Icon(icon, color: isLocked ? const Color(0xFFCBD5E1) : value != null ? const Color(0xFF2563EB) : const Color(0xFFCBD5E1), size: 20),
-            const SizedBox(width: 12),
             Expanded(child: Text(value ?? placeholder,
                 style: GoogleFonts.inter(fontSize: 15, color: value != null ? Colors.black87 : const Color(0xFFCBD5E1), fontWeight: value != null ? FontWeight.w500 : FontWeight.normal))),
             isLocked
@@ -1081,7 +1119,7 @@ class _AccidentReportFormScreenState
   Widget _buildUserPickerWithManual({
     required String label, required Map<String, dynamic>? selectedUser,
     required String? manualName, required String placeholder, required IconData icon,
-    required bool isRequired, required VoidCallback onPickerTap,
+    required VoidCallback onPickerTap,
     required ValueChanged<String> onManualChanged, required VoidCallback onClear,
   }) {
     return Container(
@@ -1092,14 +1130,12 @@ class _AccidentReportFormScreenState
         boxShadow: [BoxShadow(color: const Color(0xFF3B82F6).withValues(alpha:0.05), blurRadius: 12, offset: const Offset(0, 2))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _buildLabel(label, isRequired: isRequired),
+        _buildLabel(label, icon: icon),
         if (selectedUser != null)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFF2563EB), width: 1.5)),
             child: Row(children: [
-              Icon(icon, color: const Color(0xFF2563EB), size: 20),
-              const SizedBox(width: 12),
               Expanded(child: Text(selectedUser['nama'] ?? '-', style: GoogleFonts.inter(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w500))),
               GestureDetector(onTap: onClear, child: const Icon(CupertinoIcons.xmark_circle_fill, color: Color(0xFF94A3B8), size: 20)),
             ]),
@@ -1111,7 +1147,6 @@ class _AccidentReportFormScreenState
             decoration: InputDecoration(
               hintText: placeholder,
               hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
-              prefixIcon: Icon(icon, color: const Color(0xFF2563EB), size: 20),
               filled: true, fillColor: const Color(0xFFF8FAFF),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE0E7FF), width: 1)),
