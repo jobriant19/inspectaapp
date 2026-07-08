@@ -1307,9 +1307,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomNav() {
-    final double bottomPadding = MediaQuery.of(context).padding.bottom;
-    // Gunakan padding bottom sistem secara penuh agar selalu aman di semua HP
-    final double safeBottom = bottomPadding > 0 ? bottomPadding : 8;
+    final mq = MediaQuery.of(context);
+    final double rawInset = mq.viewPadding.bottom > mq.padding.bottom
+        ? mq.viewPadding.bottom
+        : mq.padding.bottom;
+    final double safeBottom = rawInset > 0 ? rawInset + 6 : 16;
 
     return Container(
       color: Colors.white,
