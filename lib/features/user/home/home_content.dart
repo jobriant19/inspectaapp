@@ -138,9 +138,18 @@ class HomeContentState extends State<HomeContent> {
     if (widget.initialPendingAudits != null) {
       _pendingAuditsSync = widget.initialPendingAudits;
       _pendingAuditsFuture = Future.value(widget.initialPendingAudits);
+      if (_pendingAuditsSync!.isNotEmpty) {
+        AuditSelfieWarmupService.instance.warmUp();
+      }
     } else {
       _pendingAuditsFuture = _fetchPendingAudits();
     }
+  }
+
+  @override
+  void dispose() {
+    AuditSelfieWarmupService.instance.release();
+    super.dispose();
   }
 
   void refreshFindings() {
@@ -185,7 +194,7 @@ class HomeContentState extends State<HomeContent> {
         } catch (_) {}
       }));
 
-      return List<Map<String, dynamic>>.from(rows).map((row) {
+      final result = List<Map<String, dynamic>>.from(rows).map((row) {
         String? jenisLabel;
         final jenisData = row['JenisAudit'] as Map<String, dynamic>?;
         if (jenisData != null) {
@@ -201,6 +210,11 @@ class HomeContentState extends State<HomeContent> {
           'jenis_audit_label': jenisLabel,
         };
       }).toList();
+
+      if (result.isNotEmpty) {
+        AuditSelfieWarmupService.instance.warmUp();
+      }
+      return result;
     } catch (e) {
       debugPrint('Pending audits error: $e');
       return [];
@@ -496,6 +510,13 @@ class HomeContentState extends State<HomeContent> {
     'area': Icons.place_rounded,
   };
 
+  static const Map<String, Color> _auditLevelColors = {
+    'lokasi': Color(0xFF10B981),
+    'unit': Color(0xFF6366F1),
+    'subunit': Color(0xFFFBBF24),
+    'area': Color(0xFFF472B6),
+  };
+
   String _formatAuditPeriod(String fromRaw, String toRaw) {
     try {
       final fParts = fromRaw.split('-');
@@ -525,8 +546,8 @@ class HomeContentState extends State<HomeContent> {
   }
 
   Widget _buildAuditTaskCard(Map<String, dynamic> task) {
-    const auditColor = Color(0xFF14B8A6);
     final level = task['level_type'] as String;
+    final Color auditColor = _auditLevelColors[level] ?? const Color(0xFF14B8A6);
     final locationName = task['location_name'] as String;
     final period = _formatAuditPeriod(
       task['periode_mulai']?.toString() ?? '',
@@ -553,7 +574,10 @@ class HomeContentState extends State<HomeContent> {
             ),
           ),
         );
-        if (selfieUrl == null || !mounted) return;
+        if (selfieUrl == null || !mounted) {
+          AuditSelfieWarmupService.instance.warmUp();
+          return;
+        }
 
         await Navigator.push(
           context,
@@ -580,8 +604,8 @@ class HomeContentState extends State<HomeContent> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF14B8A6), Color(0xFF0F766E)],
+          gradient: LinearGradient(
+            colors: [auditColor.withValues(alpha: 0.85), auditColor],
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
@@ -593,7 +617,7 @@ class HomeContentState extends State<HomeContent> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), borderRadius: BorderRadius.circular(10)),
-              child: const Icon(Icons.fact_check_rounded, size: 20, color: Colors.white),
+              child: Icon(levelIcon, size: 20, color: Colors.white),
             ),
             const SizedBox(width: 12),
             Expanded(

@@ -4,15 +4,67 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:lottie/lottie.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AuditSelfieScreen — selfie wajib sebelum formulir audit.
-// Mendukung Flutter Web (HTML renderer) dan Android.
-//
-// PENTING untuk web: jalankan dengan HTML renderer:
-//   flutter run -d chrome --web-port=3000 --web-renderer html
-// ─────────────────────────────────────────────────────────────────────────────
+class AuditSelfieWarmupService {
+  AuditSelfieWarmupService._();
+  static final AuditSelfieWarmupService instance = AuditSelfieWarmupService._();
+
+  CameraController? controller;
+  List<CameraDescription>? cameras;
+  int selectedCameraIndex = 0;
+  bool flashSupported = false;
+  bool isWarming = false;
+
+  bool get isReady => controller != null && controller!.value.isInitialized;
+
+  Future<void> warmUp() async {
+    if (isReady || isWarming) return;
+    isWarming = true;
+    try {
+      cameras ??= await availableCameras();
+      if (cameras == null || cameras!.isEmpty) return;
+
+      int idx = cameras!.indexWhere((c) => c.lensDirection == CameraLensDirection.front);
+      if (idx < 0) idx = 0;
+      selectedCameraIndex = idx;
+
+      final newController = CameraController(
+        cameras![selectedCameraIndex],
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+      await newController.initialize();
+
+      bool flashOk = false;
+      if (!kIsWeb) {
+        try {
+          await newController.setFlashMode(FlashMode.off);
+          flashOk = true;
+        } catch (_) {}
+      }
+
+      controller = newController;
+      flashSupported = flashOk;
+    } catch (e) {
+      debugPrint('Error warming up audit selfie camera: $e');
+    } finally {
+      isWarming = false;
+    }
+  }
+
+  CameraController? takeController() {
+    final c = controller;
+    controller = null;
+    return c;
+  }
+
+  Future<void> release() async {
+    await controller?.dispose();
+    controller = null;
+  }
+}
+
 class AuditSelfieScreen extends StatefulWidget {
   final String lang;
   final String locationName;
@@ -38,11 +90,30 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
   bool _isCameraInitialized = false;
   bool _flashEnabled = false;
   bool _flashSupported = false;
+  // ignore: unused_field
   bool _isRetaking = false;
 
   Uint8List? _capturedBytes;
   bool _uploading = false;
   String? _errorMsg;
+
+  IconData get _locationLevelIcon {
+    switch (widget.levelType) {
+      case 'area': return Icons.place_rounded;
+      case 'subunit': return Icons.layers_rounded;
+      case 'unit': return Icons.business_rounded;
+      default: return Icons.location_city_rounded;
+    }
+  }
+
+  Color get _locationLevelColor {
+    switch (widget.levelType) {
+      case 'area': return const Color(0xFFF472B6);
+      case 'subunit': return const Color(0xFFFBBF24);
+      case 'unit': return const Color(0xFF6366F1);
+      default: return const Color(0xFF10B981);
+    }
+  }
 
   static const _primary = Color(0xFF14B8A6);
 
@@ -64,10 +135,23 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
     super.dispose();
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Camera Init
-  // ─────────────────────────────────────────────────────────────────────────
   Future<void> _initCamera() async {
+    final warm = AuditSelfieWarmupService.instance;
+    if (warm.isReady) {
+      _cameras = warm.cameras ?? [];
+      _selectedCameraIndex = warm.selectedCameraIndex;
+      _controller = warm.takeController();
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+          _flashEnabled = false;
+          _flashSupported = warm.flashSupported;
+          _errorMsg = null;
+        });
+      }
+      return;
+    }
+
     if (mounted) {
       setState(() {
         _errorMsg = null;
@@ -76,9 +160,7 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
     }
 
     try {
-      // Langsung panggil availableCameras, tidak perlu JS interop
       _cameras = await availableCameras();
-
       if (!mounted) return;
 
       if (_cameras.isEmpty) {
@@ -90,9 +172,6 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
         return;
       }
 
-      // Pada web, sebelum izin diberikan, lensDirection mungkin 'unknown'.
-      // Ini tidak masalah, kita fallback ke index 0. Nanti saat di-initialize, 
-      // browser akan otomatis memunculkan pop-up izin kamera.
       _selectedCameraIndex = _cameras.indexWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
       );
@@ -103,7 +182,6 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
       print('🚨 DETAIL ERROR KAMERA: $e');
       if (mounted) {
         setState(() => _errorMsg = _t(
-              // Teks error diperbarui, menghapus referensi --web-renderer html lama
               'Camera access failed. Please ensure camera permission is allowed in your browser settings.',
               'Akses kamera gagal. Pastikan izin kamera sudah diaktifkan di pengaturan browser Anda.',
               '摄像头访问失败。请确保在浏览器设置中已授予权限。',
@@ -241,29 +319,15 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Build
-  // ─────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    // Tampilkan loading screen full (putih) saat kamera belum siap
-    // dan tidak ada foto yang sedang di-preview
-    if ((!_isCameraInitialized || _isRetaking) &&
-        _capturedBytes == null &&
-        _errorMsg == null) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: _buildCameraLoadingScreen(),
-      );
-    }
-
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
           _buildCameraOrPreview(),
-          _buildAppBar(),         // AppBar di-stack di atas preview
+          _buildAppBar(),
           _buildBottomControls(),
           if (_uploading) _buildUploadingOverlay(),
         ],
@@ -271,7 +335,6 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
     );
   }
 
-  /// AppBar transparan di atas Stack, konsisten dengan CameraFindingScreen.
   Widget _buildAppBar() {
     return Positioned(
       top: 0,
@@ -283,43 +346,44 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
           child: Row(
             children: [
-              // ── Tombol kembali ──
               _buildCircleIconButton(
                 icon: Icons.arrow_back_ios_new_rounded,
                 onTap: () => Navigator.pop(context),
               ),
               const SizedBox(width: 10),
-              // ── Label lokasi di tengah ──
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 13),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.6),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.25),
+                      color: _locationLevelColor.withOpacity(0.6),
                       width: 1.2,
                     ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.location_on_rounded,
-                          color: _primary, size: 18),
+                      Icon(_locationLevelIcon, color: _locationLevelColor, size: 18),
                       const SizedBox(width: 8),
                       Flexible(
-                        child: Text(
-                          widget.locationName.toUpperCase(),
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                            letterSpacing: 0.5,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.center,
+                          child: Text(
+                            widget.locationName.toUpperCase(),
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              letterSpacing: 0.5,
+                            ),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.visible,
+                            textAlign: TextAlign.center,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
                         ),
                       ),
                     ],
@@ -327,7 +391,6 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              // ── Mirror lebar tombol back agar lokasi benar-benar center ──
               const SizedBox(width: 52),
             ],
           ),
@@ -358,7 +421,6 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
   }
 
   Widget _buildCameraOrPreview() {
-    // Loading ditangani di build() sebelum Scaffold ini dirender
     if (_capturedBytes != null) {
       return Positioned.fill(
           child: Image.memory(_capturedBytes!, fit: BoxFit.cover));
@@ -397,6 +459,10 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
           ),
         ),
       );
+    }
+
+    if (_controller == null || !_isCameraInitialized) {
+      return const Positioned.fill(child: ColoredBox(color: Colors.black));
     }
 
     return Positioned.fill(child: CameraPreview(_controller!));
@@ -647,16 +713,11 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
             onPressed: _uploading
                 ? null
                 : () async {
-                    // Set _isRetaking = true agar build() menampilkan
-                    // loading screen putih, bukan freeze preview lama
                     setState(() {
                       _capturedBytes = null;
                       _isRetaking = true;
                     });
 
-                    // Dispose penuh lalu reinit — ini path paling stabil
-                    // karena takePicture() meninggalkan controller dalam
-                    // state paused yang tidak konsisten di semua platform
                     await _startCamera(_selectedCameraIndex);
 
                     if (mounted) setState(() => _isRetaking = false);
@@ -715,64 +776,6 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  /// Loading screen putih dengan Lottie, konsisten dengan CameraFindingScreen.
-  Widget _buildCameraLoadingScreen() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 220,
-            height: 220,
-            child: Lottie.asset(
-              'assets/lottie/camera_loading.json',
-              fit: BoxFit.contain,
-              frameRate: FrameRate.max,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.camera_alt_rounded,
-                size: 90,
-                color: Color(0xFF0284C7),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            _t('Loading Camera', 'Memuat Kamera', '正在加载相机'),
-            style: const TextStyle(
-              color: Color(0xFF0284C7),
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _t('Preparing lens for you...', 'Menyiapkan lensa untuk Anda...',
-                '正在为您准备镜头...'),
-            style: const TextStyle(
-              color: Color(0xFF38BDF8),
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: 140,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: const LinearProgressIndicator(
-                minHeight: 3,
-                backgroundColor: Color(0xFFBAE6FD),
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(Color(0xFF0284C7)),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
