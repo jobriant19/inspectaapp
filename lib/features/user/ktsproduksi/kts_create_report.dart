@@ -7,6 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../home/alert/required_field_alert.dart';
+
 class KtsProduksiFormScreen extends StatefulWidget {
   final String lang;
   final Map<String, dynamic>? existingData;
@@ -44,7 +46,7 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
       'judul': 'Judul KTS', 'judul_hint': 'Contoh: Part tidak sesuai',
       'item': 'Item Produksi', 'item_hint': 'Cari item...',
       'qty': 'Jumlah', 'photo': 'Foto Bukti', 'add_photo': 'Tambah Foto',
-      'desc': 'Deskripsi (Opsional)', 'desc_hint': 'Jelaskan temuan secara detail...',
+      'desc': 'Deskripsi', 'desc_hint': 'Jelaskan temuan secara detail...',
       'submit': 'Simpan Laporan', 'update': 'Perbarui Laporan',
       'err_order': 'No. Order wajib diisi!', 'err_judul': 'Judul wajib diisi!',
       'err_item': 'Item produksi wajib diisi!',
@@ -57,7 +59,7 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
       'judul': 'KTS Title', 'judul_hint': 'Example: Part mismatch',
       'item': 'Production Item', 'item_hint': 'Search item...',
       'qty': 'Qty', 'photo': 'Evidence Photo', 'add_photo': 'Add Photo',
-      'desc': 'Description (Optional)', 'desc_hint': 'Explain the finding...',
+      'desc': 'Description', 'desc_hint': 'Explain the finding...',
       'submit': 'Save Report', 'update': 'Update Report',
       'err_order': 'Order No. is required!', 'err_judul': 'Title is required!',
       'err_item': 'Production item is required!',
@@ -70,7 +72,7 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
       'judul': '标题', 'judul_hint': '例如：零件不符',
       'item': '生产项目', 'item_hint': '搜索项目...',
       'qty': '数量', 'photo': '证据照片', 'add_photo': '添加照片',
-      'desc': '描述（可选）', 'desc_hint': '详细说明...',
+      'desc': '描述', 'desc_hint': '详细说明...',
       'submit': '保存报告', 'update': '更新报告',
       'err_order': '订单号为必填项！', 'err_judul': '标题为必填项！',
       'err_item': '生产项目为必填项！',
@@ -271,9 +273,38 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
   }
 
   Future<void> _submit() async {
-    if (_noOrderCtrl.text.trim().isEmpty) return _showError(t['err_order']!);
-    if (_judulCtrl.text.trim().isEmpty) return _showError(t['err_judul']!);
-    if (_itemSearchCtrl.text.trim().isEmpty) return _showError(t['err_item']!);
+    final List<MissingFieldItem> missing = [];
+
+    if (_noOrderCtrl.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.confirmation_number_outlined, label: t['no_order']!));
+    }
+    if (_judulCtrl.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.edit_note_rounded, label: t['judul']!));
+    }
+    if (_itemSearchCtrl.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.inventory_2_outlined, label: t['item']!));
+    }
+    final int? qtyVal = int.tryParse(_qtyCtrl.text.trim());
+    if (qtyVal == null || qtyVal < 1) {
+      missing.add(MissingFieldItem(icon: Icons.production_quantity_limits_rounded, label: t['qty']!));
+    }
+    if (_selectedAssignee == null) {
+      missing.add(MissingFieldItem(
+        icon: Icons.person_outline,
+        label: widget.lang == 'ZH' ? '负责人' : widget.lang == 'EN' ? 'Person in Charge' : 'Penanggung Jawab',
+      ));
+    }
+    if (_imageFile == null && _existingImageUrl == null) {
+      missing.add(MissingFieldItem(icon: Icons.photo_camera_rounded, label: t['photo']!));
+    }
+    if (_descCtrl.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.sticky_note_2_outlined, label: t['desc']!));
+    }
+
+    if (missing.isNotEmpty) {
+      RequiredFieldAlert.show(context, lang: widget.lang, missingFields: missing);
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -339,11 +370,24 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(icon: const Icon(CupertinoIcons.back, color: _kPrimary), onPressed: () => Navigator.pop(context)),
-        title: Text(_isEdit ? t['edit_title']! : t['create_title']!, style: GoogleFonts.inter(color: _kPrimary, fontWeight: FontWeight.w700, fontSize: 17)),
+        shadowColor: Colors.black12,
+        surfaceTintColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1D72F3)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          _isEdit ? t['edit_title']! : t['create_title']!,
+          style: GoogleFonts.poppins(
+              color: const Color(0xFF1D72F3),
+              fontWeight: FontWeight.bold,
+              fontSize: 18),
+        ),
         centerTitle: true,
-        bottom: PreferredSize(preferredSize: const Size.fromHeight(1), child: Container(color: _kBorder, height: 1)),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey.shade200, height: 1),
+        ),
       ),
       body: Stack(
         children: [
@@ -353,11 +397,11 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildSectionCard(children: [
-                  _buildLabel(t['no_order']!, isRequired: true),
-                  _buildTextField(_noOrderCtrl, t['no_order_hint']!, CupertinoIcons.number),
+                  _buildLabel(t['no_order']!, icon: Icons.confirmation_number_outlined),
+                  _buildTextField(_noOrderCtrl, t['no_order_hint']!),
                   const SizedBox(height: 20),
-                  _buildLabel(t['judul']!, isRequired: true),
-                  _buildTextField(_judulCtrl, t['judul_hint']!, CupertinoIcons.text_cursor),
+                  _buildLabel(t['judul']!, icon: Icons.edit_note_rounded),
+                  _buildTextField(_judulCtrl, t['judul_hint']!),
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
@@ -369,8 +413,8 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildLabel(t['item']!, isRequired: true),
-                            _buildTextField(_itemSearchCtrl, t['item_hint']!, CupertinoIcons.cube_box),
+                            _buildLabel(t['item']!, icon: Icons.inventory_2_outlined),
+                            _buildTextField(_itemSearchCtrl, t['item_hint']!),
                           ],
                         ),
                       ),
@@ -380,7 +424,7 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildLabel(t['qty']!, isRequired: true),
+                            _buildLabel(t['qty']!, icon: Icons.production_quantity_limits_rounded),
                             _buildQtyField(),
                           ],
                         ),
@@ -390,22 +434,22 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
-                  _buildLabel(widget.lang == 'ZH' ? '负责人' : widget.lang == 'EN' ? 'Person in Charge' : 'Penanggung Jawab', isRequired: false),
+                  _buildLabel(widget.lang == 'ZH' ? '负责人' : widget.lang == 'EN' ? 'Person in Charge' : 'Penanggung Jawab', icon: Icons.person_outline),
                   _buildTapField(icon: CupertinoIcons.person_fill, text: _selectedAssignee?['nama'] ?? (widget.lang == 'ZH' ? '选择负责人' : widget.lang == 'EN' ? 'Select PIC' : 'Pilih Penanggung Jawab'), hasValue: _selectedAssignee != null, onTap: _showAssigneePicker),
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
-                  _buildLabel(t['photo']!, isRequired: false),
+                  _buildLabel(t['photo']!, icon: Icons.photo_camera_rounded),
                   _buildPhotoWidget(),
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
-                  _buildLabel(t['desc']!, isRequired: false),
-                  _buildTextField(_descCtrl, t['desc_hint']!, CupertinoIcons.doc_text, maxLines: 4),
+                  _buildLabel(t['desc']!, icon: Icons.sticky_note_2_outlined),
+                  _buildTextField(_descCtrl, t['desc_hint']!, maxLines: 4),
                 ]),
                 const SizedBox(height: 24),
                 _buildSubmitButton(),
-                const SizedBox(height: 32),
+                SizedBox(height: _bottomSafeSpacing(context)),
               ],
             ),
           ),
@@ -413,6 +457,11 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
         ],
       ),
     );
+  }
+
+  double _bottomSafeSpacing(BuildContext context) {
+    final double navInset = MediaQuery.of(context).padding.bottom;
+    return navInset > 0 ? navInset + 16 : 24;
   }
 
   Widget _buildSubmitButton() {
@@ -452,19 +501,21 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
     );
   }
 
-  Widget _buildLabel(String label, {bool isRequired = false}) {
+  Widget _buildLabel(String label, {required IconData icon}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 2),
       child: Row(
         children: [
-          Text(label, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: const Color(0xFF475569))),
-          if (isRequired) const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed, fontWeight: FontWeight.bold)),
+          Icon(icon, size: 16, color: const Color(0xFF1D72F3)),
+          const SizedBox(width: 6),
+          Text(label, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF1D72F3))),
+          const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  Widget _buildTextField(TextEditingController ctrl, String hint, IconData icon, {int maxLines = 1}) {
+  Widget _buildTextField(TextEditingController ctrl, String hint, {IconData? icon, int maxLines = 1}) {
     return TextFormField(
       controller: ctrl,
       maxLines: maxLines,
@@ -472,7 +523,7 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
-        prefixIcon: maxLines == 1 ? Icon(icon, color: _kPrimary, size: 20) : null,
+        prefixIcon: (maxLines == 1 && icon != null) ? Icon(icon, color: _kPrimary, size: 20) : null,
         filled: true,
         fillColor: const Color(0xFFF8FAFF),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),

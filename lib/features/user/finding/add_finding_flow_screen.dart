@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/utils/image_picker_helper.dart';
+import '../home/alert/required_field_alert.dart';
 import 'finding_location_filter.dart';
 import 'finding_pick_category.dart';
 import 'finding_pick_deadline.dart';
@@ -253,15 +254,34 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   // Save Logic - FIXED column name issue
   // ================================================
   Future<void> _saveFinding({bool createNewAfter = false}) async {
+    final List<MissingFieldItem> missing = [];
+
+    if (_selectedLocation == null) {
+      missing.add(MissingFieldItem(icon: Icons.map_rounded, label: _texts['location']!));
+    }
+    if (_imageXFile == null) {
+      missing.add(MissingFieldItem(icon: Icons.photo_camera_rounded, label: _texts['photo']!));
+    }
     if (_titleCtrl.text.trim().isEmpty) {
-      _showSnackBar(_texts['err_title']!, isError: true);
-      return;
+      missing.add(MissingFieldItem(icon: Icons.edit_note_rounded, label: _texts['form_title']!));
+    }
+    if (_notesCtrl.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.sticky_note_2_outlined, label: _texts['notes']!));
     }
     if (_selectedCategory == null) {
-      _showSnackBar(_texts['err_category']!, isError: true);
+      missing.add(MissingFieldItem(icon: Icons.category_outlined, label: _texts['category']!));
+    }
+    if (_selectedDueDate == null) {
+      missing.add(MissingFieldItem(icon: Icons.calendar_today_outlined, label: _texts['due_date']!));
+    }
+    if (_selectedAssignee == null) {
+      missing.add(MissingFieldItem(icon: Icons.person_outline, label: _texts['assignee']!));
+    }
+
+    if (missing.isNotEmpty) {
+      RequiredFieldAlert.show(context, lang: widget.lang, missingFields: missing);
       return;
     }
-    if (_imageXFile == null) return;
 
     setState(() => _isSaving = true);
 
@@ -818,7 +838,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   // Action Buttons
                   // Action Buttons — selalu tampil, loading pakai overlay
               _buildActionButtons(),
-              const SizedBox(height: 40),
+              SizedBox(height: _bottomSafeSpacing(context)),
             ],
           ),
         ),
@@ -1106,6 +1126,11 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         Expanded(child: Divider(color: Colors.grey.shade300)),
       ],
     );
+  }
+
+  double _bottomSafeSpacing(BuildContext context) {
+    final double navInset = MediaQuery.of(context).padding.bottom;
+    return navInset > 0 ? navInset + 16 : 20;
   }
 
   Widget _buildActionButtons() {
