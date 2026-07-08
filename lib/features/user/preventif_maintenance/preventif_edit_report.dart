@@ -56,12 +56,12 @@ class _PmEditScreenState extends State<PmEditScreen> {
       'judul_hint'   : 'Contoh: Perawatan mesin laser',
       'bagian'       : 'Bagian',
       'pick_bagian'  : 'Pilih Bagian',
-      'file'         : 'File Lampiran (Opsional)',
+      'file'         : 'File Lampiran',
       'add_file'     : 'Tambah File',
       'file_hint'    : 'PDF, Word, Excel, dan lainnya',
       'change_file'  : 'Ganti File',
       'remove_file'  : 'Hapus File',
-      'desc'         : 'Deskripsi (Opsional)',
+      'desc'         : 'Deskripsi',
       'desc_hint'    : 'Jelaskan kegiatan PM...',
       'update'       : 'Perbarui Laporan',
       'err_judul'    : 'Judul wajib diisi!',
@@ -84,12 +84,12 @@ class _PmEditScreenState extends State<PmEditScreen> {
       'judul_hint'   : 'Example: Laser machine maintenance',
       'bagian'       : 'Section',
       'pick_bagian'  : 'Select Section',
-      'file'         : 'Attachment File (Optional)',
+      'file'         : 'Attachment File',
       'add_file'     : 'Add File',
       'file_hint'    : 'PDF, Word, Excel, and others',
       'change_file'  : 'Change File',
       'remove_file'  : 'Remove File',
-      'desc'         : 'Description (Optional)',
+      'desc'         : 'Description',
       'desc_hint'    : 'Describe PM activity...',
       'update'       : 'Update Report',
       'err_judul'    : 'Title is required!',
@@ -112,12 +112,12 @@ class _PmEditScreenState extends State<PmEditScreen> {
       'judul_hint'   : '例如：激光机器维护',
       'bagian'       : '部门',
       'pick_bagian'  : '选择部门',
-      'file'         : '附件文件（可选）',
+      'file'         : '附件文件',
       'add_file'     : '添加文件',
       'file_hint'    : 'PDF、Word、Excel等',
       'change_file'  : '更换文件',
       'remove_file'  : '删除文件',
-      'desc'         : '描述（可选）',
+      'desc'         : '描述',
       'desc_hint'    : '描述PM活动...',
       'update'       : '更新报告',
       'err_judul'    : '标题为必填项！',
@@ -369,18 +369,24 @@ class _PmEditScreenState extends State<PmEditScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        scrolledUnderElevation: 0,
+        shadowColor: Colors.black12,
+        surfaceTintColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: _EPC.primary),
-          onPressed: () => Navigator.pop(context)),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1D72F3)),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           t['edit_title']!,
-          style: GoogleFonts.inter(
-              color: _EPC.primary, fontWeight: FontWeight.w700, fontSize: 17)),
+          style: GoogleFonts.poppins(
+              color: const Color(0xFF1D72F3),
+              fontWeight: FontWeight.bold,
+              fontSize: 18),
+        ),
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(color: _EPC.border, height: 1)),
+          child: Container(color: Colors.grey.shade200, height: 1),
+        ),
       ),
       body: Stack(
         children: [
@@ -392,15 +398,14 @@ class _PmEditScreenState extends State<PmEditScreen> {
 
                 // TITLE
                 _sectionCard(children: [
-                  _label(t['judul']!, required: true),
-                  _textField(_judulCtrl, t['judul_hint']!,
-                      CupertinoIcons.text_cursor),
+                  _label(t['judul']!, icon: Icons.edit_note_rounded),
+                  _textField(_judulCtrl, t['judul_hint']!),
                 ]),
                 const SizedBox(height: 16),
 
                 // SECTION (READ-ONLY, TIDAK DAPAT DIUBAH SAAT EDIT)
                 _sectionCard(children: [
-                  _label(t['bagian']!, required: true),
+                  _label(t['bagian']!, icon: Icons.apartment_outlined),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
@@ -409,8 +414,6 @@ class _PmEditScreenState extends State<PmEditScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: _EPC.border, width: 1)),
                     child: Row(children: [
-                      const Icon(Icons.grid_view_rounded, size: 16, color: _EPC.primary),
-                      const SizedBox(width: 10),
                       Expanded(child: Text(
                         _displaySectionName(_selectedBagian),
                         style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
@@ -422,7 +425,7 @@ class _PmEditScreenState extends State<PmEditScreen> {
 
                 // BULAN PENGAJUAN PM
                 _sectionCard(children: [
-                  _label(t['bulan_pm']!, required: true),
+                  _label(t['bulan_pm']!, icon: Icons.calendar_month_rounded),
                   GestureDetector(
                     onTap: _showBulanPicker,
                     child: Container(
@@ -433,8 +436,6 @@ class _PmEditScreenState extends State<PmEditScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: _isLate ? const Color(0xFFEF4444) : _EPC.primary, width: 1.5)),
                       child: Row(children: [
-                        Icon(Icons.calendar_month_rounded, size: 16, color: _isLate ? const Color(0xFFEF4444) : _EPC.primary),
-                        const SizedBox(width: 10),
                         Expanded(child: Text(
                           DateFormat('MMMM yyyy').format(_bulanPm),
                           style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
@@ -451,24 +452,23 @@ class _PmEditScreenState extends State<PmEditScreen> {
                   ),
                   if (_isLate) ...[
                     const SizedBox(height: 12),
-                    _label(t['alasan_terlambat']!, required: true),
-                    _textField(_alasanCtrl, t['alasan_hint']!, CupertinoIcons.exclamationmark_bubble, maxLines: 3),
+                    _label(t['alasan_terlambat']!, icon: Icons.report_gmailerrorred_outlined),
+                    _textField(_alasanCtrl, t['alasan_hint']!, maxLines: 3),
                   ],
                 ]),
                 const SizedBox(height: 16),
 
                 // ATTACHMENT FILE
                 _sectionCard(children: [
-                  _label(t['file']!, required: false),
+                  _label(t['file']!, icon: Icons.attach_file_rounded),
                   _fileWidget(),
                 ]),
                 const SizedBox(height: 16),
 
                 // DESCRIPTION
                 _sectionCard(children: [
-                  _label(t['desc']!, required: false),
-                  _textField(_descCtrl, t['desc_hint']!,
-                      CupertinoIcons.doc_text, maxLines: 4),
+                  _label(t['desc']!, icon: Icons.description_outlined),
+                  _textField(_descCtrl, t['desc_hint']!, maxLines: 4),
                 ]),
                 const SizedBox(height: 24),
 
@@ -651,21 +651,22 @@ class _PmEditScreenState extends State<PmEditScreen> {
           offset: const Offset(0, 2))]),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children));
 
-  Widget _label(String label, {bool required = false}) => Padding(
+  Widget _label(String label, {required IconData icon}) => Padding(
     padding: const EdgeInsets.only(bottom: 8, left: 2),
     child: Row(children: [
+      Icon(icon, size: 16, color: const Color(0xFF1D72F3)),
+      const SizedBox(width: 6),
       Text(label,
-        style: GoogleFonts.inter(
-            fontWeight: FontWeight.w600, fontSize: 13,
-            color: const Color(0xFF475569))),
-      if (required)
-        const Text(' *',
-          style: TextStyle(
-              color: CupertinoColors.destructiveRed,
-              fontWeight: FontWeight.bold)),
+        style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w700, fontSize: 13,
+            color: const Color(0xFF1D72F3))),
+      const Text(' *',
+        style: TextStyle(
+            color: CupertinoColors.destructiveRed,
+            fontWeight: FontWeight.bold)),
     ]));
 
-  Widget _textField(TextEditingController ctrl, String hint, IconData icon,
+  Widget _textField(TextEditingController ctrl, String hint,
       {int maxLines = 1}) =>
       TextFormField(
         controller: ctrl,
@@ -675,9 +676,6 @@ class _PmEditScreenState extends State<PmEditScreen> {
           hintText: hint,
           hintStyle: GoogleFonts.inter(
               color: const Color(0xFFCBD5E1), fontSize: 15),
-          prefixIcon: maxLines == 1
-              ? Icon(icon, color: _EPC.primary, size: 20)
-              : null,
           filled: true,
           fillColor: const Color(0xFFF8FAFF),
           border: OutlineInputBorder(
