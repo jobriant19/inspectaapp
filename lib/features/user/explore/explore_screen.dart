@@ -4,9 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../finding/detail/finding_detail_screen.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-
 import '../home/card/kts_finding_card.dart';
 import '../ktsproduksi/kts_detail_screen.dart';
+import 'explore_indicator_screen.dart';
 import 'filter/explore_filter_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -21,9 +21,8 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
 
   late TabController _tabController;
 
-  final Map<String, Future<List<Map<String, dynamic>>>> _findingsCache = {};
+  final Map<String, Future<_FindingsPage>> _findingsCache = {};
 
-  // State untuk Filter Chips
   Set<String> _activeChips = {};
 
   String? _currentUserId;
@@ -32,21 +31,22 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   String? _userSubunitId;
   String? _userAreaId;
 
-  // Filter yang Diterapkan dari BottomSheet
   Map<String, dynamic>? _appliedLocationFilter;
-  String _appliedInspectionType = ''; // 'visitor', 'eksekutif', 'profesional'
-  String _appliedSortOrder = 'terbaru'; // 'terbaru', 'terlama', 'deadline'
+  String _appliedInspectionType = '';
+  String _appliedSortOrder = 'terbaru';
   String _appliedJenisTemuan = '';
   Map<String, dynamic>? _appliedSectionFilter; 
   String _selectedSectionName = '';
   Map<String, dynamic>? _appliedCauseFactor;
 
-  // State untuk UI di BottomSheet
   String _selectedLokasiName = '';
 
-  Future<List<Map<String, dynamic>>>? _findingsFuture;
+  static const int _pageSize = 10;
+  int _currentPage = 1;
 
-  // Dictionary Bahasa
+  Future<_FindingsPage>? _findingsFuture;
+  _FindingsPage? _lastDisplayedPage;
+
   final Map<String, Map<String, String>> _texts = {
     'ID': {
       'belum_selesai': 'Belum Selesai',
@@ -79,8 +79,8 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       'menit_terlewat': 'menit terlewat',
       'hari_tersisa': 'hari tersisa',
       'deadline_hari_ini': 'Deadline hari ini',
-      'temuan_kosong': 'Belum ada temuan.',
-      'temuan_kosong_filter': 'Temuan tidak ditemukan.',
+      'temuan_kosong': 'Belum ada temuan',
+      'temuan_kosong_filter': 'Temuan tidak ditemukan',
       'memuat': 'Memuat temuan...',
       'selesai_pada_label': 'Selesai pada',
       'filter_5r': 'Temuan 5R',
@@ -117,8 +117,8 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       'menit_terlewat' : 'minutes overdue',
       'hari_tersisa': 'days left',
       'deadline_hari_ini': 'Deadline today',
-      'temuan_kosong': 'No findings yet.',
-      'temuan_kosong_filter': 'No findings found.',
+      'temuan_kosong': 'No findings yet',
+      'temuan_kosong_filter': 'No findings found',
       'memuat': 'Loading findings...',
       'selesai_pada_label': 'Completed on',
       'filter_5r': '5R Findings',
@@ -155,8 +155,8 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       'menit_terlewat': '分钟逾期', 
       'hari_tersisa': '天剩余',
       'deadline_hari_ini': '截止日期是今天',
-      'temuan_kosong': '暂无发现。',
-      'temuan_kosong_filter': '未找到任何发现。',
+      'temuan_kosong': '暂无发现',
+      'temuan_kosong_filter': '未找到任何发现',
       'memuat': '正在加载发现...',
       'selesai_pada_label': '完成于',
       'filter_5r': '5R发现',
@@ -170,12 +170,9 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    
-    // BARU: Listener yang paling andal
     _tabController.addListener(() {
-      // Cek jika animasi sudah selesai DAN tab-nya bukan yang sebelumnya
       if (!_tabController.indexIsChanging) {
-          _loadFindings(); // Panggil _loadFindings setiap kali tab selesai berpindah
+          _loadFindings();
       }
     });
 
@@ -210,7 +207,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Placeholder Gambar
+                    // IMAGE PLACEHOLDER
                     Container(
                       width: 92,
                       height: 92,
@@ -220,7 +217,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Placeholder Teks
+                    // TEXT PLACEHOLDER
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,7 +242,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                   ],
                 ),
               ),
-              // Placeholder Deadline Bar
+              // DEADLINE BAR PLACEHOLDER
               Container(
                 height: 30,
                 decoration: const BoxDecoration(
@@ -270,20 +267,11 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
 
     try {
       final uri = Uri.parse(originalUrl);
-      
-      // Cek apakah ini URL Supabase Storage yang valid.
-      // Jika path-nya mengandung '/storage/v1/object/public/',
-      // kita bisa melakukan transformasi.
       if (uri.path.contains('/storage/v1/object/public/')) {
-        // Ganti '/public/' menjadi '/render/image/public/' untuk mengaktifkan API transformasi.
         final newPath = uri.path.replaceFirst(
           '/storage/v1/object/public/', 
           '/storage/v1/render/image/public/'
         );
-
-        // Buat URL baru dengan path yang sudah diubah dan tambahkan parameter transformasi.
-        // width=200 & height=200: Minta gambar ukuran 200x200 pixel. Cukup untuk thumbnail.
-        // resize=cover: Potong gambar agar pas dengan ukuran 200x200 tanpa distorsi.
         final transformedUri = uri.replace(
           path: newPath,
           queryParameters: {
@@ -294,11 +282,9 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         );
         return transformedUri.toString();
       } else {
-        // Jika bukan URL Supabase Storage, kembalikan URL aslinya.
         return originalUrl;
       }
     } catch (e) {
-      // Jika terjadi error saat parsing URL, kembalikan URL asli sebagai fallback.
       debugPrint("Error transforming image URL: $e");
       return originalUrl;
     }
@@ -335,11 +321,11 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   
   @override
   Widget build(BuildContext context) {
-    return Material(  // TAMBAH INI
+    return Material(
       color: Colors.transparent,
       child:  Column(
         children: [
-          // 1. TABS: Belum Selesai | Selesai
+          // 1. TABS: UNFINISHED | FINISHED
           Container(
             color: Colors.transparent,
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
@@ -349,24 +335,55 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                 borderRadius: BorderRadius.circular(10),
               ),
               padding: const EdgeInsets.all(3),
-              child: TabBar(
-                controller: _tabController,
-                isScrollable: false,
-                tabAlignment: TabAlignment.fill,
-                indicator: BoxDecoration(
-                  color: const Color(0xFF0EA5E9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelColor: Colors.white,
-                unselectedLabelColor: const Color(0xFF0EA5E9),
-                labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                dividerColor: Colors.transparent,
-                tabs: [
-                  Tab(text: getTxt('belum_selesai')),
-                  Tab(text: getTxt('selesai')),
-                ],
+              child: AnimatedBuilder(
+                animation: _tabController,
+                builder: (context, _) {
+                  const Color brightRed = Color(0xFFEF4444);
+                  const Color brightGreen = Color(0xFF22C55E);
+                  final Color activeIndicatorColor =
+                      _tabController.index == 0 ? brightRed : brightGreen;
+                  return TabBar(
+                    controller: _tabController,
+                    isScrollable: false,
+                    tabAlignment: TabAlignment.fill,
+                    indicator: BoxDecoration(
+                      color: activeIndicatorColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    tabs: [
+                      Tab(
+                        child: Text(
+                          getTxt('belum_selesai'),
+                          style: GoogleFonts.poppins(
+                            fontWeight: _tabController.index == 0
+                                ? FontWeight.w800
+                                : FontWeight.w700,
+                            fontSize: 16,
+                            color: _tabController.index == 0
+                                ? Colors.white
+                                : brightRed,
+                          ),
+                        ),
+                      ),
+                      Tab(
+                        child: Text(
+                          getTxt('selesai'),
+                          style: GoogleFonts.poppins(
+                            fontWeight: _tabController.index == 1
+                                ? FontWeight.w800
+                                : FontWeight.w700,
+                            fontSize: 16,
+                            color: _tabController.index == 1
+                                ? Colors.white
+                                : brightGreen,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -394,17 +411,16 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                         boxShadow: [BoxShadow(color: const Color(0xFF0284C7).withValues(alpha:0.3), blurRadius: 8, offset: const Offset(0, 3))],
                       ),
                       child: Row(
-                        children: const [
+                        children: [
                           Icon(Icons.filter_list_alt, color: Colors.white, size: 18),
                           SizedBox(width: 6),
-                          Text("Filter", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                          Text("Filter", style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   _buildFilterChip(getTxt('ditugaskan'), 'assigned'),
-                  // Sembunyikan chip lokasi jika filter KTS aktif
                   if (_appliedJenisTemuan != 'kts') _buildFilterChip(getTxt('lokasi'), 'location'),
                   _buildFilterChip(getTxt('temuan_saya'), 'mine'),
                   _buildFilterChip(getTxt('inspeksi'), 'inspection'),
@@ -413,24 +429,28 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             ),
           ),
 
-          // 3. LIST DATA TEMUAN ASLI
+          // FINDING LIST
           Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
+            child: FutureBuilder<_FindingsPage>(
               future: _findingsFuture,
               builder: (context, snapshot) {
-                // Tampilkan shimmer saat waiting ATAU saat future null (belum di-set)
-                if (_findingsFuture == null ||
-                    snapshot.connectionState == ConnectionState.waiting) {
-                  return _buildShimmerLoader();
+                if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                  _lastDisplayedPage = snapshot.data;
                 }
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Gagal memuat temuan. Error: ${snapshot.error}'),
-                  );
+                final bool isRefreshing = snapshot.connectionState == ConnectionState.waiting;
+                final resultPage = _lastDisplayedPage;
+
+                if (resultPage == null) {
+                  return isRefreshing
+                      ? _buildShimmerLoader()
+                      : const SizedBox.shrink();
                 }
 
-                final allData = snapshot.data ?? [];
+                final allData = resultPage.items;
+                final totalPages = resultPage.totalCount == 0
+                    ? 1
+                    : (resultPage.totalCount / _pageSize).ceil();
 
                 if (allData.isEmpty) {
                   return Center(
@@ -454,9 +474,10 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                     _appliedInspectionType.isNotEmpty
                                 ? getTxt('temuan_kosong_filter')
                                 : getTxt('temuan_kosong'),
-                            style: const TextStyle(
-                              color: Colors.grey,
+                            style: GoogleFonts.poppins(
+                              color: Color(0xFF1D72F3),
                               fontSize: 16,
+                              fontWeight: FontWeight.w800
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -466,13 +487,31 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(15, 5, 15, 80),
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: allData.length,
-                  itemBuilder: (context, index) {
-                    return _buildFindingCard(allData[index]);
-                  },
+                return Column(
+                  children: [
+                    if (isRefreshing)
+                      const LinearProgressIndicator(
+                        minHeight: 2.5,
+                        backgroundColor: Colors.transparent,
+                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1D72F3)),
+                      ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(15, 5, 15, 0),
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: allData.length,
+                        itemBuilder: (context, index) {
+                          return _buildFindingCard(allData[index]);
+                        },
+                      ),
+                    ),
+                    if (totalPages > 1)
+                      ExploreIndicatorScreen(
+                        currentPage: _currentPage,
+                        totalPages: totalPages,
+                        onPageChanged: _goToPage,
+                      ),
+                  ],
                 );
               },
             ),
@@ -482,7 +521,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     );
   }
 
-  // --- WIDGET HELPER UNTUK CHIPS ---
   Widget _buildFilterChip(String label, String value) {
     bool isActive = _activeChips.contains(value);
     return GestureDetector(
@@ -492,10 +530,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             _activeChips.remove(value);
           } else {
             _activeChips.add(value);
-            // Reset filter inspection type dari bottom sheet
             _appliedInspectionType = '';
-            // Jika chip yang diaktifkan adalah 'location',
-            // reset filter lokasi dari bottom sheet agar tidak konflik
             if (value == 'location') {
               _appliedLocationFilter = null;
               _selectedLokasiName = '';
@@ -508,22 +543,28 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF1E3A8A) : Colors.white,
+          color: isActive ? const Color(0xFF1D72FE) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isActive ? const Color(0xFF1E3A8A) : Colors.grey.shade300,
+            color: isActive ? const Color(0xFF1D72FE) : Colors.grey.shade300,
           ),
         ),
         child: Text(
           label,
-          style: TextStyle(
+          style: GoogleFonts.poppins(
             fontSize: 13,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: isActive ? Colors.white : Colors.black87,
           ),
         ),
       ),
     );
+  }
+
+  void _goToPage(int page) {
+    if (page == _currentPage) return;
+    setState(() => _currentPage = page);
+    _loadFindings(resetPage: false);
   }
 
   void _showFilterBottomSheet(BuildContext context) async {
@@ -552,7 +593,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         _appliedInspectionType = '';
         _appliedSortOrder = 'terbaru';
         _selectedLokasiName = '';
-        _appliedJenisTemuan = ''; // kembali ke default 5R Findings
+        _appliedJenisTemuan = '';
         _appliedSectionFilter = null;
         _selectedSectionName = '';
         _appliedCauseFactor = null;
@@ -575,21 +616,26 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     }
   }
 
-  void _loadFindings() {
+  String _buildCacheKey(int page) {
     final sortedChips = _activeChips.toList()..sort();
-    String cacheKey =
-      'tab:${_tabController.index}_'
-      'chips:${sortedChips.join("+")}_'
-      'loc:${_appliedLocationFilter?['id']}_'
-      'locall:${_appliedLocationFilter?['all']}_'
-      'loclevel:${_appliedLocationFilter?['level']}_'
-      'sectionid:${_appliedSectionFilter?['id']}_'
-      'sectionall:${_appliedSectionFilter?['all']}_'
-      'sectionlevel:${_appliedSectionFilter?['level']}_'
-      'factor:${_appliedCauseFactor?['id']}_'
-      'type:${_appliedInspectionType}_'
-      'sort:${_appliedSortOrder}_'
-      'jenis:$_appliedJenisTemuan';
+    return 'tab:${_tabController.index}_'
+        'chips:${sortedChips.join("+")}_'
+        'loc:${_appliedLocationFilter?['id']}_'
+        'locall:${_appliedLocationFilter?['all']}_'
+        'loclevel:${_appliedLocationFilter?['level']}_'
+        'sectionid:${_appliedSectionFilter?['id']}_'
+        'sectionall:${_appliedSectionFilter?['all']}_'
+        'sectionlevel:${_appliedSectionFilter?['level']}_'
+        'factor:${_appliedCauseFactor?['id']}_'
+        'type:${_appliedInspectionType}_'
+        'sort:${_appliedSortOrder}_'
+        'jenis:${_appliedJenisTemuan}_'
+        'page:$page';
+  }
+
+  void _loadFindings({bool resetPage = true}) {
+    if (resetPage) _currentPage = 1;
+    final cacheKey = _buildCacheKey(_currentPage);
 
     if (_findingsCache.containsKey(cacheKey)) {
       if (mounted) {
@@ -597,24 +643,32 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           _findingsFuture = _findingsCache[cacheKey];
         });
       }
-    } else {
-      // Set future dulu ke null agar FutureBuilder reset ke waiting state
-      if (mounted) {
-        setState(() {
-          _findingsFuture = null;
-        });
-      }
-      final newFuture = _fetchFindings();
-      _findingsCache[cacheKey] = newFuture;
-      if (mounted) {
-        setState(() {
-          _findingsFuture = newFuture;
-        });
-      }
+      return;
+    }
+
+    final newFuture = _fetchFindings(_currentPage);
+    _findingsCache[cacheKey] = newFuture;
+    if (mounted) {
+      setState(() {
+        _findingsFuture = newFuture;
+      });
+    }
+    newFuture.then((page) {
+      if (mounted) _prefetchAdjacentPages(page.totalCount);
+    });
+  }
+
+  void _prefetchAdjacentPages(int totalCount) {
+    final totalPages = totalCount == 0 ? 1 : (totalCount / _pageSize).ceil();
+    for (final p in [_currentPage - 1, _currentPage + 1]) {
+      if (p < 1 || p > totalPages) continue;
+      final key = _buildCacheKey(p);
+      if (_findingsCache.containsKey(key)) continue;
+      _findingsCache[key] = _fetchFindings(p);
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchFindings() async {
+  Future<_FindingsPage> _fetchFindings(int page) async {
     try {
       final bool isKtsMode = _appliedJenisTemuan == 'kts';
       final bool needsInnerPenyelesaian =
@@ -641,25 +695,24 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         )
       ''');
 
-      // Filter Tab
+      // FILTER TAB
       if (_tabController.index == 0) {
         query = query.neq('status_temuan', 'Selesai');
       } else {
         query = query.eq('status_temuan', 'Selesai');
       }
 
-      // Filter jenis temuan (5R / KTS)
+      // FINDING TYPE FILTER (5R / KTS)
       if (_appliedJenisTemuan == '5r') {
         query = query.neq('jenis_temuan', 'KTS Production');
       } else if (_appliedJenisTemuan == 'kts') {
         query = query.eq('jenis_temuan', 'KTS Production');
       }
 
-      // Filter Section Penyebab & Cause Factor (khusus KTS Production)
+      // CAUSE SECTION & CAUSE FACTOR FILTER ONLY KTS
       if (isKtsMode) {
         if (_appliedSectionFilter != null) {
           if (_appliedSectionFilter!['all'] == true) {
-            // Simplifikasi: "Semua Section" = KTS yang sudah memiliki section penyebab tercatat
             query = query.not('penyelesaian.id_section', 'is', null);
           } else {
             query = query.eq('penyelesaian.id_section', _appliedSectionFilter!['id'].toString());
@@ -673,7 +726,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         }
       }
 
-      // Filter Chips
+      // FILTER CHIPS
       if (_activeChips.isNotEmpty && _currentUserId != null) {
         if (_activeChips.contains('assigned')) {
           query = query.eq('id_penanggung_jawab', _currentUserId!);
@@ -698,20 +751,16 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           if (orFilters.isNotEmpty) {
             query = query.or(orFilters.join(','));
           } else {
-            return [];
+            return const _FindingsPage(items: [], totalCount: 0);
           }
         }
       }
 
-      // Filter lokasi dari bottom sheet (sembunyikan jika KTS)
       if (_appliedLocationFilter != null && _appliedJenisTemuan != 'kts') {
         final level = _appliedLocationFilter!['level'] as int;
         final isAllLevel = _appliedLocationFilter!['all'] == true;
 
         if (isAllLevel) {
-          // "Semua Lokasi/Unit/Subunit/Area" dipilih -> tampilkan semua temuan
-          // yang memiliki data pada level tersebut (id tidak null),
-          // tanpa dibatasi ke satu id spesifik.
           switch (level) {
             case 0: query = query.not('id_lokasi', 'is', null); break;
             case 1: query = query.not('id_unit', 'is', null); break;
@@ -729,7 +778,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         }
       }
 
-      // Filter inspection type dari bottom sheet
       if (_appliedInspectionType.isNotEmpty) {
         switch (_appliedInspectionType) {
           case 'visitor': query = query.eq('is_visitor', true); break;
@@ -738,7 +786,10 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         }
       }
 
-      final response = await () {
+      final int from = (page - 1) * _pageSize;
+      final int to = from + _pageSize - 1;
+
+      final orderedQuery = () {
         switch (_appliedSortOrder) {
           case 'terlama':
             return query.order('created_at', ascending: true);
@@ -752,14 +803,17 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             return query.order('created_at', ascending: false);
         }
       }();
-      return List<Map<String, dynamic>>.from(response);
+
+      final response = await orderedQuery.range(from, to).count(CountOption.exact);
+
+      final items = List<Map<String, dynamic>>.from(response.data);
+      return _FindingsPage(items: items, totalCount: response.count);
     } catch (error) {
       debugPrint("Terjadi kesalahan saat fetch findings: $error");
-      return [];
+      return const _FindingsPage(items: [], totalCount: 0);
     }
   }
 
-  // === HELPER BARU: info badge lokasi (label, ikon, warna) sesuai skema explore_location_filter.dart ===
   Map<String, dynamic> _locationBadgeInfo(Map<String, dynamic> item, {int? filterLevel}) {
     if (filterLevel != null) {
       switch (filterLevel) {
@@ -828,7 +882,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     );
   }
 
-  // === HELPER BARU: label "Poin" mengikuti bahasa aktif ===
   String _poinLabel() {
     switch (widget.lang) {
       case 'EN':
@@ -848,7 +901,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
   }
 
   Widget _buildFindingCard(Map<String, dynamic> data) {
-    // --- A. PARSING DATA & VARIABEL DASAR ---
     final transformedImageUrl = _getTransformedImageUrl((data['gambar_temuan'] ?? '').toString());
     final title = (data['judul_temuan'] ?? '-').toString();
     final tanggal = _formatDate(data['created_at']);
@@ -859,7 +911,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     final isVisitor = data['is_visitor'] == true;
     final isEksekutif = data['is_eksekutif'] == true;
 
-    // --- B. LOGIKA STATUS: SELESAI vs BELUM SELESAI ---
     final s = status.toLowerCase();
     final isFinished = [
       'selesai',
@@ -868,7 +919,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       'closed'
     ].any((e) => s.contains(e));
     
-    // Perbaikan: Gunakan teks dari kamus bahasa
     final String statusText = isFinished ? getTxt('selesai') : getTxt('belum_selesai');
 
     late Color statusColor;
@@ -876,18 +926,15 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     late IconData statusIcon;
 
     if (isFinished) {
-      // Perbaikan: Style untuk status "Selesai"
-      statusColor = const Color(0xFF16A34A); // Hijau cerah
-      statusBg = const Color(0xFFF0FDF4); // Latar belakang hijau muda
-      statusIcon = Icons.check_circle_rounded; // Ikon centang
+      statusColor = const Color(0xFF16A34A);
+      statusBg = const Color(0xFFF0FDF4);
+      statusIcon = Icons.check_circle_rounded;
     } else {
-      // Style untuk status "Belum Selesai" (merah)
       statusColor = const Color(0xFFDC2626);
       statusBg = const Color(0xFFFEF2F2);
       statusIcon = Icons.pending_actions_rounded;
     }
 
-    // --- C. LOGIKA BADGE INSPEKSI & BORDER STROKE ---
     List<Widget> badges = [];
     List<String> inspectionTypes = [];
 
@@ -924,19 +971,14 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             : const Color(0xFF38BDF8);
           }
 
-    // --- D. LOGIKA INDIKATOR WAKTU (DEADLINE vs SELESAI) ---
     Widget? timeIndicator;
 
     if (isFinished) {
-      // PERUBAHAN: Tampilan untuk temuan yang SUDAH selesai
       String completionDateText = '-';
       
-      // 1. Ambil data sebagai Map, bukan List. Bisa jadi null jika tidak ada data.
       final penyelesaianData = data['penyelesaian'] as Map<String, dynamic>?; 
 
-      // 2. Cek apakah Map tersebut tidak null.
       if (penyelesaianData != null) {
-        // 3. Langsung akses 'tanggal_selesai' dari Map tersebut.
         completionDateText = _formatDate(penyelesaianData['tanggal_selesai']);
       }
       
@@ -944,7 +986,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: statusBg, // Latar belakang hijau
+          color: statusBg,
           borderRadius: const BorderRadius.only(
             bottomLeft: Radius.circular(18),
             bottomRight: Radius.circular(18),
@@ -966,7 +1008,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
         ),
       );
     } else {
-      // Logika lama (tetap dipertahankan) untuk temuan BELUM selesai
       final deadline = DateTime.tryParse(data['target_waktu_selesai']?.toString() ?? '');
       if (deadline != null) {
         final now = DateTime.now();
@@ -1023,24 +1064,26 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       }
     }
 
-    // Gunakan KtsFindingCard untuk jenis KTS
     final isKts = (data['jenis_temuan'] ?? '') == 'KTS Production';
     if (isKts) {
-      return KtsFindingCard(
-        data: data,
-        lang: widget.lang,
-        onTap: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (context) => KtsDetailScreen(
-              ktsId: data['id_temuan'].toString(),
-              lang: widget.lang,
-              initialData: data,
-            ),
-          ));
-        },
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: KtsFindingCard(
+          data: data,
+          lang: widget.lang,
+          onTap: () {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (context) => KtsDetailScreen(
+                ktsId: data['id_temuan'].toString(),
+                lang: widget.lang,
+                initialData: data,
+              ),
+            ));
+          },
+        ),
       );
     }
-    // --- E. BUILD WIDGET CARD ---
+
     return GestureDetector(
       onTap: () {
         final isKts = (data['jenis_temuan'] ?? '') == 'KTS Production';
@@ -1079,17 +1122,14 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // PERBAIKAN: GAMBAR DENGAN BORDER
                   Container(
                     width: 92,
                     height: 92,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
-                      // Stroke hitam transparan agar tidak terlalu keras
                       border: Border.all(color: Colors.black.withValues(alpha:0.15), width: 1.5),
                     ),
                     child: ClipRRect(
-                      // Radius lebih kecil agar border tidak tertutup
                       borderRadius: BorderRadius.circular(12.5),
                       child: Container(
                         color: const Color(0xFFF8FAFC),
@@ -1106,7 +1146,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                   ),
                   const SizedBox(width: 12),
 
-                  // KONTEN
+                  // CONTENT
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1129,7 +1169,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                             ),
                             const SizedBox(width: 8),
                             
-                            // ✅ Badge Jenis Temuan (KTS / 5R)
+                            // FINDING TYPE BADGE (KTS / 5R)
                             () {
                               final jenis = (data['jenis_temuan'] ?? '').toString();
                               final isKts = jenis == 'KTS Production';
@@ -1157,7 +1197,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                               );
                             }(),
                             
-                            // ✅ Badge Poin (warna teal/emerald, ikon medali, label sesuai bahasa)
+                            // POINT BADGE
                             if (poin > 0)
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -1217,7 +1257,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                             child: Wrap(spacing: 6, runSpacing: 4, children: badges),
                           ),
 
-                        // ✅ Badge lokasi bergaya kategori (warna & ikon sesuai level lokasi)
+                        // SPESIFIC LOCATION BADGE
                         Row(children: [
                           Flexible(
                             child: _buildLocationBadgeWidget(
@@ -1228,7 +1268,7 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                         ]),
                         const SizedBox(height: 8),
 
-                        // ✅ Bar tanggal & status (lebih menonjol, font Poppins)
+                        // DATE & STATUS BAR
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1281,7 +1321,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     );
   }
 
-  // --- HELPER WIDGET UNTUK MEMBUAT BADGE INSPEKSI (Tetap ada) ---
   Widget _buildInspectionBadge(String text, Color bgColor, Color textColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
@@ -1300,4 +1339,10 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       ),
     );
   }
+}
+
+class _FindingsPage {
+  final List<Map<String, dynamic>> items;
+  final int totalCount;
+  const _FindingsPage({required this.items, required this.totalCount});
 }
