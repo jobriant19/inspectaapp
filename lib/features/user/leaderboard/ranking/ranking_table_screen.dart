@@ -18,7 +18,6 @@ class RankingTableScreen {
   RankingTableScreen._();
   static const double _nameContentLeftGap = 14;
   static const double _tableHeaderStickyHeight = 84.0;
-  static const double _bottomNavBarHeight = 65.0;
 
   static List<Widget> buildSlivers({
     required BuildContext context,
@@ -27,9 +26,7 @@ class RankingTableScreen {
     required String Function(String key) getTxt,
     bool isDaily = false,
   }) {
-    final double systemBottomInset = MediaQuery.of(context).viewPadding.bottom;
-    final double safeBottom = systemBottomInset > 0 ? systemBottomInset : 8;
-    final double bottomClearance = _bottomNavBarHeight + safeBottom;
+    const double bottomClearance = 12.0;
 
     return [
       SliverPersistentHeader(
