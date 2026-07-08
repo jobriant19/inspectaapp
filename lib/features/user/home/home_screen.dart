@@ -36,6 +36,10 @@ class HomeScreen extends StatefulWidget {
   final bool? initialIsVerificator;
   final int? initialNotifCount;
   final int? initialMonthlyPoin;
+  final bool? initialIsProMode;
+  final bool? initialIsVisitorMode;
+  final bool? initialIsPreventiveMaintenanceVisible;
+  final List<Map<String, dynamic>>? initialPendingAudits;
 
   const HomeScreen({
     super.key,
@@ -50,6 +54,10 @@ class HomeScreen extends StatefulWidget {
     this.initialIsVerificator,
     this.initialNotifCount,
     this.initialMonthlyPoin,
+    this.initialIsProMode,
+    this.initialIsVisitorMode,
+    this.initialIsPreventiveMaintenanceVisible,
+    this.initialPendingAudits,
   });
 
   @override
@@ -72,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isCheckingLocation = false;
   bool _isAtAtmi = false;
   bool _isPreventiveMaintenanceVisible = true;
+  List<Map<String, dynamic>>? _initialPendingAudits;
 
   // User data
   String _userName = '...';
@@ -174,7 +183,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _checkVerificationStatus().then((_) async {
       if (!mounted) return;
-      await Future.wait([_loadLanguage(), _checkExecutiveVerificatorStatus()]);
+      await Future.wait([
+        _loadLanguage(),
+        if (widget.initialIsVerificator == null) _checkExecutiveVerificatorStatus(),
+      ]);
       if (mounted) _handleLoginAndFetchData();
     });
   }
@@ -223,6 +235,16 @@ class _HomeScreenState extends State<HomeScreen> {
     if (widget.initialIsVerificator != null) _isExecutiveVerificator = widget.initialIsVerificator!;
     if (widget.initialNotifCount != null) _notificationCount = widget.initialNotifCount!;
     if (widget.initialMonthlyPoin != null) _initialMonthlyPoin = widget.initialMonthlyPoin!;
+
+    if (widget.initialIsProMode != null) _isProMode = widget.initialIsProMode!;
+    if (widget.initialIsVisitorMode != null) _isVisitorMode = widget.initialIsVisitorMode!;
+    if (widget.initialIsProMode != null || widget.initialIsVisitorMode != null) {
+      _isLoadingVisitorStatus = false;
+    }
+    if (widget.initialIsPreventiveMaintenanceVisible != null) {
+      _isPreventiveMaintenanceVisible = widget.initialIsPreventiveMaintenanceVisible!;
+    }
+    if (widget.initialPendingAudits != null) _initialPendingAudits = widget.initialPendingAudits;
   }
 
   @override
@@ -1476,6 +1498,7 @@ class _HomeScreenState extends State<HomeScreen> {
       shouldRefreshFindings: _findingsRefreshTrigger != _lastRefreshTrigger,
       onRefreshDone: () => setState(() => _lastRefreshTrigger = _findingsRefreshTrigger),
       isPreventiveMaintenanceVisible: _isPreventiveMaintenanceVisible && (_userJabatanId == 1 || _userJabatanId == 3),
+      initialPendingAudits: _initialPendingAudits,
       buildInfoCard: () => UserInfoCard(
         userName: _userName,
         userRole: _userRole,

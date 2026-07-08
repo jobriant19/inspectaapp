@@ -7,10 +7,8 @@ import '../ktsproduksi/kts_detail_screen.dart';
 import 'card/finding_card.dart';
 import 'card/kts_finding_card.dart';
 
-// Supabase shorthand
 final _sb = Supabase.instance.client;
 
-// Shared select clause
 const _kTemuanSelect =
     'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, '
     'poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, '
@@ -53,7 +51,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
   static const int _kMaxHomeCards = 5;
   static const double _kCardGap = 12;
 
-  // Dictionary
   static const Map<String, Map<String, String>> _texts = {
     'EN': {
       'recent_findings': 'Latest Activity',
@@ -61,8 +58,7 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
       'tab_assigned': 'Assigned to Me',
       'tab_resolved': 'Resolved by Me',
       'no_findings_title': 'No Recent Findings',
-      'no_findings_subtitle':
-          'Recent findings you create or are involved in will appear here.',
+      'no_findings_subtitle': 'Recent findings you create or are involved in will appear here.',
       'tab_5r': '5R Findings',
       'tab_kts': 'KTS Production',
       'view_all': 'View All',
@@ -73,8 +69,7 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
       'tab_assigned': 'Ditugaskan ke Saya',
       'tab_resolved': 'Diselesaikan Saya',
       'no_findings_title': 'Belum Ada Temuan',
-      'no_findings_subtitle':
-          'Temuan terbaru yang Anda buat atau terlibat di dalamnya akan muncul di sini.',
+      'no_findings_subtitle': 'Temuan terbaru yang Anda buat atau terlibat di dalamnya akan muncul di sini.',
       'tab_5r': 'Temuan 5R',
       'tab_kts': 'KTS Produksi',
       'view_all': 'Lihat Semua',
@@ -112,7 +107,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     }
   }
 
-  // Refresh Findings (reset ke tab 'my') — dipanggil dari luar (mis. setelah simpan temuan baru)
   void refreshFindings() {
     if (!mounted) return;
     setState(() {
@@ -122,7 +116,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     });
   }
 
-  // Refresh Findings tanpa reset tab — dipanggil setelah kembali dari detail/KTS Produksi
   void refreshFindingsQuietly() {
     if (!mounted) return;
     setState(() {
@@ -131,7 +124,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     });
   }
 
-  // Findings
   Future<List<Map<String, dynamic>>> _buildFindingsFuture() {
     final userId = _sb.auth.currentUser?.id;
     if (userId == null) return Future.value([]);
@@ -144,17 +136,17 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     final tabs = _activeTabs.isEmpty ? {'my'} : _activeTabs;
     final futures = <Future<List<Map<String, dynamic>>>>[];
 
-    // Tab: My Findings
+    // TAB: MY FINDINGS
     if (tabs.contains('my')) {
       futures.add(_queryTemuan(filter: (q) => q.eq('id_user', userId)));
     }
 
-    // Tab: Assigned to Me
+    // TAB: ASSIGNED TO ME
     if (tabs.contains('assigned')) {
       futures.add(_queryTemuan(filter: (q) => q.eq('id_penanggung_jawab', userId)));
     }
 
-    // Tab: Resolved by Me
+    // TAB: RESOLVED BY ME
     if (tabs.contains('resolved')) {
       futures.add(_queryResolved(userId));
     }
@@ -168,7 +160,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     });
   }
 
-  // Helper: Findings Query + Filter
   Future<List<Map<String, dynamic>>> _queryTemuan({
     required dynamic Function(dynamic) filter,
   }) async {
@@ -179,7 +170,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     return List<Map<String, dynamic>>.from(v);
   }
 
-  // Helper: Query Findings Resolved
   Future<List<Map<String, dynamic>>> _queryResolved(String userId) async {
     final v = await _sb
         .from('penyelesaian')
@@ -206,7 +196,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     return result;
   }
 
-  // Helper: Merge + Dedup + Sort by created_at
   List<Map<String, dynamic>> _mergeAndSort(List<List<Map<String, dynamic>>> lists) {
     final seen = <String>{};
     final combined = <Map<String, dynamic>>[];
@@ -251,7 +240,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     );
   }
 
-  // Findings Tab
   Widget _buildFindingsTab() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _findingsFuture,
@@ -369,7 +357,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     );
   }
 
-  // Tab Chip
   Widget _buildTabChip(String tabKey, String label) {
     final isActive = _activeTabs.contains(tabKey);
     return GestureDetector(
@@ -410,7 +397,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     );
   }
 
-  // Type Filter Bar (5R / KTS)
   Widget _buildTypeFilterBar() {
     return Row(
       children: [
@@ -452,7 +438,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     );
   }
 
-  // Recent Findings Loader
   Widget _buildRecentFindingsLoader() {
     return Shimmer.fromColors(
       baseColor: Colors.grey.shade300,
@@ -471,7 +456,6 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
   }
 }
 
-// Reusable Section Label
 class _SectionLabel extends StatelessWidget {
   final String text;
   const _SectionLabel({required this.text});

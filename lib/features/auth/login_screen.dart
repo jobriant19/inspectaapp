@@ -353,6 +353,66 @@ class _LoginScreenState extends State<LoginScreen> {
     return {'name': '...', 'level': 'lokasi'};
   }
 
+  Future<List<Map<String, dynamic>>> _fetchPendingAuditsForLogin(
+      String userId, String lang) async {
+    try {
+      final today = DateTime.now().toIso8601String().split('T').first;
+      final rows = await Supabase.instance.client
+          .from('audit_schedule')
+          .select(
+              'id_schedule, level_type, id_ref, periode_mulai, periode_selesai, status, '
+              'id_jenis_audit, JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)')
+          .eq('id_auditor', userId)
+          .inFilter('status', ['pending', 'in_progress'])
+          .lte('periode_mulai', today)
+          .gte('periode_selesai', today);
+
+      if (rows.isEmpty) return [];
+
+      final byLevel = <String, List<String>>{};
+      for (final r in rows) {
+        final level = r['level_type'] as String;
+        byLevel.putIfAbsent(level, () => []).add(r['id_ref'].toString());
+      }
+
+      final nameMap = <String, String>{};
+      await Future.wait(byLevel.entries.map((e) async {
+        final level = e.key;
+        final ids = e.value;
+        try {
+          final res = await Supabase.instance.client
+              .from(level)
+              .select('id_$level, nama_$level')
+              .inFilter('id_$level', ids);
+          for (final r in res) {
+            nameMap[r['id_$level'].toString()] =
+                r['nama_$level']?.toString() ?? r['id_$level'].toString();
+          }
+        } catch (_) {}
+      }));
+
+      return List<Map<String, dynamic>>.from(rows).map((row) {
+        String? jenisLabel;
+        final jenisData = row['JenisAudit'] as Map<String, dynamic>?;
+        if (jenisData != null) {
+          jenisLabel = lang == 'EN'
+              ? jenisData['nama_en']?.toString()
+              : lang == 'ZH'
+                  ? jenisData['nama_zh']?.toString()
+                  : jenisData['nama_id']?.toString();
+        }
+        return {
+          ...row,
+          'location_name': nameMap[row['id_ref'].toString()] ?? row['id_ref'].toString(),
+          'jenis_audit_label': jenisLabel,
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('Login pending audits error: $e');
+      return [];
+    }
+  }
+
   void _submitForm() async {
     final email = _emailController.text.trim();
     final pass  = _passwordController.text.trim();
@@ -384,7 +444,8 @@ class _LoginScreenState extends State<LoginScreen> {
             .from('User')
             .select(
                 'nama, poin, gambar_user, id_jabatan, id_unit, id_lokasi, '
-                'id_subunit, id_area, is_verificator, jabatan(nama_jabatan)')
+                'id_subunit, id_area, is_verificator, is_visitor, is_pro_mode, '
+                'jabatan(nama_jabatan)')
             .eq('id_user', userId)
             .single(),
         Supabase.instance.client
@@ -402,7 +463,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final bool isVerificator = userData['is_verificator'] as bool? ?? false;
       final int? idJabatan     = userData['id_jabatan'] as int?;
-      final bool canShowVerifButton = isVerificator || idJabatan == 1 || idJabatan == 5;
+      final bool canShowVerifButton = isVerificator || idJabatan == 1 || idJabatan == 2 || idJabatan == 5;
       final bool isAdmin            = idJabatan == 6;
 
       final locationData = await _resolveLocationName(userData);
@@ -419,15 +480,16 @@ class _LoginScreenState extends State<LoginScreen> {
               .catchError((_) {}),
       ]);
 
-      // Notif count + monthly poin secara paralel
       int initialNotifCount  = 0;
       int initialMonthlyPoin = 0;
+      bool initialIsPmVisible = true;
+      List<Map<String, dynamic>> initialPendingAudits = [];
       try {
         final now          = DateTime.now();
         final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
         final startOfNext  = DateTime(now.year, now.month + 1, 1).toIso8601String();
 
-        final preload = await Future.wait([
+        final preload = await Future.wait<dynamic>([
           Supabase.instance.client
               .from('temuan')
               .count(CountOption.exact)
@@ -439,12 +501,21 @@ class _LoginScreenState extends State<LoginScreen> {
               .eq('id_user', userId)
               .gte('created_at', startOfMonth)
               .lt('created_at', startOfNext),
+          Supabase.instance.client
+              .from('app_settings')
+              .select('setting_value')
+              .eq('setting_key', 'preventive_maintenance_visible')
+              .maybeSingle(),
+          _fetchPendingAuditsForLogin(userId, selectedLanguage),
         ]);
         initialNotifCount  = preload[0] as int;
         final logList      = preload[1] as List<dynamic>;
         initialMonthlyPoin = logList.fold<int>(
           0, (sum, l) => sum + ((l['poin'] as num?)?.toInt() ?? 0),
         );
+        final pmRow = preload[2] as Map<String, dynamic>?;
+        initialIsPmVisible = pmRow?['setting_value'] as bool? ?? true;
+        initialPendingAudits = preload[3] as List<Map<String, dynamic>>;
       } catch (_) {}
 
       if (!mounted) return;
@@ -519,6 +590,10 @@ class _LoginScreenState extends State<LoginScreen> {
               initialIsVerificator: canShowVerifButton,
               initialNotifCount:    initialNotifCount,
               initialMonthlyPoin:   initialMonthlyPoin,
+              initialIsProMode:     userData['is_pro_mode'] as bool? ?? false,
+              initialIsVisitorMode: userData['is_visitor'] as bool? ?? false,
+              initialIsPreventiveMaintenanceVisible: initialIsPmVisible,
+              initialPendingAudits: initialPendingAudits,
             ),
           ),
         );

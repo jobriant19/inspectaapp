@@ -12,7 +12,6 @@ import 'choose_mode_sheet.dart';
 import 'verification/verification_intro_screen.dart';
 import 'home_latest_activity.dart';
 
-// Supabase shorthand
 final _sb = Supabase.instance.client;
 
 class HomeContent extends StatefulWidget {
@@ -43,6 +42,7 @@ class HomeContent extends StatefulWidget {
   final bool shouldRefreshFindings;
   final bool isPreventiveMaintenanceVisible;
   final VoidCallback? onRefreshDone;
+  final List<Map<String, dynamic>>? initialPendingAudits;
 
   const HomeContent({
     super.key,
@@ -73,6 +73,7 @@ class HomeContent extends StatefulWidget {
     this.shouldRefreshFindings = false,
     this.isPreventiveMaintenanceVisible = false,
     this.onRefreshDone,
+    this.initialPendingAudits,
   });
 
   @override
@@ -82,11 +83,11 @@ class HomeContent extends StatefulWidget {
 class HomeContentState extends State<HomeContent> {
   static const double _kSectionGap = 20;
   Future<List<Map<String, dynamic>>>? _pendingAuditsFuture;
+  List<Map<String, dynamic>>? _pendingAuditsSync;
   final GlobalKey<HomeLatestActivityState> _latestActivityKey =
       GlobalKey<HomeLatestActivityState>();
   bool _isChooseModeSheetOpen = false;
 
-  // Dictionary
   static const Map<String, Map<String, String>> _texts = {
     'EN': {
       'inspeksi': 'Inspection',
@@ -134,15 +135,18 @@ class HomeContentState extends State<HomeContent> {
   @override
   void initState() {
     super.initState();
-    _pendingAuditsFuture = _fetchPendingAudits();
+    if (widget.initialPendingAudits != null) {
+      _pendingAuditsSync = widget.initialPendingAudits;
+      _pendingAuditsFuture = Future.value(widget.initialPendingAudits);
+    } else {
+      _pendingAuditsFuture = _fetchPendingAudits();
+    }
   }
 
-  // Refresh Findings (delegasi ke HomeLatestActivity)
   void refreshFindings() {
     _latestActivityKey.currentState?.refreshFindings();
   }
 
-  // Fetch Pending Audit Tasks
   Future<List<Map<String, dynamic>>> _fetchPendingAudits() async {
     final userId = _sb.auth.currentUser?.id;
     if (userId == null) return [];
@@ -152,7 +156,7 @@ class HomeContentState extends State<HomeContent> {
           .from('audit_schedule')
           .select(
               'id_schedule, level_type, id_ref, periode_mulai, periode_selesai, status, '
-              'id_jenis_audit, JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)') // ✅ BARU
+              'id_jenis_audit, JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)')
           .eq('id_auditor', userId)
           .inFilter('status', ['pending', 'in_progress'])
           .lte('periode_mulai', today)
@@ -160,14 +164,12 @@ class HomeContentState extends State<HomeContent> {
 
       if (rows.isEmpty) return [];
 
-      // Group by Level Fetch Location Name
       final byLevel = <String, List<String>>{};
       for (final r in rows) {
         final level = r['level_type'] as String;
         byLevel.putIfAbsent(level, () => []).add(r['id_ref'].toString());
       }
 
-      // Fetch All Paralel Location Name per Level
       final nameMap = <String, String>{};
       await Future.wait(byLevel.entries.map((e) async {
         final level = e.key;
@@ -184,7 +186,6 @@ class HomeContentState extends State<HomeContent> {
       }));
 
       return List<Map<String, dynamic>>.from(rows).map((row) {
-        // ✅ BARU: label jenis audit sesuai bahasa
         String? jenisLabel;
         final jenisData = row['JenisAudit'] as Map<String, dynamic>?;
         if (jenisData != null) {
@@ -197,7 +198,7 @@ class HomeContentState extends State<HomeContent> {
         return {
           ...row,
           'location_name': nameMap[row['id_ref'].toString()] ?? row['id_ref'].toString(),
-          'jenis_audit_label': jenisLabel, // ✅ BARU
+          'jenis_audit_label': jenisLabel,
         };
       }).toList();
     } catch (e) {
@@ -219,7 +220,7 @@ class HomeContentState extends State<HomeContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Info Card
+          // INFO CARD
           widget.isUserDataLoading ? _buildInfoCardSkeleton() : widget.buildInfoCard(),
           const SizedBox(height: _kSectionGap),
 
@@ -233,7 +234,7 @@ class HomeContentState extends State<HomeContent> {
 
           const SizedBox(height: _kSectionGap),
 
-          // Browse & Manage
+          // BROWSE & MANAGE
           _SectionLabel(text: _t('telusur')),
           const SizedBox(height: 8),
           _buildNavTile(
@@ -280,7 +281,7 @@ class HomeContentState extends State<HomeContent> {
 
           const SizedBox(height: 25),
 
-          // Recent Findings (Latest Activity) — dipindah ke home_latest_activity.dart
+          // LATEST ACTIVITY
           HomeLatestActivity(
             key: _latestActivityKey,
             lang: widget.lang,
@@ -294,7 +295,6 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
-  // Navigator Helper with Slide Transition
   void _push(Widget screen) {
     Navigator.push(
       context,
@@ -311,7 +311,6 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
-  // Choose Mode Button
   Widget _buildChooseModeButton() {
     final anyActive = widget.isProMode || widget.isVisitorMode;
     return GestureDetector(
@@ -448,8 +447,24 @@ class HomeContentState extends State<HomeContent> {
 
   // Pending Audit Section
   Widget _buildPendingAuditSection() {
-    // ✅ BARU: sembunyikan jika tidak berada di PT ATMI Solo
     if (!widget.isAtAtmi) return const SizedBox.shrink();
+
+    if (_pendingAuditsSync != null) {
+      final tasks = _pendingAuditsSync!;
+      if (tasks.isEmpty) return const SizedBox.shrink();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: _kSectionGap),
+          _SectionLabel(text: _t('audit_tasks')),
+          const SizedBox(height: 10),
+          for (int i = 0; i < tasks.length; i++) ...[
+            _buildAuditTaskCard(tasks[i]),
+            if (i != tasks.length - 1) const SizedBox(height: 10),
+          ],
+        ],
+      );
+    }
 
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _pendingAuditsFuture,
@@ -486,7 +501,7 @@ class HomeContentState extends State<HomeContent> {
 
     return GestureDetector(
       onTap: () async {
-        // Step 1: Selfie dulu
+        // AUDIT SELFIE
         final selfieUrl = await Navigator.push<String>(
           context,
           MaterialPageRoute(
@@ -498,10 +513,8 @@ class HomeContentState extends State<HomeContent> {
             ),
           ),
         );
-        // Jika user cancel selfie, batalkan navigasi ke form
         if (selfieUrl == null || !mounted) return;
 
-        // Step 2: Buka form audit dengan selfieUrl
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -518,6 +531,7 @@ class HomeContentState extends State<HomeContent> {
         );
         if (mounted) {
           setState(() {
+            _pendingAuditsSync = null;
             _pendingAuditsFuture = _fetchPendingAudits();
           });
         }
@@ -548,7 +562,6 @@ class HomeContentState extends State<HomeContent> {
                   Text(locationName,
                       style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
-                  // ✅ BARU: Badge jenis audit
                   if (task['jenis_audit_label'] != null) ...[
                     const SizedBox(height: 3),
                     Container(
@@ -576,7 +589,6 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
-  // Executive Verification Button
   Widget _buildExecVerifButton() {
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -632,7 +644,6 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
-  // Preventive Maintenance Button
   Widget _buildPreventiveMaintenanceButton() {
     const Color pmColor = Color(0xFF1D4ED8);
     return GestureDetector(
@@ -703,7 +714,6 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
-  // Nav Tile
   Widget _buildNavTile({
     required IconData icon,
     required Color iconColor,
@@ -744,7 +754,6 @@ class HomeContentState extends State<HomeContent> {
   }
 }
 
-// Reusable Section Label
 class _SectionLabel extends StatelessWidget {
   final String text;
   const _SectionLabel({required this.text});
