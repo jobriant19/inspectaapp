@@ -99,7 +99,7 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
           User_Creator:User!temuan_id_user_fkey(nama, gambar_user),
           penyelesaian!temuan_id_penyelesaian_fkey( 
             *,
-            User_Solver:User!id_user(nama, gambar_user)
+            User_Solver:User!id_user(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan))
           )
         ''')
         .eq('id_temuan', findingId)

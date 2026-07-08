@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lottie/lottie.dart';
+import '../../../core/utils/image_picker_helper.dart';
+import 'camera/camera_finding_screen.dart';
 
 class ResolutionCameraScreen extends StatefulWidget {
   final String lang;
@@ -17,9 +18,9 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
   bool _isCameraInitialized = false;
-  final ImagePicker _picker = ImagePicker();
+  bool _flashEnabled = false;
+  bool _flashSupported = false;
 
-  // ── Teks terlokalisasi ──
   String _txt(String key) {
     const Map<String, Map<String, String>> texts = {
       'EN': {
@@ -66,8 +67,24 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
   }
 
   Future<void> _initCamera() async {
+    final warm = CameraWarmupService.instance;
+
+    if (warm.isReady) {
+      _cameras = warm.cameras;
+      _selectedCameraIndex = warm.selectedCameraIndex;
+      _cameraController = warm.takeController();
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+          _flashEnabled = false;
+        });
+      }
+      await _checkFlashSupport();
+      return;
+    }
+
     try {
-      _cameras = await availableCameras();
+      _cameras = warm.cameras ?? await availableCameras();
       if (_cameras != null && _cameras!.isNotEmpty) {
         await _setCamera(_selectedCameraIndex);
       }
@@ -85,10 +102,35 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
     );
     try {
       await _cameraController!.initialize();
-      if (mounted) setState(() => _isCameraInitialized = true);
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+          _flashEnabled = false;
+        });
+      }
+      await _checkFlashSupport();
     } catch (e) {
       debugPrint('Error setting camera: $e');
     }
+  }
+
+  Future<void> _checkFlashSupport() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    try {
+      await _cameraController!.setFlashMode(FlashMode.off);
+      if (mounted) setState(() => _flashSupported = true);
+    } catch (_) {
+      if (mounted) setState(() => _flashSupported = false);
+    }
+  }
+
+  Future<void> _toggleFlash() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized || !_flashSupported) return;
+    try {
+      final next = _flashEnabled ? FlashMode.off : FlashMode.torch;
+      await _cameraController!.setFlashMode(next);
+      if (mounted) setState(() => _flashEnabled = !_flashEnabled);
+    } catch (_) {}
   }
 
   void _switchCamera() {
@@ -107,25 +149,28 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (!_isCameraInitialized || _cameraController == null) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: _CameraLoadingScreen(
-          loadingCamera: _txt('loading_camera'),
-          preparing: _txt('preparing'),
-        ),
-      );
-    }
+    final bool ready = _isCameraInitialized && _cameraController != null;
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // ── Preview ──
-          CameraPreview(_cameraController!),
+          if (!ready)
+            const SizedBox.shrink()
+          else
+            GestureDetector(
+              onHorizontalDragEnd: (details) {
+                if (details.primaryVelocity == null) return;
+                if (details.primaryVelocity!.abs() > 200) {
+                  _switchCamera();
+                }
+              },
+              child: CameraPreview(_cameraController!),
+            ),
 
-          // ── Top bar ──
+          // TOP BAR
+          if (ready)
           Positioned(
             top: 0,
             left: 0,
@@ -136,14 +181,14 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                 child: Row(
                   children: [
-                    // Tombol kembali — lebih besar
+                    // BACK BUTTON
                     _CameraIconButton(
                       icon: Icons.arrow_back_ios_new_rounded,
                       onTap: () => Navigator.pop(context, null),
                       size: 52,
                     ),
                     const SizedBox(width: 10),
-                    // Label resolution proof — di tengah
+                    // RESOLUTION PROOF LABEL
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -179,14 +224,19 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const SizedBox(width: 52), // mirror lebar tombol back
+                    _FlashButton(
+                      supported: _flashSupported && _isCameraInitialized,
+                      enabled: _flashEnabled,
+                      onTap: _toggleFlash,
+                    ),
                   ],
                 ),
               ),
             ),
           ),
 
-          // ── Bottom controls ──
+          // BOTTOM CONTROLS
+          if (ready)
           Positioned(
             bottom: 0,
             left: 0,
@@ -212,8 +262,7 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
                     _CameraIconButton(
                       icon: Icons.photo_library_rounded,
                       onTap: () async {
-                        final image = await _picker.pickImage(
-                            source: ImageSource.gallery);
+                        final image = await ImagePickerHelper.pickImageFromGallery();
                         if (image != null) await _processAndReturnImage(image);
                       },
                       size: 52,
@@ -263,7 +312,6 @@ class _ResolutionCameraScreenState extends State<ResolutionCameraScreen>
   }
 }
 
-// ── Tombol ikon kamera yang konsisten ──
 class _CameraIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -293,114 +341,57 @@ class _CameraIconButton extends StatelessWidget {
   }
 }
 
-// ── Loading screen dengan Lottie + teks biru ──
-class _CameraLoadingScreen extends StatefulWidget {
-  final String loadingCamera;
-  final String preparing;
+class _FlashButton extends StatelessWidget {
+  final bool supported;
+  final bool enabled;
+  final VoidCallback onTap;
 
-  const _CameraLoadingScreen({
-    required this.loadingCamera,
-    required this.preparing,
+  const _FlashButton({
+    required this.supported,
+    required this.enabled,
+    required this.onTap,
   });
 
   @override
-  State<_CameraLoadingScreen> createState() => _CameraLoadingScreenState();
-}
-
-class _CameraLoadingScreenState extends State<_CameraLoadingScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _fadeAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..forward();
-    _fadeAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: Container(
-        color: Colors.white,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Lottie — cache agar langsung muncul
-              SizedBox(
-                width: 220,
-                height: 220,
-                child: _LottieLoader()
+    return Tooltip(
+      message: supported ? (enabled ? 'Flash On' : 'Flash Off') : 'Flash N/A',
+      child: GestureDetector(
+        onTap: supported ? onTap : null,
+        child: Opacity(
+          opacity: supported ? 1.0 : 0.35,
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: enabled
+                  ? Colors.yellow.withValues(alpha:0.20)
+                  : Colors.black.withValues(alpha:0.50),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: enabled
+                    ? Colors.yellow
+                    : Colors.white.withValues(alpha:0.2),
+                width: 1.5,
               ),
-              const SizedBox(height: 20),
-              Text(
-                widget.loadingCamera,
-                style: const TextStyle(
-                  color: Color(0xFF0284C7),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                widget.preparing,
-                style: const TextStyle(
-                  color: Color(0xFF38BDF8),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: 140,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: const LinearProgressIndicator(
-                    minHeight: 3,
-                    backgroundColor: Color(0xFFBAE6FD),
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFF0284C7)),
-                  ),
-                ),
-              ),
-            ],
+              boxShadow: enabled
+                  ? [
+                      BoxShadow(
+                        color: Colors.yellow.withValues(alpha:0.30),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              enabled ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+              color: enabled ? Colors.yellow : Colors.white,
+              size: 52 * 0.45,
+            ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _LottieLoader extends StatelessWidget {
-  const _LottieLoader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Lottie.asset(
-      'assets/lottie/camera_loading.json',
-      fit: BoxFit.contain,
-      frameRate: FrameRate.max,
-      errorBuilder: (context, error, stackTrace) {
-        debugPrint('Lottie error: $error');
-        return const Icon(
-          Icons.camera_alt_rounded,
-          size: 90,
-          color: Color(0xFF0284C7),
-        );
-      },
     );
   }
 }

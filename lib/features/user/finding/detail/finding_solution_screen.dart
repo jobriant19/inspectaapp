@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/location_service.dart';
+import '../../../../core/utils/jabatan_helper.dart';
 import '../camera/camera_finding_screen.dart';
 import '../resolution_camera_screen.dart';
 
@@ -46,6 +47,7 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
   void initState() {
     super.initState();
     _setupTranslations();
+    CameraWarmupService.instance.warmUp();
   }
 
   @override
@@ -53,6 +55,7 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
     _resolutionNotesController.dispose();
     _resolutionCostController.dispose();
     _extensionReasonController.dispose();
+    CameraWarmupService.instance.release();
     super.dispose();
   }
 
@@ -66,6 +69,7 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
     if (result != null) {
       setState(() => _resolutionImageFile = result);
     }
+    if (mounted) CameraWarmupService.instance.warmUp();
   }
 
   Future<void> _submitExtension() async {
@@ -713,15 +717,21 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
               // UPLOAD PHOTO
               Row(
                 children: [
+                  const Icon(Icons.photo_camera_rounded, size: 16, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 6),
                   Text(
                     _texts['upload_proof']!,
                     style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       fontSize: 14,
-                      color: const Color(0xFF475569),
+                      color: const Color(0xFF16A34A),
                     ),
                   ),
-                  Text(' *', style: GoogleFonts.poppins(color: Colors.redAccent)),
+                  Text(' *',
+                      style: GoogleFonts.poppins(
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -815,13 +825,24 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
               const SizedBox(height: 16),
 
               // NOTES
-              Text(
-                _texts['resolution_notes']!,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: const Color(0xFF475569),
-                ),
+              Row(
+                children: [
+                  const Icon(Icons.sticky_note_2_outlined, size: 16, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 6),
+                  Text(
+                    _texts['resolution_notes']!,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: const Color(0xFF16A34A),
+                    ),
+                  ),
+                  Text(' *',
+                      style: GoogleFonts.poppins(
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14)),
+                ],
               ),
               const SizedBox(height: 8),
               TextField(
@@ -851,13 +872,19 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
               const SizedBox(height: 16),
 
               // COST
-              Text(
-                _texts['resolution_cost']!,
-                style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: const Color(0xFF475569),
-                ),
+              Row(
+                children: [
+                  const Icon(Icons.payments_outlined, size: 16, color: Color(0xFF16A34A)),
+                  const SizedBox(width: 6),
+                  Text(
+                    _texts['resolution_cost']!,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: const Color(0xFF16A34A),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               TextField(
@@ -983,109 +1010,149 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
                     ),
                     if (solver != null) ...[
                       const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFDCFCE7)),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 20,
-                              backgroundColor: const Color(0xFFDCFCE7),
-                              backgroundImage:
-                                  solverAvatarUrl != null ? NetworkImage(solverAvatarUrl) : null,
-                              child: solverAvatarUrl == null
-                                  ? const Icon(Icons.person, color: Color(0xFF16A34A), size: 20)
-                                  : null,
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _texts['resolved_by']!,
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 11,
-                                      color: const Color(0xFF94A3B8),
-                                      fontWeight: FontWeight.w500),
-                                ),
-                                Text(
-                                  solverName,
-                                  style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                      color: const Color(0xFF0F172A)),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (completedDate != null) ...[
-                      const SizedBox(height: 12),
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(7),
+                            padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
+                              color: const Color(0xFF16A34A).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.event_available_rounded,
-                                size: 15, color: Color(0xFF64748B)),
+                            child: const Icon(Icons.person_pin_rounded,
+                                size: 16, color: Color(0xFF16A34A)),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(_texts['completed_on']!,
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        color: const Color(0xFF94A3B8),
-                                        fontWeight: FontWeight.w500)),
-                                const SizedBox(height: 2),
-                                Text(_formatDateTime(completedDate),
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF0F172A))),
-                              ],
+                          const SizedBox(width: 8),
+                          Text(
+                            _texts['resolved_by']!,
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF16A34A),
                             ),
                           ),
                         ],
                       ),
-                    ],
-                    if (notes != null && notes.isNotEmpty) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       Container(
-                        width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF0FDF4),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: const Color(0xFFBBF7D0)),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
-                            Text(
-                              _texts['notes']!,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  color: const Color(0xFF16A34A),
-                                  fontWeight: FontWeight.w700),
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor: const Color(0xFFDCFCE7),
+                              backgroundImage:
+                                  solverAvatarUrl != null ? NetworkImage(solverAvatarUrl) : null,
+                              child: solverAvatarUrl == null
+                                  ? const Icon(Icons.person, color: Color(0xFF16A34A))
+                                  : null,
                             ),
-                            const SizedBox(height: 4),
-                            Text(notes,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 14, color: const Color(0xFF166534), height: 1.5)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    solverName,
+                                    style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                        color: const Color(0xFF0F172A)),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  _buildSolverJabatanBadge(solver),
+                                ],
+                              ),
+                            ),
                           ],
+                        ),
+                      ),
+                    ],
+                    if (completedDate != null) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.event_available_rounded,
+                                  size: 16, color: Color(0xFF16A34A)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_texts['completed_on']!,
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF16A34A))),
+                                  const SizedBox(height: 2),
+                                  Text(_formatDateTime(completedDate),
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 14.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: const Color(0xFF0F172A))),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (notes != null && notes.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Icon(Icons.sticky_note_2_outlined,
+                              size: 16, color: Color(0xFF16A34A)),
+                          const SizedBox(width: 8),
+                          Text(
+                            _texts['resolution_notes']!,
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF16A34A),
+                            ),
+                          ),
+                          Text(' *',
+                              style: GoogleFonts.poppins(
+                                  color: Colors.redAccent,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                        ),
+                        child: Text(
+                          notes,
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFF166534),
+                            height: 1.6,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
                     ],
@@ -1133,6 +1200,47 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSolverJabatanBadge(Map<String, dynamic> solver) {
+    final idJabatan = solver['id_jabatan'] as int?;
+    final isVerificator = solver['is_verificator'] as bool?;
+    final jabatanNama =
+        (solver['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?;
+
+    final label = JabatanHelper.getDisplayRole(
+      isVerificatorFlag: isVerificator,
+      idJabatan: idJabatan,
+      jabatanFromDb: jabatanNama,
+      lang: widget.lang,
+    );
+    if (label.isEmpty) return const SizedBox.shrink();
+
+    final color = JabatanHelper.getPrimaryColor(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    final icon = JabatanHelper.getRoleIcon(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+                fontSize: 10.5, fontWeight: FontWeight.w700, color: color),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1223,7 +1331,7 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
         'upload_proof': 'Unggah Bukti Penyelesaian',
         'upload_proof_subtitle': 'Ketuk untuk mengambil foto bukti penyelesaian temuan ini',
         'change_photo': 'Ganti Foto',
-        'resolution_notes': 'Catatan Penyelesaian (Opsional)',
+        'resolution_notes': 'Catatan Penyelesaian',
         'resolution_notes_hint':
             'Contoh: Barang sudah dirapikan dan area dibersihkan sesuai standar 5R.',
         'resolution_cost': 'Biaya Penyelesaian (Opsional)',
@@ -1257,7 +1365,7 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
         'upload_proof': 'Upload Proof of Solution',
         'upload_proof_subtitle': 'Tap to take a photo as proof this finding is resolved',
         'change_photo': 'Change Photo',
-        'resolution_notes': 'Solution Notes (Optional)',
+        'resolution_notes': 'Solution Notes',
         'resolution_notes_hint':
             'Example: Item has been organized and the area cleaned per 5R standard.',
         'resolution_cost': 'Cost (Optional)',
@@ -1290,7 +1398,7 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
         'upload_proof': '上传解决方案证明',
         'upload_proof_subtitle': '点击拍摄照片，作为该问题已解决的证明',
         'change_photo': '更换照片',
-        'resolution_notes': '解决方案说明（可选）',
+        'resolution_notes': '解决方案说明',
         'resolution_notes_hint': '例如：物品已整理，区域已按照5R标准清理。',
         'resolution_cost': '费用（可选）',
         'resolution_cost_hint': '例如：Rp100.000',
