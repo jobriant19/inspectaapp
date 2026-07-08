@@ -590,8 +590,8 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
                               _getTxt('total_points'),
                               textAlign: TextAlign.center,
                               style: GoogleFonts.poppins(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
                                 color: Colors.white.withValues(alpha: 0.95),
                               ),
                             ),

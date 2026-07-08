@@ -3,10 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-import '../../../shared/code/qr_generator_screen.dart';
+import 'location_detail_screen.dart';
 
-// ── Model aktivitas terakhir ──────────────────────────────────────────────────
 class _LastActivity {
   final DateTime? lastTemuan;
   final DateTime? lastPenyelesaian;
@@ -55,7 +53,6 @@ class _UserLastLocation {
   }
 }
 
-// ── Warna tema ────────────────────────────────────────────────────────────────
 class _C {
   static const primary     = Color(0xFF0EA5E9);
   static const primaryDark = Color(0xFF0369A1);
@@ -66,15 +63,13 @@ class _C {
   static const textGrey    = Color(0xFF64748B);
   static const border      = Color(0xFFBAE6FD);
   static const star        = Color(0xFFF59E0B);
-  // Shimmer colors
   static const shimmerBase = Color(0xFFE8F4FD);
 }
 
-// ── Semua teks multibahasa terpusat ──────────────────────────────────────────
 class _AppTexts {
   static const Map<String, Map<String, String>> _data = {
     'ID': {
-      // Location Screen
+      // LOCATION SCREEN
       'cari'                      : 'Cari',
       'lokasi_saya'               : 'Lokasi Saya',
       'sublokasi'                 : 'Sublokasi',
@@ -82,8 +77,8 @@ class _AppTexts {
       'kategori'                  : 'Kategori',
       'tanpa_kategori'            : 'Tanpa Kategori',
       'pic_kosong'                : 'Belum ada PIC',
-      'temuan_terakhir'           : 'Temuan terakhir',
-      'selesai_terakhir'          : 'Selesai terakhir',
+      'temuan_terakhir'           : 'Temuan 5R Terakhir',
+      'selesai_terakhir'          : 'Penyelesaian 5R Terakhir',
       'belum_ada_aktivitas'       : 'Belum ada aktivitas',
       'favorit'                   : 'Favorit',
       'badge_temuan_saya'         : '📍 Temuan Terakhir Anda',
@@ -98,7 +93,7 @@ class _AppTexts {
       'level2_empty'              : 'Subunit belum ditetapkan',
       'level3_empty'              : 'Area belum ditetapkan',
       'tidak_ada_gambar'          : 'Tidak ada gambar',
-      // Bottom Sheet
+      // BOTTOM SHEET
       'info'                      : 'Info',
       'anggota'                   : 'Anggota',
       'cari_anggota'              : 'Cari anggota...',
@@ -117,9 +112,14 @@ class _AppTexts {
       'level_unit'                : 'Unit',
       'level_subunit'             : 'Subunit',
       'level_area'                : 'Area',
+      'my_lokasi_badge'           : 'Lokasi Saya',
+      'my_unit_badge'             : 'Unit Saya',
+      'my_subunit_badge'          : 'Subunit Saya',
+      'my_area_badge'             : 'Area Saya',
+      'my_responsibility'         : 'Tanggung Jawab Saya',
     },
     'EN': {
-      // Location Screen
+      // LOCATION SCREEN
       'cari'                      : 'Search',
       'lokasi_saya'               : 'My Location',
       'sublokasi'                 : 'Sub-locations',
@@ -127,8 +127,8 @@ class _AppTexts {
       'kategori'                  : 'Category',
       'tanpa_kategori'            : 'No Category',
       'pic_kosong'                : 'No PIC',
-      'temuan_terakhir'           : 'Last finding',
-      'selesai_terakhir'          : 'Last resolved',
+      'temuan_terakhir'           : 'Last 5R Finding',
+      'selesai_terakhir'          : 'Last 5R Resolved',
       'belum_ada_aktivitas'       : 'No activity yet',
       'favorit'                   : 'Favorites',
       'badge_temuan_saya'         : '📍 Your Last Finding',
@@ -143,7 +143,7 @@ class _AppTexts {
       'level2_empty'              : 'Subunit not assigned',
       'level3_empty'              : 'Area not assigned',
       'tidak_ada_gambar'          : 'No image available',
-      // Bottom Sheet
+      // BOTTOM SHEET
       'info'                      : 'Info',
       'anggota'                   : 'Members',
       'cari_anggota'              : 'Search member...',
@@ -162,9 +162,14 @@ class _AppTexts {
       'level_unit'                : 'Unit',
       'level_subunit'             : 'Subunit',
       'level_area'                : 'Area',
+      'my_lokasi_badge'           : 'My Location',
+      'my_unit_badge'             : 'My Unit',
+      'my_subunit_badge'          : 'My Subunit',
+      'my_area_badge'             : 'My Area',
+      'my_responsibility'         : 'My Responsibility',
     },
     'ZH': {
-      // Location Screen
+      // LOCATION SCREEN
       'cari'                      : '搜索',
       'lokasi_saya'               : '我的位置',
       'sublokasi'                 : '子位置',
@@ -172,8 +177,8 @@ class _AppTexts {
       'kategori'                  : '类别',
       'tanpa_kategori'            : '无类别',
       'pic_kosong'                : '没有负责人',
-      'temuan_terakhir'           : '最近发现',
-      'selesai_terakhir'          : '最近完成',
+      'temuan_terakhir'           : '最近5R发现',
+      'selesai_terakhir'          : '最近5R处理',
       'belum_ada_aktivitas'       : '暂无活动',
       'favorit'                   : '收藏',
       'badge_temuan_saya'         : '📍 您的最近发现',
@@ -188,7 +193,7 @@ class _AppTexts {
       'level2_empty'              : '未分配子单位',
       'level3_empty'              : '未分配区域',
       'tidak_ada_gambar'          : '没有图片',
-      // Bottom Sheet
+      // BOTTOM SHEET
       'info'                      : '信息',
       'anggota'                   : '成员',
       'cari_anggota'              : '搜索成员...',
@@ -207,19 +212,19 @@ class _AppTexts {
       'level_unit'                : '单位',
       'level_subunit'             : '子单位',
       'level_area'                : '区域',
+      'my_lokasi_badge'           : '我的位置',
+      'my_unit_badge'             : '我的单位',
+      'my_subunit_badge'          : '我的子单位',
+      'my_area_badge'             : '我的区域',
+      'my_responsibility'         : '我的责任',
     },
   };
 
-  /// Ambil teks berdasarkan lang dan key.
-  /// Fallback: ID → key itu sendiri
   static String get(String lang, String key) {
     return _data[lang]?[key] ?? _data['ID']?[key] ?? key;
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// LocationScreen
-// ══════════════════════════════════════════════════════════════════════════════
 class LocationScreen extends StatefulWidget {
   final String lang;
   final bool isProMode;
@@ -243,6 +248,7 @@ class LocationScreen extends StatefulWidget {
 class _LocationScreenState extends State<LocationScreen>
     with AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
+  final TextEditingController _searchController = TextEditingController();
 
   int  _currentLevel = 0;
 
@@ -257,54 +263,269 @@ class _LocationScreenState extends State<LocationScreen>
   List<Map<String, dynamic>> _navHistory     = [];
   Map<String, dynamic>?      _currentParentData;
 
-  // Favorit
   final Set<String> _favoritSet = {};
 
-  // Cache aktivitas terakhir — di-fetch SEKALIGUS saat data masuk
+  // CACHE 
   final Map<String, _LastActivity> _activityCache = {};
   _UserLastLocation _userLastLocation = const _UserLastLocation();
+  final Map<int, List<dynamic>> _levelCache = {};
 
   Map<String, dynamic>? _suggestTemuan;
   Map<String, dynamic>? _suggestSelesai;
 
-  // ── Global search state ──
+  // GLOBAL SEARCH STATE
   bool   _isGlobalSearch    = false;
   bool   _isGlobalLoading   = false;
   List<_LocSearchResult> _globalResults = [];
   String? _activeFilter = 'lokasi';
 
-  // My Location IDs
+  // MY LOCATION STATE
   String? _myLocationLokasiId;
   String? _myLocationUnitId;
   String? _myLocationSubunitId;
   String? _myLocationAreaId;
 
-  // Helper teks
   String t(String key) => _AppTexts.get(widget.lang, key);
 
   String? get _currentUserId => _supabase.auth.currentUser?.id;
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  static const Color _barBlue = Color(0xFF1D72F3);
+  static const List<Color> _levelColors = [
+    Color(0xFF10B981), Color(0xFF6366F1), Color(0xFFFBBF24), Color(0xFFF472B6),
+  ];
+  static const List<IconData> _levelIcons = [
+    Icons.location_city_rounded, Icons.business_rounded, Icons.layers_rounded, Icons.place_rounded,
+  ];
+
+  bool _isMyLocationOfType(String type, String id) {
+    switch (type) {
+      case 'lokasi':  return _myLocationLokasiId  == id;
+      case 'unit':    return _myLocationUnitId    == id;
+      case 'subunit': return _myLocationSubunitId == id;
+      case 'area':    return _myLocationAreaId    == id;
+      default: return false;
+    }
+  }
+
+  bool _isPicOfItem(Map<String, dynamic> raw) =>
+      _currentUserId != null && raw['id_pic']?.toString() == _currentUserId;
+
+  Widget _levelPill({required IconData icon, required String label, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 3),
+          Text(label, style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _myBadgeChip(String type) {
+    const myLabelKeys = {
+      'lokasi': 'my_lokasi_badge', 'unit': 'my_unit_badge',
+      'subunit': 'my_subunit_badge', 'area': 'my_area_badge',
+    };
+    const idx = {'lokasi': 0, 'unit': 1, 'subunit': 2, 'area': 3};
+    final color = _levelColors[idx[type] ?? 0];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.20), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.person_pin_circle_rounded, size: 10, color: color),
+          const SizedBox(width: 3),
+          Text(t(myLabelKeys[type]!), style: GoogleFonts.poppins(fontSize: 8.5, color: color, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Widget _picBadgeChip() {
+    const color = Color(0xFF16A34A);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.20), blurRadius: 6, offset: const Offset(0, 2))],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.verified_rounded, size: 10, color: color),
+          const SizedBox(width: 3),
+          Text(t('my_responsibility'), style: GoogleFonts.poppins(fontSize: 8.5, color: color, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildBadgeStarOverlay({
+    required bool isPic,
+    required bool isMyLoc,
+    required String type,
+    required String id,
+    required Map<String, dynamic> raw,
+  }) {
+    if (!isPic && !isMyLoc) {
+      return [
+        Positioned(top: 8, right: 8, child: _starButton(type, id, raw)),
+      ];
+    } else if (isPic && isMyLoc) {
+      return [
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _picBadgeChip(),
+              const SizedBox(height: 6),
+              _myBadgeChip(type),
+            ],
+          ),
+        ),
+        Positioned(bottom: 6, right: 8, child: _starButton(type, id, raw)),
+      ];
+    } else {
+      final badge = isPic ? _picBadgeChip() : _myBadgeChip(type);
+      return [
+        Positioned(
+          top: 8,
+          right: 8,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              badge,
+              const SizedBox(height: 6),
+              _starButton(type, id, raw),
+            ],
+          ),
+        ),
+      ];
+    }
+  }
+
+  Widget _starButton(String type, String id, Map<String, dynamic> raw) {
+    final bool isStarred = (raw['is_star'] ?? 0) == 1;
+    return GestureDetector(
+      onTap: () async {
+        final idCol   = 'id_$type';
+        final curStar = (raw['is_star'] ?? 0) == 1;
+        final newStar = curStar ? 0 : 1;
+        raw['is_star'] = newStar;
+        setState(() {});
+        await _supabase.from(type).update({'is_star': newStar}).eq(idCol, id);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: _C.star.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(
+          isStarred ? Icons.star_rounded : Icons.star_border_rounded,
+          color: _C.star,
+          size: 18,
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    // Jalankan semua init secara PARALEL agar lebih cepat
     _initAll();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _initAll() async {
-    // Parallel: favorit + my location + user last location + data utama
     await Future.wait([
       _loadFavorit(),
       _loadMyLocationData(),
       _loadUserLastLocation(),
     ]);
-    // Fetch data utama SETELAH metadata siap
-    // sehingga suggest & favorit langsung muncul tanpa reload
-    await _fetchData();
+    await _prefetchAllLevels();
   }
 
-  // ── Favorit ───────────────────────────────────────────────────────────────
+  Future<void> _prefetchAllLevels() async {
+    if (mounted) setState(() => _isLoading = true);
+    try {
+      final results = await Future.wait([
+        _supabase.from('lokasi').select(
+            'id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, '
+            'kategori, is_star, id_pic, User!id_pic(nama), unit(id_unit), qrcode'),
+        _supabase.from('unit').select(
+            'id_unit, nama_unit, gambar_unit, deskripsi_unit, '
+            'kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), '
+            'id_lokasi, lokasi(nama_lokasi), qrcode'),
+        _supabase.from('subunit').select(
+            'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, '
+            'kategori, is_star, id_pic, User!id_pic(nama), area(id_area), '
+            'id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode'),
+        _supabase.from('area').select(
+            'id_area, nama_area, gambar_area, deskripsi_area, '
+            'kategori, is_star, id_pic, User!id_pic(nama), '
+            'id_subunit, id_unit, id_lokasi, '
+            'subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), qrcode'),
+      ]);
+
+      _levelCache[0] = results[0];
+      _levelCache[1] = results[1];
+      _levelCache[2] = results[2];
+      _levelCache[3] = results[3];
+
+      List<dynamic> data = List<dynamic>.from(_levelCache[_currentLevel] ?? []);
+      if (_isLokasiSaya) data = _filterByMyLocation(data, _currentLevel);
+
+      if (mounted) {
+        setState(() {
+          _currentData = data;
+          _isLoading   = false;
+          _onSearch(_searchQuery);
+        });
+        _updateSuggestItems();
+        for (int lvl = 0; lvl < 4; lvl++) {
+          _prefetchAllActivities(_getLevelName(lvl), _levelCache[lvl] ?? []);
+        }
+      }
+    } catch (e) {
+      debugPrint('Prefetch all levels error: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _refreshAll() async {
+    await _prefetchAllLevels();
+    if (_navHistory.isNotEmpty) {
+      final prev = _navHistory.last;
+      await _fetchData(parentId: prev['id'], parentData: prev['data']);
+    }
+  }
+
   Future<void> _loadFavorit() async {
     if (_currentUserId == null) return;
     try {
@@ -336,7 +557,6 @@ class _LocationScreenState extends State<LocationScreen>
         final r = rows[0];
         setState(() {
           _userLastLocation = _UserLastLocation(
-            // SESUDAH: ambil sebagai String, bukan int
             lastTemuanLokasiId  : r['last_temuan_lokasi_id']?.toString(),
             lastTemuanUnitId    : r['last_temuan_unit_id']?.toString(),
             lastTemuanSubunitId : r['last_temuan_subunit_id']?.toString(),
@@ -360,7 +580,6 @@ class _LocationScreenState extends State<LocationScreen>
     Map<String, dynamic>? foundSelesai;
 
     for (final item in _currentData) {
-      // SESUDAH: ambil sebagai String langsung
       final id = item['id_$tName']?.toString();
       if (id == null) continue;
 
@@ -408,7 +627,6 @@ class _LocationScreenState extends State<LocationScreen>
 
     setState(() {
       if (wasFav) { _favoritSet.remove(key); } else { _favoritSet.add(key); }
-      // Re-sort setelah toggle favorit
       _onSearch(_searchQuery);
     });
 
@@ -428,7 +646,6 @@ class _LocationScreenState extends State<LocationScreen>
         });
       }
     } catch (e) {
-      // Rollback
       setState(() {
         if (wasFav) { _favoritSet.add(key); } else { _favoritSet.remove(key); }
         _onSearch(_searchQuery);
@@ -437,9 +654,6 @@ class _LocationScreenState extends State<LocationScreen>
     }
   }
 
-  // ── Aktivitas terakhir — di-fetch SEKALIGUS (batch) ──────────────────────
-  /// Fetch aktivitas untuk SEMUA item sekaligus setelah list tersedia.
-  /// Hasilnya disimpan ke cache, lalu setState agar card langsung update.
   Future<void> _prefetchAllActivities(
       String tName, List<dynamic> items) async {
     final toFetch = <String>[];
@@ -460,7 +674,6 @@ class _LocationScreenState extends State<LocationScreen>
       try {
         await Future.wait(batch.map((id) => _fetchActivity(tName, id)));
       } catch (e) {
-        // Jika RPC gagal (misal tipe id tidak cocok), isi cache dengan kosong
         for (final id in batch) {
           _activityCache['$tName:$id'] = const _LastActivity();
         }
@@ -473,22 +686,43 @@ class _LocationScreenState extends State<LocationScreen>
   Future<_LastActivity> _fetchActivity(String levelType, String levelId) async {
     final key = '$levelType:$levelId';
     if (_activityCache.containsKey(key)) return _activityCache[key]!;
+    final idCol = 'id_$levelType';
     try {
-      final rows = await _supabase.rpc('get_location_last_activity', params: {
-        'p_level_type': levelType,
-        'p_level_id'  : levelId.toString(),
-      });
-      final row = (rows as List).isNotEmpty ? rows[0] : null;
+      final results = await Future.wait([
+        _supabase
+            .from('temuan')
+            .select('created_at')
+            .eq(idCol, levelId)
+            .eq('jenis_temuan', '5R')
+            .order('created_at', ascending: false)
+            .limit(1)
+            .maybeSingle(),
+        _supabase
+            .from('temuan')
+            .select('penyelesaian!inner(tanggal_selesai)')
+            .eq(idCol, levelId)
+            .eq('jenis_temuan', '5R')
+            .order('tanggal_selesai', referencedTable: 'penyelesaian', ascending: false)
+            .limit(1)
+            .maybeSingle(),
+      ]);
+
+      final temuanRow  = results[0];
+      final selesaiRow = results[1];
+
       final activity = _LastActivity(
-        lastTemuan: row?['last_temuan_at'] != null
-            ? DateTime.tryParse(row['last_temuan_at']) : null,
-        lastPenyelesaian: row?['last_penyelesaian_at'] != null
-            ? DateTime.tryParse(row['last_penyelesaian_at']) : null,
+        lastTemuan: temuanRow?['created_at'] != null
+            ? DateTime.tryParse(temuanRow!['created_at'].toString())
+            : null,
+        lastPenyelesaian: selesaiRow?['penyelesaian']?['tanggal_selesai'] != null
+            ? DateTime.tryParse(selesaiRow!['penyelesaian']['tanggal_selesai'].toString())
+            : null,
       );
       _activityCache[key] = activity;
       return activity;
     } catch (e) {
       _activityCache[key] = const _LastActivity();
+      debugPrint('Fetch 5R activity error ($levelType:$levelId): $e');
       return const _LastActivity();
     }
   }
@@ -498,85 +732,32 @@ class _LocationScreenState extends State<LocationScreen>
     return DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(dt.toLocal());
   }
 
-  // ── Fetch data level ──────────────────────────────────────────────────────
   Future<void> _fetchData({String? parentId, Map<String, dynamic>? parentData}) async {
-    setState(() => _isLoading = true);
-    try {
-      List<dynamic> data = [];
-      final tName = _getLevelName();
+    final tName = _getLevelName();
+    List<dynamic> data = List<dynamic>.from(_levelCache[_currentLevel] ?? []);
 
-      if (_currentLevel == 0) {
-        // Level Lokasi: ambil semua lokasi
-        data = await _supabase.from('lokasi').select(
-          'id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, '
-          'kategori, is_star, id_pic, User!id_pic(nama), unit(id_unit), qrcode');
-      } else if (_currentLevel == 1) {
-        if (parentId != null) {
-          // Masuk dari tap lokasi → unit di bawah lokasi tersebut
-          data = await _supabase.from('unit').select(
-            'id_unit, nama_unit, gambar_unit, deskripsi_unit, '
-            'kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), qrcode')
-            .eq('id_lokasi', parentId);
-        } else {
-          // Filter chip Unit aktif → ambil SEMUA unit
-          data = await _supabase.from('unit').select(
-            'id_unit, nama_unit, gambar_unit, deskripsi_unit, '
-            'kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), '
-            'id_lokasi, lokasi(nama_lokasi), qrcode');
-        }
-      } else if (_currentLevel == 2) {
-        if (parentId != null) {
-          // Masuk dari tap unit → subunit di bawah unit tersebut
-          data = await _supabase.from('subunit').select(
-            'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, '
-            'kategori, is_star, id_pic, User!id_pic(nama), area(id_area), qrcode')
-            .eq('id_unit', parentId);
-        } else {
-          // Filter chip Subunit aktif → ambil SEMUA subunit
-          data = await _supabase.from('subunit').select(
-            'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, '
-            'kategori, is_star, id_pic, User!id_pic(nama), area(id_area), '
-            'id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode');
-        }
-      } else if (_currentLevel == 3) {
-        if (parentId != null) {
-          // Masuk dari tap subunit → area di bawah subunit tersebut
-          data = await _supabase.from('area').select(
-            'id_area, nama_area, gambar_area, deskripsi_area, '
-            'kategori, is_star, id_pic, User!id_pic(nama), qrcode')
-            .eq('id_subunit', parentId);
-        } else {
-          // Filter chip Area aktif → ambil SEMUA area
-          data = await _supabase.from('area').select(
-            'id_area, nama_area, gambar_area, deskripsi_area, '
-            'kategori, is_star, id_pic, User!id_pic(nama), '
-            'id_subunit, id_unit, id_lokasi, '
-            'subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), qrcode');
-        }
-      }
+    if (parentId != null && _currentLevel > 0) {
+      const filterColumns = ['id_lokasi', 'id_unit', 'id_subunit'];
+      final filterCol = filterColumns[_currentLevel - 1];
+      data = data.where((item) => item[filterCol]?.toString() == parentId).toList();
+    }
 
-      // Filter mode Lokasi Saya
-      if (_isLokasiSaya) {
-        data = _filterByMyLocation(data, _currentLevel);
-      }
+    if (_isLokasiSaya) {
+      data = _filterByMyLocation(data, _currentLevel);
+    }
 
-      if (mounted) {
-        setState(() {
-          _currentData       = data;
-          _currentParentData = parentData;
-          _isLoading         = false;
-          _onSearch(_searchQuery);
-        });
-        _updateSuggestItems();
-        _prefetchAllActivities(tName, data);
-      }
-    } catch (e) {
-      debugPrint('Error Load Location: $e');
-      if (mounted) setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() {
+        _currentData       = data;
+        _currentParentData = parentData;
+        _isLoading         = false;
+        _onSearch(_searchQuery);
+      });
+      _updateSuggestItems();
+      _prefetchAllActivities(tName, data);
     }
   }
 
-  /// Filter data berdasarkan lokasi spesifik user (mode Lokasi Saya)
   List<dynamic> _filterByMyLocation(List<dynamic> data, int level) {
     String? filterId;
     String idKey;
@@ -591,12 +772,14 @@ class _LocationScreenState extends State<LocationScreen>
     return data.where((item) => item[idKey]?.toString() == filterId).toList();
   }
 
-  // ── Search & sort ─────────────────────────────────────────────────────────
   void _onSearch(String query) {
     _searchQuery = query.toLowerCase();
     if (query.trim().isEmpty) {
-      setState(() { _isGlobalSearch = false; _globalResults = []; });
-      // tetap filter data lokal level saat ini
+      setState(() {
+        _isGlobalSearch = false;
+        _globalResults  = [];
+        _activeFilter   = _getLevelName(_currentLevel);
+      });
       final tName = _getLevelName();
       setState(() {
         _filteredData = _currentData.where((item) {
@@ -615,51 +798,67 @@ class _LocationScreenState extends State<LocationScreen>
       });
       return;
     }
+    setState(() => _isGlobalSearch = true);
     _performGlobalSearch(query);
   }
 
-  Future<void> _performGlobalSearch(String query) async {
-    setState(() { _isGlobalSearch = true; _isGlobalLoading = true; _globalResults = []; });
-    try {
-      final results = <_LocSearchResult>[];
+  void _performGlobalSearch(String query) {
+    final q = query.trim().toLowerCase();
+    final results = <_LocSearchResult>[];
 
-      // Selalu cari dari SEMUA tabel, tidak bergantung filter aktif
-      final futures = await Future.wait([
-        _supabase.from('lokasi').select('id_lokasi, nama_lokasi, gambar_lokasi, is_star, id_pic, unit(id_unit)')
-            .ilike('nama_lokasi', '%$query%').limit(20),
-        _supabase.from('unit').select('id_unit, nama_unit, gambar_unit, is_star, id_pic, id_lokasi, lokasi(nama_lokasi), subunit(id_subunit)')
-            .ilike('nama_unit', '%$query%').limit(20),
-        _supabase.from('subunit').select('id_subunit, nama_subunit, gambar_subunit, is_star, id_pic, id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), area(id_area)')
-            .ilike('nama_subunit', '%$query%').limit(20),
-        _supabase.from('area').select('id_area, nama_area, gambar_area, is_star, id_pic, id_subunit, id_unit, id_lokasi, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi)')
-            .ilike('nama_area', '%$query%').limit(20),
-      ]);
-      for (final r in futures[0] as List) { results.add(_makeLocResult(r, 'lokasi', 0));}
-      for (final r in futures[1] as List) { results.add(_makeLocResult(r, 'unit', 1)); }
-      for (final r in futures[2] as List) { results.add(_makeLocResult(r, 'subunit', 2)); }
-      for (final r in futures[3] as List) { results.add(_makeLocResult(r, 'area', 3)); }
+    for (final r in (_levelCache[0] ?? [])) {
+      if ((r['nama_lokasi']?.toString() ?? '').toLowerCase().contains(q)) {
+        results.add(_makeLocResult(r, 'lokasi', 0));
+      }
+    }
+    for (final r in (_levelCache[1] ?? [])) {
+      if ((r['nama_unit']?.toString() ?? '').toLowerCase().contains(q)) {
+        results.add(_makeLocResult(r, 'unit', 1));
+      }
+    }
+    for (final r in (_levelCache[2] ?? [])) {
+      if ((r['nama_subunit']?.toString() ?? '').toLowerCase().contains(q)) {
+        results.add(_makeLocResult(r, 'subunit', 2));
+      }
+    }
+    for (final r in (_levelCache[3] ?? [])) {
+      if ((r['nama_area']?.toString() ?? '').toLowerCase().contains(q)) {
+        results.add(_makeLocResult(r, 'area', 3));
+      }
+    }
 
-      // Jika mode Lokasi Saya aktif, filter berdasarkan scope user
-      // Mode pro/non-pro TIDAK membatasi hasil pencarian
-      final filtered = _isLokasiSaya
-          ? results.where((r) => _isInMyLocationScope(r)).toList()
-          : results;
+    final filtered = _isLokasiSaya
+        ? results.where((r) => _isInMyLocationScope(r)).toList()
+        : results;
 
-      filtered.sort((a, b) {
-        final favA = _isFavorit(a.type, a.id) ? 0 : 1;
-        final favB = _isFavorit(b.type, b.id) ? 0 : 1;
-        if (favA != favB) return favA.compareTo(favB);
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    filtered.sort((a, b) {
+      final favA = _isFavorit(a.type, a.id) ? 0 : 1;
+      final favB = _isFavorit(b.type, b.id) ? 0 : 1;
+      if (favA != favB) return favA.compareTo(favB);
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
+    const order = ['lokasi', 'unit', 'subunit', 'area'];
+    final hasMatchOnActiveTab = filtered.any((r) => r.type == _activeFilter);
+    String newActiveFilter = _activeFilter ?? 'lokasi';
+    if (!hasMatchOnActiveTab) {
+      for (final type in order) {
+        if (filtered.any((r) => r.type == type)) {
+          newActiveFilter = type;
+          break;
+        }
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _globalResults    = filtered;
+        _isGlobalLoading  = false;
+        _activeFilter     = newActiveFilter;
       });
-
-      if (mounted) setState(() { _globalResults = filtered; _isGlobalLoading = false; });
-    } catch (e) {
-      debugPrint('Global search error: $e');
-      if (mounted) setState(() => _isGlobalLoading = false);
     }
   }
 
-  /// Cek apakah hasil search termasuk dalam lokasi user (untuk mode Lokasi Saya)
   bool _isInMyLocationScope(_LocSearchResult r) {
     switch (r.type) {
       case 'lokasi':
@@ -687,22 +886,14 @@ class _LocationScreenState extends State<LocationScreen>
     final img  = r['gambar_$type'] as String?;
     String? breadcrumb;
     if (type == 'unit')    breadcrumb = r['lokasi']?['nama_lokasi']?.toString();
-    if (type == 'subunit') {
-      final p = [r['lokasi']?['nama_lokasi'], r['unit']?['nama_unit']].whereType<String>().join(' › ');
-      breadcrumb = p.isNotEmpty ? p : null;
-    }
-    if (type == 'area') {
-      final p = [r['lokasi']?['nama_lokasi'], r['unit']?['nama_unit'], r['subunit']?['nama_subunit']]
-          .whereType<String>().join(' › ');
-      breadcrumb = p.isNotEmpty ? p : null;
-    }
+    if (type == 'subunit') breadcrumb = r['unit']?['nama_unit']?.toString();
+    if (type == 'area')    breadcrumb = r['subunit']?['nama_subunit']?.toString();
     return _LocSearchResult(id: id, name: name, type: type, level: level, imgUrl: img, breadcrumb: breadcrumb, raw: r);
   }
 
   String _getLevelName([int? level]) =>
       ['lokasi', 'unit', 'subunit', 'area'][level ?? _currentLevel];
 
-  // ── Navigasi ──────────────────────────────────────────────────────────────
   void _goBack() {
     if (_navHistory.isEmpty) {
       Navigator.pop(context);
@@ -723,42 +914,50 @@ class _LocationScreenState extends State<LocationScreen>
 
   void _showDetailModal() {
     if (_currentParentData == null) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _DetailBottomSheet(
-        level: _currentLevel - 1,
-        data : _currentParentData!,
-        lang : widget.lang,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationDetailScreen(
+          level: _currentLevel - 1,
+          data : _currentParentData!,
+          lang : widget.lang,
+        ),
       ),
     );
   }
 
   void _showDetailModalForItem(Map<String, dynamic> item) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _DetailBottomSheet(
-        level: _currentLevel,
-        data : item,
-        lang : widget.lang,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationDetailScreen(
+          level: _currentLevel,
+          data : item,
+          lang : widget.lang,
+        ),
       ),
     );
   }
 
   void _toggleLokasiSaya() {
-    setState(() => _isLokasiSaya = !_isLokasiSaya);
-    _fetchData(
-      parentId  : _navHistory.isNotEmpty ? _navHistory.last['id'] : null,
-      parentData: _currentParentData,
-    );
+    final parentId = _navHistory.isNotEmpty ? _navHistory.last['id'] as String? : null;
+
+    setState(() {
+      _isLokasiSaya = !_isLokasiSaya;
+
+      List<dynamic> data = List<dynamic>.from(_levelCache[_currentLevel] ?? []);
+      if (parentId != null && _currentLevel > 0) {
+        const filterColumns = ['id_lokasi', 'id_unit', 'id_subunit'];
+        final filterCol = filterColumns[_currentLevel - 1];
+        data = data.where((item) => item[filterCol]?.toString() == parentId).toList();
+      }
+      if (_isLokasiSaya) data = _filterByMyLocation(data, _currentLevel);
+      _currentData = data;
+    });
+    _onSearch(_searchQuery);
+    _updateSuggestItems();
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // BUILD
-  // ══════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -775,7 +974,6 @@ class _LocationScreenState extends State<LocationScreen>
           if (!_isLoading && _currentLevel > 0 && _currentParentData != null)
             _buildParentCard(),
           if (!_isLoading) _buildSuggestSection(),
-          if (!_isLoading && _currentLevel > 0) _buildSublokasiCount(),
           Expanded(
             child: _isGlobalSearch
                 ? _buildGlobalSearchResults()
@@ -791,7 +989,7 @@ class _LocationScreenState extends State<LocationScreen>
       return _buildShimmerList();
     }
 
-    final displayed = _globalResults;
+    final displayed = _globalResults.where((r) => r.type == _activeFilter).toList();
 
     if (displayed.isEmpty) {
       return Center(
@@ -813,10 +1011,7 @@ class _LocationScreenState extends State<LocationScreen>
       );
     }
 
-    const levelColors = [Color(0xFF0891B2), Color(0xFF7C3AED), Color(0xFF059669), Color(0xFFD97706)];
-    const levelIcons  = [Icons.location_city_rounded, Icons.domain_rounded, Icons.grid_view_rounded, Icons.place_rounded];
-
-    String subLabel(int level, Map<String, dynamic> raw) {
+    String subLabelOf(int level, Map<String, dynamic> raw) {
       switch (level) {
         case 0:
           final units = raw['unit'] as List?;
@@ -845,12 +1040,33 @@ class _LocationScreenState extends State<LocationScreen>
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             itemCount: displayed.length,
             itemBuilder: (_, i) {
-              final r         = displayed[i];
-              final isFav     = _isFavorit(r.type, r.id);
-              final clr       = levelColors[r.level];
-              final ico       = levelIcons[r.level];
-              final typeLabel = t('level_${r.type}');
-              final subCount  = subLabel(r.level, r.raw);
+              final r        = displayed[i];
+              final isFav    = _isFavorit(r.type, r.id);
+              final clr      = _levelColors[r.level];
+              final ico      = _levelIcons[r.level];
+              final subCount = subLabelOf(r.level, r.raw);
+
+              final bool isMyLoc  = _isMyLocationOfType(r.type, r.id);
+              final bool isPic    = _isPicOfItem(r.raw);
+              final bool hasBadge = isMyLoc || isPic;
+
+              Widget? breadcrumbPill;
+              if (r.breadcrumb != null) {
+                breadcrumbPill = _levelPill(
+                  icon: r.level > 0 ? _levelIcons[r.level - 1] : ico,
+                  label: r.breadcrumb!,
+                  color: r.level > 0 ? _levelColors[r.level - 1] : clr,
+                );
+              }
+
+              Widget? subCountPill;
+              if (subCount.isNotEmpty && r.level < 3) {
+                subCountPill = _levelPill(
+                  icon: _levelIcons[r.level + 1],
+                  label: subCount,
+                  color: _levelColors[r.level + 1],
+                );
+              }
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
@@ -871,130 +1087,105 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
                 child: Column(
                   children: [
-                    // ── Baris utama dengan IntrinsicHeight agar gambar mengikuti tinggi konten ──
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Gambar memenuhi penuh tinggi konten
-                          ClipRRect(
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(16),
-                            ),
-                            child: SizedBox(
-                              width: 80,
-                              child: r.imgUrl != null
-                                  ? Image.network(r.imgUrl!, fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        color: clr.withValues(alpha: 0.1),
-                                        child: Center(child: Icon(ico, color: clr, size: 28)),
-                                      ))
-                                  : Container(
-                                      color: clr.withValues(alpha: 0.1),
-                                      child: Center(child: Icon(ico, color: clr, size: 28)),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Info teks
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  // Nama + tombol detail
-                                  GestureDetector(
-                                    onTap: () {
-                                      final itemData = Map<String, dynamic>.from(r.raw);
-                                      showModalBottomSheet(
-                                        context: context,
-                                        isScrollControlled: true,
-                                        backgroundColor: Colors.transparent,
-                                        builder: (_) => _DetailBottomSheet(
-                                          level: r.level,
-                                          data : itemData,
-                                          lang : widget.lang,
+                    Stack(
+                      children: [
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              ClipRRect(
+                                borderRadius: const BorderRadius.only(topLeft: Radius.circular(16)),
+                                child: SizedBox(
+                                  width: 80,
+                                  child: r.imgUrl != null
+                                      ? Image.network(r.imgUrl!, fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Container(
+                                            color: clr.withValues(alpha: 0.1),
+                                            child: Center(child: Icon(ico, color: clr, size: 28)),
+                                          ))
+                                      : Container(
+                                          color: clr.withValues(alpha: 0.1),
+                                          child: Center(child: Icon(ico, color: clr, size: 28)),
                                         ),
-                                      );
-                                    },
-                                    child: Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(r.name,
-                                              style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: _C.textDark),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis),
-                                        ),
-                                        const SizedBox(width: 5),
-                                        const Icon(Icons.info_outline_rounded,
-                                            size: 15, color: _C.primary),
-                                      ],
-                                    ),
-                                  ),
-                                  // Breadcrumb
-                                  if (r.breadcrumb != null) ...[
-                                    const SizedBox(height: 3),
-                                    Text(r.breadcrumb!,
-                                        style: const TextStyle(
-                                            fontSize: 10, color: _C.textGrey),
-                                        overflow: TextOverflow.ellipsis),
-                                  ],
-                                  const SizedBox(height: 5),
-                                  // Type chip
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: clr.withValues(alpha: 0.08),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(typeLabel,
-                                        style: TextStyle(
-                                            fontSize: 9,
-                                            color: clr,
-                                            fontWeight: FontWeight.bold)),
-                                  ),
-                                  // Sub count
-                                  if (r.level < 3 && subCount.isNotEmpty) ...[
-                                    const SizedBox(height: 5),
-                                    Row(children: [
-                                      const Icon(Icons.account_tree_outlined,
-                                          size: 12, color: _C.textGrey),
-                                      const SizedBox(width: 4),
-                                      Text(subCount,
-                                          style: const TextStyle(
-                                              fontSize: 11,
-                                              color: _C.textGrey,
-                                              fontWeight: FontWeight.w500)),
-                                    ]),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                          // ── Tombol Star ──
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Center(
-                              child: IconButton(
-                                icon: Icon(
-                                  isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                                  color: isFav ? _C.star : Colors.grey.shade300,
-                                  size: 22,
                                 ),
-                                onPressed: () => _toggleFavorit(r.type, r.id),
                               ),
-                            ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(0, 12, hasBadge ? 84 : 44, 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () {
+                                          final itemData = Map<String, dynamic>.from(r.raw);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => LocationDetailScreen(
+                                                level: r.level,
+                                                data : itemData,
+                                                lang : widget.lang,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(r.name,
+                                                  style: GoogleFonts.poppins(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: clr,
+                                                      height: 1.25),
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis),
+                                            ),
+                                            const SizedBox(width: 5),
+                                            const Icon(Icons.info_outline_rounded,
+                                                size: 15, color: _C.primary),
+                                          ],
+                                        ),
+                                      ),
+                                      if (breadcrumbPill != null) ...[
+                                        const SizedBox(height: 6),
+                                        breadcrumbPill,
+                                      ],
+                                      const SizedBox(height: 6),
+                                      if (breadcrumbPill == null) ...[
+                                        _levelPill(icon: ico, label: t('level_${r.type}'), color: clr),
+                                        if (subCountPill != null) ...[
+                                          const SizedBox(height: 6),
+                                          subCountPill,
+                                        ],
+                                      ] else
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 6,
+                                          children: [
+                                            _levelPill(icon: ico, label: t('level_${r.type}'), color: clr),
+                                            if (subCountPill != null) subCountPill,
+                                          ],
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                        ..._buildBadgeStarOverlay(
+                          isPic: isPic,
+                          isMyLoc: isMyLoc,
+                          type: r.type,
+                          id: r.id,
+                          raw: r.raw,
+                        ),
+                      ],
                     ),
-                    // ── Footer aktivitas ──
                     Container(
                       decoration: BoxDecoration(
                         color: _C.bg,
@@ -1039,136 +1230,185 @@ class _LocationScreenState extends State<LocationScreen>
     );
   }
 
-  // ── AppBar ────────────────────────────────────────────────────────────────
   PreferredSizeWidget _buildAppBar(String title) {
-    // Judul AppBar disesuaikan dengan bahasa
     final Map<String, String> screenTitles = {
-      'ID': 'Lokasi',
-      'EN': 'Location',
-      'ZH': '位置',
+      'ID': 'Lokasi Spesifik',
+      'EN': 'Specific Location',
+      'ZH': '特定位置',
     };
     final appBarTitle = _navHistory.isEmpty
-        ? (screenTitles[widget.lang] ?? 'Lokasi')
+        ? (screenTitles[widget.lang] ?? 'Lokasi Spesifik')
         : title;
 
     return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      centerTitle: true,
-      surfaceTintColor: Colors.transparent,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF2563EB), size: 20),
+        icon: const Icon(Icons.arrow_back_ios_new, color: _barBlue),
         onPressed: _goBack,
       ),
       title: Text(
         appBarTitle,
-        style: GoogleFonts.inter(
-            color: Color(0xFF2563EB),
-            fontWeight: FontWeight.w700,
-            fontSize: 17),
+        style: GoogleFonts.poppins(
+          fontWeight: FontWeight.bold,
+          color: _barBlue,
+          fontSize: 17,
+        ),
       ),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      scrolledUnderElevation: 1,
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      iconTheme: const IconThemeData(color: _barBlue),
+      centerTitle: true,
       actions: [
         IconButton(
-          onPressed: () => _fetchData(
-            parentId: _navHistory.isNotEmpty ? _navHistory.last['id'] : null,
-            parentData: _currentParentData,
-          ),
-          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF2563EB)),
+          onPressed: _refreshAll,
+          icon: const Icon(Icons.refresh_rounded, color: _barBlue),
         ),
       ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: const Color(0xFFBAE6FD)),
+        child: Container(height: 1, color: _C.border),
       ),
     );
   }
 
-  // ── Search Bar ────────────────────────────────────────────────────────────
   Widget _buildSearchBar() {
     return Container(
       color: Colors.white,
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+            padding: const EdgeInsets.fromLTRB(15, 16, 15, 12),
             child: Row(
               children: [
-                Expanded(
-                  child: Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: _C.bg,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _C.border),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search_rounded, color: _C.primary, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            onChanged: _onSearch,
-                            decoration: InputDecoration(
-                              hintText: '${t('cari')} ${_getLevelName()}',
-                              border: InputBorder.none,
-                              isDense: true,
-                              hintStyle: const TextStyle(color: _C.textGrey, fontSize: 14),
-                            ),
-                          ),
-                        ),
-                        if (_isGlobalSearch)
-                          GestureDetector(
-                            onTap: () => setState(() {
-                              _isGlobalSearch = false;
-                              _globalResults  = [];
-                              _searchQuery    = '';
-                            }),
-                            child: const Icon(Icons.close, color: _C.textGrey, size: 18),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: _toggleLokasiSaya,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    height: 44,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: _isLokasiSaya ? _C.primary : Colors.white,
-                      border: Border.all(color: _isLokasiSaya ? _C.primary : _C.border),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: _isLokasiSaya
-                          ? [BoxShadow(color: _C.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]
-                          : [],
-                    ),
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.my_location_rounded, size: 15,
-                            color: _isLokasiSaya ? Colors.white : _C.primary),
-                        const SizedBox(width: 5),
-                        Text(t('lokasi_saya'),
-                            style: TextStyle(
-                              color: _isLokasiSaya ? Colors.white : _C.primaryDark,
-                              fontWeight: FontWeight.w700, fontSize: 12,
-                            )),
-                      ],
-                    ),
-                  ),
-                ),
+                Expanded(child: _buildSpecificSearchField()),
+                const SizedBox(width: 12),
+                _buildMyLocationButton(),
               ],
             ),
           ),
-          // ── Filter chips: Lokasi / Unit / Subunit / Area ──
           _buildFilterChips(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSpecificSearchField() {
+    final bool active = _isGlobalSearch;
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: active ? _barBlue : Colors.grey.shade300,
+          width: 1.4,
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search_rounded, color: _barBlue, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearch,
+              style: GoogleFonts.poppins(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF0F172A),
+              ),
+              decoration: InputDecoration(
+                hintText: '${t('cari')} ${t('level_${_activeFilter ?? _getLevelName()}')}',
+                hintStyle: GoogleFonts.poppins(color: Colors.grey.shade500, fontSize: 13),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+          if (active)
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                setState(() {
+                  _isGlobalSearch = false;
+                  _globalResults  = [];
+                  _searchQuery    = '';
+                  _activeFilter   = _getLevelName(_currentLevel);
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: _barBlue.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close_rounded, size: 16, color: _barBlue),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMyLocationButton() {
+    const myLabelKeys = ['my_lokasi_badge', 'my_unit_badge', 'my_subunit_badge', 'my_area_badge'];
+    final icon  = _levelIcons[_currentLevel];
+    final label = t(myLabelKeys[_currentLevel]);
+
+    return GestureDetector(
+      onTap: _toggleLokasiSaya,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 54,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          gradient: _isLokasiSaya
+              ? const LinearGradient(
+                  colors: [_barBlue, Color(0xFF0EA5E9)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: _isLokasiSaya ? null : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: _isLokasiSaya ? _barBlue : Colors.grey.shade300,
+            width: 1.4,
+          ),
+          boxShadow: _isLokasiSaya
+              ? [
+                  BoxShadow(
+                    color: _barBlue.withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: _isLokasiSaya ? Colors.white : _barBlue,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                color: _isLokasiSaya ? Colors.white : _barBlue,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1181,55 +1421,77 @@ class _LocationScreenState extends State<LocationScreen>
       {'key': 'area',    'label': t('level_area')},
     ];
 
-    const levelColors = [Color(0xFF0891B2), Color(0xFF7C3AED), Color(0xFF059669), Color(0xFFD97706)];
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(15, 0, 15, 16),
       child: Row(
         children: List.generate(filters.length, (i) {
           final key    = filters[i]['key']!;
           final label  = filters[i]['label']!;
           final active = _activeFilter == key;
-          final clr    = levelColors[i];
+          final color  = _levelColors[i];
+          final icon   = _levelIcons[i];
 
           return Expanded(
             child: GestureDetector(
-              onTap: () async {
+              onTap: () {
                 if (active) return;
-                // Reset state navigasi dan data
+
+                if (_isGlobalSearch) {
+                  setState(() => _activeFilter = key);
+                  return;
+                }
+
+                List<dynamic> data = List<dynamic>.from(_levelCache[i] ?? []);
+                if (_isLokasiSaya) data = _filterByMyLocation(data, i);
+
                 setState(() {
                   _activeFilter      = key;
                   _currentLevel      = i;
                   _navHistory        = [];
-                  _currentData       = [];
-                  _filteredData      = [];
-                  // Jangan reset _searchQuery agar pencarian tetap berjalan
+                  _currentData       = data;
                   _isGlobalSearch    = false;
                   _globalResults     = [];
                   _currentParentData = null;
                   _suggestTemuan     = null;
                   _suggestSelesai    = null;
+                  _searchQuery       = '';
                 });
-                // Fetch data level yang sesuai tanpa parentId
-                await _fetchData();
+                _onSearch('');
+                _updateSuggestItems();
+                _prefetchAllActivities(key, data);
               },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+              child: Container(
                 margin: EdgeInsets.only(right: i < filters.length - 1 ? 6 : 0),
-                height: 32,
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: active ? clr : Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: active ? clr : _C.border, width: 1.2),
+                  color: active ? color : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: active ? color : Colors.grey.shade300),
+                  boxShadow: active
+                      ? [
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.30),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          )
+                        ]
+                      : null,
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: active ? Colors.white : clr,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 16, color: active ? Colors.white : color),
+                    const SizedBox(height: 3),
+                    Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: active ? Colors.white : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1239,8 +1501,6 @@ class _LocationScreenState extends State<LocationScreen>
     );
   }
 
-  // ── Shimmer List ──────────────────────────────────────────────────────────
-  /// Widget shimmer yang ditampilkan selama loading data
   Widget _buildShimmerList() {
     return Shimmer.fromColors(
       baseColor: const Color(0xFFBAE6FD),
@@ -1263,10 +1523,10 @@ class _LocationScreenState extends State<LocationScreen>
       ),
       child: Column(
         children: [
-          // Baris utama
+          // MAIN LINE
           Row(
             children: [
-              // Placeholder gambar
+              // IMAGE PLACEHOLDER
               Container(
                 width: 80,
                 height: 90,
@@ -1277,14 +1537,14 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
               ),
               const SizedBox(width: 12),
-              // Placeholder teks
+              // TEXT PLACEHOLDER
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Judul
+                      // TITLE
                       Container(
                         height: 14,
                         width: double.infinity,
@@ -1294,7 +1554,7 @@ class _LocationScreenState extends State<LocationScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // Sub-info
+                      // SUBINFO
                       Container(
                         height: 11,
                         width: 120,
@@ -1307,7 +1567,7 @@ class _LocationScreenState extends State<LocationScreen>
                   ),
                 ),
               ),
-              // Placeholder bintang
+              // STAR PLACEHOLDER
               Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: Container(
@@ -1321,7 +1581,7 @@ class _LocationScreenState extends State<LocationScreen>
               ),
             ],
           ),
-          // Footer aktivitas
+          // ACTIVITY FOOTER
           Container(
             height: 38,
             decoration: const BoxDecoration(
@@ -1335,7 +1595,6 @@ class _LocationScreenState extends State<LocationScreen>
     );
   }
 
-  // ── Parent Card ───────────────────────────────────────────────────────────
   Widget _buildParentCard() {
     final tName     = _getLevelName(_currentLevel - 1);
     final imgUrl    = _currentParentData!['gambar_$tName'] as String?;
@@ -1460,34 +1719,6 @@ class _LocationScreenState extends State<LocationScreen>
     );
   }
 
-  // ── Sublokasi count ───────────────────────────────────────────────────────
-  Widget _buildSublokasiCount() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: _C.primaryLight,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.layers_rounded,
-                color: _C.primary, size: 16),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${t('sublokasi')} (${_filteredData.length})',
-            style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                color: _C.textDark, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Suggest Section ───────────────────────────────────────────────────────
   Widget _buildSuggestSection() {
     final hasSuggest = _suggestTemuan != null || _suggestSelesai != null;
     if (!hasSuggest) return const SizedBox.shrink();
@@ -1711,11 +1942,9 @@ class _LocationScreenState extends State<LocationScreen>
     );
   }
 
-  // ── List ──────────────────────────────────────────────────────────────────
   Widget _buildList() {
     if (_isLokasiSaya && _filteredData.isEmpty) return _buildMyLocationEmptyState();
     if (_filteredData.isEmpty) {
-      // Pesan kosong spesifik per level
       const levelKeys = ['tidak_ada_data', 'unit_empty', 'subunit_empty', 'area_empty'];
       final msgKey = levelKeys[_currentLevel];
       return Center(
@@ -1807,7 +2036,6 @@ class _LocationScreenState extends State<LocationScreen>
     );
   }
 
-  // ── Location Card ─────────────────────────────────────────────────────────
   Widget _buildLocationCard(Map<String, dynamic> item) {
     final tName = _getLevelName();
     final rawId = item['id_$tName'];
@@ -1820,7 +2048,10 @@ class _LocationScreenState extends State<LocationScreen>
     final isFav     = _isFavorit(tName, id);
     final cachedActivity = _activityCache['$tName:$id'];
 
-    // Label sub-lokasi dinamis
+    final bool isMyLoc  = _isMyLocationOfType(tName, id);
+    final bool isPic    = _isPicOfItem(item);
+    final bool hasBadge = isMyLoc || isPic;
+
     String subLabel() {
       if (_currentLevel >= 3) return '';
       switch (_currentLevel) {
@@ -1838,44 +2069,40 @@ class _LocationScreenState extends State<LocationScreen>
       }
     }
 
-    // Breadcrumb untuk level unit/subunit/area saat filter chip aktif (tanpa parentId)
     String? breadcrumb;
     if (_currentLevel == 1 && _navHistory.isEmpty) {
       breadcrumb = item['lokasi']?['nama_lokasi']?.toString();
     } else if (_currentLevel == 2 && _navHistory.isEmpty) {
-      final parts = [
-        item['lokasi']?['nama_lokasi'],
-        item['unit']?['nama_unit'],
-      ].whereType<String>().join(' › ');
-      breadcrumb = parts.isNotEmpty ? parts : null;
+      breadcrumb = item['unit']?['nama_unit']?.toString();
     } else if (_currentLevel == 3 && _navHistory.isEmpty) {
-      final parts = [
-        item['lokasi']?['nama_lokasi'],
-        item['unit']?['nama_unit'],
-        item['subunit']?['nama_subunit'],
-      ].whereType<String>().join(' › ');
-      breadcrumb = parts.isNotEmpty ? parts : null;
+      breadcrumb = item['subunit']?['nama_subunit']?.toString();
     }
 
-    const levelColors = [Color(0xFF0891B2), Color(0xFF7C3AED), Color(0xFF059669), Color(0xFFD97706)];
-    const levelIcons  = [Icons.location_city_rounded, Icons.domain_rounded, Icons.grid_view_rounded, Icons.place_rounded];
-    final clr = levelColors[_currentLevel];
-    final ico = levelIcons[_currentLevel];
+    final clr = _levelColors[_currentLevel];
+    final ico = _levelIcons[_currentLevel];
+
+    Widget? breadcrumbPill;
+    if (breadcrumb != null && _currentLevel > 0) {
+      final parentLevel = _currentLevel - 1;
+      breadcrumbPill = _levelPill(
+        icon: _levelIcons[parentLevel],
+        label: breadcrumb,
+        color: _levelColors[parentLevel],
+      );
+    }
+
+    Widget? subCountPill;
+    final subText = subLabel();
+    if (subText.isNotEmpty && _currentLevel < 3) {
+      subCountPill = _levelPill(
+        icon: _levelIcons[_currentLevel + 1],
+        label: subText,
+        color: _levelColors[_currentLevel + 1],
+      );
+    }
 
     return GestureDetector(
-      onTap: () {
-        if (_currentLevel == 3) return;
-        setState(() {
-          _navHistory.add({
-            'level': _currentLevel, 'id': id,
-            'name': name, 'data': item,
-          });
-          _currentLevel++;
-          _searchQuery = '';
-          _activeFilter = ['lokasi', 'unit', 'subunit', 'area'][_currentLevel];
-        });
-        _fetchData(parentId: id, parentData: item);
-      },
+      onTap: () => _showDetailModalForItem(item),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
@@ -1897,90 +2124,80 @@ class _LocationScreenState extends State<LocationScreen>
         ),
         child: Column(
           children: [
-            Row(
+            Stack(
               children: [
-                // Gambar selalu memenuhi penuh (coverSize = 90 px) radius hanya pojok kiri atas
-                ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                  ),
-                  child: SizedBox(
-                    width: 80, height: 90,
-                    child: imgUrl != null
-                        ? Image.network(imgUrl, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: clr.withValues(alpha: 0.1),
-                              child: Center(child: Icon(ico, color: clr, size: 30)),
-                            ))
-                        : Container(
-                            color: clr.withValues(alpha: 0.1),
-                            child: Center(child: Icon(ico, color: clr, size: 30)),
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          onTap: () => _showDetailModalForItem(item),
-                          child: Row(
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                        ),
+                        child: SizedBox(
+                          width: 80, height: 90,
+                          child: imgUrl != null
+                              ? Image.network(imgUrl, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: clr.withValues(alpha: 0.1),
+                                    child: Center(child: Icon(ico, color: clr, size: 30)),
+                                  ))
+                              : Container(
+                                  color: clr.withValues(alpha: 0.1),
+                                  child: Center(child: Icon(ico, color: clr, size: 30)),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(0, 12, hasBadge ? 90 : 46, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Flexible(
-                                child: Text(name,
-                                    style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w800,
-                                        color: _C.textDark),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis),
-                              ),
-                              const SizedBox(width: 5),
-                              const Icon(Icons.info_outline_rounded,
-                                  size: 15, color: _C.primary),
+                              Text(name,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: clr,
+                                      height: 1.25),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis),
+                              if (breadcrumbPill != null) ...[
+                                const SizedBox(height: 6),
+                                breadcrumbPill,
+                              ],
+                              const SizedBox(height: 6),
+                              if (breadcrumbPill == null) ...[
+                                _levelPill(icon: ico, label: t('level_$tName'), color: clr),
+                                if (subCountPill != null) ...[
+                                  const SizedBox(height: 6),
+                                  subCountPill,
+                                ],
+                              ] else
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    _levelPill(icon: ico, label: t('level_$tName'), color: clr),
+                                    if (subCountPill != null) subCountPill,
+                                  ],
+                                ),
                             ],
                           ),
                         ),
-                        // Breadcrumb untuk unit/subunit/area tanpa parent
-                        if (breadcrumb != null) ...[
-                          const SizedBox(height: 2),
-                          Text(breadcrumb,
-                              style: const TextStyle(
-                                  fontSize: 10, color: _C.textGrey),
-                              overflow: TextOverflow.ellipsis),
-                        ],
-                        const SizedBox(height: 5),
-                        // Sub-count dinamis
-                        if (_currentLevel < 3 && subLabel().isNotEmpty)
-                          Row(
-                            children: [
-                              const Icon(Icons.account_tree_outlined,
-                                  size: 13, color: _C.textGrey),
-                              const SizedBox(width: 4),
-                              Text(subLabel(),
-                                  style: const TextStyle(
-                                      fontSize: 11,
-                                      color: _C.textGrey,
-                                      fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: IconButton(
-                    icon: Icon(
-                      isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                      color: isFav ? _C.star : Colors.grey.shade300,
-                      size: 26,
-                    ),
-                    onPressed: () => _toggleFavorit(tName, id),
-                  ),
+                ..._buildBadgeStarOverlay(
+                  isPic: isPic,
+                  isMyLoc: isMyLoc,
+                  type: tName,
+                  id: id,
+                  raw: item,
                 ),
               ],
             ),
@@ -1991,8 +2208,6 @@ class _LocationScreenState extends State<LocationScreen>
     );
   }
 
-  /// Footer aktivitas yang menampilkan data dari cache langsung.
-  /// Jika cache belum ada, tampilkan shimmer kecil.
   Widget _buildActivityFooter(_LastActivity? activity) {
     return Container(
       decoration: BoxDecoration(
@@ -2001,15 +2216,14 @@ class _LocationScreenState extends State<LocationScreen>
             const BorderRadius.vertical(bottom: Radius.circular(16)),
         border: const Border(top: BorderSide(color: _C.border, width: 1)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       child: activity == null
-          // Shimmer kecil saat aktivitas belum ada di cache
           ? Shimmer.fromColors(
               baseColor: const Color(0xFFBAE6FD),
               highlightColor: const Color(0xFFE0F2FE),
               period: const Duration(milliseconds: 1200),
               child: Container(
-                height: 16,
+                height: 30,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
@@ -2027,8 +2241,8 @@ class _LocationScreenState extends State<LocationScreen>
                   ),
                 ),
                 Container(
-                    width: 1, height: 28, color: _C.border,
-                    margin: const EdgeInsets.symmetric(horizontal: 8)),
+                    width: 1, height: 30, color: _C.border,
+                    margin: const EdgeInsets.symmetric(horizontal: 10)),
                 Expanded(
                   child: _activityChip(
                     icon : Icons.check_circle_outline_rounded,
@@ -2048,26 +2262,36 @@ class _LocationScreenState extends State<LocationScreen>
     required String label,
     required String value,
   }) {
+    final bool isEmpty = value == '-';
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 13, color: color),
-        const SizedBox(width: 4),
+        Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 12, color: color),
+        ),
+        const SizedBox(width: 6),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(label,
-                  style: TextStyle(
-                      fontSize: 9, color: color,
-                      fontWeight: FontWeight.w600)),
+                  style: GoogleFonts.poppins(
+                      fontSize: 9.5, color: color,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1)),
+              const SizedBox(height: 1),
               Text(
-                value == '-' ? t('belum_ada_aktivitas') : value,
-                style: TextStyle(
-                    fontSize: 9,
-                    color: value == '-'
-                        ? Colors.grey.shade400 : _C.textDark,
-                    fontWeight: FontWeight.w500),
+                isEmpty ? t('belum_ada_aktivitas') : value,
+                style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    color: isEmpty ? Colors.grey.shade400 : _C.textDark,
+                    fontWeight: FontWeight.w600),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -2079,546 +2303,6 @@ class _LocationScreenState extends State<LocationScreen>
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// BOTTOM SHEET DETAIL
-// ══════════════════════════════════════════════════════════════════════════════
-class _DetailBottomSheet extends StatefulWidget {
-  final int level;
-  final Map<String, dynamic> data;
-  final String lang;
-
-  const _DetailBottomSheet({
-    required this.level,
-    required this.data,
-    this.lang = 'ID',
-  });
-
-  @override
-  State<_DetailBottomSheet> createState() => _DetailBottomSheetState();
-}
-
-class _DetailBottomSheetState extends State<_DetailBottomSheet> {
-  int    _tabIndex = 0;
-  String _searchMember = '';
-  final TextEditingController _searchMemberController =
-      TextEditingController();
-  late Future<List<dynamic>> _membersFuture;
-
-  // Gunakan _AppTexts terpusat
-  String t(String key) => _AppTexts.get(widget.lang, key);
-
-  @override
-  void initState() {
-    super.initState();
-    final tName = ['lokasi', 'unit', 'subunit', 'area'][widget.level];
-    _membersFuture = _fetchMembersData(widget.data['id_$tName'].toString());
-  }
-
-  Future<List<dynamic>> _fetchMembersData(String idValue) async {
-    final s = Supabase.instance.client;
-    const q = 'nama, gambar_user, jabatan(nama_jabatan)';
-    if (widget.level == 0) {
-      return await s.from('User').select(q).eq('id_lokasi', idValue);
-    } else if (widget.level == 1) {
-      return await s.from('User').select(q).eq('id_unit', idValue);
-    } else if (widget.level == 2) {
-      final d = await s.from('subunit').select('id_unit')
-          .eq('id_subunit', idValue).maybeSingle();
-      if (d?['id_unit'] == null) return [];
-      return await s.from('User').select(q).eq('id_unit', d!['id_unit'].toString());
-    } else {
-      final d = await s.from('area').select('id_unit')
-          .eq('id_area', idValue).maybeSingle();
-      if (d?['id_unit'] == null) return [];
-      return await s.from('User').select(q).eq('id_unit', d!['id_unit'].toString());
-    }
-  }
-
-  @override
-  void dispose() {
-    _searchMemberController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tName    = ['lokasi', 'unit', 'subunit', 'area'][widget.level];
-    final itemName = widget.data['nama_$tName'] as String;
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF0F9FF),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 45, height: 5,
-            decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(10)),
-          ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(itemName.toUpperCase(),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w900,
-                    letterSpacing: 0.5, color: _C.textDark)),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            color: Colors.white,
-            child: Row(
-              children: [
-                _buildTabItem(t('info'), 0),
-                _buildTabItem(t('anggota'), 1),
-                _buildTabItem(t('qrcode'), 2),
-              ],
-            ),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: _tabIndex,
-              children: [
-                _buildInfoTab(tName),
-                _buildAnggotaTab(widget.data['id_$tName']?.toString() ?? ''),
-                _buildQrTab(tName),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabItem(String title, int index) {
-    final active = _tabIndex == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _tabIndex = index),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 13),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                  color: active ? _C.primary : Colors.transparent,
-                  width: 3),
-            ),
-          ),
-          child: Center(
-            child: Text(title,
-                style: TextStyle(
-                    fontSize: 14,
-                    fontWeight:
-                        active ? FontWeight.w800 : FontWeight.w600,
-                    color: active ? _C.textDark : Colors.grey.shade400)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoTab(String tName) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 200,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5))
-              ],
-              image: widget.data['gambar_$tName'] != null
-                  ? DecorationImage(
-                      image: NetworkImage(widget.data['gambar_$tName']),
-                      fit: BoxFit.cover)
-                  : null,
-            ),
-            child: widget.data['gambar_$tName'] == null
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.image_not_supported_outlined,
-                          size: 50, color: Colors.black12),
-                      const SizedBox(height: 8),
-                      Text(t('tidak_ada_gambar'),
-                          style: const TextStyle(
-                              color: Colors.black26,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  )
-                : null,
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _C.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _infoRow(
-                  icon: Icons.category_rounded,
-                  iconBg: const Color(0xFFFFF7ED),
-                  iconColor: Colors.orange,
-                  label: t('kategori'),
-                  value: widget.data['kategori'] ?? '-',
-                ),
-                const Divider(height: 20, color: Color(0xFFF1F5F9)),
-                _infoRow(
-                  icon: Icons.person_pin_rounded,
-                  iconBg: const Color(0xFFF0FDF4),
-                  iconColor: Colors.green,
-                  label: t('pic'),
-                  value: (widget.data['User'] != null)
-                      ? widget.data['User']['nama'] : '-',
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(t('deskripsi'),
-              style: const TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w800,
-                  color: _C.textDark)),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _C.border),
-            ),
-            child: Text(
-              widget.data['deskripsi_$tName'] ?? t('tdk_ada'),
-              style: const TextStyle(
-                  fontSize: 14, height: 1.6, color: _C.textGrey),
-            ),
-          ),
-          const SizedBox(height: 30),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow({
-    required IconData icon,
-    required Color iconBg,
-    required Color iconColor,
-    required String label,
-    required String value,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-              color: iconBg, borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, color: iconColor, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: const TextStyle(
-                      fontSize: 11, color: _C.textGrey,
-                      fontWeight: FontWeight.w500)),
-              const SizedBox(height: 2),
-              Text(value,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 14,
-                      color: _C.textDark)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAnggotaTab(String idValue) {
-    Color roleColor(String r) {
-      switch (r.toLowerCase()) {
-        case 'eksekutif': return const Color(0xFF6B21A8);
-        case 'manager':   return const Color(0xFF1E3A8A);
-        case 'kasie':     return const Color(0xFF047857);
-        default:          return _C.primary;
-      }
-    }
-    Color roleBg(String r) {
-      switch (r.toLowerCase()) {
-        case 'eksekutif': return const Color(0xFFF3E8FF);
-        case 'manager':   return const Color(0xFFDBEAFE);
-        case 'kasie':     return const Color(0xFFD1FAE5);
-        default:          return _C.primaryLight;
-      }
-    }
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _C.border),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.search_rounded, color: _C.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _searchMemberController,
-                    onChanged: (v) =>
-                        setState(() => _searchMember = v.toLowerCase()),
-                    decoration: InputDecoration(
-                      hintText: t('cari_anggota'),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 14),
-                      hintStyle: const TextStyle(
-                          color: _C.textGrey, fontSize: 13),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Expanded(
-          child: FutureBuilder<List<dynamic>>(
-            future: _membersFuture,
-            builder: (ctx, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
-                // Shimmer untuk tab anggota
-                return Shimmer.fromColors(
-                  baseColor: const Color(0xFFBAE6FD),
-                  highlightColor: const Color(0xFFE0F2FE),
-                  period: const Duration(milliseconds: 1200),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: 6,
-                    itemBuilder: (_, __) => Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              final all = snap.data ?? [];
-              var filtered = all
-                  .where((u) => u['nama']
-                      .toString()
-                      .toLowerCase()
-                      .contains(_searchMember))
-                  .toList();
-
-              const prio = {
-                'eksekutif': 1, 'manager': 2, 'kasie': 3, 'staff': 4
-              };
-              filtered.sort((a, b) {
-                final ra = a['jabatan']?['nama_jabatan']
-                        ?.toString().toLowerCase() ?? 'staff';
-                final rb = b['jabatan']?['nama_jabatan']
-                        ?.toString().toLowerCase() ?? 'staff';
-                return (prio[ra] ?? 5).compareTo(prio[rb] ?? 5);
-              });
-
-              if (filtered.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.group_off_rounded,
-                          size: 56, color: Colors.grey.shade200),
-                      const SizedBox(height: 10),
-                      Text(t('kosong'),
-                          style: const TextStyle(
-                              color: _C.textGrey,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: filtered.length,
-                itemBuilder: (ctx, i) {
-                  final user   = filtered[i];
-                  final role   = user['jabatan']?['nama_jabatan'] ?? 'Staff';
-                  final imgUrl = user['gambar_user'] as String?;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _C.border),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 6),
-                      leading: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                              color: roleColor(role), width: 1.5),
-                        ),
-                        child: CircleAvatar(
-                          backgroundColor: roleBg(role),
-                          backgroundImage: (imgUrl != null && imgUrl.isNotEmpty)
-                              ? NetworkImage(imgUrl) : null,
-                          child: (imgUrl == null || imgUrl.isEmpty)
-                              ? Text(user['nama'][0].toUpperCase(),
-                                  style: TextStyle(
-                                      color: roleColor(role),
-                                      fontWeight: FontWeight.bold))
-                              : null,
-                        ),
-                      ),
-                      title: Text(user['nama'],
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13,
-                              color: _C.textDark),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 5),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: roleBg(role),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: roleColor(role)
-                                    .withValues(alpha: 0.3)),
-                          ),
-                          child: Text(role,
-                              style: TextStyle(
-                                  color: roleColor(role),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700)),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQrTab(String tName) {
-    final qrData = widget.data['qrcode'] as String?;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (qrData != null && qrData.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                        color: _C.primary.withValues(alpha: 0.15),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6))
-                  ],
-                ),
-                child: QrImageView(
-                    data: qrData,
-                    version: QrVersions.auto,
-                    size: 220),
-              )
-            else
-              Column(
-                children: [
-                  Icon(Icons.qr_code_scanner,
-                      size: 80, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text(t('qr_not_generated'),
-                      style: const TextStyle(
-                          fontSize: 15, color: _C.textGrey,
-                          fontWeight: FontWeight.w600),
-                      textAlign: TextAlign.center),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: Text(t('generate_qr')),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _C.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => QRGeneratorScreen(
-                            lang     : widget.lang,
-                            levelName: tName,
-                            levelId  : widget.data['id_$tName'].toString(),
-                            itemName : widget.data['nama_$tName'],
-                          ),
-                        ),
-                      );
-                      if (result == true && mounted) {
-                        final refreshed = await Supabase.instance.client
-                            .from(tName)
-                            .select('*, User!id_pic(nama)')
-                            .eq('id_$tName', widget.data['id_$tName'].toString()) 
-                            .single();
-                        setState(() => widget.data.addAll(refreshed));
-                      }
-                    },
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Model hasil pencarian global (location_screen) ──
 class _LocSearchResult {
   final String  id;
   final String  name;
