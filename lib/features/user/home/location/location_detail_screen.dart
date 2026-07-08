@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../../../shared/code/qr_generator_screen.dart';
+import '../../../../core/utils/jabatan_helper.dart';
 
 class _C {
   static const primary      = Color(0xFF0EA5E9);
@@ -42,9 +42,14 @@ class _DetailTexts {
       'generate_qr': 'Buat Kode QR', 'qr_not_generated': 'Kode QR belum dibuat.',
       'qrcode': 'QR Code', 'tidak_ada_gambar': 'Tidak ada gambar', 'kategori': 'Kategori',
       'level_lokasi': 'Lokasi', 'level_unit': 'Unit', 'level_subunit': 'Subunit', 'level_area': 'Area',
-      'ringkasan_sublokasi': 'Sub-Location Summary',
+      'ringkasan_sublokasi': 'Ringkasan Bagian Lokasi',
       'pilih_kategori': 'Pilih Unit, Subunit, atau Area di atas untuk melihat daftar',
       'sub_kosong': 'Data tidak ditemukan',
+      'qr_active_title': 'QR Code Aktif',
+      'qr_scan_hint': 'Tunjukkan kode ini untuk verifikasi lokasi',
+      'qr_empty_title': 'QR Code Belum Tersedia',
+      'anggota_kosong_title': 'Belum Ada Anggota',
+      'anggota_kosong_subtitle': 'Saat ini belum ada anggota yang terdaftar di lokasi ini',
     },
     'EN': {
       'info': 'Info', 'anggota': 'Members', 'cari_anggota': 'Search member...',
@@ -56,6 +61,11 @@ class _DetailTexts {
       'ringkasan_sublokasi': 'Sub-Location Summary',
       'pilih_kategori': 'Select Unit, Subunit, or Area above to view the list',
       'sub_kosong': 'No data found',
+      'qr_active_title': 'QR Code Active',
+      'qr_scan_hint': 'Show this code for location verification',
+      'qr_empty_title': 'QR Code Not Available Yet',
+      'anggota_kosong_title': 'No Members Yet',
+      'anggota_kosong_subtitle': 'There are currently no members registered at this location',
     },
     'ZH': {
       'info': '信息', 'anggota': '成员', 'cari_anggota': '搜索成员...',
@@ -67,6 +77,11 @@ class _DetailTexts {
       'ringkasan_sublokasi': '子位置摘要',
       'pilih_kategori': '请选择上方的单位、子单位或区域以查看列表',
       'sub_kosong': '未找到数据',
+      'qr_active_title': '二维码已激活',
+      'qr_scan_hint': '出示此二维码以验证位置',
+      'qr_empty_title': '二维码尚未生成',
+      'anggota_kosong_title': '暂无成员',
+      'anggota_kosong_subtitle': '该位置目前没有注册成员',
     },
   };
 
@@ -130,7 +145,7 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
 
   Future<List<dynamic>> _fetchMembersData(String idValue) async {
     final s = Supabase.instance.client;
-    const q = 'nama, gambar_user, jabatan(nama_jabatan)';
+    const q = 'nama, gambar_user, id_jabatan, is_verificator, jabatan(nama_jabatan)';
     if (widget.level == 0) {
       return await s.from('User').select(q).eq('id_lokasi', idValue);
     } else if (widget.level == 1) {
@@ -700,52 +715,45 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   }
 
   Widget _buildAnggotaTab(String idValue) {
-    Color roleColor(String r) {
-      switch (r.toLowerCase()) {
-        case 'eksekutif': return const Color(0xFF6B21A8);
-        case 'manager':   return const Color(0xFF1E3A8A);
-        case 'kasie':     return const Color(0xFF047857);
-        default:          return _C.primary;
-      }
-    }
-    Color roleBg(String r) {
-      switch (r.toLowerCase()) {
-        case 'eksekutif': return const Color(0xFFF3E8FF);
-        case 'manager':   return const Color(0xFFDBEAFE);
-        case 'kasie':     return const Color(0xFFD1FAE5);
-        default:          return _C.primaryLight;
-      }
-    }
-
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(16),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            height: 46,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _C.border),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.search_rounded, color: _C.primary, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _searchMemberController,
-                    onChanged: (v) => setState(() => _searchMember = v.toLowerCase()),
-                    decoration: InputDecoration(
-                      hintText: t('cari_anggota'),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                      hintStyle: const TextStyle(color: _C.textGrey, fontSize: 13),
-                    ),
-                  ),
+              border: Border.all(color: _levelColor.withValues(alpha: 0.35), width: 1.3),
+              boxShadow: [
+                BoxShadow(
+                  color: _levelColor.withValues(alpha: 0.08),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
               ],
+            ),
+            child: TextField(
+              controller: _searchMemberController,
+              onChanged: (v) => setState(() => _searchMember = v.toLowerCase()),
+              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: _C.textDark),
+              decoration: InputDecoration(
+                hintText: t('cari_anggota'),
+                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 12.5),
+                prefixIcon: Icon(Icons.search_rounded, color: _levelColor, size: 20),
+                suffixIcon: _searchMember.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.close_rounded, color: _levelColor, size: 18),
+                        onPressed: () {
+                          _searchMemberController.clear();
+                          setState(() => _searchMember = '');
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
             ),
           ),
         ),
@@ -781,14 +789,59 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
               });
 
               if (filtered.isEmpty) {
+                if (_searchMember.isNotEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.group_off_rounded, size: 56, color: Colors.grey.shade200),
+                        const SizedBox(height: 10),
+                        Text(
+                          t('kosong'),
+                          style: GoogleFonts.poppins(color: _C.textGrey, fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  );
+                }
                 return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.group_off_rounded, size: 56, color: Colors.grey.shade200),
-                      const SizedBox(height: 10),
-                      Text(t('kosong'), style: const TextStyle(color: _C.textGrey, fontWeight: FontWeight.w600)),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 160,
+                          height: 160,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: _levelColor.withValues(alpha: 0.08),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Image.asset(
+                            'assets/images/team_illustration.png',
+                            width: 108,
+                            height: 108,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) =>
+                                Icon(Icons.groups_rounded, size: 64, color: _levelColor.withValues(alpha: 0.5)),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          t('anggota_kosong_title'),
+                          style: GoogleFonts.poppins(fontSize: 15.5, fontWeight: FontWeight.w800, color: _C.textDark),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          t('anggota_kosong_subtitle'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 12.5, color: _C.textGrey, fontWeight: FontWeight.w500, height: 1.5),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
@@ -798,48 +851,76 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                 itemCount: filtered.length,
                 itemBuilder: (ctx, i) {
                   final user = filtered[i];
-                  final role = user['jabatan']?['nama_jabatan'] ?? 'Staff';
+                  final name = user['nama']?.toString() ?? '';
                   final imgUrl = user['gambar_user'] as String?;
+                  final idJabatan = user['id_jabatan'] as int?;
+                  final isVerificator = user['is_verificator'] as bool?;
+                  final jabatanRaw = user['jabatan'];
+                  final jabatanNama = jabatanRaw is Map ? jabatanRaw['nama_jabatan']?.toString() : null;
+
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _C.border),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _levelColor.withValues(alpha: 0.5), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      leading: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: roleColor(role), width: 1.5),
-                        ),
-                        child: CircleAvatar(
-                          backgroundColor: roleBg(role),
-                          backgroundImage: (imgUrl != null && imgUrl.isNotEmpty) ? NetworkImage(imgUrl) : null,
-                          child: (imgUrl == null || imgUrl.isEmpty)
-                              ? Text(user['nama'][0].toUpperCase(), style: TextStyle(color: roleColor(role), fontWeight: FontWeight.bold))
-                              : null,
-                        ),
-                      ),
-                      title: Text(
-                        user['nama'],
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: _C.textDark),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 5),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: roleBg(role),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: roleColor(role).withValues(alpha: 0.3)),
+                    child: Row(
+                      children: [
+                        if (imgUrl != null && imgUrl.isNotEmpty)
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: _levelColor.withValues(alpha: 0.15),
+                            backgroundImage: NetworkImage(imgUrl),
+                            onBackgroundImageError: (_, __) {},
+                          )
+                        else
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: _levelColor,
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : '?',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
-                          child: Text(role, style: TextStyle(color: roleColor(role), fontSize: 11, fontWeight: FontWeight.w700)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: _levelColor,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              _buildMemberJabatanBadge(
+                                idJabatan: idJabatan,
+                                jabatanNama: jabatanNama,
+                                isVerificator: isVerificator,
+                                lang: widget.lang,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   );
                 },
@@ -859,65 +940,117 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (qrData != null && qrData.isNotEmpty)
+            if (qrData != null && qrData.isNotEmpty) ...[
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: _C.primary.withValues(alpha: 0.15), blurRadius: 16, offset: const Offset(0, 6))],
+                  gradient: LinearGradient(
+                    colors: [_levelColor.withValues(alpha: 0.16), _levelColor.withValues(alpha: 0.02)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(28),
                 ),
-                child: QrImageView(data: qrData, version: QrVersions.auto, size: 220),
-              )
-            else
-              Column(
-                children: [
-                  Icon(Icons.qr_code_scanner, size: 80, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text(
-                    t('qr_not_generated'),
-                    style: const TextStyle(fontSize: 15, color: _C.textGrey, fontWeight: FontWeight.w600),
-                    textAlign: TextAlign.center,
+                child: Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: _levelColor.withValues(alpha: 0.25), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(color: _levelColor.withValues(alpha: 0.18), blurRadius: 20, offset: const Offset(0, 8)),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: Text(t('generate_qr')),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _levelColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => QRGeneratorScreen(
-                            lang: widget.lang,
-                            levelName: tName,
-                            levelId: _data['id_$tName'].toString(),
-                            itemName: _data['nama_$tName'],
-                          ),
-                        ),
-                      );
-                      if (result == true && mounted) {
-                        final refreshed = await Supabase.instance.client
-                            .from(tName)
-                            .select('*, User!id_pic(nama)')
-                            .eq('id_$tName', _data['id_$tName'].toString())
-                            .single();
-                        setState(() => _data = {..._data, ...refreshed});
-                      }
-                    },
-                  ),
-                ],
+                  child: QrImageView(data: qrData, version: QrVersions.auto, size: 210),
+                ),
               ),
+              const SizedBox(height: 22),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: _levelColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _levelColor.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.verified_rounded, size: 15, color: _levelColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      t('qr_active_title'),
+                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: _levelColor),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                t('qr_scan_hint'),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 12.5, color: Color(0xFF1D72F3), fontWeight: FontWeight.w700, height: 1.5),
+              ),
+            ] else ...[
+              Container(
+                width: 130,
+                height: 130,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _levelColor.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.qr_code_scanner_rounded, size: 62, color: _levelColor.withValues(alpha: 0.55)),
+              ),
+              const SizedBox(height: 22),
+              Text(
+                t('qr_empty_title'),
+                style: GoogleFonts.poppins(fontSize: 15.5, fontWeight: FontWeight.w800, color: _C.textDark),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                t('qr_not_generated'),
+                style: GoogleFonts.poppins(
+                    fontSize: 12.5, color: Color(0xFF1D72F3), fontWeight: FontWeight.w700, height: 1.5),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+Widget _buildMemberJabatanBadge({
+  required int? idJabatan,
+  required String? jabatanNama,
+  required bool? isVerificator,
+  required String lang,
+}) {
+  final label = JabatanHelper.getDisplayRole(
+    isVerificatorFlag: isVerificator,
+    idJabatan: idJabatan,
+    jabatanFromDb: jabatanNama,
+    lang: lang,
+  );
+  if (label.isEmpty) return const SizedBox.shrink();
+  final color = JabatanHelper.getPrimaryColor(isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+  final icon = JabatanHelper.getRoleIcon(isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 10, color: color),
+      const SizedBox(width: 3),
+      Text(label, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
+    ]),
+  );
 }
 
 class _StickyHeaderDelegate extends SliverPersistentHeaderDelegate {
