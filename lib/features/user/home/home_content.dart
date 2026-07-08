@@ -225,11 +225,17 @@ class HomeContentState extends State<HomeContent> {
           const SizedBox(height: _kSectionGap),
 
           _buildChooseModeButton(),
-          _buildPendingAuditSection(),
 
           if (widget.isExecVerificator) ...[
             const SizedBox(height: _kSectionGap),
             _buildExecVerifButton(),
+          ],
+
+          _buildPendingAuditSection(),
+
+          if (widget.isPreventiveMaintenanceVisible) ...[
+            const SizedBox(height: _kSectionGap),
+            _buildPreventiveMaintenanceButton(),
           ],
 
           const SizedBox(height: _kSectionGap),
@@ -273,11 +279,6 @@ class HomeContentState extends State<HomeContent> {
             label: _t('laporan'),
             onTap: () => _push(AccidentReportListScreen(lang: widget.lang)),
           ),
-
-          if (widget.isPreventiveMaintenanceVisible) ...[
-            const SizedBox(height: 12),
-            _buildPreventiveMaintenanceButton(),
-          ],
 
           const SizedBox(height: 25),
 
@@ -445,7 +446,6 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
-  // Pending Audit Section
   Widget _buildPendingAuditSection() {
     if (!widget.isAtAtmi) return const SizedBox.shrink();
 
@@ -456,8 +456,6 @@ class HomeContentState extends State<HomeContent> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: _kSectionGap),
-          _SectionLabel(text: _t('audit_tasks')),
-          const SizedBox(height: 10),
           for (int i = 0; i < tasks.length; i++) ...[
             _buildAuditTaskCard(tasks[i]),
             if (i != tasks.length - 1) const SizedBox(height: 10),
@@ -476,8 +474,6 @@ class HomeContentState extends State<HomeContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: _kSectionGap),
-            _SectionLabel(text: _t('audit_tasks')),
-            const SizedBox(height: 10),
             for (int i = 0; i < tasks.length; i++) ...[
               _buildAuditTaskCard(tasks[i]),
               if (i != tasks.length - 1) const SizedBox(height: 10),
@@ -488,17 +484,61 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
+  static const List<String> _monthAbbr = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+  ];
+
+  static const Map<String, IconData> _auditLevelIcons = {
+    'lokasi': Icons.location_city_rounded,
+    'unit': Icons.business_rounded,
+    'subunit': Icons.layers_rounded,
+    'area': Icons.place_rounded,
+  };
+
+  String _formatAuditPeriod(String fromRaw, String toRaw) {
+    try {
+      final fParts = fromRaw.split('-');
+      final tParts = toRaw.split('-');
+      if (fParts.length != 3 || tParts.length != 3) return '$fromRaw - $toRaw';
+
+      final fYear = fParts[0];
+      final fMonth = int.parse(fParts[1]);
+      final fDay = int.parse(fParts[2]);
+      final tYear = tParts[0];
+      final tMonth = int.parse(tParts[1]);
+      final tDay = int.parse(tParts[2]);
+
+      final fMonthLabel = (fMonth >= 1 && fMonth <= 12) ? _monthAbbr[fMonth - 1] : fParts[1];
+      final tMonthLabel = (tMonth >= 1 && tMonth <= 12) ? _monthAbbr[tMonth - 1] : tParts[1];
+
+      if (fYear == tYear && fMonth == tMonth) {
+        return '$fDay - $tDay $tMonthLabel $tYear';
+      } else if (fYear == tYear) {
+        return '$fDay $fMonthLabel - $tDay $tMonthLabel $tYear';
+      } else {
+        return '$fDay $fMonthLabel $fYear - $tDay $tMonthLabel $tYear';
+      }
+    } catch (_) {
+      return '$fromRaw - $toRaw';
+    }
+  }
+
   Widget _buildAuditTaskCard(Map<String, dynamic> task) {
-    const teal = Color(0xFF14B8A6);
+    const auditColor = Color(0xFF14B8A6);
     final level = task['level_type'] as String;
     final locationName = task['location_name'] as String;
-    final from = task['periode_mulai']?.toString() ?? '';
-    final to = task['periode_selesai']?.toString() ?? '';
+    final period = _formatAuditPeriod(
+      task['periode_mulai']?.toString() ?? '',
+      task['periode_selesai']?.toString() ?? '',
+    );
 
     final levelLabel = {
+      'lokasi': widget.lang == 'EN' ? 'Location' : 'Lokasi',
       'unit': 'Unit', 'subunit': 'Sub-Unit', 'area': 'Area',
     }[level] ?? (widget.lang == 'EN' ? 'Location' : 'Lokasi');
 
+    final levelIcon = _auditLevelIcons[level] ?? Icons.place_rounded;
     return GestureDetector(
       onTap: () async {
         // AUDIT SELFIE
@@ -545,9 +585,10 @@ class HomeContentState extends State<HomeContent> {
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: teal.withValues(alpha:0.30), blurRadius: 12, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: auditColor.withValues(alpha:0.30), blurRadius: 12, offset: const Offset(0, 4))],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.all(8),
@@ -558,33 +599,67 @@ class HomeContentState extends State<HomeContent> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(locationName,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      locationName,
+                      maxLines: 1,
+                      softWrap: false,
                       style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if (task['jenis_audit_label'] != null) ...[
-                    const SizedBox(height: 3),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha:0.18),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        task['jenis_audit_label'].toString(),
-                        style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
-                      ),
                     ),
-                    const SizedBox(height: 2),
-                  ],
-                  Text('$levelLabel  •  $from → $to',
-                      style: GoogleFonts.poppins(fontSize: 11, color: Colors.white70)),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (task['jenis_audit_label'] != null)
+                        _buildAuditChip(
+                          icon: Icons.assignment_rounded,
+                          label: task['jenis_audit_label'].toString(),
+                        ),
+                      _buildAuditChip(
+                        icon: levelIcon,
+                        label: levelLabel,
+                      ),
+                      _buildAuditChip(
+                        icon: Icons.calendar_month_rounded,
+                        label: period,
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
+            const SizedBox(width: 4),
             const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.white),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAuditChip({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha:0.18),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w700, color: Colors.white),
+          ),
+        ],
       ),
     );
   }
@@ -612,17 +687,17 @@ class HomeContentState extends State<HomeContent> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF1E3A8A), Color(0xFF0891B2)],
+            colors: [Color(0xFF22C55E), Color(0xFF16A34A)],
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: const Color(0xFF1E3A8A).withValues(alpha:0.25), blurRadius: 12, offset: const Offset(0, 4))],
+          boxShadow: [BoxShadow(color: const Color(0xFF16A34A).withValues(alpha:0.30), blurRadius: 12, offset: const Offset(0, 4))],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.18), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.20), borderRadius: BorderRadius.circular(10)),
               child: const Icon(Icons.verified_rounded, size: 20, color: Colors.white),
             ),
             const SizedBox(width: 12),
@@ -633,7 +708,7 @@ class HomeContentState extends State<HomeContent> {
                   Text(_t('verifikasi'),
                       style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
                   Text(_t('verifikasi_sub'),
-                      style: GoogleFonts.poppins(fontSize: 11, color: Colors.white70)),
+                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha:0.92))),
                 ],
               ),
             ),
@@ -645,7 +720,7 @@ class HomeContentState extends State<HomeContent> {
   }
 
   Widget _buildPreventiveMaintenanceButton() {
-    const Color pmColor = Color(0xFF1D4ED8);
+    const Color pmColor = Color(0xFF2563EB);
     return GestureDetector(
       onTap: () => _push(PreventifMaintenanceScreen(lang: widget.lang)),
       child: Container(
@@ -653,14 +728,14 @@ class HomeContentState extends State<HomeContent> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF1D4ED8), Color(0xFF2563EB)],
+            colors: [Color(0xFF60A5FA), Color(0xFF2563EB)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: pmColor.withValues(alpha:0.28),
+              color: pmColor.withValues(alpha:0.30),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -671,7 +746,7 @@ class HomeContentState extends State<HomeContent> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha:0.18),
+                color: Colors.white.withValues(alpha:0.20),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
@@ -696,8 +771,9 @@ class HomeContentState extends State<HomeContent> {
                   Text(
                     _t('preventive_maintenance_sub'),
                     style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha:0.92),
                     ),
                   ),
                 ],
