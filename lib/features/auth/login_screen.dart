@@ -742,9 +742,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   Center(
                                     child: Text(
                                       getTxt('welcome'),
-                                      style: const TextStyle(
-                                        fontSize: 26, fontWeight: FontWeight.w900,
-                                        color: Color(0xFF0D47A1),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 26, fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF1D72F3),
                                       ),
                                     ),
                                   ),
@@ -752,29 +752,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                   Center(
                                     child: Text(
                                       getTxt('tagline_login'),
-                                      style: TextStyle(
-                                        fontSize: 12, fontWeight: FontWeight.w600,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12, fontWeight: FontWeight.w700,
                                         color: const Color(0xFF1565C0).withValues(alpha:0.75),
                                       ),
                                     ),
                                   ),
                                   const SizedBox(height: 28),
 
-                                  _buildLabel(getTxt('email_label')),
+                                  _buildLabel(getTxt('email_label'), icon: Icons.email_outlined),
                                   _buildTextField(
                                     hint: getTxt('email_hint'),
                                     controller: _emailController,
-                                    icon: Icons.email_outlined,
                                     isPassword: false,
                                     keyboardType: TextInputType.emailAddress,
                                   ),
                                   const SizedBox(height: 16),
 
-                                  _buildLabel(getTxt('pass_label')),
+                                  _buildLabel(getTxt('pass_label'), icon: Icons.lock_outline),
                                   _buildTextField(
                                     hint: '••••••••',
                                     controller: _passwordController,
-                                    icon: Icons.lock_outline,
                                     isPassword: true,
                                   ),
                                   const SizedBox(height: 10),
@@ -799,9 +797,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                           const SizedBox(width: 6),
                                           Text(
                                             getTxt('remember_me'),
-                                            style: const TextStyle(
+                                            style: GoogleFonts.poppins(
                                               fontSize: 12, fontWeight: FontWeight.w600,
-                                              color: Color(0xFF1565C0),
+                                              color: const Color(0xFF1D72F3),
                                             ),
                                           ),
                                         ],
@@ -812,7 +810,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                             _auth.resetPassword(_emailController.text);
                                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                                               content: Text(getTxt('reset_sent')),
-                                              backgroundColor: const Color(0xFF1976D2),
+                                              backgroundColor: const Color(0xFF1D72F3),
                                             ));
                                           } else {
                                             _showCustomDialog(getTxt('fill_email_reset'));
@@ -820,9 +818,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         },
                                         child: Text(
                                           getTxt('forgot_pass'),
-                                          style: const TextStyle(
+                                          style: GoogleFonts.poppins(
                                             fontSize: 12, fontWeight: FontWeight.w700,
-                                            color: Color(0xFF1565C0),
+                                            color: const Color(0xFF1D72F3),
                                           ),
                                         ),
                                       ),
@@ -836,17 +834,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                     width: double.infinity, height: 52,
                                     child: ElevatedButton(
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF1976D2),
+                                        backgroundColor: const Color(0xFF1D72F3),
                                         foregroundColor: Colors.white,
                                         elevation: 0,
                                         shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(14)),
-                                        shadowColor: const Color(0xFF1976D2).withValues(alpha:0.4),
+                                        shadowColor: const Color(0xFF1D72F3).withValues(alpha:0.4),
                                       ),
                                       onPressed: isLoading ? null : _submitForm,
                                       child: Text(
                                         getTxt('sign_in'),
-                                        style: const TextStyle(
+                                        style: GoogleFonts.poppins(
                                             fontSize: 16, fontWeight: FontWeight.w700),
                                       ),
                                     ),
@@ -924,128 +922,185 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showLanguagePicker() {
     const langs = [
-      {'code': 'EN', 'flag': '🇬🇧', 'label': 'English'},
+      {'code': 'EN', 'flag': '🇺🇸', 'label': 'English'},
       {'code': 'ID', 'flag': '🇮🇩', 'label': 'Indonesia'},
       {'code': 'ZH', 'flag': '🇨🇳', 'label': '中文'},
     ];
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Select Language',
-              style: TextStyle(
-                  fontWeight: FontWeight.w700, fontSize: 16,
-                  color: Color(0xFF1E3A8A)),
-            ),
-            const SizedBox(height: 16),
-            ...langs.map((l) {
-              final isSelected = selectedLanguage == l['code'];
-              return GestureDetector(
-                onTap: () async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setString('lang', l['code']!);
-                  if (mounted) setState(() => selectedLanguage = l['code']!);
-                  if (ctx.mounted) Navigator.pop(ctx);
-                },
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF1976D2).withValues(alpha:0.08)
-                        : Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFF1976D2)
-                          : Colors.grey.shade200,
-                      width: isSelected ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(l['flag']!, style: const TextStyle(fontSize: 24)),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          l['label']!,
-                          style: TextStyle(
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            fontSize: 15,
-                            color: isSelected
-                                ? const Color(0xFF1976D2)
-                                : const Color(0xFF1565C0),
-                          ),
+      barrierDismissible: true, // klik di luar area popup akan menutup
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1D72F3).withValues(alpha: 0.2),
+                blurRadius: 30,
+                spreadRadius: 2,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header dengan tombol close
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 12, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Select Language',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 17,
+                          color: const Color(0xFF1D72F3),
                         ),
                       ),
-                      if (isSelected)
-                        const Icon(Icons.check_circle_rounded,
-                            color: Color(0xFF1976D2), size: 20),
-                    ],
-                  ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEFF6FF),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF1D72F3)),
+                      ),
+                    ),
+                  ],
                 ),
-              );
-            }),
-          ],
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                child: Column(
+                  children: langs.map((l) {
+                    final isSelected = selectedLanguage == l['code'];
+                    return GestureDetector(
+                      onTap: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('lang', l['code']!);
+                        if (mounted) setState(() => selectedLanguage = l['code']!);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF1D72F3).withValues(alpha: 0.08)
+                              : const Color(0xFFF8FAFF),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF1D72F3)
+                                : const Color(0xFFE0E7FF),
+                            width: isSelected ? 1.6 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFFE0E7FF)),
+                              ),
+                              child: Text(l['flag']!, style: const TextStyle(fontSize: 22)),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                l['label']!,
+                                style: GoogleFonts.poppins(
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                  fontSize: 15,
+                                  color: isSelected
+                                      ? const Color(0xFF1D72F3)
+                                      : const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(Icons.check_circle_rounded,
+                                  color: Color(0xFF1D72F3), size: 20),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildLangButton() {
+    const flagMap = {'EN': '🇺🇸', 'ID': '🇮🇩', 'ZH': '🇨🇳'};
     return Container(
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha:0.75),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF90CAF9), width: 1),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF1D72F3).withValues(alpha: 0.35), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1D72F3).withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            selectedLanguage == 'EN' ? '🇬🇧'
-                : selectedLanguage == 'ID' ? '🇮🇩' : '🇨🇳',
-            style: const TextStyle(fontSize: 16),
-          ),
-          const SizedBox(width: 6),
+          Text(flagMap[selectedLanguage] ?? '🇺🇸', style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
           Text(
             selectedLanguage,
-            style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1D72F3),
+            ),
           ),
           const SizedBox(width: 2),
-          const Icon(Icons.keyboard_arrow_down_rounded,
-              size: 18, color: Color(0xFF1565C0)),
+          const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Color(0xFF1D72F3)),
         ],
       ),
     );
   }
 
-  Widget _buildLabel(String label) {
+  Widget _buildLabel(String label, {required IconData icon}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6, left: 2),
-      child: Text(
-        label,
-        style: const TextStyle(
-            color: Color(0xFF0D47A1), fontSize: 13, fontWeight: FontWeight.w700),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF1D72F3)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: const Color(0xFF1D72F3),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1053,7 +1108,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildTextField({
     required String hint,
     required TextEditingController controller,
-    required IconData icon,
     required bool isPassword,
     TextInputType keyboardType = TextInputType.text,
   }) {
@@ -1064,7 +1118,7 @@ class _LoginScreenState extends State<LoginScreen> {
         color: const Color(0xFFE3F2FD).withValues(alpha:0.7),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isFilled ? const Color(0xFF1976D2) : const Color(0xFF90CAF9).withValues(alpha:0.8),
+          color: isFilled ? const Color(0xFF1D72F3) : const Color(0xFF90CAF9).withValues(alpha:0.8),
           width: 1.2,
         ),
       ),
@@ -1078,27 +1132,24 @@ class _LoginScreenState extends State<LoginScreen> {
             color: Color(0xFF0D47A1), fontWeight: FontWeight.w600, fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: TextStyle(
-              color: const Color(0xFF90CAF9).withValues(alpha:0.9),
-              fontSize: 14, fontWeight: FontWeight.w500),
-          prefixIcon: Icon(icon,
-              color: isFilled ? const Color(0xFF1976D2) : const Color(0xFF90CAF9),
-              size: 20),
+          hintStyle: const TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 14, fontWeight: FontWeight.w600),
           suffixIcon: isPassword
               ? IconButton(
                   icon: Icon(
                     isPasswordVisible
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    color: isFilled ? const Color(0xFF1976D2) : const Color(0xFF90CAF9),
-                    size: 20,
+                        ? Icons.visibility_off_rounded
+                        : Icons.visibility_rounded,
+                    color: isFilled ? const Color(0xFF1D72F3) : const Color(0xFF5B7A9D),
+                    size: 23,
                   ),
                   onPressed: () =>
                       setState(() => isPasswordVisible = !isPasswordVisible),
                 )
               : null,
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         ),
       ),
     );
