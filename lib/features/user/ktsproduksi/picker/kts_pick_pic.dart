@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/utils/jabatan_helper.dart';
+import '../../../../core/utils/jabatan_helper.dart';
 
 Future<Map<String, dynamic>?> showKtsPickPicDialog(
   BuildContext context, {
@@ -295,7 +295,7 @@ class _KtsAssigneePickerDialogState extends State<_KtsAssigneePickerDialog> {
                       BoxShadow(color: _kPrimary.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2)),
                     ],
                   ),
-                  child: Icon(Icons.place_rounded, color: _locId != null ? Colors.white : _kPrimary, size: 20),
+                  child: Icon(Icons.map, color: _locId != null ? Colors.white : _kPrimary, size: 20),
                 ),
               ),
             ]),
@@ -477,9 +477,9 @@ class _KtsLocationFilterDialogState extends State<_KtsLocationFilterDialog> {
 
   String get _title {
     switch (widget.lang) {
-      case 'EN': return 'Select Location';
-      case 'ZH': return '选择位置';
-      default: return 'Pilih Lokasi';
+      case 'EN': return 'Select Specific Location';
+      case 'ZH': return '选择具体位置';
+      default: return 'Pilih Lokasi Spesifik';
     }
   }
 
@@ -611,7 +611,7 @@ class _KtsLocationFilterDialogState extends State<_KtsLocationFilterDialog> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(color: const Color(0xFFE0F2FE), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.tune_rounded, color: _kPrimary, size: 20),
+                child: const Icon(Icons.map, color: _kPrimary, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(

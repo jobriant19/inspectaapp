@@ -9,7 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../home/alert/required_field_alert.dart';
 import 'camera/kts_camera_screen.dart';
-import 'kts_pick_pic.dart';
+import 'picker/kts_pick_pic.dart';
 
 class KtsProduksiFormScreen extends StatefulWidget {
   final String lang;

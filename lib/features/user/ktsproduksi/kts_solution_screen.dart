@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../home/alert/required_field_alert.dart';
 import '../home/popup/location_permission_popup.dart';
 import 'camera/kts_solution_camera_screen.dart';
+import 'picker/kts_pick_factor.dart';
 import 'picker/kts_pick_section.dart';
 
 class KtsSolutionScreen extends StatefulWidget {
@@ -39,7 +40,6 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
   final _biayaCtrl = TextEditingController();
   final _penyebabCtrl = TextEditingController();
   XFile? _resImageFile;
-  List<Map<String, dynamic>> _subKategoriList = [];
   Map<String, dynamic>? _selectedSubKategori;
   String? _selectedBagian;
   String? _selectedSectionId;
@@ -118,7 +118,6 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSubKategoriKtsProduksi();
     final p = widget.penyelesaian;
     if (p != null) {
       if (p['penyebab'] != null) _penyebabCtrl.text = p['penyebab'];
@@ -137,29 +136,6 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
     _penyebabCtrl.dispose();
     KtsSolutionCameraWarmupService.instance.release();
     super.dispose();
-  }
-
-  Future<void> _loadSubKategoriKtsProduksi() async {
-    try {
-      final katData = await Supabase.instance.client
-          .from('kategoritemuan')
-          .select('id_kategoritemuan')
-          .eq('nama_kategoritemuan', 'KTS Produksi')
-          .maybeSingle();
-      if (katData == null) return;
-      final String katId = katData['id_kategoritemuan'].toString();
-
-      final data = await Supabase.instance.client
-          .from('subkategoritemuan')
-          .select('id_subkategoritemuan, nama_subkategoritemuan')
-          .eq('id_kategoritemuan', katId)
-          .order('nama_subkategoritemuan');
-      if (mounted) {
-        setState(() => _subKategoriList = List<Map<String, dynamic>>.from(data));
-      }
-    } catch (e) {
-      debugPrint('Error load subkategori KTS Produksi: $e');
-    }
   }
 
   Future<void> _pickResImage() async {
@@ -183,6 +159,13 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
         _selectedBagian = name;
         _selectedSectionId = result['id_section']?.toString();
       });
+    }
+  }
+
+  Future<void> _showFactorPicker() async {
+    final result = await showKtsPickFactorDialog(context, lang: widget.lang);
+    if (result != null) {
+      setState(() => _selectedSubKategori = result);
     }
   }
 
@@ -646,118 +629,42 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
 
           _requiredLabel(CupertinoIcons.tag_fill, _t('cause_factor'), fontSize: 13),
           const SizedBox(height: 8),
-          _subKategoriList.isEmpty
-              ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFBFDBFE), width: 1),
-                  ),
-                  child: Row(children: [
-                    const CupertinoActivityIndicator(radius: 8),
-                    const SizedBox(width: 10),
-                    Text(
-                      widget.lang == 'EN' ? 'Loading factors...' : widget.lang == 'ZH' ? '加载中...' : 'Memuat faktor...',
-                      style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFFCBD5E1)),
-                    ),
-                  ]),
-                )
-              : Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _selectedSubKategori != null ? const Color(0xFF16A34A) : const Color(0xFFBBF7D0),
-                      width: _selectedSubKategori != null ? 1.5 : 1,
-                    ),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: ButtonTheme(
-                      alignedDropdown: true,
-                      child: DropdownButton<Map<String, dynamic>>(
-                        isExpanded: true,
-                        value: _selectedSubKategori,
-                        dropdownColor: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        menuMaxHeight: 320,
-                        hint: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Row(children: [
-                            const Icon(CupertinoIcons.tag, size: 16, color: Color(0xFFBFDBFE)),
-                            const SizedBox(width: 10),
-                            Text(
-                              widget.lang == 'ZH' ? '选择原因因素' : widget.lang == 'EN' ? 'Select cause factor' : 'Pilih faktor penyebab',
-                              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFFCBD5E1)),
-                            ),
-                          ]),
-                        ),
-                        icon: Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Icon(
-                            _selectedSubKategori != null ? CupertinoIcons.chevron_up_chevron_down : CupertinoIcons.chevron_down,
-                            size: 15,
-                            color: _selectedSubKategori != null ? const Color(0xFF1D4ED8) : const Color(0xFFBFDBFE),
-                          ),
-                        ),
-                        selectedItemBuilder: (context) => _subKategoriList
-                            .map((f) => Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                                  child: Row(children: [
-                                    const Icon(CupertinoIcons.tag_fill, size: 16, color: Color(0xFF1D4ED8)),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        f['nama_subkategoritemuan'] ?? '',
-                                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ]),
-                                ))
-                            .toList(),
-                        items: _subKategoriList.map((f) {
-                          final isSelected = _selectedSubKategori?['id_subkategoritemuan'] == f['id_subkategoritemuan'];
-                          return DropdownMenuItem<Map<String, dynamic>>(
-                            value: f,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(children: [
-                                Container(
-                                  width: 32, height: 32,
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? const Color(0xFF1D4ED8) : const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(CupertinoIcons.tag_fill, size: 14, color: isSelected ? Colors.white : const Color(0xFF94A3B8)),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    f['nama_subkategoritemuan'] ?? '',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 14,
-                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                                      color: isSelected ? const Color(0xFF1D4ED8) : const Color(0xFF1E293B),
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                if (isSelected) const Icon(CupertinoIcons.checkmark_circle_fill, size: 18, color: Color(0xFF1D4ED8)),
-                              ]),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (val) => setState(() => _selectedSubKategori = val),
-                      ),
-                    ),
-                  ),
+          GestureDetector(
+            onTap: _showFactorPicker,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _selectedSubKategori != null ? const Color(0xFF16A34A) : const Color(0xFFBBF7D0),
+                  width: _selectedSubKategori != null ? 1.5 : 1,
                 ),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+              ),
+              child: Row(
+                children: [
+                  Icon(CupertinoIcons.tag_fill, size: 18,
+                      color: _selectedSubKategori != null ? const Color(0xFF16A34A) : const Color(0xFFBBF7D0)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _selectedSubKategori?['nama_subkategoritemuan']?.toString() ??
+                          (widget.lang == 'ZH' ? '选择原因因素' : widget.lang == 'EN' ? 'Select cause factor' : 'Pilih faktor penyebab'),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: _selectedSubKategori != null ? FontWeight.w600 : FontWeight.normal,
+                        color: _selectedSubKategori != null ? const Color(0xFF1E293B) : const Color(0xFFCBD5E1),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(CupertinoIcons.chevron_right, size: 15,
+                      color: _selectedSubKategori != null ? const Color(0xFF16A34A) : const Color(0xFFBBF7D0)),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
 
           _requiredLabel(CupertinoIcons.hammer_fill, _t('tindakan')),
