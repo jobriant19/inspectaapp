@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/location_service.dart';
@@ -20,6 +21,7 @@ import 'home_content.dart';
 import 'location/location_bottom_screen.dart';
 import 'popup/home_mode_popup.dart';
 import 'popup/home_point_popup.dart';
+import 'popup/location_permission_popup.dart';
 
 // Supabase shorthand
 final _sb = Supabase.instance.client;
@@ -255,13 +257,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkLocationAccess() async {
-    setState(() => _isCheckingLocation = false); 
+    setState(() => _isCheckingLocation = false);
+
+    final currentPermission = await Geolocator.checkPermission();
+    final bool alreadyDecided = currentPermission == LocationPermission.always ||
+        currentPermission == LocationPermission.whileInUse;
+
+    if (!alreadyDecided) {
+      if (mounted) setState(() => _isAtAtmi = false);
+      debugPrint('📍 Location not yet decided — skip silent check, popup will show on user action.');
+      return;
+    }
 
     final result = await LocationService.instance.checkUserAtAtmi();
-
     if (!mounted) return;
     setState(() => _isAtAtmi = result.isAtAtmi);
-
     debugPrint('📍 Background location check: isAtAtmi=$_isAtAtmi');
   }
 
@@ -958,6 +968,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Tampilkan dialog ketika user mencoba aksi yang butuh lokasi ATMI
   /// [actionKey]: 'new_finding' | 'resolution'
   void _showLocationBlockedDialog({required String actionKey}) {
+    const Color primaryColor = Color(0xFF1D72F3);
+
     final Map<String, Map<String, String>> texts = {
       'EN': {
         'title': 'You must be at PT ATMI Solo',
@@ -988,53 +1000,109 @@ class _HomeScreenState extends State<HomeScreen> {
     showDialog(
       context: context,
       barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: Colors.white,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withValues(alpha: 0.25),
+                blurRadius: 30,
+                spreadRadius: 2,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha:0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.location_off_rounded,
-                    color: Colors.orange, size: 36),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                t['title']!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF1E3A8A)),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                t[actionKey] ?? '',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00C9E4),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+              Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12, right: 12),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(ctx).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEFF6FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 18, color: primaryColor),
+                    ),
                   ),
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text(t['ok']!,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 76,
+                      height: 76,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF64B5F6), primaryColor],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withValues(alpha: 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.location_off_rounded, color: Colors.white, size: 36),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      t['title']!,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      t[actionKey] ?? '',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade600,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 22),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: Text(
+                          t['ok']!,
+                          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1383,7 +1451,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
 
     // Cek lokasi fresh sebelum buat temuan baru
-    final result = await LocationService.instance.checkUserAtAtmi(forceRefresh: true);
+    final result = await LocationPermissionPopup.requestWithPopup(context, lang: _lang);
 
     if (!mounted) return;
     setState(() => _isAtAtmi = result.isAtAtmi);
