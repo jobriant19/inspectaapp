@@ -7,11 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:shimmer/shimmer.dart';
-
 import '../home/alert/required_field_alert.dart';
 import 'accident_result_popup.dart';
 import 'camera/accident_camera_screen.dart';
+import 'picker/accident_pick_location.dart';
 
 // ============================================================
 // LAYAR FORM LAPORAN KECELAKAAN (CREATE & EDIT)
@@ -552,11 +551,10 @@ class _AccidentReportFormScreenState
   }
 
   Future<void> _showLocationPicker() async {
-    final result = await showModalBottomSheet<Map<String, dynamic>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AccidentLocationPicker(lang: widget.lang),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (_) => AccidentPickLocationScreen(lang: widget.lang),
     );
     if (result != null) {
       setState(() {
@@ -833,10 +831,7 @@ class _AccidentReportFormScreenState
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
                   _buildLabel(t['location']!, icon: Icons.location_on_outlined),
-                  _buildTapField(
-                    text: _selectedLocation?['nama'] ?? t['pick_location']!,
-                    hasValue: _selectedLocation != null, onTap: _showLocationPicker,
-                  ),
+                  _buildLocationTapField(),
                   const SizedBox(height: 16),
                   _buildLabel(t['cause']!, icon: Icons.warning_amber_rounded),
                   _buildTapField(
@@ -983,6 +978,74 @@ class _AccidentReportFormScreenState
           Expanded(child: Text(text, style: GoogleFonts.inter(fontSize: 15, color: hasValue ? Colors.black87 : const Color(0xFFCBD5E1), fontWeight: hasValue ? FontWeight.w500 : FontWeight.normal))),
           Icon(CupertinoIcons.chevron_down, color: const Color(0xFF2563EB), size: 18),
         ]),
+      ),
+    );
+  }
+
+  static const List<IconData> _locLevelIcons = [
+    Icons.location_city_rounded,
+    Icons.business_rounded,
+    Icons.layers_outlined,
+    Icons.place_rounded,
+  ];
+  static const List<Color> _locLevelColors = [
+    Color(0xFF10B981),
+    Color(0xFF6366F1),
+    Color(0xFFFBBF24),
+    Color(0xFFF472B6),
+  ];
+
+  Widget _buildLocationTapField() {
+    final hasValue = _selectedLocation != null;
+    final int level = (_selectedLocation?['level'] is int) ? _selectedLocation!['level'] as int : 0;
+    final String specific = _selectedLocation?['nama_spesifik']?.toString() ??
+        _selectedLocation?['nama']?.toString() ?? '';
+    final String fullPath = _selectedLocation?['nama']?.toString() ?? '';
+    final Color activeColor = hasValue ? _locLevelColors[level] : const Color(0xFF2563EB);
+    final IconData activeIcon = hasValue ? _locLevelIcons[level] : Icons.location_on_outlined;
+
+    return GestureDetector(
+      onTap: _showLocationPicker,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: hasValue ? activeColor : const Color(0xFFE0E7FF), width: hasValue ? 1.5 : 1),
+        ),
+        child: hasValue
+            ? Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(color: activeColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
+                  child: Icon(activeIcon, color: activeColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(specific,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black87)),
+                      if (fullPath.isNotEmpty && fullPath != specific) ...[
+                        const SizedBox(height: 2),
+                        Text(fullPath,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFF94A3B8))),
+                      ],
+                    ],
+                  ),
+                ),
+                const Icon(CupertinoIcons.chevron_down, color: Color(0xFF2563EB), size: 18),
+              ])
+            : Row(children: [
+                Expanded(child: Text(t['pick_location']!,
+                    style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFFCBD5E1)))),
+                const Icon(CupertinoIcons.chevron_down, color: Color(0xFF2563EB), size: 18),
+              ]),
       ),
     );
   }
@@ -1344,376 +1407,6 @@ class _AccidentUserPickerSheetState extends State<_AccidentUserPickerSheet> {
                                 ])),
                                 const Icon(CupertinoIcons.chevron_right, size: 14, color: Color(0xFFCBD5E1)),
                               ]),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-        ),
-      ]),
-    );
-  }
-}
-
-// ============================================================
-// PEMILIH LOKASI — FIXED VERSION
-// ============================================================
-class _AccidentLocationPicker extends StatefulWidget {
-  final String lang;
-  const _AccidentLocationPicker({required this.lang});
-
-  @override
-  State<_AccidentLocationPicker> createState() => _AccidentLocationPickerState();
-}
-
-class _AccidentLocationPickerState extends State<_AccidentLocationPicker> {
-  int _level = 0;
-  bool _isLoading = true;
-  List<dynamic> _data = [];
-  List<dynamic> _filtered = [];
-
-  // History menyimpan item yang dipilih di setiap level
-  // [{level, id, name, idKey}]
-  final List<Map<String, dynamic>> _history = [];
-
-  final _searchCtrl = TextEditingController();
-
-  static const _tables = ['lokasi', 'unit', 'subunit', 'area'];
-  static const _idCols = ['id_lokasi', 'id_unit', 'id_subunit', 'id_area'];
-  static const _namCols = ['nama_lokasi', 'nama_unit', 'nama_subunit', 'nama_area'];
-  static const _parentCols = ['', 'id_lokasi', 'id_unit', 'id_subunit']; // FK ke parent
-
-  String get _nameCol => _namCols[_level];
-  String get _idCol => _idCols[_level];
-
-  @override
-  void initState() {
-    super.initState();
-    _fetch();
-    _searchCtrl.addListener(_onSearch);
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.removeListener(_onSearch);
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  void _onSearch() {
-    final q = _searchCtrl.text.toLowerCase().trim();
-    if (!mounted) return;
-    setState(() {
-      _filtered = q.isEmpty ? List.from(_data) : _data.where((item) => item[_nameCol].toString().toLowerCase().contains(q)).toList();
-    });
-  }
-
-  // FIX: Terima parentId dan targetLevel sebagai parameter eksplisit
-  // agar tidak bergantung pada state _level yang bisa berubah async
-  Future<void> _fetch({String? parentId, int? targetLevel}) async {
-    final level = targetLevel ?? _level;
-
-    if (!mounted) return;
-    setState(() { _isLoading = true; _data = []; _filtered = []; });
-
-    // Bersihkan search tanpa memicu onSearch di tengah loading
-    _searchCtrl.removeListener(_onSearch);
-    _searchCtrl.clear();
-    _searchCtrl.addListener(_onSearch);
-
-    try {
-      final supabase = Supabase.instance.client;
-      final cols = '${_idCols[level]}, ${_namCols[level]}';
-      List<dynamic> data = [];
-
-      if (level == 0) {
-        data = await supabase.from(_tables[level]).select(cols).order(_namCols[level]);
-      } else {
-        data = await supabase.from(_tables[level]).select(cols).eq(_parentCols[level], parentId!).order(_namCols[level]);
-      }
-
-      if (mounted) {
-        setState(() { _data = data; _filtered = List.from(data); _isLoading = false; });
-      }
-    } catch (e) {
-      debugPrint('Location fetch error: $e');
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // FIX: Simpan parentId di history agar _goBack bisa fetch dengan benar
-  // Simpan id item yang DIPILIH (bukan yang akan jadi parent)
-  void _goDeeper(Map<String, dynamic> item) {
-    if (_level >= 3) return;
-
-    // Capture semua nilai SEBELUM level berubah
-    final currentLevel = _level;
-    final itemId = item[_idCols[currentLevel]]?.toString();
-    final itemName = item[_namCols[currentLevel]]?.toString() ?? '';
-
-    // Simpan ke history: id item yang dipilih adalah parentId untuk level berikutnya
-    _history.add({'level': currentLevel, 'id': itemId, 'name': itemName});
-
-    final nextLevel = currentLevel + 1;
-    setState(() => _level = nextLevel);
-
-    // Fetch dengan parentId = id item yang baru dipilih, targetLevel eksplisit
-    _fetch(parentId: itemId, targetLevel: nextLevel);
-  }
-
-  void _select(Map<String, dynamic> item) {
-    final result = <String, dynamic>{};
-
-    // Masukkan semua id dari history
-    for (final h in _history) {
-      result[_idCols[h['level'] as int]] = h['id'];
-    }
-    // Masukkan id item yang dipilih sekarang
-    result[_idCol] = item[_idCol]?.toString();
-
-    // Nama gabungan
-    final parts = [..._history.map((h) => h['name'] as String), item[_nameCol].toString()];
-    result['nama'] = parts.join(' / ');
-
-    // Auto-fill nama_unit untuk departemen
-    if (_history.length >= 2) {
-      // level 1 ada di history index 1
-      result['nama_unit'] = _history[1]['name'];
-    } else if (_history.length == 1) {
-      result['nama_unit'] = _history[0]['name'];
-    } else if (_level == 1) {
-      result['nama_unit'] = item[_nameCol].toString();
-    }
-
-    Navigator.pop(context, result);
-  }
-
-  void _goBack() {
-    if (_history.isEmpty) { Navigator.pop(context); return; }
-
-    _history.removeLast();
-    final prevLevel = _level - 1;
-    setState(() => _level = prevLevel);
-
-    if (_history.isEmpty) {
-      _fetch(targetLevel: 0);
-    } else {
-      // parentId untuk level ini = id item di history terakhir
-      _fetch(parentId: _history.last['id']?.toString(), targetLevel: prevLevel);
-    }
-  }
-
-  void _jumpToLevel(int targetLevel) {
-    if (targetLevel == _level || targetLevel > _level) return;
-
-    while (_history.length > targetLevel) { _history.removeLast(); }
-    setState(() => _level = targetLevel);
-
-    if (_history.isEmpty) {
-      _fetch(targetLevel: 0);
-    } else {
-      _fetch(parentId: _history.last['id']?.toString(), targetLevel: targetLevel);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final lvlLabels = {
-      'EN': ['Location', 'Unit', 'Sub-Unit', 'Area'],
-      'ID': ['Lokasi', 'Unit', 'Sub-Unit', 'Area'],
-      'ZH': ['地点', '单位', '子单位', '区域'],
-    };
-    final labels = lvlLabels[widget.lang] ?? lvlLabels['ID']!;
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      child: Column(children: [
-        // Drag handle
-        Container(margin: const EdgeInsets.only(top: 10), width: 40, height: 4,
-            decoration: BoxDecoration(color: CupertinoColors.systemGrey4, borderRadius: BorderRadius.circular(2))),
-
-        // Header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          child: Row(children: [
-            IconButton(
-              icon: Icon(_history.isEmpty ? CupertinoIcons.xmark : CupertinoIcons.back, color: const Color(0xFF2563EB), size: 20),
-              onPressed: _goBack,
-            ),
-            Expanded(
-              child: Text(
-                _history.isEmpty ? labels[_level] : _history.last['name'].toString(),
-                style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: const Color(0xFF1E293B)),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(20)),
-              child: Text('${_filtered.length}', style: GoogleFonts.inter(color: const Color(0xFF2563EB), fontWeight: FontWeight.bold, fontSize: 13)),
-            ),
-          ]),
-        ),
-
-        // Breadcrumb tabs
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: List.generate(4, (i) {
-              final isActive = i == _level;
-              final isPast = i < _level;
-              final isFuture = i > _level;
-              return Row(children: [
-                GestureDetector(
-                  onTap: isFuture ? null : () => _jumpToLevel(i),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: isActive ? const Color(0xFF2563EB) : isPast ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFF),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isActive ? const Color(0xFF2563EB) : isPast ? const Color(0xFFBFDBFE) : const Color(0xFFE0E7FF),
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(labels[i],
-                        style: GoogleFonts.inter(
-                          color: isActive ? Colors.white : isPast ? const Color(0xFF2563EB) : const Color(0xFFCBD5E1),
-                          fontSize: 12, fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                        )),
-                  ),
-                ),
-                if (i < 3)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Icon(CupertinoIcons.chevron_right, size: 12, color: i < _level ? const Color(0xFF2563EB) : const Color(0xFFCBD5E1)),
-                  ),
-              ]);
-            }),
-          ),
-        ),
-        const SizedBox(height: 8),
-
-        // Search field
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextFormField(
-            controller: _searchCtrl,
-            style: GoogleFonts.inter(fontSize: 15),
-            decoration: InputDecoration(
-              hintText: widget.lang == 'EN' ? 'Search...' : widget.lang == 'ZH' ? '搜索...' : 'Cari...',
-              hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 13),
-              prefixIcon: const Icon(CupertinoIcons.search, color: Color(0xFF2563EB), size: 20),
-              suffixIcon: _searchCtrl.text.isNotEmpty
-                  ? GestureDetector(onTap: () { _searchCtrl.clear(); }, child: const Icon(CupertinoIcons.xmark_circle_fill, color: Color(0xFFCBD5E1), size: 18))
-                  : null,
-              filled: true, fillColor: const Color(0xFFF8FAFF),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: const BorderSide(color: Color(0xFFE0E7FF))),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5)),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-
-        // Count
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              widget.lang == 'EN' ? '${_filtered.length} results' : widget.lang == 'ZH' ? '${_filtered.length} 个结果' : '${_filtered.length} hasil',
-              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-
-        // List
-        Expanded(
-          child: _isLoading
-              ? Shimmer.fromColors(
-                  baseColor: const Color(0xFFFFCDD2),
-                  highlightColor: const Color(0xFFFFEBEE),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: 6,
-                    itemBuilder: (_, __) => Container(margin: const EdgeInsets.only(bottom: 10), height: 58,
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
-                  ),
-                )
-              : _filtered.isEmpty
-                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(CupertinoIcons.location_slash, size: 48, color: Color(0xFFCBD5E1)),
-                      const SizedBox(height: 8),
-                      Text(widget.lang == 'EN' ? 'No data found' : widget.lang == 'ZH' ? '未找到数据' : 'Data tidak ditemukan',
-                          style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 14)),
-                    ]))
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                      itemCount: _filtered.length,
-                      itemBuilder: (_, i) {
-                        final item = _filtered[i];
-                        final name = item[_nameCol]?.toString() ?? '-';
-                        final isLastLevel = _level == 3;
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white, borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFE0E7FF)),
-                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.04), blurRadius: 6, offset: const Offset(0, 2))],
-                          ),
-                          child: Material(
-                            color: Colors.transparent, borderRadius: BorderRadius.circular(14),
-                            child: InkWell(
-                              onTap: isLastLevel ? () => _select(item) : () => _goDeeper(item),
-                              borderRadius: BorderRadius.circular(14),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                                child: Row(children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(10)),
-                                    child: Icon([
-                                      CupertinoIcons.building_2_fill,
-                                      CupertinoIcons.squares_below_rectangle,
-                                      CupertinoIcons.layers_alt_fill,
-                                      CupertinoIcons.location_fill,
-                                    ][_level], color: const Color(0xFF2563EB), size: 18),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(child: Text(name, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF1E293B)))),
-                                  // Tombol Pilih — select di level manapun
-                                  GestureDetector(
-                                    onTap: () => _select(item),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(color: const Color(0xFFBFDBFE)),
-                                      ),
-                                      child: Text(widget.lang == 'EN' ? 'Select' : widget.lang == 'ZH' ? '选择' : 'Pilih',
-                                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF2563EB))),
-                                    ),
-                                  ),
-                                  if (!isLastLevel) ...[
-                                    const SizedBox(width: 4),
-                                    GestureDetector(
-                                      onTap: () => _goDeeper(item),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(color: const Color(0xFFF8FAFF), borderRadius: BorderRadius.circular(8)),
-                                        child: const Icon(CupertinoIcons.chevron_right, color: Color(0xFF94A3B8), size: 16),
-                                      ),
-                                    ),
-                                  ],
-                                ]),
-                              ),
                             ),
                           ),
                         );
