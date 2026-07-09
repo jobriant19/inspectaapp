@@ -2263,3 +2263,130 @@ class _KtsSectionPickerSheetState extends State<_KtsSectionPickerSheet> {
     );
   }
 }
+
+class KtsCameraScreen extends StatefulWidget {
+  const KtsCameraScreen({super.key});
+  @override
+  State<KtsCameraScreen> createState() => _KtsCameraScreenState();
+}
+
+class _KtsCameraScreenState extends State<KtsCameraScreen> with WidgetsBindingObserver {
+  CameraController? _ctrl;
+  List<CameraDescription>? _cameras;
+  int _camIndex = 0;
+  bool _ready = false;
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _init();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_ctrl == null || !_ctrl!.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive) {
+      _ctrl!.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _init();
+    }
+  }
+
+  Future<void> _init() async {
+    _cameras = await availableCameras();
+    if (_cameras != null && _cameras!.isNotEmpty) await _setCamera(_camIndex);
+  }
+
+  Future<void> _setCamera(int i) async {
+    await _ctrl?.dispose();
+    _ctrl = CameraController(_cameras![i], ResolutionPreset.high, enableAudio: false);
+    try {
+      await _ctrl!.initialize();
+      if (mounted) setState(() => _ready = true);
+    } on CameraException catch (e) {
+      debugPrint('Camera error: ${e.code}');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready || _ctrl == null) {
+      return const Scaffold(backgroundColor: Colors.black, body: Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 16)));
+    }
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Center(child: CameraPreview(_ctrl!)),
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: SafeArea(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.black.withValues(alpha:0.4),
+                child: Row(children: [
+                  IconButton(icon: const Icon(CupertinoIcons.back, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                  Expanded(child: Center(child: Text('FOTO KTS', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)))),
+                  const SizedBox(width: 48),
+                ]),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 40, left: 0, right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    final img = await _picker.pickImage(
+                      source: ImageSource.gallery,
+                      imageQuality: 80,
+                    );
+                    if (img != null && mounted) Navigator.pop(context, img);
+                  },
+                  child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.photo, color: Colors.white)),
+                ),
+                // CAPTURE BUTTON
+                GestureDetector(
+                  onTap: () async {
+                    if (_ctrl == null || _ctrl!.value.isTakingPicture) return;
+                    try {
+                      final pic = await _ctrl!.takePicture();
+                      if (mounted) Navigator.pop(context, pic);
+                    } on CameraException catch (e) {
+                      debugPrint('Snap error: ${e.code}');
+                    }
+                  },
+                  child: Container(
+                    width: 72, height: 72,
+                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 4)),
+                    child: Padding(padding: const EdgeInsets.all(4), child: Container(decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
+                  ),
+                ),
+                // SWITCH CAMERA
+                GestureDetector(
+                  onTap: () {
+                    if (_cameras == null || _cameras!.length < 2) return;
+                    setState(() { _ready = false; _camIndex = (_camIndex + 1) % _cameras!.length; });
+                    _setCamera(_camIndex);
+                  },
+                  child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.switch_camera, color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
