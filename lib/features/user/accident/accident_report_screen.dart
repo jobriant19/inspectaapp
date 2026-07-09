@@ -8,7 +8,9 @@ import '../home/popup/location_permission_popup.dart';
 import 'accident_detail_screen.dart';
 import 'accident_report_form_screen.dart';
 import 'accident_result_popup.dart';
-import 'accident_resolution_management_screen.dart';
+import 'accident_solution_management.dart';
+import 'picker/accident_pick_cause.dart';
+import 'picker/accident_pick_severity.dart';
 
 class AccidentReportListScreen extends StatefulWidget {
   final String lang;
@@ -318,17 +320,6 @@ class _AccidentReportListScreenState
     }
   }
 
-  Color _severityColor(String sev) {
-    switch (sev) {
-      case 'Berat':
-        return const Color(0xFFDC2626);
-      case 'Menengah':
-        return const Color(0xFFF97316);
-      default:
-        return const Color(0xFF16A34A);
-    }
-  }
-
   Color _statusColor(String status) {
     switch (status) {
       case 'Menunggu':
@@ -605,7 +596,7 @@ class _AccidentReportListScreenState
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => AccidentResolutionManagementScreen(
+                  builder: (_) => AccidentSolutionManagementScreen(
                     lang: widget.lang,
                   ),
                 ),
@@ -686,14 +677,19 @@ class _AccidentReportListScreenState
 
   Widget _buildCard(Map<String, dynamic> r) {
     final status = (r['status'] ?? 'Menunggu').toString();
-    final severity = r['tingkat_keparahan'] ?? '';
-    final penyebab = r['penyebab'] ?? '-';
+    final severityKey = r['tingkat_keparahan'];
+    final severityLabel = AccidentSeverityData.labelOf(severityKey, widget.lang);
+    final severityIcon = AccidentSeverityData.iconOf(severityKey);
+    final penyebabKey = r['penyebab'];
+    final penyebabLabel = AccidentCauseData.labelOf(penyebabKey, widget.lang);
+    final penyebabIcon = AccidentCauseData.iconOf(penyebabKey);
+    final penyebabColor = AccidentCauseData.colorOf(penyebabKey);
     final dateStr = r['tanggal_kejadian'] != null
         ? DateFormat('dd MMM yyyy')
             .format(DateTime.parse(r['tanggal_kejadian']))
         : '-';
     final isOwner = r['id_pelapor'] == _currentUserId;
-    final sevColor = _severityColor(severity);
+    final sevColor = AccidentSeverityData.colorOf(severityKey);
     final statusColor = _statusColor(status);
     final statusBg = _statusBg(status);
     final statusIcon = _statusIcon(status);
@@ -848,10 +844,9 @@ class _AccidentReportListScreenState
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.warning_amber_rounded,
-                                  size: 11, color: sevColor),
+                              Icon(severityIcon, size: 11, color: sevColor),
                               const SizedBox(width: 3),
-                              Text(severity,
+                              Text(severityLabel,
                                   style: GoogleFonts.inter(
                                       color: sevColor,
                                       fontWeight: FontWeight.w800,
@@ -863,27 +858,20 @@ class _AccidentReportListScreenState
                     ),
                     const SizedBox(height: 4),
 
-                    // LOCATION BADGE (PENGGANTI "PT ATMI SOLO")
+                    // LOCATION BADGE
                     _buildLocationBadge(r),
                     const SizedBox(height: 6),
 
-                    // CHIPS: MESIN (PENYEBAB) & TINGKAT KEPARAHAN
+                    // ACCIDENT CAUSE
                     Row(
                       children: [
                         Flexible(
                           child: _buildChip(
-                            Icons.medical_services_outlined,
-                            penyebab,
-                            const Color(0xFFF5F3FF),
-                            const Color(0xFF7C3AED),
+                            penyebabIcon,
+                            penyebabLabel,
+                            penyebabColor.withValues(alpha: 0.1),
+                            penyebabColor,
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        _buildChip(
-                          Icons.warning_amber_rounded,
-                          severity,
-                          sevColor.withValues(alpha:0.1),
-                          sevColor,
                         ),
                       ],
                     ),
@@ -1065,493 +1053,6 @@ class _AccidentReportListScreenState
                         borderRadius: BorderRadius.circular(20),
                       ),
                     )),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AccidentResolutionScreen extends StatefulWidget {
-  final String reportId;
-  final String lang;
-
-  const AccidentResolutionScreen({
-    super.key,
-    required this.reportId,
-    required this.lang,
-  });
-
-  @override
-  State<AccidentResolutionScreen> createState() =>
-      _AccidentResolutionScreenState();
-}
-
-class _AccidentResolutionScreenState
-    extends State<AccidentResolutionScreen> {
-  Map<String, dynamic>? _resolution;
-  bool _isLoading = true;
-
-  Map<String, String> get t => _txt[widget.lang] ?? _txt['ID']!;
-  static const Map<String, Map<String, String>> _txt = {
-    'ID': {
-      'title': 'Solusi Laporan',
-      'no_resolution': 'Belum Ada Solusi',
-      'no_resolution_sub':
-          'HRD belum memberikan solusi untuk laporan ini.',
-      'judul': 'Judul Solusi',
-      'desc': 'Deskripsi Solusi',
-      'korektif': 'Tindakan Korektif',
-      'preventif': 'Tindakan Preventif',
-      'date': 'Tanggal Solusi',
-      'by': 'Diselesaikan oleh',
-      'badge': 'SOLUSI HRD',
-    },
-    'EN': {
-      'title': 'Report Solution',
-      'no_resolution': 'No Solution Yet',
-      'no_resolution_sub':
-          'HRD has not provided a solution for this report.',
-      'judul': 'Solution Title',
-      'desc': 'Solution Description',
-      'korektif': 'Corrective Action',
-      'preventif': 'Preventive Action',
-      'date': 'Solution Date',
-      'by': 'Resolved by',
-      'badge': 'HRD SOLUTION',
-    },
-    'ZH': {
-      'title': '报告解决方案',
-      'no_resolution': '暂无解决方案',
-      'no_resolution_sub': 'HRD尚未提供此报告的解决方案。',
-      'judul': '解决方案标题',
-      'desc': '解决方案描述',
-      'korektif': '纠正措施',
-      'preventif': '预防措施',
-      'date': '解决日期',
-      'by': '解决人',
-      'badge': 'HRD解决方案',
-    },
-  };
-
-  @override
-  void initState() {
-    super.initState();
-    _loadResolution();
-  }
-
-  Future<void> _loadResolution() async {
-    setState(() => _isLoading = true);
-    try {
-      final data = await Supabase.instance.client
-          .from('resolution_accident')
-          .select('''
-            id_resolution, judul_resolusi, deskripsi_resolusi,
-            tindakan_korektif, tindakan_preventif,
-            tanggal_resolusi, created_at, foto_resolusi,
-            hrd:resolution_accident_id_hrd_fkey(nama, gambar_user)
-          ''')
-          .eq('id_laporan', widget.reportId)
-          .maybeSingle();
-      if (mounted) {
-        setState(() {
-          _resolution = data;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading resolution: $e');
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  String _formatDate(String? d) {
-    if (d == null) return '-';
-    try {
-      return DateFormat('dd MMM yyyy').format(DateTime.parse(d));
-    } catch (_) {
-      return d;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F4FF),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back,
-              color: Color(0xFF2563EB)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          t['title']!,
-          style: GoogleFonts.inter(
-              color: const Color(0xFF2563EB),
-              fontWeight: FontWeight.w700,
-              fontSize: 17),
-        ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child:
-              Container(color: CupertinoColors.systemGrey5, height: 1),
-        ),
-      ),
-      body: _isLoading
-          ? _buildShimmer()
-          : RefreshIndicator(
-              onRefresh: _loadResolution,
-              color: const Color(0xFF2563EB),
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding:
-                    const EdgeInsets.fromLTRB(16, 20, 16, 40),
-                child: _resolution == null
-                    ? _buildEmpty()
-                    : _buildContent(),
-              ),
-            ),
-    );
-  }
-
-  Widget _buildEmpty() {
-    return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.6,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                CupertinoIcons.doc_text_search,
-                size: 52,
-                color: Color(0xFF2563EB),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              t['no_resolution']!,
-              style: GoogleFonts.inter(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1E293B)),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                t['no_resolution_sub']!,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                    color: const Color(0xFF94A3B8), fontSize: 14),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContent() {
-    final r = _resolution!;
-    final hrd = r['hrd'] as Map<String, dynamic>?;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // BADGE
-        Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF16A34A), Color(0xFF15803D)],
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            t['badge']!,
-            style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5),
-          ),
-        ),
-        const SizedBox(height: 14),
-
-        // SOLUTION TITLE
-        Text(
-          r['judul_resolusi'] ?? '-',
-          style: GoogleFonts.inter(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF0F172A)),
-        ),
-        const SizedBox(height: 20),
-
-        // INFO CARD: TIME & HRD
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border:
-                Border.all(color: const Color(0xFFE0E7FF), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF3B82F6).withValues(alpha:0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              _buildInfoRow(
-                CupertinoIcons.calendar,
-                t['date']!,
-                _formatDate(r['tanggal_resolusi']),
-              ),
-              Container(height: 1, color: const Color(0xFFF1F5F9)),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    const Icon(CupertinoIcons.person_fill,
-                        color: Color(0xFF2563EB), size: 18),
-                    const SizedBox(width: 12),
-                    Text(t['by']!,
-                        style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: const Color(0xFF475569))),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        Text(
-                          hrd?['nama'] ?? '-',
-                          style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: const Color(0xFF0F172A)),
-                        ),
-                        const SizedBox(width: 8),
-                        hrd?['gambar_user'] != null
-                            ? CircleAvatar(
-                                radius: 14,
-                                backgroundImage: NetworkImage(
-                                    hrd!['gambar_user']),
-                              )
-                            : Container(
-                                width: 28,
-                                height: 28,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFEFF6FF),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                    CupertinoIcons.person_fill,
-                                    size: 14,
-                                    color: Color(0xFF2563EB)),
-                              ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // SOLUTION PHOTO
-        if (r['foto_resolusi'] != null &&
-            r['foto_resolusi'].toString().isNotEmpty) ...[
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha:0.08),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.network(
-                r['foto_resolusi'],
-                width: double.infinity,
-                height: 200,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDF4),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Center(
-                    child: Icon(CupertinoIcons.photo,
-                        size: 40, color: Color(0xFF16A34A)),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-
-        // SOLUTION DESCRIPTION
-        _buildSectionTitle(
-            CupertinoIcons.doc_text_fill, t['desc']!),
-        const SizedBox(height: 10),
-        _buildTextCard(r['deskripsi_resolusi']),
-        const SizedBox(height: 20),
-
-        // CORRECTIVE ACTION
-        if (r['tindakan_korektif'] != null &&
-            r['tindakan_korektif'].toString().isNotEmpty) ...[
-          _buildSectionTitle(
-            CupertinoIcons.wrench_fill,
-            t['korektif']!,
-            color: const Color(0xFFF97316),
-          ),
-          const SizedBox(height: 10),
-          _buildTextCard(r['tindakan_korektif'],
-              borderColor: const Color(0xFFFFF7ED),
-              bgColor: const Color(0xFFFFFBF5)),
-          const SizedBox(height: 20),
-        ],
-
-        // PREVENTIF ACTION
-        if (r['tindakan_preventif'] != null &&
-            r['tindakan_preventif'].toString().isNotEmpty) ...[
-          _buildSectionTitle(
-            CupertinoIcons.shield_fill,
-            t['preventif']!,
-            color: const Color(0xFF16A34A),
-          ),
-          const SizedBox(height: 10),
-          _buildTextCard(r['tindakan_preventif'],
-              borderColor: const Color(0xFFDCFCE7),
-              bgColor: const Color(0xFFF0FDF4)),
-          const SizedBox(height: 20),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF2563EB), size: 18),
-          const SizedBox(width: 12),
-          Text(label,
-              style: GoogleFonts.inter(
-                  fontSize: 14, color: const Color(0xFF475569))),
-          const Spacer(),
-          Text(value,
-              style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: const Color(0xFF0F172A))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(IconData icon, String title,
-      {Color color = const Color(0xFF2563EB)}) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha:0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 16, color: color),
-        ),
-        const SizedBox(width: 10),
-        Text(title,
-            style: GoogleFonts.inter(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF0F172A))),
-      ],
-    );
-  }
-
-  Widget _buildTextCard(
-    String? text, {
-    Color borderColor = const Color(0xFFE0E7FF),
-    Color bgColor = Colors.white,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: 1.5),
-      ),
-      child: Text(
-        text ?? '-',
-        style: GoogleFonts.inter(
-            fontSize: 15,
-            color: const Color(0xFF334155),
-            height: 1.6),
-      ),
-    );
-  }
-
-  Widget _buildShimmer() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFFFFCDD2),
-      highlightColor: const Color(0xFFFFEBEE),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-                height: 28,
-                width: 140,
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12))),
-            const SizedBox(height: 14),
-            Container(
-                height: 32,
-                width: 260,
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8))),
-            const SizedBox(height: 20),
-            Container(
-                height: 100,
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20))),
-            const SizedBox(height: 20),
-            Container(
-                height: 120,
-                decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16))),
           ],
         ),
       ),

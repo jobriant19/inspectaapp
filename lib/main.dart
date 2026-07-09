@@ -39,6 +39,7 @@ Future<void> main() async {
         GoogleFonts.inter(fontWeight: FontWeight.w400),
         GoogleFonts.inter(fontWeight: FontWeight.w700),
         GoogleFonts.inter(fontWeight: FontWeight.w800),
+        GoogleFonts.inter(fontWeight: FontWeight.w900),
         GoogleFonts.sourceCodePro(),
       ]),
     ]).timeout(const Duration(seconds: 5));

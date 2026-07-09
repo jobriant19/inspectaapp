@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/jabatan_helper.dart';
 import 'accident_report_form_screen.dart';
 import 'accident_result_popup.dart';
-import 'accident_report_screen.dart';
+import 'accident_solution_screen.dart';
+import 'picker/accident_pick_cause.dart';
+import 'picker/accident_pick_severity.dart';
 
 class AccidentReportDetailScreen extends StatefulWidget {
   final String reportId;
@@ -26,6 +28,7 @@ class _AccidentReportDetailScreenState
   Map<String, dynamic>? _data;
   bool _isLoading = true;
   bool _isDataChanged = false;
+  bool _hasSolution = false;
   String? _currentUserId;
 
   Map<String, String> get t => _txt[widget.lang] ?? _txt['ID']!;
@@ -33,11 +36,11 @@ class _AccidentReportDetailScreenState
     'ID': {
       'title': 'Detail Laporan Kecelakaan',
       'judul': 'Judul',
-      'desc': 'Deskripsi',
+      'desc': 'Deskripsi Detail',
       'date': 'Tanggal Kejadian',
       'time': 'Waktu Kejadian',
-      'location': 'Lokasi',
-      'cause': 'Penyebab',
+      'location': 'Lokasi Kejadian',
+      'cause': 'Penyebab Kecelakaan',
       'severity': 'Tingkat Keparahan',
       'dept': 'Departemen Terdampak',
       'action': 'Tindakan Diambil',
@@ -59,11 +62,11 @@ class _AccidentReportDetailScreenState
     'EN': {
       'title': 'Accident Report Detail',
       'judul': 'Title',
-      'desc': 'Description',
+      'desc': 'Detailed Description',
       'date': 'Incident Date',
       'time': 'Incident Time',
-      'location': 'Location',
-      'cause': 'Cause',
+      'location': 'Incident Location',
+      'cause': 'Accident Cause',
       'severity': 'Severity',
       'dept': 'Affected Department',
       'action': 'Action Taken',
@@ -85,11 +88,11 @@ class _AccidentReportDetailScreenState
     'ZH': {
       'title': '事故报告详情',
       'judul': '标题',
-      'desc': '描述',
+      'desc': '详细描述',
       'date': '事故日期',
       'time': '事故时间',
-      'location': '地点',
-      'cause': '原因',
+      'location': '事故地点',
+      'cause': '事故原因',
       'severity': '严重程度',
       'dept': '受影响部门',
       'action': '采取的措施',
@@ -138,9 +141,21 @@ class _AccidentReportDetailScreenState
         ''')
         .eq('id_laporan', widget.reportId)
         .single();
+
+      bool hasSolution = false;
+      if ((data['status'] ?? '') == 'Selesai') {
+        final resolutionCheck = await Supabase.instance.client
+            .from('resolution_accident')
+            .select('id_resolution')
+            .eq('id_laporan', widget.reportId)
+            .maybeSingle();
+        hasSolution = resolutionCheck != null;
+      }
+
       if (mounted) {
         setState(() {
           _data = data;
+          _hasSolution = hasSolution;
           _isLoading = false;
         });
       }
@@ -283,17 +298,6 @@ class _AccidentReportDetailScreenState
       }
     } catch (e) {
       debugPrint('Error deleting: $e');
-    }
-  }
-
-  Color _severityColor(String sev) {
-    switch (sev) {
-      case 'Berat':
-        return const Color(0xFFDC2626);
-      case 'Menengah':
-        return const Color(0xFFF97316);
-      default:
-        return const Color(0xFF16A34A);
     }
   }
 
@@ -520,8 +524,8 @@ class _AccidentReportDetailScreenState
     );
   }
 
-  Widget _buildTitleCard(
-      Map<String, dynamic> d, String status, String severity, Color sevColor) {
+  Widget _buildTitleCard(Map<String, dynamic> d, String status,
+      String severity, String? rawSeverity, Color sevColor) {
     final statusColor = _statusColor(status);
     final statusBg = _statusBg(status);
     final statusIcon = _statusIcon(status);
@@ -585,7 +589,8 @@ class _AccidentReportDetailScreenState
                     border: Border.all(color: sevColor.withValues(alpha: 0.35)),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.warning_amber_rounded, size: 13, color: sevColor),
+                    Icon(AccidentSeverityData.iconOf(rawSeverity),
+                        size: 13, color: sevColor),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(
@@ -625,8 +630,9 @@ class _AccidentReportDetailScreenState
   Widget _buildContent() {
     final d = _data!;
     final status = d['status'] ?? 'Menunggu';
-    final severity = d['tingkat_keparahan'] ?? '';
-    final sevColor = _severityColor(severity);
+    final rawSeverity = d['tingkat_keparahan'] as String?;
+    final severity = AccidentSeverityData.labelOf(rawSeverity, widget.lang);
+    final sevColor = AccidentSeverityData.colorOf(rawSeverity);
     final locName = d['lokasi']?['nama_lokasi'] ?? '-';
 
     Map<String, dynamic>? getUserMap(dynamic raw) {
@@ -673,7 +679,7 @@ class _AccidentReportDetailScreenState
             const SizedBox(height: 20),
 
           // TITLE CARD BARU
-          _buildTitleCard(d, status, severity, sevColor),
+           _buildTitleCard(d, status, severity, rawSeverity, sevColor),
           const SizedBox(height: 20),
 
           // DESCRIPTION
@@ -804,8 +810,11 @@ class _AccidentReportDetailScreenState
             ),
             child: Column(
               children: [
-                _buildInfoRow(Icons.location_on_outlined,
-                    t['location']!, locName),
+                _buildInfoRowBadge(
+                    Icons.location_on_outlined,
+                    t['location']!,
+                    _buildValueBadge(Icons.location_city_rounded, locName,
+                        const Color(0xFF10B981))),
                 Container(
                     height: 1,
                     color: const Color(0xFFF1F5F9)),
@@ -822,107 +831,110 @@ class _AccidentReportDetailScreenState
                 Container(
                     height: 1,
                     color: const Color(0xFFF1F5F9)),
-                _buildInfoRow(
+                _buildInfoRowBadge(
                     Icons.warning_amber_rounded,
                     t['cause']!,
-                    d['penyebab'] ?? '-'),
+                    _buildValueBadge(
+                        AccidentCauseData.iconOf(d['penyebab']),
+                        AccidentCauseData.labelOf(d['penyebab'], widget.lang),
+                        AccidentCauseData.colorOf(d['penyebab']))),
                 if (d['departemen_terdampak'] != null) ...[
                   Container(
                       height: 1,
                       color: const Color(0xFFF1F5F9)),
-                  _buildInfoRow(Icons.business_outlined,
-                      t['dept']!, d['departemen_terdampak']),
+                  _buildInfoRowBadge(
+                      Icons.business_outlined,
+                      t['dept']!,
+                      _buildValueBadge(Icons.business_rounded,
+                          d['departemen_terdampak'], const Color(0xFF6366F1))),
                 ],
               ],
             ),
           ),
 
-          const SizedBox(height: 24),
+          if (_hasSolution) ...[
+            const SizedBox(height: 24),
 
-          // VIEW SOLUTION BUTTON
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AccidentResolutionScreen(
-                    reportId: widget.reportId,
-                    lang: widget.lang,
-                  ),
-                ),
-              );
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF16A34A), Color(0xFF15803D)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF16A34A).withValues(alpha:0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha:0.25),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(CupertinoIcons.checkmark_shield_fill,
-                        color: Colors.white, size: 26),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _data!['lokasi'] != null
-                              ? (widget.lang == 'EN'
-                                  ? 'View Solution'
-                                  : widget.lang == 'ZH'
-                                      ? '查看解决方案'
-                                      : 'Lihat Solusi')
-                              : (widget.lang == 'EN'
-                                  ? 'View Solution'
-                                  : widget.lang == 'ZH'
-                                      ? '查看解决方案'
-                                      : 'Lihat Solusi'),
-                          style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          widget.lang == 'EN'
-                              ? 'See HRD corrective & preventive actions'
-                              : widget.lang == 'ZH'
-                                  ? '查看HRD纠正和预防措施'
-                                  : 'Lihat tindakan korektif & preventif HRD',
-                          style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: Colors.white.withValues(alpha:0.85)),
-                        ),
-                      ],
+            // VIEW SOLUTION BUTTON
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AccidentResolutionScreen(
+                      reportId: widget.reportId,
+                      lang: widget.lang,
                     ),
                   ),
-                  const Icon(CupertinoIcons.chevron_right,
-                      color: Colors.white, size: 18),
-                ],
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF16A34A), Color(0xFF15803D)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF16A34A).withValues(alpha:0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha:0.25),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(CupertinoIcons.checkmark_shield_fill,
+                          color: Colors.white, size: 26),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.lang == 'EN'
+                                ? 'View Solution'
+                                : widget.lang == 'ZH'
+                                    ? '查看解决方案'
+                                    : 'Lihat Solusi',
+                            style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            widget.lang == 'EN'
+                                ? 'See HRD corrective & preventive actions'
+                                : widget.lang == 'ZH'
+                                    ? '查看HRD纠正和预防措施'
+                                    : 'Lihat tindakan korektif & preventif HRD',
+                            style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white.withValues(alpha:0.85)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(CupertinoIcons.chevron_right,
+                        color: Colors.white, size: 18),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
 
           const SizedBox(height: 40),
         ],
@@ -975,6 +987,55 @@ class _AccidentReportDetailScreenState
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
                     color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRowBadge(
+      IconData icon, String label, Widget valueBadge) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon,
+              color: const Color(0xFF1D72F3), size: 18),
+          const SizedBox(width: 12),
+          Text(label,
+              style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1D72F3))),
+          const Spacer(),
+          valueBadge,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildValueBadge(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                  fontSize: 11.5, fontWeight: FontWeight.w700, color: color),
+            ),
           ),
         ],
       ),

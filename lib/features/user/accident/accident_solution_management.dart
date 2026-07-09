@@ -9,18 +9,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../home/popup/location_permission_popup.dart';
 import 'accident_result_popup.dart';
+import 'picker/accident_pick_cause.dart';
+import 'picker/accident_pick_severity.dart';
 
-class AccidentResolutionManagementScreen extends StatefulWidget {
+class AccidentSolutionManagementScreen extends StatefulWidget {
   final String lang;
-  const AccidentResolutionManagementScreen({super.key, required this.lang});
+  const AccidentSolutionManagementScreen({super.key, required this.lang});
 
   @override
-  State<AccidentResolutionManagementScreen> createState() =>
-      _AccidentResolutionManagementScreenState();
+  State<AccidentSolutionManagementScreen> createState() =>
+      _AccidentSolutionManagementScreenState();
 }
 
-class _AccidentResolutionManagementScreenState
-    extends State<AccidentResolutionManagementScreen> {
+class _AccidentSolutionManagementScreenState
+    extends State<AccidentSolutionManagementScreen> {
   List<Map<String, dynamic>> _reports = [];
   bool _isLoading = true;
 
@@ -52,17 +54,6 @@ class _AccidentResolutionManagementScreenState
     } catch (e) {
       debugPrint('Error fetching HRD reports: $e');
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Color _severityColor(String sev) {
-    switch (sev) {
-      case 'Berat':
-        return const Color(0xFFDC2626);
-      case 'Menengah':
-        return const Color(0xFFF97316);
-      default:
-        return const Color(0xFF16A34A);
     }
   }
 
@@ -121,6 +112,62 @@ class _AccidentResolutionManagementScreenState
     );
   }
 
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Ditinjau':
+        return const Color(0xFF2563EB);
+      case 'Selesai':
+        return const Color(0xFF16A34A);
+      default:
+        return const Color(0xFFDC2626);
+    }
+  }
+
+  Color _statusBg(String status) {
+    switch (status) {
+      case 'Ditinjau':
+        return const Color(0xFFEFF6FF);
+      case 'Selesai':
+        return const Color(0xFFF0FDF4);
+      default:
+        return const Color(0xFFFEF2F2);
+    }
+  }
+
+  IconData _statusIconFor(String status) {
+    switch (status) {
+      case 'Ditinjau':
+        return Icons.visibility_rounded;
+      case 'Selesai':
+        return Icons.check_circle_rounded;
+      default:
+        return Icons.pending_actions_rounded;
+    }
+  }
+
+  String _statusLabelFor(String status) {
+    switch (status) {
+      case 'Ditinjau':
+        return widget.lang == 'EN'
+            ? 'Under Review'
+            : widget.lang == 'ZH'
+                ? '审核中'
+                : 'Ditinjau';
+      case 'Selesai':
+        return widget.lang == 'EN'
+            ? 'Completed'
+            : widget.lang == 'ZH'
+                ? '已完成'
+                : 'Selesai';
+      default:
+        return widget.lang == 'EN'
+            ? 'Pending'
+            : widget.lang == 'ZH'
+                ? '等待中'
+                : 'Menunggu';
+    }
+  }
+
   Widget _buildChip(IconData icon, String label, Color bg, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -142,25 +189,28 @@ class _AccidentResolutionManagementScreenState
   }
 
   Widget _buildReportCard(Map<String, dynamic> r) {
-    final severity = r['tingkat_keparahan'] ?? '';
-    final sevColor = _severityColor(severity);
+    final severityKey = r['tingkat_keparahan'] as String?;
+    final severityLabel = AccidentSeverityData.labelOf(severityKey, widget.lang);
+    final severityIcon = AccidentSeverityData.iconOf(severityKey);
+    final sevColor = AccidentSeverityData.colorOf(severityKey);
     final status = r['status'] ?? '';
     final locName = r['lokasi']?['nama_lokasi'] ?? '-';
-    final penyebab = r['penyebab'] ?? '-';
+    final penyebabKey = r['penyebab'] as String?;
+    final penyebabLabel = AccidentCauseData.labelOf(penyebabKey, widget.lang);
+    final penyebabIcon = AccidentCauseData.iconOf(penyebabKey);
+    final penyebabColor = AccidentCauseData.colorOf(penyebabKey);
 
-    final Color statusColor = status == 'Selesai'
-        ? const Color(0xFF16A34A)
-        : const Color(0xFFF97316);
-    final Color statusBg = status == 'Selesai'
-        ? const Color(0xFFF0FDF4)
-        : const Color(0xFFFFF7ED);
+    final statusColor = _statusColor(status);
+    final statusBg = _statusBg(status);
+    final statusIcon = _statusIconFor(status);
+    final statusLabel = _statusLabelFor(status);
 
     return GestureDetector(
       onTap: () async {
         final changed = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
-            builder: (_) => HrdResolutionDetailScreen(
+            builder: (_) => HrdSolutionDetailScreen(
               reportId: r['id_laporan'] as String,
               reportTitle: r['judul'] ?? '-',
               lang: widget.lang,
@@ -176,36 +226,39 @@ class _AccidentResolutionManagementScreenState
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-              color: const Color(0xFFDCFCE7), width: 1.5),
+              color: const Color(0xFF16A34A), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF16A34A).withOpacity(0.07),
+              color: const Color(0xFF16A34A).withValues(alpha:0.08),
               blurRadius: 14,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // PHOTO
             Container(
-              width: 60,
-              height: 60,
+              width: 84,
+              height: 84,
               decoration: BoxDecoration(
-                color: sevColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: sevColor.withValues(alpha:0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                    color: Colors.black.withValues(alpha: 0.08), width: 1.2),
               ),
               child: r['foto_bukti'] != null
                   ? ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12.5),
                       child: Image.network(r['foto_bukti'],
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Icon(
                               Icons.warning_amber_rounded,
                               color: sevColor,
-                              size: 28)))
+                              size: 32)))
                   : Icon(Icons.warning_amber_rounded,
-                      color: sevColor, size: 28),
+                      color: sevColor, size: 32),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -225,38 +278,70 @@ class _AccidentResolutionManagementScreenState
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                            horizontal: 9, vertical: 5),
                         decoration: BoxDecoration(
                           color: statusBg,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                              color: statusColor.withValues(alpha: 0.35)),
                         ),
-                        child: Text(status,
-                            style: GoogleFonts.inter(
-                                color: statusColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(statusIcon, size: 12, color: statusColor),
+                            const SizedBox(width: 4),
+                            Text(statusLabel,
+                                style: GoogleFonts.inter(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: statusColor)),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(locName,
-                      style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: const Color(0xFF64748B))),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.location_city_rounded,
+                            size: 12, color: Color(0xFF10B981)),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(locName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF10B981))),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       _buildChip(
-                        Icons.medical_services_outlined,
-                        penyebab,
-                        const Color(0xFFF5F3FF),
-                        const Color(0xFF7C3AED),
+                        penyebabIcon,
+                        penyebabLabel,
+                        penyebabColor.withValues(alpha:0.1),
+                        penyebabColor,
                       ),
                       const SizedBox(width: 6),
                       _buildChip(
-                        Icons.warning_amber_rounded,
-                        severity,
-                        sevColor.withOpacity(0.1),
+                        severityIcon,
+                        severityLabel,
+                        sevColor.withValues(alpha:0.1),
                         sevColor,
                       ),
                       const Spacer(),
@@ -318,12 +403,12 @@ class _AccidentResolutionManagementScreenState
   }
 }
 
-class HrdResolutionDetailScreen extends StatefulWidget {
+class HrdSolutionDetailScreen extends StatefulWidget {
   final String reportId;
   final String reportTitle;
   final String lang;
 
-  const HrdResolutionDetailScreen({
+  const HrdSolutionDetailScreen({
     super.key,
     required this.reportId,
     required this.reportTitle,
@@ -331,15 +416,15 @@ class HrdResolutionDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<HrdResolutionDetailScreen> createState() =>
-      _HrdResolutionDetailScreenState();
+  State<HrdSolutionDetailScreen> createState() =>
+      _HrdSolutionDetailScreenState();
 }
 
-class _HrdResolutionDetailScreenState
-    extends State<HrdResolutionDetailScreen> {
-  Map<String, dynamic>? _resolution;
+class _HrdSolutionDetailScreenState
+    extends State<HrdSolutionDetailScreen> {
+  Map<String, dynamic>? _solution;
   bool _isLoading = true;
-  bool _isSaving = false;
+  final bool _isSaving = false;
 
   final _judulCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
@@ -352,7 +437,7 @@ class _HrdResolutionDetailScreenState
   @override
   void initState() {
     super.initState();
-    _loadResolution();
+    _loadSolution();
   }
 
   @override
@@ -376,10 +461,10 @@ class _HrdResolutionDetailScreenState
           Expanded(
             child: Text(
               widget.lang == 'EN'
-                  ? 'Resolution can only be saved within PT ATMI Solo area.'
+                  ? 'Solution can only be saved within PT ATMI Solo area.'
                   : widget.lang == 'ZH'
                       ? '解决方案只能在PT ATMI Solo区域内保存。'
-                      : 'Penyelesaian hanya dapat disimpan di area PT ATMI Solo.',
+                      : 'Solusi hanya dapat disimpan di area PT ATMI Solo.',
             ),
           ),
         ]),
@@ -392,7 +477,7 @@ class _HrdResolutionDetailScreenState
     return false;
   }
 
-  Future<void> _loadResolution() async {
+  Future<void> _loadSolution() async {
     setState(() => _isLoading = true);
     try {
       final data = await Supabase.instance.client
@@ -408,7 +493,7 @@ class _HrdResolutionDetailScreenState
 
       if (mounted) {
         setState(() {
-          _resolution = data;
+          _solution = data;
           _isLoading = false;
           if (data != null) {
             _judulCtrl.text = data['judul_resolusi'] ?? '';
@@ -420,7 +505,7 @@ class _HrdResolutionDetailScreenState
         });
       }
     } catch (e) {
-      debugPrint('Error loading resolution: $e');
+      debugPrint('Error loading solution: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -450,10 +535,10 @@ class _HrdResolutionDetailScreenState
             ),
             Text(
               widget.lang == 'EN'
-                  ? 'Add Resolution Photo'
+                  ? 'Add Solution Photo'
                   : widget.lang == 'ZH'
                       ? '添加解决方案照片'
-                      : 'Tambah Foto Penyelesaian',
+                      : 'Tambah Foto Solusi',
               style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -648,10 +733,10 @@ class _HrdResolutionDetailScreenState
               const SizedBox(height: 10),
               Text(
                 widget.lang == 'EN'
-                    ? 'Add Resolution Photo'
+                    ? 'Add Solution Photo'
                     : widget.lang == 'ZH'
                         ? '添加解决方案照片'
-                        : 'Tambah Foto Penyelesaian',
+                        : 'Tambah Foto Solusi',
                 style: GoogleFonts.inter(
                     color: const Color(0xFF16A34A),
                     fontWeight: FontWeight.w600,
@@ -659,10 +744,10 @@ class _HrdResolutionDetailScreenState
               ),
               Text(
                 widget.lang == 'EN'
-                    ? 'Optional'
+                    ? 'Tap to take or select a photo'
                     : widget.lang == 'ZH'
-                        ? '可选'
-                        : 'Opsional',
+                        ? '点击拍照或选择照片'
+                        : 'Ketuk untuk ambil atau pilih foto',
                 style: GoogleFonts.inter(
                     fontSize: 11, color: const Color(0xFF94A3B8)),
               ),
@@ -699,7 +784,7 @@ class _HrdResolutionDetailScreenState
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
+                  color: Colors.black.withValues(alpha:0.6),
                   borderRadius: BorderRadius.circular(20)),
               child: Row(
                 children: [
@@ -726,7 +811,7 @@ class _HrdResolutionDetailScreenState
     );
   }
 
-  Future<void> _saveResolution() async {
+  Future<void> _saveSolution() async {
     if (_judulCtrl.text.trim().isEmpty || _descCtrl.text.trim().isEmpty) {
       await showResultPopup(
         context,
@@ -781,7 +866,7 @@ class _HrdResolutionDetailScreenState
       if (_imageFile != null) {
         final bytes = await _imageFile!.readAsBytes();
         final fileName =
-            '$userId/resolution_${DateTime.now().millisecondsSinceEpoch}.jpg';
+            '$userId/solution_${DateTime.now().millisecondsSinceEpoch}.jpg';
         await supabase.storage.from('temuan_images').uploadBinary(
             fileName, bytes,
             fileOptions: const FileOptions(contentType: 'image/jpeg'));
@@ -789,7 +874,7 @@ class _HrdResolutionDetailScreenState
             supabase.storage.from('temuan_images').getPublicUrl(fileName);
       }
 
-      if (_resolution == null) {
+      if (_solution == null) {
         await supabase.from('resolution_accident').insert({
           'id_laporan': widget.reportId,
           'id_hrd': userId,
@@ -820,7 +905,7 @@ class _HrdResolutionDetailScreenState
               : _preventifCtrl.text.trim(),
           'updated_at': DateTime.now().toIso8601String(),
           'foto_resolusi': imageUrl,
-        }).eq('id_resolution', _resolution!['id_resolution']);
+        }).eq('id_resolution', _solution!['id_resolution']);
       }
 
       if (mounted) {
@@ -857,30 +942,31 @@ class _HrdResolutionDetailScreenState
 
   Widget _buildFormField({
     required TextEditingController ctrl,
+    required IconData icon,
     required String label,
     required String hint,
     int maxLines = 1,
     Color borderColor = const Color(0xFF16A34A),
-    bool isRequired = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
+            Icon(icon, size: 15, color: const Color(0xFF16A34A)),
+            const SizedBox(width: 6),
             Text(label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.poppins(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF475569))),
-            if (isRequired)
-              const Text(' *',
-                  style: TextStyle(
-                      color: Color(0xFFEF4444),
-                      fontWeight: FontWeight.bold)),
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF16A34A))),
+            const Text(' *',
+                style: TextStyle(
+                    color: Color(0xFFEF4444),
+                    fontWeight: FontWeight.bold)),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         TextFormField(
           controller: ctrl,
           maxLines: maxLines,
@@ -897,7 +983,7 @@ class _HrdResolutionDetailScreenState
             enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: borderColor.withOpacity(0.3), width: 1)),
+                    color: borderColor.withValues(alpha:0.3), width: 1)),
             focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: borderColor, width: 1.5)),
@@ -911,7 +997,7 @@ class _HrdResolutionDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final bool isEdit = _resolution != null;
+    final bool isEdit = _solution != null;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
@@ -929,7 +1015,7 @@ class _HrdResolutionDetailScreenState
               : widget.lang == 'ZH'
                   ? (isEdit ? '编辑解决方案' : '添加解决方案')
                   : (isEdit ? 'Edit Solusi' : 'Tambah Solusi'),
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
               color: const Color(0xFF16A34A),
               fontWeight: FontWeight.w700,
               fontSize: 17),
@@ -951,32 +1037,6 @@ class _HrdResolutionDetailScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // REPORT INFO
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEFF6FF),
-                          borderRadius: BorderRadius.circular(14),
-                          border:
-                              Border.all(color: const Color(0xFFBFDBFE)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.assignment_outlined,
-                                color: Color(0xFF2563EB), size: 18),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(widget.reportTitle,
-                                  style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF1E293B))),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
                       // SOLUTION PHOTO
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -991,37 +1051,24 @@ class _HrdResolutionDetailScreenState
                           children: [
                             Row(
                               children: [
+                                const Icon(CupertinoIcons.camera_fill,
+                                    size: 15, color: Color(0xFF16A34A)),
+                                const SizedBox(width: 6),
                                 Text(
                                   widget.lang == 'EN'
                                       ? 'Solution Photo'
                                       : widget.lang == 'ZH'
                                           ? '解决方案照片'
                                           : 'Foto Solusi',
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.poppins(
                                       fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF475569)),
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF16A34A)),
                                 ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF0FDF4),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    widget.lang == 'EN'
-                                        ? 'Optional'
-                                        : widget.lang == 'ZH'
-                                            ? '可选'
-                                            : 'Opsional',
-                                    style: GoogleFonts.inter(
-                                        fontSize: 10,
-                                        color: const Color(0xFF16A34A),
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ),
+                                const Text(' *',
+                                    style: TextStyle(
+                                        color: Color(0xFFEF4444),
+                                        fontWeight: FontWeight.bold)),
                               ],
                             ),
                             const SizedBox(height: 10),
@@ -1044,35 +1091,35 @@ class _HrdResolutionDetailScreenState
                           children: [
                             _buildFormField(
                               ctrl: _judulCtrl,
+                              icon: CupertinoIcons.pencil,
                               label: widget.lang == 'ID'
                                   ? 'Judul Solusi'
                                   : widget.lang == 'ZH'
                                       ? '解决方案标题'
                                       : 'Solution Title',
                               hint: widget.lang == 'ID'
-                                  ? 'Contoh: Penanganan Insiden Gudang'
+                                  ? 'Contoh: Penanganan Insiden Terpeleset di Gudang'
                                   : widget.lang == 'ZH'
-                                      ? '例如：仓库事故处理'
-                                      : 'e.g. Warehouse Incident Handling',
+                                      ? '例如：仓库滑倒事故处理'
+                                      : 'e.g. Warehouse Slip Incident Resolution',
                               borderColor: const Color(0xFF16A34A),
-                              isRequired: true,
                             ),
                             const SizedBox(height: 16),
                             _buildFormField(
                               ctrl: _descCtrl,
+                              icon: CupertinoIcons.doc_text_fill,
                               label: widget.lang == 'ID'
                                   ? 'Deskripsi Solusi'
                                   : widget.lang == 'ZH'
                                       ? '解决方案描述'
                                       : 'Solution Description',
                               hint: widget.lang == 'ID'
-                                  ? 'Jelaskan penyelesaian secara rinci...'
+                                  ? 'Jelaskan proses penyelesaian secara lengkap dan rinci...'
                                   : widget.lang == 'ZH'
-                                      ? '详细说明解决方案...'
-                                      : 'Explain in detail...',
+                                      ? '详细描述解决过程...'
+                                      : 'Describe the resolution process in full detail...',
                               maxLines: 4,
                               borderColor: const Color(0xFF16A34A),
-                              isRequired: true,
                             ),
                           ],
                         ),
@@ -1086,22 +1133,23 @@ class _HrdResolutionDetailScreenState
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                              color: const Color(0xFFFFF7ED), width: 1.5),
+                              color: const Color(0xFFDCFCE7), width: 1.5),
                         ),
                         child: _buildFormField(
                           ctrl: _korektifCtrl,
+                          icon: CupertinoIcons.wrench_fill,
                           label: widget.lang == 'ID'
                               ? 'Tindakan Korektif'
                               : widget.lang == 'ZH'
                                   ? '纠正措施'
                                   : 'Corrective Action',
                           hint: widget.lang == 'ID'
-                              ? 'Tindakan untuk mengatasi masalah...'
+                              ? 'Contoh: Memperbaiki lantai licin dan memasang rambu peringatan'
                               : widget.lang == 'ZH'
-                                  ? '解决问题的措施...'
-                                  : 'Actions to address the issue...',
+                                  ? '例如：修复湿滑地面并安装警示标志'
+                                  : 'e.g. Repaired the slippery floor and installed warning signs',
                           maxLines: 3,
-                          borderColor: const Color(0xFFF97316),
+                          borderColor: const Color(0xFF16A34A),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -1117,16 +1165,17 @@ class _HrdResolutionDetailScreenState
                         ),
                         child: _buildFormField(
                           ctrl: _preventifCtrl,
+                          icon: CupertinoIcons.shield_fill,
                           label: widget.lang == 'ID'
                               ? 'Tindakan Preventif'
                               : widget.lang == 'ZH'
                                   ? '预防措施'
                                   : 'Preventive Action',
                           hint: widget.lang == 'ID'
-                              ? 'Tindakan untuk mencegah terulang...'
+                              ? 'Contoh: Melakukan inspeksi rutin area kerja setiap minggu'
                               : widget.lang == 'ZH'
-                                  ? '防止再次发生的措施...'
-                                  : 'Actions to prevent recurrence...',
+                                  ? '例如：每周对工作区域进行例行检查'
+                                  : 'e.g. Conduct routine weekly work area inspections',
                           maxLines: 3,
                           borderColor: const Color(0xFF16A34A),
                         ),
@@ -1136,7 +1185,7 @@ class _HrdResolutionDetailScreenState
                 ),
                 if (_isSaving)
                   Container(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha:0.3),
                     child: const Center(
                       child: CupertinoActivityIndicator(
                           radius: 14, color: Colors.white),
@@ -1159,7 +1208,7 @@ class _HrdResolutionDetailScreenState
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF16A34A).withOpacity(0.4),
+                color: const Color(0xFF16A34A).withValues(alpha:0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -1170,7 +1219,7 @@ class _HrdResolutionDetailScreenState
                 ? null
                 : () async {
                     if (!await _checkAtmiOrBlock()) return;
-                    _saveResolution();
+                    _saveSolution();
                   },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.transparent,
