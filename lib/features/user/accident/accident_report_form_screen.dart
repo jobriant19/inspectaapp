@@ -11,6 +11,7 @@ import '../home/alert/required_field_alert.dart';
 import 'accident_result_popup.dart';
 import 'camera/accident_camera_screen.dart';
 import 'picker/accident_pick_cause.dart';
+import 'picker/accident_pick_date.dart';
 import 'picker/accident_pick_location.dart';
 import 'picker/accident_pick_severity.dart';
 
@@ -303,20 +304,11 @@ class _AccidentReportFormScreenState
     ));
   }
 
-  // ── Pickers ────────────────────────────────────────────────
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final picked = await showAccidentDatePicker(
       context: context,
-      initialDate: _incidentDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(
-              primary: Color(0xFF2563EB), onPrimary: Colors.white),
-        ),
-        child: child!,
-      ),
+      lang: widget.lang,
+      initialDate: _incidentDate,
     );
     if (picked != null) setState(() => _incidentDate = picked);
   }
