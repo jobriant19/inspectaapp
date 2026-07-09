@@ -12,6 +12,7 @@ import 'accident_result_popup.dart';
 import 'camera/accident_camera_screen.dart';
 import 'picker/accident_pick_cause.dart';
 import 'picker/accident_pick_location.dart';
+import 'picker/accident_pick_severity.dart';
 
 // ============================================================
 // LAYAR FORM LAPORAN KECELAKAAN (CREATE & EDIT)
@@ -215,12 +216,6 @@ class _AccidentReportFormScreenState
     },
   };
 
-  static const List<Map<String, dynamic>> _severities = [
-    {'key': 'Ringan', 'desc': 'Cedera Tanpa Kehilangan Waktu Kerja', 'color': 0xFF16A34A},
-    {'key': 'Menengah', 'desc': 'Cedera Kehilangan Waktu Kerja', 'color': 0xFFF97316},
-    {'key': 'Berat', 'desc': 'Cedera Berat atau Fatality', 'color': 0xFFDC2626},
-  ];
-
   // ── Lifecycle ──────────────────────────────────────────────
   @override
   void initState() {
@@ -308,14 +303,6 @@ class _AccidentReportFormScreenState
     ));
   }
 
-  Color _severityColorFrom(String? key) {
-    final s = _severities.firstWhere(
-      (e) => e['key'] == key,
-      orElse: () => {'color': 0xFF2563EB},
-    );
-    return Color(s['color'] as int);
-  }
-
   // ── Pickers ────────────────────────────────────────────────
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -361,75 +348,16 @@ class _AccidentReportFormScreenState
     if (result != null) setState(() => _selectedCause = result);
   }
 
-  void _showSeverityPicker() {
-    showModalBottomSheet(
+  Future<void> _pickSeverity() async {
+    final result = await showDialog<String>(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(top: 10),
-            width: 40, height: 4,
-            decoration: BoxDecoration(
-                color: CupertinoColors.systemGrey4,
-                borderRadius: BorderRadius.circular(2)),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Text(t['pick_severity']!,
-                style: GoogleFonts.inter(
-                    fontSize: 16, fontWeight: FontWeight.w700,
-                    color: const Color(0xFF2563EB))),
-          ),
-          ...(_severities.map((s) {
-            final color = Color(s['color'] as int);
-            return GestureDetector(
-              onTap: () {
-                setState(() => _selectedSeverity = s['key']);
-                Navigator.pop(context);
-              },
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha:0.05),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: color.withValues(alpha:0.2)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 12, height: 12,
-                      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(s['key'],
-                              style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.w700, fontSize: 14, color: color)),
-                          Text(s['desc'],
-                              style: GoogleFonts.inter(
-                                  fontSize: 12, color: const Color(0xFF94A3B8))),
-                        ],
-                      ),
-                    ),
-                    if (_selectedSeverity == s['key'])
-                      Icon(CupertinoIcons.check_mark, color: color, size: 16),
-                  ],
-                ),
-              ),
-            );
-          })).toList(),
-          const SizedBox(height: 16),
-        ],
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (_) => AccidentPickSeverityScreen(
+        lang: widget.lang,
+        selectedSeverity: _selectedSeverity,
       ),
     );
+    if (result != null) setState(() => _selectedSeverity = result);
   }
 
   Future<void> _showUserPicker({
@@ -763,11 +691,7 @@ class _AccidentReportFormScreenState
                   _buildCauseTapField(),
                   const SizedBox(height: 16),
                   _buildLabel(t['severity']!, icon: Icons.health_and_safety_outlined),
-                  _buildTapField(
-                    text: _selectedSeverity ?? t['pick_severity']!,
-                    hasValue: _selectedSeverity != null, onTap: _showSeverityPicker,
-                    severityColor: _selectedSeverity != null ? _severityColorFrom(_selectedSeverity) : null,
-                  ),
+                  _buildSeverityTapField(),
                 ]),
                 const SizedBox(height: 16),
                 _buildSectionCard(children: [
@@ -916,6 +840,55 @@ class _AccidentReportFormScreenState
 
     return GestureDetector(
       onTap: _pickCause,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasValue ? activeColor : const Color(0xFFE0E7FF),
+            width: hasValue ? 1.5 : 1,
+          ),
+        ),
+        child: Row(children: [
+          if (hasValue) ...[
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: activeColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(activeIcon, color: activeColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color: hasValue ? Colors.black87 : const Color(0xFFCBD5E1),
+                fontWeight: hasValue ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+          ),
+          const Icon(CupertinoIcons.chevron_down, color: Color(0xFF2563EB), size: 18),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildSeverityTapField() {
+    final hasValue = _selectedSeverity != null;
+    final Color activeColor =
+        hasValue ? AccidentSeverityData.colorOf(_selectedSeverity) : const Color(0xFF2563EB);
+    final IconData activeIcon =
+        hasValue ? AccidentSeverityData.iconOf(_selectedSeverity) : Icons.health_and_safety_outlined;
+    final String label =
+        hasValue ? AccidentSeverityData.labelOf(_selectedSeverity, widget.lang) : t['pick_severity']!;
+
+    return GestureDetector(
+      onTap: _pickSeverity,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
