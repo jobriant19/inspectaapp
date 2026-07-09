@@ -8,7 +8,9 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../home/alert/required_field_alert.dart';
 import '../home/popup/location_permission_popup.dart';
+import 'camera/kts_solution_camera_screen.dart';
 
 class KtsDetailScreen extends StatefulWidget {
   final String ktsId;
@@ -31,6 +33,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   bool _isLoading = false;
   bool _isSavingResolution = false;
   bool _isDataChanged = false;
+  String? _currentUserId;
 
   final _tindakanCtrl = TextEditingController();
   final _biayaCtrl = TextEditingController();
@@ -70,8 +73,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       'cost': 'Biaya',
       'kts_badge': 'KTS PRODUKSI',
       'reported_by': 'Dilaporkan oleh',
-      'no_resolution': 'Belum ada penyelesaian',
-      'ambil_foto': 'Ambil Foto',
+      'ambil_foto': 'Tambah Foto Solusi',
       'ganti': 'Ganti',
       'pic_label': 'Penanggung Jawab',
       'bagian': 'Bagian',
@@ -108,8 +110,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       'cost': 'Cost',
       'kts_badge': 'KTS PRODUCTION',
       'reported_by': 'Reported by',
-      'no_resolution': 'No resolution yet',
-      'ambil_foto': 'Take Photo',
+      'ambil_foto': 'Add Solution Photo',
       'ganti': 'Retake',
       'pic_label': 'Person in Charge',
       'bagian': 'Section',
@@ -146,8 +147,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       'cost': '费用',
       'kts_badge': 'KTS生产',
       'reported_by': '报告人',
-      'no_resolution': '尚无解决方案',
-      'ambil_foto': '拍照',
+      'ambil_foto': '添加解决方案照片',
       'ganti': '重拍',
       'pic_label': '负责人',
       'bagian': '部门',
@@ -163,6 +163,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _currentUserId = Supabase.instance.client.auth.currentUser?.id;
     _loadSubKategoriKtsProduksi();
     if (widget.initialData != null) {
       _data = widget.initialData;
@@ -171,6 +172,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     } else {
       _loadData();
     }
+    KtsSolutionCameraWarmupService.instance.warmUp();
   }
 
   Future<void> _loadSubKategoriKtsProduksi() async {
@@ -271,6 +273,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     _tindakanCtrl.dispose();
     _biayaCtrl.dispose();
     _penyebabCtrl.dispose();
+    KtsSolutionCameraWarmupService.instance.release();
     super.dispose();
   }
 
@@ -363,9 +366,10 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   Future<void> _pickResImage() async {
     final img = await Navigator.push<XFile?>(
       context,
-      MaterialPageRoute(builder: (_) => const _KtsDetailCameraScreen()),
+      MaterialPageRoute(builder: (_) => KtsSolutionCameraScreen(lang: widget.lang)),
     );
     if (img != null && mounted) setState(() => _resImageFile = img);
+    KtsSolutionCameraWarmupService.instance.warmUp();
   }
 
   Future<void> _showSectionPicker() async {
@@ -414,18 +418,18 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
       return;
     }
 
+    final List<MissingFieldItem> missing = [];
     if (_resImageFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_t('err_photo')),
-          backgroundColor: Colors.redAccent));
-      return;
+      missing.add(MissingFieldItem(icon: Icons.photo_camera_rounded, label: _t('upload_photo')));
     }
     if (_tindakanCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_t('err_tindakan')),
-          backgroundColor: Colors.redAccent));
+      missing.add(MissingFieldItem(icon: Icons.build_circle_outlined, label: _t('tindakan')));
+    }
+    if (missing.isNotEmpty) {
+      RequiredFieldAlert.show(context, lang: widget.lang, missingFields: missing);
       return;
     }
+
     setState(() => _isSavingResolution = true);
     try {
       final supabase = Supabase.instance.client;
@@ -564,6 +568,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     final pelapor    = d['pelapor'] as Map<String, dynamic>?;
     final picData    = d['penanggung_jawab'] as Map<String, dynamic>?;
     final penyelesaian = d['penyelesaian'] as Map<String, dynamic>?;
+    final bool isPic = picData != null && picData['id_user']?.toString() == _currentUserId;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -740,17 +745,19 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             const SizedBox(height: 20),
           ],
 
-          // Solution section
+          // SOLUTION
           _sectionTitle(
             isResolved ? CupertinoIcons.checkmark_shield_fill : CupertinoIcons.wrench_fill,
             _t('resolution_title'),
-            color: isResolved ? const Color(0xFF16A34A) : const Color(0xFF1D4ED8),
+            color: const Color(0xFF16A34A),
           ),
           const SizedBox(height: 10),
           if (penyelesaian != null)
             _buildResolutionResult(penyelesaian, isResolved, statusColor, statusBg)
+          else if (isPic)
+            _buildResolutionForm()
           else
-            _buildResolutionForm(),
+            _buildNoSolutionEmptyState(),
 
           const SizedBox(height: 40),
         ],
@@ -916,9 +923,10 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     );
   }
 
-  Widget _buildResolutionForm() {
+  Widget _buildNoSolutionEmptyState() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -926,13 +934,55 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
         boxShadow: [BoxShadow(color: const Color(0xFF1D4ED8).withValues(alpha:0.06), blurRadius: 16, offset: const Offset(0, 4))],
       ),
       child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [Color(0xFFEFF6FF), Color(0xFFBFDBFE)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(CupertinoIcons.hourglass, size: 40, color: Color(0xFF1D4ED8)),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            widget.lang == 'EN' ? 'No Solution Yet' : widget.lang == 'ZH' ? '暂无解决方案' : 'Belum Ada Solusi',
+            style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.lang == 'EN'
+                ? 'Waiting for the person in charge to submit a solution for this report.'
+                : widget.lang == 'ZH'
+                    ? '正在等待负责人为此报告提交解决方案。'
+                    : 'Menunggu penanggung jawab mengunggah solusi untuk laporan ini.',
+            style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF94A3B8), height: 1.5),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResolutionForm() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
+        boxShadow: [BoxShadow(color: const Color(0xFF16A34A).withValues(alpha:0.08), blurRadius: 16, offset: const Offset(0, 4))],
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Foto
           Row(children: [
+            const Icon(CupertinoIcons.camera_fill, size: 15, color: Color(0xFF16A34A)),
+            const SizedBox(width: 6),
             Text(_t('upload_photo'),
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
-            const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed)),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF1E293B))),
+            const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed, fontWeight: FontWeight.bold)),
           ]),
           const SizedBox(height: 8),
           _resImageFile == null
@@ -942,19 +992,19 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                     height: 140,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFF),
+                      color: const Color(0xFFF0FDF4),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFBFDBFE), width: 1.5),
+                      border: Border.all(color: const Color(0xFFBBF7D0), width: 1.5),
                     ),
                     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
-                        child: const Icon(CupertinoIcons.camera, color: Color(0xFF1D4ED8), size: 26),
+                        decoration: const BoxDecoration(color: Color(0xFFDCFCE7), shape: BoxShape.circle),
+                        child: const Icon(CupertinoIcons.camera_fill, color: Color(0xFF16A34A), size: 26),
                       ),
                       const SizedBox(height: 10),
                       Text(_t('ambil_foto'),
-                          style: GoogleFonts.inter(color: const Color(0xFF1D4ED8), fontWeight: FontWeight.w600, fontSize: 14)),
+                          style: GoogleFonts.poppins(color: const Color(0xFF16A34A), fontWeight: FontWeight.w600, fontSize: 14)),
                     ]),
                   ),
                 )
@@ -984,14 +1034,18 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
           const SizedBox(height: 16),
 
           // Bagian (dari tabel section)
-          Text(
-            _t('bagian'),
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: const Color(0xFF475569),
+          Row(children: [
+            const Icon(CupertinoIcons.square_grid_2x2_fill, size: 14, color: Color(0xFF16A34A)),
+            const SizedBox(width: 6),
+            Text(
+              _t('bagian'),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: const Color(0xFF1E293B),
+              ),
             ),
-          ),
+          ]),
           const SizedBox(height: 8),
           GestureDetector(
             onTap: _showSectionPicker,
@@ -1001,7 +1055,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: _selectedBagian != null ? const Color(0xFF1D4ED8) : const Color(0xFFBFDBFE),
+                  color: _selectedBagian != null ? const Color(0xFF16A34A) : const Color(0xFFBBF7D0),
                   width: _selectedBagian != null ? 1.5 : 1,
                 ),
                 boxShadow: [
@@ -1017,7 +1071,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                   Icon(
                     CupertinoIcons.square_grid_2x2_fill,
                     size: 18,
-                    color: _selectedBagian != null ? const Color(0xFF1D4ED8) : const Color(0xFFBFDBFE),
+                    color: _selectedBagian != null ? const Color(0xFF16A34A) : const Color(0xFFBBF7D0),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1034,7 +1088,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                   Icon(
                     CupertinoIcons.chevron_right,
                     size: 15,
-                    color: _selectedBagian != null ? const Color(0xFF1D4ED8) : const Color(0xFFBFDBFE),
+                    color: _selectedBagian != null ? const Color(0xFF16A34A) : const Color(0xFFBBF7D0),
                   ),
                 ],
               ),
@@ -1043,8 +1097,12 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
           const SizedBox(height: 16),
 
           // Penyebab
-          Text(_t('cause'),
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
+          Row(children: [
+            const Icon(CupertinoIcons.question_circle_fill, size: 14, color: Color(0xFF16A34A)),
+            const SizedBox(width: 6),
+            Text(_t('cause'),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF1E293B))),
+          ]),
           const SizedBox(height: 8),
           TextFormField(
             controller: _penyebabCtrl,
@@ -1053,24 +1111,28 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             decoration: InputDecoration(
               hintText: _t('cause_hint'),
               hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
-              filled: true, fillColor: const Color(0xFFF8FAFF),
+              filled: true, fillColor: const Color(0xFFF0FDF4),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFBFDBFE), width: 1)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1D4ED8), width: 1.5)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFBBF7D0), width: 1)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF16A34A), width: 1.5)),
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
           const SizedBox(height: 16),
 
           // Faktor Penyebab
-          Text(
-            _t('cause_factor'),
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: const Color(0xFF475569),
+          Row(children: [
+            const Icon(CupertinoIcons.tag_fill, size: 14, color: Color(0xFF16A34A)),
+            const SizedBox(width: 6),
+            Text(
+              _t('cause_factor'),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: const Color(0xFF1E293B),
+              ),
             ),
-          ),
+          ]),
           const SizedBox(height: 8),
           _subKategoriList.isEmpty
               ? Container(
@@ -1105,8 +1167,8 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _selectedSubKategori != null
-                          ? const Color(0xFF1D4ED8)
-                          : const Color(0xFFBFDBFE),
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFBBF7D0),
                       width: _selectedSubKategori != null ? 1.5 : 1,
                     ),
                     boxShadow: [
@@ -1252,9 +1314,11 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
 
           // Tindakan
           Row(children: [
+            const Icon(CupertinoIcons.hammer_fill, size: 14, color: Color(0xFF16A34A)),
+            const SizedBox(width: 6),
             Text(_t('tindakan'),
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
-            const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed)),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF1E293B))),
+            const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed, fontWeight: FontWeight.bold)),
           ]),
           const SizedBox(height: 8),
           TextFormField(
@@ -1264,18 +1328,22 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             decoration: InputDecoration(
               hintText: _t('tindakan_hint'),
               hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
-              filled: true, fillColor: const Color(0xFFF8FAFF),
+              filled: true, fillColor: const Color(0xFFF0FDF4),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFBFDBFE), width: 1)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1D4ED8), width: 1.5)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFBBF7D0), width: 1)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF16A34A), width: 1.5)),
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
           const SizedBox(height: 16),
 
           // Biaya
-          Text(_t('biaya'),
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF475569))),
+          Row(children: [
+            const Icon(CupertinoIcons.money_dollar_circle_fill, size: 14, color: Color(0xFF16A34A)),
+            const SizedBox(width: 6),
+            Text(_t('biaya'),
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF1E293B))),
+          ]),
           const SizedBox(height: 8),
           TextFormField(
             controller: _biayaCtrl,
@@ -1285,10 +1353,10 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               hintText: _t('biaya_hint'),
               prefixText: 'Rp ',
               hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
-              filled: true, fillColor: const Color(0xFFF8FAFF),
+              filled: true, fillColor: const Color(0xFFF0FDF4),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFBFDBFE), width: 1)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1D4ED8), width: 1.5)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFBBF7D0), width: 1)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF16A34A), width: 1.5)),
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
@@ -1301,12 +1369,12 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               decoration: BoxDecoration(
                 gradient: _isSavingResolution
                     ? null
-                    : const LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)]),
+                    : const LinearGradient(colors: [Color(0xFF22C55E), Color(0xFF16A34A)]),
                 color: _isSavingResolution ? const Color(0xFFE2E8F0) : null,
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: _isSavingResolution
                     ? null
-                    : [BoxShadow(color: const Color(0xFF1D4ED8).withValues(alpha:0.35), blurRadius: 12, offset: const Offset(0, 4))],
+                    : [BoxShadow(color: const Color(0xFF16A34A).withValues(alpha:0.35), blurRadius: 12, offset: const Offset(0, 4))],
               ),
               child: ElevatedButton(
                 onPressed: _isSavingResolution ? null : _saveResolution,
@@ -1321,7 +1389,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
                 child: _isSavingResolution
                     ? const CupertinoActivityIndicator(color: Colors.white)
                     : Text(_t('save_resolution'),
-                        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
+                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ),
           ),
@@ -1392,124 +1460,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             Container(height: 300, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// Kamera internal untuk resolution photo
-class _KtsDetailCameraScreen extends StatefulWidget {
-  const _KtsDetailCameraScreen();
-
-  @override
-  State<_KtsDetailCameraScreen> createState() => _KtsDetailCameraScreenState();
-}
-
-class _KtsDetailCameraScreenState extends State<_KtsDetailCameraScreen> with WidgetsBindingObserver {
-  CameraController? _ctrl;
-  List<CameraDescription>? _cameras;
-  int _camIndex = 0;
-  bool _ready = false;
-  final ImagePicker _picker = ImagePicker();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _init();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _ctrl?.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_ctrl == null || !_ctrl!.value.isInitialized) return;
-    if (state == AppLifecycleState.inactive) {
-      _ctrl!.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _init();
-    }
-  }
-
-  Future<void> _init() async {
-    _cameras = await availableCameras();
-    if (_cameras != null && _cameras!.isNotEmpty) await _setCamera(_camIndex);
-  }
-
-  Future<void> _setCamera(int i) async {
-    await _ctrl?.dispose();
-    _ctrl = CameraController(_cameras![i], ResolutionPreset.high, enableAudio: false);
-    try {
-      await _ctrl!.initialize();
-      if (mounted) setState(() => _ready = true);
-    } on CameraException catch (e) {
-      debugPrint('Camera error: ${e.code}');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_ready || _ctrl == null) {
-      return const Scaffold(backgroundColor: Colors.black, body: Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 16)));
-    }
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Center(child: CameraPreview(_ctrl!)),
-          Positioned(
-            bottom: 40, left: 0, right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                GestureDetector(
-                  onTap: () async {
-                    final img = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-                    if (img != null && mounted) Navigator.pop(context, img);
-                  },
-                  child: Container(
-                    width: 52, height: 52,
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle),
-                    child: const Icon(Icons.photo_library_rounded, color: Colors.white),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () async {
-                    if (_ctrl == null || _ctrl!.value.isTakingPicture) return;
-                    try {
-                      final pic = await _ctrl!.takePicture();
-                      if (mounted) Navigator.pop(context, pic);
-                    } on CameraException catch (e) {
-                      debugPrint('Snap error: ${e.code}');
-                    }
-                  },
-                  child: Container(
-                    width: 72, height: 72,
-                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 4)),
-                    child: Padding(padding: const EdgeInsets.all(4), child: Container(decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    if (_cameras == null || _cameras!.length < 2) return;
-                    setState(() { _ready = false; _camIndex = (_camIndex + 1) % _cameras!.length; });
-                    _setCamera(_camIndex);
-                  },
-                  child: Container(
-                    width: 52, height: 52,
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle),
-                    child: const Icon(Icons.flip_camera_ios_rounded, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
