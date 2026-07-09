@@ -11,6 +11,7 @@ import 'package:shimmer/shimmer.dart';
 
 import '../home/alert/required_field_alert.dart';
 import 'accident_result_popup.dart';
+import 'camera/accident_camera_screen.dart';
 
 // ============================================================
 // LAYAR FORM LAPORAN KECELAKAAN (CREATE & EDIT)
@@ -239,6 +240,7 @@ class _AccidentReportFormScreenState
     super.initState();
     _loadCurrentUserLokasi();
     if (_isEdit) _populateData();
+    AccidentCameraWarmupService.instance.warmUp();
   }
 
   @override
@@ -247,6 +249,7 @@ class _AccidentReportFormScreenState
     _descCtrl.dispose();
     _deptCtrl.dispose();
     _actionCtrl.dispose();
+    AccidentCameraWarmupService.instance.release();
     super.dispose();
   }
 
@@ -566,117 +569,12 @@ class _AccidentReportFormScreenState
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 20),
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(2)),
-            ),
-            Text(
-              widget.lang == 'EN' ? 'Add Evidence Photo' : widget.lang == 'ZH' ? '添加证据照片' : 'Tambah Foto Bukti',
-              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)),
-            ),
-            const SizedBox(height: 20),
-            _buildImageSourceTile(
-              icon: CupertinoIcons.camera_fill,
-              color: const Color(0xFF2563EB),
-              title: widget.lang == 'EN' ? 'Take Photo' : widget.lang == 'ZH' ? '拍照' : 'Ambil Foto',
-              subtitle: widget.lang == 'EN' ? 'Open camera directly' : widget.lang == 'ZH' ? '直接打开相机' : 'Buka kamera langsung',
-              bgColor: const Color(0xFFEFF6FF),
-              borderColor: const Color(0xFFE0E7FF),
-              onTap: () async {
-                Navigator.pop(context);
-                final img = await Navigator.push<XFile?>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AccidentCameraScreen()),
-                );
-                if (img != null && mounted) setState(() => _imageFile = img);
-              },
-            ),
-            const SizedBox(height: 12),
-            _buildImageSourceTile(
-              icon: CupertinoIcons.photo_fill_on_rectangle_fill,
-              color: const Color(0xFF1D4ED8),
-              title: widget.lang == 'EN' ? 'Choose from Gallery' : widget.lang == 'ZH' ? '从相册选择' : 'Pilih dari Galeri',
-              subtitle: widget.lang == 'EN' ? 'Select existing photo' : widget.lang == 'ZH' ? '选择现有照片' : 'Pilih foto yang sudah ada',
-              bgColor: const Color(0xFFF8FAFF),
-              borderColor: const Color(0xFFE0E7FF),
-              onTap: () async {
-                Navigator.pop(context);
-                final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-                if (img != null && mounted) setState(() => _imageFile = img);
-              },
-            ),
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(14)),
-                child: Center(
-                  child: Text(t['cancel']!,
-                      style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 15, color: const Color(0xFF64748B))),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    final XFile? result = await Navigator.push<XFile?>(
+      context,
+      MaterialPageRoute(builder: (_) => const AccidentCameraScreen()),
     );
-  }
-
-  Widget _buildImageSourceTile({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-    required Color bgColor,
-    required Color borderColor,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor, width: 1.5),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: const Color(0xFF1E293B))),
-                Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
-              ],
-            ),
-            const Spacer(),
-            const Icon(CupertinoIcons.chevron_right, size: 16, color: Color(0xFF2563EB)),
-          ],
-        ),
-      ),
-    );
+    if (result != null && mounted) setState(() => _imageFile = result);
+    AccidentCameraWarmupService.instance.warmUp();
   }
 
   // ── Submit ─────────────────────────────────────────────────
@@ -1821,116 +1719,6 @@ class _AccidentLocationPickerState extends State<_AccidentLocationPicker> {
                         );
                       },
                     ),
-        ),
-      ]),
-    );
-  }
-}
-
-// ============================================================
-// KAMERA KHUSUS ACCIDENT REPORT
-// ============================================================
-class AccidentCameraScreen extends StatefulWidget {
-  const AccidentCameraScreen({super.key});
-
-  @override
-  State<AccidentCameraScreen> createState() => _AccidentCameraScreenState();
-}
-
-class _AccidentCameraScreenState extends State<AccidentCameraScreen> with WidgetsBindingObserver {
-  CameraController? _ctrl;
-  List<CameraDescription>? _cameras;
-  int _camIndex = 0;
-  bool _ready = false;
-  final ImagePicker _picker = ImagePicker();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _init();
-  }
-
-  @override
-  void dispose() { WidgetsBinding.instance.removeObserver(this); _ctrl?.dispose(); super.dispose(); }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_ctrl == null || !_ctrl!.value.isInitialized) return;
-    if (state == AppLifecycleState.inactive) { _ctrl!.dispose(); }
-    else if (state == AppLifecycleState.resumed) { _init(); }
-  }
-
-  Future<void> _init() async {
-    _cameras = await availableCameras();
-    if (_cameras != null && _cameras!.isNotEmpty) await _setCamera(_camIndex);
-  }
-
-  Future<void> _setCamera(int i) async {
-    await _ctrl?.dispose();
-    _ctrl = CameraController(_cameras![i], ResolutionPreset.high, enableAudio: false);
-    try {
-      await _ctrl!.initialize();
-      if (mounted) setState(() => _ready = true);
-    } on CameraException catch (e) { debugPrint('Camera error: ${e.code}'); }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_ready || _ctrl == null) {
-      return const Scaffold(backgroundColor: Colors.black, body: Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 16)));
-    }
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(children: [
-        Center(child: CameraPreview(_ctrl!)),
-        Positioned(
-          top: 0, left: 0, right: 0,
-          child: SafeArea(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.black.withValues(alpha:0.4),
-              child: Row(children: [
-                IconButton(icon: const Icon(CupertinoIcons.back, color: Colors.white), onPressed: () => Navigator.pop(context)),
-                Expanded(child: Center(child: Text('FOTO BUKTI', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)))),
-                const SizedBox(width: 48),
-              ]),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: 40, left: 0, right: 0,
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            GestureDetector(
-              onTap: () async {
-                final img = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-                if (img != null && mounted) Navigator.pop(context, img);
-              },
-              child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.photo, color: Colors.white)),
-            ),
-            GestureDetector(
-              onTap: () async {
-                if (_ctrl == null || _ctrl!.value.isTakingPicture) return;
-                try {
-                  final pic = await _ctrl!.takePicture();
-                  if (mounted) Navigator.pop(context, pic);
-                } on CameraException catch (e) { debugPrint('Snap error: ${e.code}'); }
-              },
-              child: Container(
-                width: 72, height: 72,
-                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 4)),
-                child: Padding(padding: const EdgeInsets.all(4), child: Container(decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
-              ),
-            ),
-            GestureDetector(
-              onTap: () {
-                if (_cameras == null || _cameras!.length < 2) return;
-                setState(() { _ready = false; _camIndex = (_camIndex + 1) % _cameras!.length; });
-                _setCamera(_camIndex);
-              },
-              child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.switch_camera, color: Colors.white)),
-            ),
-          ]),
         ),
       ]),
     );
