@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../home/alert/required_field_alert.dart';
 import 'accident_result_popup.dart';
 import 'camera/accident_camera_screen.dart';
+import 'picker/accident_pick_cause.dart';
 import 'picker/accident_pick_location.dart';
 
 // ============================================================
@@ -86,7 +87,7 @@ class _AccidentReportFormScreenState
       'location': 'Lokasi Kejadian',
       'pick_location': 'Pilih Lokasi',
       'cause': 'Penyebab Kecelakaan',
-      'pick_cause': 'Pilih Penyebab',
+      'pick_cause': 'Pilih Penyebab Kecelakaan',
       'severity': 'Tingkat Keparahan',
       'pick_severity': 'Pilih Tingkat Keparahan',
       'dept': 'Departemen Terdampak',
@@ -137,7 +138,7 @@ class _AccidentReportFormScreenState
       'location': 'Incident Location',
       'pick_location': 'Pick Location',
       'cause': 'Accident Cause',
-      'pick_cause': 'Select Cause',
+      'pick_cause': 'Select Accident Cause',
       'severity': 'Severity Level',
       'pick_severity': 'Select Severity',
       'dept': 'Affected Department',
@@ -188,7 +189,7 @@ class _AccidentReportFormScreenState
       'location': '事故地点',
       'pick_location': '选择地点',
       'cause': '事故原因',
-      'pick_cause': '选择原因',
+      'pick_cause': '选择事故原因',
       'severity': '严重程度',
       'pick_severity': '选择严重程度',
       'dept': '受影响部门',
@@ -213,19 +214,6 @@ class _AccidentReportFormScreenState
       'cancel': '取消',
     },
   };
-
-  static const List<Map<String, String>> _causesID = [
-    {'key': 'Mesin', 'desc': 'Kecelakaan karena terjebak di alat'},
-    {'key': 'Benda Berat', 'desc': 'Kecelakaan karena terbentur objek berat'},
-    {'key': 'Kendaraan / Alat Angkut', 'desc': 'Kecelakaan karena alat transportasi'},
-    {'key': 'Jatuh', 'desc': 'Kecelakaan karena jatuh dari ketinggian'},
-    {'key': 'Listrik', 'desc': 'Kecelakaan karena kejutan listrik'},
-    {'key': 'Panas / Api', 'desc': 'Kecelakaan karena objek panas'},
-    {'key': 'Perkakas', 'desc': 'Kecelakaan karena peralatan kerja'},
-    {'key': 'Benda Tajam', 'desc': 'Kecelakaan karena tergores benda tajam'},
-    {'key': 'Bahan Kimia', 'desc': 'Kecelakaan karena bahan kimia berbahaya'},
-    {'key': 'Lainnya', 'desc': 'Penyebab kecelakaan lainnya'},
-  ];
 
   static const List<Map<String, dynamic>> _severities = [
     {'key': 'Ringan', 'desc': 'Cedera Tanpa Kehilangan Waktu Kerja', 'color': 0xFF16A34A},
@@ -361,78 +349,16 @@ class _AccidentReportFormScreenState
     if (picked != null) setState(() => _incidentTime = picked);
   }
 
-  void _showCausePicker() {
-    showModalBottomSheet(
+  Future<void> _pickCause() async {
+    final result = await showDialog<String>(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.75,
-        builder: (_, ctrl) => Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 10),
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                  color: CupertinoColors.systemGrey4,
-                  borderRadius: BorderRadius.circular(2)),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(t['pick_cause']!,
-                  style: GoogleFonts.inter(
-                      fontSize: 16, fontWeight: FontWeight.w700,
-                      color: const Color(0xFF2563EB))),
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: ctrl,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _causesID.length,
-                itemBuilder: (_, i) {
-                  final c = _causesID[i];
-                  final isSelected = _selectedCause == c['key'];
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() => _selectedCause = c['key']);
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFE0E7FF),
-                          width: isSelected ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(c['key']!,
-                              style: GoogleFonts.inter(
-                                  fontWeight: FontWeight.w700, fontSize: 14,
-                                  color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF1E293B))),
-                          const SizedBox(height: 3),
-                          Text(c['desc']!,
-                              style: GoogleFonts.inter(
-                                  fontSize: 12, color: const Color(0xFF94A3B8))),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+      barrierColor: Colors.black.withValues(alpha: 0.5),
+      builder: (_) => AccidentPickCauseScreen(
+        lang: widget.lang,
+        selectedCause: _selectedCause,
       ),
     );
+    if (result != null) setState(() => _selectedCause = result);
   }
 
   void _showSeverityPicker() {
@@ -834,10 +760,7 @@ class _AccidentReportFormScreenState
                   _buildLocationTapField(),
                   const SizedBox(height: 16),
                   _buildLabel(t['cause']!, icon: Icons.warning_amber_rounded),
-                  _buildTapField(
-                    text: _selectedCause ?? t['pick_cause']!,
-                    hasValue: _selectedCause != null, onTap: _showCausePicker,
-                  ),
+                  _buildCauseTapField(),
                   const SizedBox(height: 16),
                   _buildLabel(t['severity']!, icon: Icons.health_and_safety_outlined),
                   _buildTapField(
@@ -977,6 +900,55 @@ class _AccidentReportFormScreenState
         child: Row(children: [
           Expanded(child: Text(text, style: GoogleFonts.inter(fontSize: 15, color: hasValue ? Colors.black87 : const Color(0xFFCBD5E1), fontWeight: hasValue ? FontWeight.w500 : FontWeight.normal))),
           Icon(CupertinoIcons.chevron_down, color: const Color(0xFF2563EB), size: 18),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildCauseTapField() {
+    final hasValue = _selectedCause != null;
+    final Color activeColor =
+        hasValue ? AccidentCauseData.colorOf(_selectedCause) : const Color(0xFF2563EB);
+    final IconData activeIcon =
+        hasValue ? AccidentCauseData.iconOf(_selectedCause) : Icons.warning_amber_rounded;
+    final String label =
+        hasValue ? AccidentCauseData.labelOf(_selectedCause, widget.lang) : t['pick_cause']!;
+
+    return GestureDetector(
+      onTap: _pickCause,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasValue ? activeColor : const Color(0xFFE0E7FF),
+            width: hasValue ? 1.5 : 1,
+          ),
+        ),
+        child: Row(children: [
+          if (hasValue) ...[
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: activeColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(activeIcon, color: activeColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color: hasValue ? Colors.black87 : const Color(0xFFCBD5E1),
+                fontWeight: hasValue ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+          ),
+          const Icon(CupertinoIcons.chevron_down, color: Color(0xFF2563EB), size: 18),
         ]),
       ),
     );
