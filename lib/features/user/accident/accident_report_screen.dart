@@ -156,7 +156,10 @@ class _AccidentReportListScreenState
             tindakan_diambil, status, poin_laporan,
             created_at, id_pelapor,
             id_lokasi, id_unit, id_subunit, id_area,
-            lokasi:id_lokasi(nama_lokasi)
+            lokasi:id_lokasi(nama_lokasi),
+            unit:id_unit(nama_unit),
+            subunit:id_subunit(nama_subunit),
+            area:id_area(nama_area)
           ''')
           .eq('id_pelapor', userId)
           .order('created_at', ascending: false);
@@ -328,24 +331,115 @@ class _AccidentReportListScreenState
 
   Color _statusColor(String status) {
     switch (status) {
+      case 'Menunggu':
+        return const Color(0xFFDC2626);
       case 'Ditinjau':
-        return const Color(0xFFF97316);
+        return const Color(0xFF2563EB);
       case 'Selesai':
         return const Color(0xFF16A34A);
       default:
-        return const Color(0xFF2563EB);
+        return const Color(0xFFDC2626);
     }
   }
 
   Color _statusBg(String status) {
     switch (status) {
+      case 'Menunggu':
+        return const Color(0xFFFEF2F2);
       case 'Ditinjau':
-        return const Color(0xFFFFF7ED);
+        return const Color(0xFFEFF6FF);
       case 'Selesai':
         return const Color(0xFFF0FDF4);
       default:
-        return const Color(0xFFEFF6FF);
+        return const Color(0xFFFEF2F2);
     }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'Ditinjau':
+        return Icons.visibility_rounded;
+      case 'Selesai':
+        return Icons.check_circle_rounded;
+      default:
+        return Icons.pending_actions_rounded;
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'Ditinjau':
+        return t['status_review']!;
+      case 'Selesai':
+        return t['status_done']!;
+      default:
+        return t['status_waiting']!;
+    }
+  }
+
+  Map<String, dynamic> _locationBadgeInfo(Map<String, dynamic> r) {
+    if (r['area'] != null && r['area']['nama_area'] != null) {
+      return {
+        'label': r['area']['nama_area'].toString(),
+        'icon': Icons.place_rounded,
+        'color': const Color(0xFFF472B6),
+      };
+    }
+    if (r['subunit'] != null && r['subunit']['nama_subunit'] != null) {
+      return {
+        'label': r['subunit']['nama_subunit'].toString(),
+        'icon': Icons.layers_rounded,
+        'color': const Color(0xFFFBBF24),
+      };
+    }
+    if (r['unit'] != null && r['unit']['nama_unit'] != null) {
+      return {
+        'label': r['unit']['nama_unit'].toString(),
+        'icon': Icons.business_rounded,
+        'color': const Color(0xFF6366F1),
+      };
+    }
+    if (r['lokasi'] != null && r['lokasi']['nama_lokasi'] != null) {
+      return {
+        'label': r['lokasi']['nama_lokasi'].toString(),
+        'icon': Icons.location_city_rounded,
+        'color': const Color(0xFF10B981),
+      };
+    }
+    return {
+      'label': '-',
+      'icon': Icons.location_off_rounded,
+      'color': const Color(0xFF94A3B8),
+    };
+  }
+
+  Widget _buildLocationBadge(Map<String, dynamic> r) {
+    final loc = _locationBadgeInfo(r);
+    final Color color = loc['color'] as Color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(loc['icon'] as IconData, size: 12, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              loc['label'] as String,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                  fontSize: 11.5, fontWeight: FontWeight.w700, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -572,7 +666,8 @@ class _AccidentReportListScreenState
                                   ? '管理纠正和预防措施'
                                   : 'Kelola tindakan korektif & preventif',
                           style: GoogleFonts.inter(
-                              fontSize: 12,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
                               color: Colors.white.withValues(alpha:0.85)),
                         ),
                       ],
@@ -590,15 +685,21 @@ class _AccidentReportListScreenState
   }
 
   Widget _buildCard(Map<String, dynamic> r) {
-    final status = r['status'] ?? 'Menunggu';
+    final status = (r['status'] ?? 'Menunggu').toString();
     final severity = r['tingkat_keparahan'] ?? '';
-    final locName = r['lokasi']?['nama_lokasi'] ?? '-';
+    final penyebab = r['penyebab'] ?? '-';
     final dateStr = r['tanggal_kejadian'] != null
         ? DateFormat('dd MMM yyyy')
             .format(DateTime.parse(r['tanggal_kejadian']))
         : '-';
     final isOwner = r['id_pelapor'] == _currentUserId;
     final sevColor = _severityColor(severity);
+    final statusColor = _statusColor(status);
+    final statusBg = _statusBg(status);
+    final statusIcon = _statusIcon(status);
+    final statusText = _statusLabel(status);
+
+    const double imgSize = 85;
 
     return GestureDetector(
       onTap: () async {
@@ -619,25 +720,27 @@ class _AccidentReportListScreenState
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: const Color(0xFFE0E7FF), width: 1.5),
+              color: const Color(0xFFEF4444), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF3B82F6).withValues(alpha:0.08),
+              color: const Color.fromARGB(255, 246, 59, 59).withValues(alpha:0.08),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-              child: Row(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // LEFT COLUMN: IMAGE + BOTTOM EDIT/DELETE BUTTON
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 64,
-                    height: 64,
+                    width: imgSize,
+                    height: imgSize,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -648,155 +751,196 @@ class _AccidentReportListScreenState
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: Colors.black.withValues(alpha:0.15),
+                          width: 1.5),
                     ),
-                    child: r['foto_bukti'] != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: Image.network(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12.5),
+                      child: r['foto_bukti'] != null
+                          ? Image.network(
                               r['foto_bukti'],
+                              width: imgSize,
+                              height: imgSize,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Icon(
                                   Icons.warning_amber_rounded,
                                   color: sevColor,
                                   size: 30),
-                            ),
-                          )
-                        : Icon(Icons.warning_amber_rounded,
-                            color: sevColor, size: 30),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(r['judul'] ?? '-',
-                                  style: GoogleFonts.inter(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                      color:
-                                          const Color(0xFF1E293B)),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                            const SizedBox(width: 8),
-                            // STATUS BADGE
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: _statusBg(status),
-                                borderRadius:
-                                    BorderRadius.circular(10),
-                              ),
-                              child: Text(status,
-                                  style: GoogleFonts.inter(
-                                      color: _statusColor(status),
-                                      fontSize: 10,
-                                      fontWeight:
-                                          FontWeight.w700)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(locName,
-                            style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: const Color(0xFF64748B))),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            _buildChip(
-                              Icons.calendar_today_rounded,
-                              dateStr,
-                              const Color(0xFFEFF6FF),
-                              const Color(0xFF2563EB),
-                            ),
-                            const SizedBox(width: 8),
-                            _buildChip(
-                              Icons.warning_amber_rounded,
-                              severity,
-                              sevColor.withValues(alpha:0.1),
-                              sevColor,
-                            ),
-                          ],
-                        ),
-                      ],
+                            )
+                          : Icon(Icons.warning_amber_rounded,
+                              color: sevColor, size: 30),
                     ),
                   ),
-                ],
-              ),
-            ),
-            Container(height: 1, color: const Color(0xFFF1F5F9)),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F3FF),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.medical_services_outlined,
-                            size: 12, color: Color(0xFF7C3AED)),
-                        const SizedBox(width: 4),
-                        Text(r['penyebab'] ?? '-',
-                            style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: const Color(0xFF7C3AED),
-                                fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  const Icon(CupertinoIcons.calendar,
-                      size: 12, color: Color(0xFF94A3B8)),
-                  const SizedBox(width: 4),
-                  Text(dateStr,
-                      style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: const Color(0xFF94A3B8))),
                   if (isOwner) ...[
-                    const SizedBox(width: 10),
-                    _buildActionButton(
-                      icon: CupertinoIcons.pencil_ellipsis_rectangle,
-                      color: const Color(0xFF2563EB),
-                      bgColor: const Color(0xFFEFF6FF),
-                      onTap: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AccidentReportFormScreen(
-                              lang: widget.lang,
-                              existingReport: r,
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: imgSize,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionButton(
+                              icon: CupertinoIcons.pencil_ellipsis_rectangle,
+                              color: const Color(0xFF2563EB),
+                              bgColor: const Color(0xFFEFF6FF),
+                              onTap: () async {
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => AccidentReportFormScreen(
+                                      lang: widget.lang,
+                                      existingReport: r,
+                                    ),
+                                  ),
+                                );
+                                if (result == true) _fetchReports();
+                              },
                             ),
                           ),
-                        );
-                        if (result == true) _fetchReports();
-                      },
-                    ),
-                    const SizedBox(width: 6),
-                    _buildActionButton(
-                      icon: CupertinoIcons.trash,
-                      color: const Color(0xFFEF4444),
-                      bgColor: const Color(0xFFFFF1F2),
-                      onTap: () =>
-                          _deleteReport(r['id_laporan'] as String),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: _buildActionButton(
+                              icon: CupertinoIcons.trash,
+                              color: const Color(0xFFEF4444),
+                              bgColor: const Color(0xFFFFF1F2),
+                              onTap: () =>
+                                  _deleteReport(r['id_laporan'] as String),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+
+              // RIGHT COLUMN: CONTENT
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // TITLE + SEVERITY BADGE (POSISI POIN BADGE PADA KTS)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            r['judul'] ?? '-',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                height: 1.3,
+                                color: const Color(0xFF0F172A)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: sevColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(9),
+                            border: Border.all(color: sevColor, width: 1.2),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.warning_amber_rounded,
+                                  size: 11, color: sevColor),
+                              const SizedBox(width: 3),
+                              Text(severity,
+                                  style: GoogleFonts.inter(
+                                      color: sevColor,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 10)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+
+                    // LOCATION BADGE (PENGGANTI "PT ATMI SOLO")
+                    _buildLocationBadge(r),
+                    const SizedBox(height: 6),
+
+                    // CHIPS: MESIN (PENYEBAB) & TINGKAT KEPARAHAN
+                    Row(
+                      children: [
+                        Flexible(
+                          child: _buildChip(
+                            Icons.medical_services_outlined,
+                            penyebab,
+                            const Color(0xFFF5F3FF),
+                            const Color(0xFF7C3AED),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        _buildChip(
+                          Icons.warning_amber_rounded,
+                          severity,
+                          sevColor.withValues(alpha:0.1),
+                          sevColor,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // TIME BADGE: TANGGAL (KIRI) + STATUS (KANAN)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(
+                            color: const Color(0xFFE2E8F0), width: 1.1),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calendar_month_rounded,
+                              size: 14, color: Color(0xFF64748B)),
+                          const SizedBox(width: 5),
+                          Text(dateStr,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 11.5,
+                                  color: const Color(0xFF475569),
+                                  fontWeight: FontWeight.w600)),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: statusBg,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                  color: statusColor.withValues(alpha: 0.35)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(statusIcon, size: 13, color: statusColor),
+                                const SizedBox(width: 4),
+                                Text(statusText,
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: statusColor)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -835,13 +979,13 @@ class _AccidentReportListScreenState
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 32,
-        height: 32,
+        height: 40,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(13),
           border:
-              Border.all(color: color.withValues(alpha:0.25), width: 1),
+              Border.all(color: color.withValues(alpha:0.25), width: 1.1),
         ),
         child: Icon(icon, size: 15, color: color),
       ),
