@@ -37,8 +37,8 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
       'add': 'Buat Laporan KTS',
       'empty_title': 'Belum Ada Laporan KTS',
       'empty_sub': 'Buat laporan KTS Produksi pertama Anda.',
-      'resolved': 'Teratasi',
-      'unresolved': 'Belum Teratasi',
+      'resolved': 'Selesai',
+      'unresolved': 'Belum Selesai',
       'delete': 'Hapus',
       'cancel': 'Batal',
       'delete_confirm': 'Hapus laporan KTS ini?',
@@ -53,8 +53,8 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
       'add': 'Create KTS Report',
       'empty_title': 'No KTS Reports Yet',
       'empty_sub': 'Create your first Production KTS report.',
-      'resolved': 'Resolved',
-      'unresolved': 'Unresolved',
+      'resolved': 'Finished',
+      'unresolved': 'Unfinished',
       'delete': 'Delete',
       'cancel': 'Cancel',
       'delete_confirm': 'Delete this KTS report?',
@@ -69,8 +69,8 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
       'add': '创建KTS报告',
       'empty_title': '暂无KTS报告',
       'empty_sub': '创建您的第一份生产KTS报告。',
-      'resolved': '已解决',
-      'unresolved': '未解决',
+      'resolved': '已完成',
+      'unresolved': '未完成',
       'delete': '删除',
       'cancel': '取消',
       'delete_confirm': '删除此KTS报告？',
@@ -353,7 +353,6 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
     final statusText  = isResolved ? t['resolved']! : t['unresolved']!;
 
     final itemName    = r['item_produksi']?['nama_item'] ?? r['nama_item_manual'] ?? '-';
-    final subKategori = r['subkategoritemuan']?['nama_subkategoritemuan'];
     final dateStr = r['created_at'] != null
         ? DateFormat('dd MMM yyyy').format(DateTime.parse(r['created_at']))
         : '-';
@@ -493,37 +492,13 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
                     // CHIPS: ORDER & QUANTITY
                     Row(
                       children: [
-                        _buildChip(Icons.confirmation_number_outlined, '${t['order']}: ${r['no_order'] ?? '-'}', const Color(0xFFFEF9C3), const Color(0xFFD97706)),
+                        Flexible(
+                          child: _buildChip(Icons.confirmation_number_outlined, '${t['order']}: ${r['no_order'] ?? '-'}', const Color(0xFFFEF9C3), const Color(0xFFD97706)),
+                        ),
                         const SizedBox(width: 6),
                         _buildChip(Icons.production_quantity_limits_rounded, '${r['jumlah_item'] ?? 0} pcs', const Color(0xFFF0FDF4), const Color(0xFF22C55E)),
                       ],
                     ),
-
-                    if (subKategori != null) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(7)),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.folder_rounded, size: 11, color: Color(0xFF1D4ED8)),
-                                  const SizedBox(width: 4),
-                                  Flexible(
-                                    child: Text(subKategori,
-                                        style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF1D4ED8), fontWeight: FontWeight.w600),
-                                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
 
                     const SizedBox(height: 8),
 
@@ -595,7 +570,14 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
         children: [
           Icon(icon, size: 10, color: color),
           const SizedBox(width: 4),
-          Text(label, style: GoogleFonts.inter(fontSize: 11, color: color, fontWeight: FontWeight.w700)),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(fontSize: 11, color: color, fontWeight: FontWeight.w700),
+            ),
+          ),
         ],
       ),
     );
