@@ -902,7 +902,7 @@ class AccidentRecurringTabState extends State<AccidentRecurringTab> {
                                 offset: const Offset(0, 2))
                           ],
                         ),
-                        child: Icon(Icons.place_rounded,
+                        child: Icon(Icons.map,
                             color: currentLocId != null ? Colors.white : _C.primary, size: 20),
                       ),
                     ),
@@ -1274,7 +1274,7 @@ class _AccidentReportCard extends StatelessWidget {
               const SizedBox(height: 4),
               if (location.isNotEmpty)
                 Row(children: [
-                  const Icon(Icons.place_rounded,
+                  const Icon(Icons.map,
                       size: 11, color: Color(0xFF94A3B8)),
                   const SizedBox(width: 3),
                   Expanded(child: Text(location,

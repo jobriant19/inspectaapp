@@ -941,7 +941,7 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                                   runSpacing: 3,
                                   children: badges)),
                         Row(children: [
-                          const Icon(Icons.place_rounded,
+                          const Icon(Icons.map,
                               size: 12, color: Color(0xFF94A3B8)),
                           const SizedBox(width: 4),
                           Expanded(
@@ -1611,7 +1611,7 @@ class FiveRRecurringTabState extends State<FiveRRecurringTab> {
                                 offset: const Offset(0, 2))
                           ],
                         ),
-                        child: Icon(Icons.place_rounded,
+                        child: Icon(Icons.map,
                             color: currentLocId != null ? Colors.white : _AppColors.primary, size: 20),
                       ),
                     ),

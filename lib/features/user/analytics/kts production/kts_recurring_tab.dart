@@ -843,7 +843,7 @@ class _KtsRecurringTabState extends State<KtsRecurringTab> {
                                 offset: const Offset(0, 2))
                           ],
                         ),
-                        child: Icon(Icons.place_rounded,
+                        child: Icon(Icons.map,
                             color: currentLocId != null ? Colors.white : _AppColors.primary, size: 20),
                       ),
                     ),

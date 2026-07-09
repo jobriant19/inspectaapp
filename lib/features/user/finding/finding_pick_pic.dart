@@ -485,7 +485,7 @@ class _FindingPicPickerDialogState extends State<_FindingPicPickerDialog> {
                       ),
                     ],
                   ),
-                  child: Icon(Icons.place_rounded,
+                  child: Icon(Icons.map,
                       color: _locId != null ? Colors.white : _PicColors.primary, size: 20),
                 ),
               ),
