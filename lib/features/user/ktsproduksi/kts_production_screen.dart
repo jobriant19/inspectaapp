@@ -361,7 +361,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
     final isOwner  = r['id_user'] == _currentUserId;
     final poin     = int.tryParse((r['poin_temuan'] ?? 0).toString()) ?? 0;
 
-    const double imgSize = 72;
+    const double imgSize = 85;
 
     return GestureDetector(
       onTap: () async {
@@ -403,30 +403,36 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
                   ),
                   if (isOwner) ...[
                     const SizedBox(height: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildActionButton(
-                          icon: CupertinoIcons.pencil_ellipsis_rectangle,
-                          color: _kPrimary,
-                          bgColor: _kPrimaryLight,
-                          onTap: () async {
-                            if (!await _checkAtmiOrBlock()) return;
-                            final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => KtsProduksiFormScreen(lang: widget.lang, existingData: r)));
-                            if (result == true) _fetchReports();
-                          },
-                        ),
-                        const SizedBox(width: 6),
-                        _buildActionButton(
-                          icon: CupertinoIcons.trash,
-                          color: const Color(0xFFEF4444),
-                          bgColor: const Color(0xFFFFF1F2),
-                          onTap: () async {
-                            if (!await _checkAtmiOrBlock()) return;
-                            _deleteReport(r['id_temuan'].toString());
-                          },
-                        ),
-                      ],
+                    SizedBox(
+                      width: imgSize,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionButton(
+                              icon: CupertinoIcons.pencil_ellipsis_rectangle,
+                              color: _kPrimary,
+                              bgColor: _kPrimaryLight,
+                              onTap: () async {
+                                if (!await _checkAtmiOrBlock()) return;
+                                final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => KtsProduksiFormScreen(lang: widget.lang, existingData: r)));
+                                if (result == true) _fetchReports();
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: _buildActionButton(
+                              icon: CupertinoIcons.trash,
+                              color: const Color(0xFFEF4444),
+                              bgColor: const Color(0xFFFFF1F2),
+                              onTap: () async {
+                                if (!await _checkAtmiOrBlock()) return;
+                                _deleteReport(r['id_temuan'].toString());
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ],
@@ -466,9 +472,22 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(itemName,
-                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), fontWeight: FontWeight.w600),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(8)),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.inventory_2_outlined, size: 10, color: Color(0xFF1D72F3)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(itemName,
+                                style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF1D72F3), fontWeight: FontWeight.w700),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 6),
 
                     // CHIPS: ORDER & QUANTITY
@@ -586,8 +605,9 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 32, height: 32,
-        decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha:0.25), width: 1)),
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(13), border: Border.all(color: color.withValues(alpha:0.25), width: 1.1)),
         child: Icon(icon, size: 15, color: color),
       ),
     );
