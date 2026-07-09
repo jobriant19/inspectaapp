@@ -291,14 +291,14 @@ class KtsFindingCard extends StatelessWidget {
                     Row(
                       children: [
                         _buildChip(
-                          Icons.tag_rounded,
+                          Icons.confirmation_number_outlined,
                           '${_t('order')}: $noOrder',
                           const Color(0xFFFEF9C3),
                           const Color(0xFFD97706),
                         ),
                         const SizedBox(width: 6),
                         _buildChip(
-                          Icons.inventory_2_outlined,
+                          Icons.production_quantity_limits_rounded,
                           '$qty pcs',
                           const Color(0xFFF0FDF4),
                           const Color(0xFF22C55E),
@@ -375,7 +375,7 @@ class KtsFindingCard extends StatelessWidget {
           Icon(icon, size: 10, color: color),
           const SizedBox(width: 3),
           Text(label,
-              style: TextStyle(
+              style: GoogleFonts.inter(
                   fontSize: 10, color: color, fontWeight: FontWeight.w600)),
         ],
       ),
