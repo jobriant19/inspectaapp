@@ -8,13 +8,9 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-
-import '../../../core/services/location_service.dart';
+import '../home/popup/location_permission_popup.dart';
 import 'kts_create_report.dart';
 
-// ============================================================
-// LAYAR DAFTAR KTS PRODUKSI
-// ============================================================
 class KtsProduksiListScreen extends StatefulWidget {
   final String lang;
   const KtsProduksiListScreen({super.key, required this.lang});
@@ -135,7 +131,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
   }
 
   Future<bool> _checkAtmiOrBlock() async {
-    final result = await LocationService.instance.checkUserAtAtmi(forceRefresh: true);
+    final result = await LocationPermissionPopup.requestWithPopup(context, lang: widget.lang);
     if (result.isAtAtmi) return true;
     if (!mounted) return false;
     final msg = widget.lang == 'EN'
@@ -842,7 +838,7 @@ class _KtsProduksiDetailScreenState extends State<KtsProduksiDetailScreen> {
   }
 
   Future<void> _saveResolution() async {
-    final locResult = await LocationService.instance.checkUserAtAtmi(forceRefresh: true);
+    final locResult = await LocationPermissionPopup.requestWithPopup(context, lang: widget.lang);
     if (!locResult.isAtAtmi) {
       if (!mounted) return;
       final msg = widget.lang == 'EN'

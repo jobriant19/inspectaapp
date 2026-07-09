@@ -6,8 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../../core/services/location_service.dart';
 import '../../../../core/utils/jabatan_helper.dart';
+import '../../home/popup/location_permission_popup.dart';
 import '../camera/camera_finding_screen.dart';
 import '../resolution_camera_screen.dart';
 
@@ -347,7 +347,7 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
   }
 
   Future<void> _finishFinding({bool createNewAfter = false}) async {
-    final locResult = await LocationService.instance.checkUserAtAtmi(forceRefresh: true);
+    final locResult = await LocationPermissionPopup.requestWithPopup(context, lang: widget.lang);
 
     if (!locResult.isAtAtmi) {
       if (!mounted) return;

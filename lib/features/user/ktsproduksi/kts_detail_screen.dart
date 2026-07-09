@@ -8,15 +8,11 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../home/popup/location_permission_popup.dart';
 
-import '../../../core/services/location_service.dart';
-
-/// Screen detail KTS yang bisa dipanggil dari home maupun explore_screen.
-/// Tidak memiliki tombol Edit/Delete.
 class KtsDetailScreen extends StatefulWidget {
   final String ktsId;
   final String lang;
-  /// Data awal (opsional) untuk mengurangi loading awal
   final Map<String, dynamic>? initialData;
 
   const KtsDetailScreen({
@@ -171,7 +167,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     if (widget.initialData != null) {
       _data = widget.initialData;
       _isLoading = false;
-      // Load data di background tanpa menampilkan shimmer
       _loadDataSilently();
     } else {
       _loadData();
@@ -180,7 +175,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
 
   Future<void> _loadSubKategoriKtsProduksi() async {
     try {
-      // Ambil id kategoritemuan dengan nama_kategoritemuan = 'KTS Produksi'
       final katData = await Supabase.instance.client
           .from('kategoritemuan')
           .select('id_kategoritemuan')
@@ -396,10 +390,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
   }
 
   Future<void> _saveResolution() async {
-    // ── Cek lokasi sebelum simpan penyelesaian ──
-    final locResult = await LocationService.instance.checkUserAtAtmi(
-      forceRefresh: true,
-    );
+    final locResult = await LocationPermissionPopup.requestWithPopup(context, lang: widget.lang);
     if (!locResult.isAtAtmi) {
       if (!mounted) return;
       final msg = widget.lang == 'EN'
@@ -454,7 +445,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
           ? null
           : double.tryParse(_biayaCtrl.text.trim());
 
-      // MASUKKAN PENYEBAB & ID FAKTOR KE TABEL PENYELESAIAN DI SINI
       final insertRes = await supabase
         .from('penyelesaian')
         .insert({
@@ -476,7 +466,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
 
       final String newPenyelesaianId = insertRes['id_penyelesaian'].toString();
 
-      // HAPUS UPDATE PENYEBAB DARI TABEL TEMUAN
       await supabase.from('temuan').update({
         'status_temuan': 'Selesai',
         'id_penyelesaian': newPenyelesaianId,

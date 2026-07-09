@@ -7,14 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-
-import '../../../core/services/location_service.dart';
+import '../home/popup/location_permission_popup.dart';
 import 'accident_report_form_screen.dart';
 import 'accident_result_popup.dart';
 
-// ============================================================
-// LAYAR MANAJEMEN RESOLUSI — KHUSUS HRD (id_jabatan = 5)
-// ============================================================
 class AccidentResolutionManagementScreen extends StatefulWidget {
   final String lang;
   const AccidentResolutionManagementScreen({super.key, required this.lang});
@@ -38,8 +34,6 @@ class _AccidentResolutionManagementScreenState
   Future<void> _fetchReports() async {
     setState(() => _isLoading = true);
     try {
-      // Ambil semua laporan yang statusnya Ditinjau atau sudah selesai
-      // agar HRD bisa mengelola resolusi
       final data = await Supabase.instance.client
           .from('accident_report')
           .select('''
@@ -194,7 +188,7 @@ class _AccidentResolutionManagementScreenState
         ),
         child: Row(
           children: [
-            // Foto
+            // PHOTO
             Container(
               width: 60,
               height: 60,
@@ -325,9 +319,6 @@ class _AccidentResolutionManagementScreenState
   }
 }
 
-// ============================================================
-// LAYAR DETAIL RESOLUSI UNTUK HRD — CRUD RESOLUSI
-// ============================================================
 class HrdResolutionDetailScreen extends StatefulWidget {
   final String reportId;
   final String reportTitle;
@@ -356,7 +347,6 @@ class _HrdResolutionDetailScreenState
   final _korektifCtrl = TextEditingController();
   final _preventifCtrl = TextEditingController();
 
-  // ── Foto resolusi ──
   XFile? _imageFile;
   String? _existingImageUrl;
 
@@ -376,9 +366,7 @@ class _HrdResolutionDetailScreenState
   }
 
   Future<bool> _checkAtmiOrBlock() async {
-    final result = await LocationService.instance.checkUserAtAtmi(
-      forceRefresh: true,
-    );
+    final result = await LocationPermissionPopup.requestWithPopup(context, lang: widget.lang);
     if (result.isAtAtmi) return true;
     if (!mounted) return false;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -473,7 +461,7 @@ class _HrdResolutionDetailScreenState
                   color: const Color(0xFF1E293B)),
             ),
             const SizedBox(height: 20),
-            // Kamera
+            // CAMERA
             GestureDetector(
               onTap: () async {
                 Navigator.pop(context);
@@ -538,7 +526,7 @@ class _HrdResolutionDetailScreenState
                 ),
               ),
             ),
-            // Galeri
+            // GALLERY
             GestureDetector(
               onTap: () async {
                 Navigator.pop(context);
@@ -602,7 +590,7 @@ class _HrdResolutionDetailScreenState
               ),
             ),
             const SizedBox(height: 12),
-            // Batal
+            // CANCEL
             GestureDetector(
               onTap: () => Navigator.pop(context),
               child: Container(
@@ -756,7 +744,6 @@ class _HrdResolutionDetailScreenState
       return;
     }
 
-    // Tampilkan loading popup
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -838,9 +825,7 @@ class _HrdResolutionDetailScreenState
       }
 
       if (mounted) {
-        // Tutup loading popup
         Navigator.of(context).pop();
-        // Tampilkan success popup lalu kembali
         await showResultPopup(
           context,
           icon: CupertinoIcons.checkmark_circle_fill,
@@ -858,7 +843,7 @@ class _HrdResolutionDetailScreenState
     } catch (e) {
       debugPrint('Save solution error: $e');
       if (mounted) {
-        Navigator.of(context).pop(); // tutup loading
+        Navigator.of(context).pop();
         await showResultPopup(
           context,
           icon: CupertinoIcons.xmark_circle_fill,
@@ -967,7 +952,7 @@ class _HrdResolutionDetailScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Info laporan
+                      // REPORT INFO
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -993,7 +978,7 @@ class _HrdResolutionDetailScreenState
                       ),
                       const SizedBox(height: 20),
 
-                      // ── Foto Resolusi ──
+                      // SOLUTION PHOTO
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -1047,7 +1032,7 @@ class _HrdResolutionDetailScreenState
                       ),
                       const SizedBox(height: 16),
 
-                      // Form judul & deskripsi
+                      // TITLE FORM & DESCRIPTION
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -1095,7 +1080,7 @@ class _HrdResolutionDetailScreenState
                       ),
                       const SizedBox(height: 16),
 
-                      // Tindakan Korektif
+                      // CORRECTIVE ACTION
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -1122,7 +1107,7 @@ class _HrdResolutionDetailScreenState
                       ),
                       const SizedBox(height: 16),
 
-                      // Tindakan Preventif
+                      // PREVENTIF ACTION
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(

@@ -4,15 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-import '../../../core/services/location_service.dart';
+import '../home/popup/location_permission_popup.dart';
 import 'accident_report_form_screen.dart';
 import 'accident_result_popup.dart';
 import 'accident_resolution_management_screen.dart';
 
-// ============================================================
-// LAYAR DAFTAR LAPORAN KECELAKAAN
-// ============================================================
 class AccidentReportListScreen extends StatefulWidget {
   final String lang;
   const AccidentReportListScreen({super.key, required this.lang});
@@ -88,10 +84,8 @@ class _AccidentReportListScreenState
     },
   };
 
-  // Tambah field di atas initState
   String? _currentUserJabatanId;
 
-  // Ganti initState
   @override
   void initState() {
     super.initState();
@@ -101,9 +95,7 @@ class _AccidentReportListScreenState
   }
 
   Future<bool> _checkAtmiOrBlock() async {
-    final result = await LocationService.instance.checkUserAtAtmi(
-      forceRefresh: true,
-    );
+    final result = await LocationPermissionPopup.requestWithPopup(context, lang: widget.lang);
     if (result.isAtAtmi) return true;
 
     if (!mounted) return false;
@@ -128,7 +120,6 @@ class _AccidentReportListScreenState
     return false;
   }
 
-  // Tambah method baru
   Future<void> _loadCurrentUserJabatan() async {
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -431,13 +422,13 @@ class _AccidentReportListScreenState
   Widget _buildCreateButton() {
     return Column(
       children: [
-        // Tombol utama Create Report (semua user)
+        // CREATE REPORT BUTTON
         GestureDetector(
           onTap: () async {
-            if (_isOpeningForm) return; // cegah double-tap membuka form 2x
+            if (_isOpeningForm) return;
             _isOpeningForm = true;
 
-            // ── Cek lokasi sebelum buat laporan ──
+            // CHECK LOCATION
             if (!await _checkAtmiOrBlock()) {
               _isOpeningForm = false;
               return;
@@ -517,7 +508,7 @@ class _AccidentReportListScreenState
           ),
         ),
 
-        // Tombol HRD Resolution — hanya muncul jika id_jabatan = 5
+        // HRD SOLUTION BUTTON ONLY id_jabatan = 5
         if (_isHrd) ...[
           const SizedBox(height: 12),
           GestureDetector(
@@ -698,7 +689,7 @@ class _AccidentReportListScreenState
                                   overflow: TextOverflow.ellipsis),
                             ),
                             const SizedBox(width: 8),
-                            // Status badge
+                            // STATUS BADGE
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 4),
@@ -942,9 +933,6 @@ class _AccidentReportListScreenState
   }
 }
 
-// ============================================================
-// LAYAR DETAIL LAPORAN KECELAKAAN
-// ============================================================
 class AccidentReportDetailScreen extends StatefulWidget {
   final String reportId;
   final String lang;
@@ -1432,17 +1420,16 @@ class _AccidentReportDetailScreenState
     final sevColor = _severityColor(severity);
     final locName = d['lokasi']?['nama_lokasi'] ?? '-';
 
-    // Ambil data user terkait — Supabase join result bisa map atau null
-    Map<String, dynamic>? _getUserMap(dynamic raw) {
+    Map<String, dynamic>? getUserMap(dynamic raw) {
       if (raw == null) return null;
       if (raw is Map) return Map<String, dynamic>.from(raw);
       return null;
     }
 
-    final pelapor = _getUserMap(d['pelapor']);
-    final victim = _getUserMap(d['pihak_terdampak']);
-    final supervisor = _getUserMap(d['supervisor_user']);
-    final witness = _getUserMap(d['saksi_user']);
+    final pelapor = getUserMap(d['pelapor']);
+    final victim = getUserMap(d['pihak_terdampak']);
+    final supervisor = getUserMap(d['supervisor_user']);
+    final witness = getUserMap(d['saksi_user']);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(
@@ -1450,7 +1437,7 @@ class _AccidentReportDetailScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Foto Header
+          // PHOTO
           if (d['foto_bukti'] != null)
             Container(
               decoration: BoxDecoration(
@@ -1476,7 +1463,7 @@ class _AccidentReportDetailScreenState
           if (d['foto_bukti'] != null)
             const SizedBox(height: 20),
 
-          // Badge Row
+          // BADGE ROW
           Row(
             children: [
               Container(
@@ -1539,7 +1526,7 @@ class _AccidentReportDetailScreenState
                   color: const Color(0xFF0F172A))),
           const SizedBox(height: 24),
 
-          // Info Card
+          // INFO CARD
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -1590,7 +1577,7 @@ class _AccidentReportDetailScreenState
           ),
           const SizedBox(height: 20),
 
-          // Deskripsi
+          // DESCRIPTION
           if (d['deskripsi'] != null &&
               d['deskripsi'].toString().isNotEmpty) ...[
             _buildSectionTitle(
@@ -1614,7 +1601,7 @@ class _AccidentReportDetailScreenState
             const SizedBox(height: 20),
           ],
 
-          // Tindakan
+          // ACTION
           if (d['tindakan_diambil'] != null &&
               d['tindakan_diambil'].toString().isNotEmpty) ...[
             _buildSectionTitle(CupertinoIcons.bandage_fill,
@@ -1639,7 +1626,7 @@ class _AccidentReportDetailScreenState
             const SizedBox(height: 20),
           ],
 
-          // Pihak Terlibat
+          // INVOLVED PARTIES
           _buildSectionTitle(
               CupertinoIcons.person_2_fill,
               widget.lang == 'EN'
@@ -1657,12 +1644,12 @@ class _AccidentReportDetailScreenState
             ),
             child: Column(
               children: [
-                // Pelapor
+                // REPORTER
                 if (pelapor != null)
                   _buildPersonRow(t['reporter']!, pelapor,
                       CupertinoIcons.person_fill),
 
-                // Victim — dari relasi atau nama manual
+                // VICTIM
                 if (victim != null) ...[
                   Container(height: 1, color: const Color(0xFFF1F5F9)),
                   _buildPersonRow(t['victim']!, victim,
@@ -1677,14 +1664,14 @@ class _AccidentReportDetailScreenState
                   ),
                 ],
 
-                // Supervisor
+                // SUPERVISOR
                 if (supervisor != null) ...[
                   Container(height: 1, color: const Color(0xFFF1F5F9)),
                   _buildPersonRow(t['supervisor']!, supervisor,
                       CupertinoIcons.person_badge_plus),
                 ],
 
-                // Witness — dari relasi atau nama manual
+                // WITNESS
                 if (witness != null) ...[
                   Container(height: 1, color: const Color(0xFFF1F5F9)),
                   _buildPersonRow(t['witness']!, witness,
@@ -1704,7 +1691,7 @@ class _AccidentReportDetailScreenState
 
           const SizedBox(height: 24),
 
-          // Tombol Lihat Penyelesaian
+          // VIEW SOLUTION BUTTON
           GestureDetector(
             onTap: () {
               Navigator.push(
@@ -1917,9 +1904,6 @@ class _AccidentReportDetailScreenState
   }
 }
 
-// ============================================================
-// LAYAR DETAIL RESOLUSI LAPORAN KECELAKAAN
-// ============================================================
 class AccidentResolutionScreen extends StatefulWidget {
   final String reportId;
   final String lang;
@@ -2116,7 +2100,7 @@ class _AccidentResolutionScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Badge
+        // BADGE
         Container(
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -2137,7 +2121,7 @@ class _AccidentResolutionScreenState
         ),
         const SizedBox(height: 14),
 
-        // Judul
+        // SOLUTION TITLE
         Text(
           r['judul_resolusi'] ?? '-',
           style: GoogleFonts.inter(
@@ -2147,7 +2131,7 @@ class _AccidentResolutionScreenState
         ),
         const SizedBox(height: 20),
 
-        // Info Card: tanggal & HRD
+        // INFO CARD: TIME & HRD
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -2221,7 +2205,7 @@ class _AccidentResolutionScreenState
         ),
         const SizedBox(height: 20),
 
-        // Foto Resolusi
+        // SOLUTION PHOTO
         if (r['foto_resolusi'] != null &&
             r['foto_resolusi'].toString().isNotEmpty) ...[
           Container(
@@ -2259,14 +2243,14 @@ class _AccidentResolutionScreenState
           const SizedBox(height: 20),
         ],
 
-        // Deskripsi
+        // SOLUTION DESCRIPTION
         _buildSectionTitle(
             CupertinoIcons.doc_text_fill, t['desc']!),
         const SizedBox(height: 10),
         _buildTextCard(r['deskripsi_resolusi']),
         const SizedBox(height: 20),
 
-        // Tindakan Korektif
+        // CORRECTIVE ACTION
         if (r['tindakan_korektif'] != null &&
             r['tindakan_korektif'].toString().isNotEmpty) ...[
           _buildSectionTitle(
@@ -2281,7 +2265,7 @@ class _AccidentResolutionScreenState
           const SizedBox(height: 20),
         ],
 
-        // Tindakan Preventif
+        // PREVENTIF ACTION
         if (r['tindakan_preventif'] != null &&
             r['tindakan_preventif'].toString().isNotEmpty) ...[
           _buildSectionTitle(
