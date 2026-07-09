@@ -306,15 +306,6 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     }
   }
 
-  String _formatDate(String? d) {
-    if (d == null) return '-';
-    try {
-      return DateFormat('dd MMM yyyy, HH:mm').format(DateTime.parse(d).toLocal());
-    } catch (_) {
-      return d;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -545,7 +536,7 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
               _divider(),
               _infoRow(Icons.production_quantity_limits_rounded, _t('qty'), '${d['jumlah_item'] ?? 0} pcs'),
               _divider(),
-              _infoRow(CupertinoIcons.calendar, _t('reported'), _formatDate(d['created_at'])),
+              _buildReportedRow(d['created_at']),
 
               // PIC — sejajar dengan quantity, gambar+nama+badge di kanan
               if (picData != null) ...[
@@ -595,6 +586,47 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
             textAlign: TextAlign.right,
             style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF0F172A)))),
       ]),
+    );
+  }
+
+  Widget _buildReportedRow(dynamic rawDate) {
+    DateTime? dt;
+    if (rawDate != null) {
+      try { dt = DateTime.parse(rawDate.toString()).toLocal(); } catch (_) {}
+    }
+    final dateText = dt != null ? DateFormat('dd MMM yyyy').format(dt) : '-';
+    final timeText = dt != null ? DateFormat('HH:mm').format(dt) : '-';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          const Icon(CupertinoIcons.calendar, color: Color(0xFF1D72F3), size: 18),
+          const SizedBox(width: 12),
+          Text(_t('reported'), style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: const Color(0xFF1D72F3))),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(dateText, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF0F172A))),
+                const SizedBox(width: 7),
+                Container(width: 1, height: 12, color: const Color(0xFFCBD5E1)),
+                const SizedBox(width: 7),
+                const Icon(CupertinoIcons.clock, size: 12, color: Color(0xFF64748B)),
+                const SizedBox(width: 3),
+                Text(timeText, style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF475569))),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -664,20 +696,24 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
           const SizedBox(width: 12),
           Text(label, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: const Color(0xFF1D72F3))),
           const Spacer(),
+          // FOTO (KIRI) — tinggi setara 2 baris (nama + badge)
           user['gambar_user'] != null
-              ? CircleAvatar(radius: 14, backgroundImage: NetworkImage(user['gambar_user']))
+              ? CircleAvatar(radius: 23, backgroundImage: NetworkImage(user['gambar_user']))
               : Container(
-                  width: 28, height: 28,
+                  width: 46, height: 46,
                   decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
-                  child: const Icon(CupertinoIcons.person_fill, size: 14, color: Color(0xFF1D72F3)),
+                  child: const Icon(CupertinoIcons.person_fill, size: 22, color: Color(0xFF1D72F3)),
                 ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
+          // NAMA (ATAS) + BADGE JABATAN (BAWAH), rata kiri, sejajar dengan tinggi foto
           Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(user['nama'] ?? '-',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF0F172A))),
+              Text(
+                user['nama'] ?? '-',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF0F172A)),
+              ),
               if (jabatanText.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 _buildJabatanBadge(user),

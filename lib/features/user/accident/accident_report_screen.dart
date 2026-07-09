@@ -389,10 +389,10 @@ class _AccidentReportListScreenState
                     const SizedBox(height: 28),
                     Text(
                       t['history_title']!,
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: const Color(0xFF475569)),
+                          color: const Color(0xFFEF4444)),
                     ),
                     const SizedBox(height: 14),
                     if (_reports.isEmpty)
@@ -489,6 +489,7 @@ class _AccidentReportListScreenState
                                 : 'Catat kecelakaan di tempat kerja',
                         style: GoogleFonts.inter(
                             fontSize: 13,
+                            fontWeight: FontWeight.w700,
                             color: Colors.white.withValues(alpha:0.85)),
                       ),
                     ],

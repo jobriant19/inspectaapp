@@ -25,9 +25,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
   @override
   bool get wantKeepAlive => true;
 
-  // ── Blue theme constants ──
   static const Color _kPrimary     = Color(0xFF1D4ED8);
-  static const Color _kPrimaryDark = Color(0xFF1E3A8A);
   static const Color _kPrimaryLight= Color(0xFFEFF6FF);
   static const Color _kBorder      = Color(0xFFBFDBFE);
   static const Color _kBg          = Color(0xFFF0F4FF);
@@ -103,13 +101,29 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
             id_temuan, no_order, judul_temuan, status_temuan,
             poin_temuan, created_at, jumlah_item, id_user,
             nama_item_manual, gambar_temuan, jenis_temuan,
-            id_penanggung_jawab, deskripsi_temuan,
+            id_penanggung_jawab, deskripsi_temuan, id_penyelesaian,
             subkategoritemuan:id_subkategoritemuan_uuid(
               id_subkategoritemuan, nama_subkategoritemuan
             ),
-            item_produksi:id_item(id_item, nama_item, gambar_item),
+            item_produksi:id_item(id_item, nama_item, gambar_item, kode_item),
             lokasi:id_lokasi(nama_lokasi),
-            penanggung_jawab:id_penanggung_jawab(id_user, nama, gambar_user)
+            penanggung_jawab:id_penanggung_jawab(
+              id_user, nama, gambar_user, id_jabatan, is_verificator,
+              jabatan!User_id_jabatan_fkey(nama_jabatan)
+            ),
+            pelapor:id_user(
+              id_user, nama, gambar_user, id_jabatan, is_verificator,
+              jabatan!User_id_jabatan_fkey(nama_jabatan)
+            ),
+            penyelesaian:id_penyelesaian(
+              id_penyelesaian, gambar_penyelesaian, catatan_penyelesaian,
+              tanggal_selesai, poin_penyelesaian, additional_cost, id_user,
+              penyebab, bagian, id_subkategoritemuan_penyebab,
+              faktor_penyebab_kts:id_subkategoritemuan_penyebab(
+                id_subkategoritemuan, nama_subkategoritemuan
+              ),
+              solver:id_user(nama, gambar_user)
+            )
           ''')
           .eq('id_user', userId)
           .eq('jenis_temuan', 'KTS Production')
@@ -247,11 +261,8 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
           icon: const Icon(CupertinoIcons.back, color: _kPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(t['title']!, style: GoogleFonts.inter(color: _kPrimary, fontWeight: FontWeight.w700, fontSize: 17)),
+        title: Text(t['title']!, style: GoogleFonts.poppins(color: _kPrimary, fontWeight: FontWeight.w700, fontSize: 17)),
         centerTitle: true,
-        actions: [
-          IconButton(onPressed: _fetchReports, icon: const Icon(CupertinoIcons.refresh, color: _kPrimary)),
-        ],
         bottom: PreferredSize(preferredSize: const Size.fromHeight(1), child: Container(color: _kBorder, height: 1)),
       ),
       body: _isLoading
@@ -262,13 +273,13 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
               backgroundColor: Colors.white,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 25),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildCreateButton(),
                     const SizedBox(height: 28),
-                    Text(t['history_title']!, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF475569))),
+                    Text(t['history_title']!, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3))),
                     const SizedBox(height: 14),
                     if (_reports.isEmpty)
                       _buildEmpty()
@@ -318,7 +329,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
                     widget.lang == 'ZH' ? '记录生产质量问题'
                         : widget.lang == 'EN' ? 'Record production quality issues'
                         : 'Catat masalah kualitas produksi',
-                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha:0.85)),
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white.withValues(alpha:0.85)),
                   ),
                 ],
               ),
@@ -331,18 +342,26 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
   }
 
   Widget _buildCard(Map<String, dynamic> r) {
-    final status = r['status_temuan'] ?? 'Belum';
-    final isResolved = status == 'Closed' || status == 'Teratasi' || status == 'Selesai';
-    final statusColor = isResolved ? const Color(0xFF16A34A) : const Color.fromARGB(255, 216, 29, 29);
-    final statusBg = isResolved ? const Color(0xFFDCFCE7) : const Color.fromARGB(255, 255, 239, 239);
-    final statusIcon = isResolved ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.clock_solid;
-    final statusText = isResolved ? t['resolved']! : t['unresolved']!;
+    final status = (r['status_temuan'] ?? '').toString();
+    final s = status.toLowerCase();
+    final isResolved = s == 'closed' || s == 'teratasi' || s == 'selesai' ||
+        s == 'done' || s == 'completed';
 
-    final itemName = r['item_produksi']?['nama_item'] ?? r['nama_item_manual'] ?? '-';
-    final subKategori = r['subkategoritemuan']?['nama_subkategoritemuan'] ?? '-';
-    final dateStr = r['created_at'] != null ? DateFormat('dd MMM yyyy').format(DateTime.parse(r['created_at'])) : '-';
+    final statusColor = isResolved ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
+    final statusBg    = isResolved ? const Color(0xFFDCFCE7) : const Color(0xFFFFE4E6);
+    final statusIcon  = isResolved ? Icons.check_circle_rounded : Icons.pending_actions_rounded;
+    final statusText  = isResolved ? t['resolved']! : t['unresolved']!;
+
+    final itemName    = r['item_produksi']?['nama_item'] ?? r['nama_item_manual'] ?? '-';
+    final subKategori = r['subkategoritemuan']?['nama_subkategoritemuan'];
+    final dateStr = r['created_at'] != null
+        ? DateFormat('dd MMM yyyy').format(DateTime.parse(r['created_at']))
+        : '-';
     final imageUrl = r['item_produksi']?['gambar_item'] ?? r['gambar_temuan'];
-    final isOwner = r['id_user'] == _currentUserId;
+    final isOwner  = r['id_user'] == _currentUserId;
+    final poin     = int.tryParse((r['poin_temuan'] ?? 0).toString()) ?? 0;
+
+    const double imgSize = 72;
 
     return GestureDetector(
       onTap: () async {
@@ -354,120 +373,196 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _kBorder, width: 1.5),
-          boxShadow: [BoxShadow(color: _kPrimary.withValues(alpha:0.07), blurRadius: 16, offset: const Offset(0, 4))],
+          border: Border.all(color: const Color(0xFF1D72F3), width: 1.5),
+          boxShadow: [
+            BoxShadow(color: const Color(0xFF1D72F3).withValues(alpha: 0.12), blurRadius: 14, offset: const Offset(0, 6)),
+          ],
         ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-              child: Row(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // LEFT COLUMN: IMAGE + BOTTOM EDIT/DELETE BUTTON 
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.08), blurRadius: 8, offset: const Offset(0, 2))]),
-                    child: ClipRRect(
+                    width: imgSize,
+                    height: imgSize,
+                    decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
-                      child: imageUrl != null
-                          ? Image.network(imageUrl, width: 64, height: 64, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildItemIcon())
+                      border: Border.all(color: Colors.black.withValues(alpha:0.15), width: 1.5),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12.5),
+                      child: (imageUrl != null && imageUrl.toString().isNotEmpty)
+                          ? Image.network(imageUrl, width: imgSize, height: imgSize, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildItemIcon())
                           : _buildItemIcon(),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: Text(r['judul_temuan'] ?? '-', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15, color: const Color(0xFF1E293B)), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(10)),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(statusIcon, size: 11, color: statusColor),
-                                  const SizedBox(width: 4),
-                                  Text(statusText, style: GoogleFonts.inter(color: statusColor, fontSize: 10, fontWeight: FontWeight.w700)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(itemName, style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF64748B), fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            _buildChip(CupertinoIcons.tag, '${t['order']}: ${r['no_order'] ?? '-'}', _kPrimaryLight, _kPrimary),
-                            const SizedBox(width: 8),
-                            _buildChip(CupertinoIcons.cube_box, '${r['jumlah_item'] ?? 0} pcs', const Color(0xFFF0FDF4), const Color(0xFF22C55E)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(height: 1, color: const Color(0xFFF1F5F9)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: _kPrimaryLight, borderRadius: BorderRadius.circular(8)),
-                    child: Row(
-                      children: [
-                        Icon(CupertinoIcons.folder_fill, size: 12, color: _kPrimary),
-                        const SizedBox(width: 4),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 120),
-                          child: Text(subKategori, style: GoogleFonts.inter(fontSize: 11, color: _kPrimary, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  Row(
-                    children: [
-                      Icon(CupertinoIcons.calendar, size: 12, color: _kPrimaryDark),
-                      const SizedBox(width: 4),
-                      Text(dateStr, style: GoogleFonts.inter(fontSize: 11, color: _kPrimaryDark, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
                   if (isOwner) ...[
-                    const SizedBox(width: 10),
-                    _buildActionButton(
-                      icon: CupertinoIcons.pencil_ellipsis_rectangle,
-                      color: _kPrimary,
-                      bgColor: _kPrimaryLight,
-                      onTap: () async {
-                        if (!await _checkAtmiOrBlock()) return;
-                        final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => KtsProduksiFormScreen(lang: widget.lang, existingData: r)));
-                        if (result == true) _fetchReports();
-                      },
-                    ),
-                    const SizedBox(width: 6),
-                    _buildActionButton(
-                      icon: CupertinoIcons.trash,
-                      color: const Color(0xFFEF4444),
-                      bgColor: const Color(0xFFFFF1F2),
-                      onTap: () async {
-                        if (!await _checkAtmiOrBlock()) return;
-                        _deleteReport(r['id_temuan'].toString());
-                      },
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildActionButton(
+                          icon: CupertinoIcons.pencil_ellipsis_rectangle,
+                          color: _kPrimary,
+                          bgColor: _kPrimaryLight,
+                          onTap: () async {
+                            if (!await _checkAtmiOrBlock()) return;
+                            final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => KtsProduksiFormScreen(lang: widget.lang, existingData: r)));
+                            if (result == true) _fetchReports();
+                          },
+                        ),
+                        const SizedBox(width: 6),
+                        _buildActionButton(
+                          icon: CupertinoIcons.trash,
+                          color: const Color(0xFFEF4444),
+                          bgColor: const Color(0xFFFFF1F2),
+                          onTap: () async {
+                            if (!await _checkAtmiOrBlock()) return;
+                            _deleteReport(r['id_temuan'].toString());
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+
+              // RIGHT COLUMN: CONTENT
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            r['judul_temuan'] ?? '-',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14, height: 1.3, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFBBF24).withValues(alpha:0.15),
+                            borderRadius: BorderRadius.circular(9),
+                            border: Border.all(color: const Color(0xFFFBBF24), width: 1.2),
+                          ),
+                          child: Text('KTS', style: GoogleFonts.poppins(color: const Color(0xFFFBBF24), fontWeight: FontWeight.w900, fontSize: 10)),
+                        ),
+                        if (poin > 0) ...[
+                          const SizedBox(width: 6),
+                          _buildPoinBadge(poin),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(itemName,
+                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B), fontWeight: FontWeight.w600),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 6),
+
+                    // CHIPS: ORDER & QUANTITY
+                    Row(
+                      children: [
+                        _buildChip(Icons.confirmation_number_outlined, '${t['order']}: ${r['no_order'] ?? '-'}', const Color(0xFFFEF9C3), const Color(0xFFD97706)),
+                        const SizedBox(width: 6),
+                        _buildChip(Icons.production_quantity_limits_rounded, '${r['jumlah_item'] ?? 0} pcs', const Color(0xFFF0FDF4), const Color(0xFF22C55E)),
+                      ],
+                    ),
+
+                    if (subKategori != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(7)),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.folder_rounded, size: 11, color: Color(0xFF1D4ED8)),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(subKategori,
+                                        style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF1D4ED8), fontWeight: FontWeight.w600),
+                                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
+                    const SizedBox(height: 8),
+
+                    // TIME BADGE
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.1),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF64748B)),
+                          const SizedBox(width: 5),
+                          Text(dateStr, style: GoogleFonts.poppins(fontSize: 11.5, color: const Color(0xFF475569), fontWeight: FontWeight.w600)),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                            decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(18), border: Border.all(color: statusColor.withValues(alpha: 0.35))),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(statusIcon, size: 13, color: statusColor),
+                                const SizedBox(width: 4),
+                                Text(statusText, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPoinBadge(int poin) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF0D9488), Color(0xFF2DD4BF)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(11),
+        boxShadow: [BoxShadow(color: const Color(0xFF0D9488).withValues(alpha: 0.35), blurRadius: 7, offset: const Offset(0, 3))],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.local_fire_department_rounded, size: 13, color: Colors.white),
+          const SizedBox(width: 3),
+          Text('$poin', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+        ],
       ),
     );
   }
@@ -481,7 +576,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
         children: [
           Icon(icon, size: 10, color: color),
           const SizedBox(width: 4),
-          Text(label, style: GoogleFonts.inter(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+          Text(label, style: GoogleFonts.inter(fontSize: 11, color: color, fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -531,7 +626,7 @@ class _KtsProduksiListScreenState extends State<KtsProduksiListScreen>
       baseColor: const Color(0xFFBFDBFE),
       highlightColor: const Color(0xFFEFF6FF),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 25),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
