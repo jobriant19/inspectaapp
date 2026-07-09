@@ -14,6 +14,7 @@ import 'picker/accident_pick_cause.dart';
 import 'picker/accident_pick_date.dart';
 import 'picker/accident_pick_location.dart';
 import 'picker/accident_pick_severity.dart';
+import 'picker/accident_pick_time.dart';
 
 // ============================================================
 // LAYAR FORM LAPORAN KECELAKAAN (CREATE & EDIT)
@@ -314,16 +315,10 @@ class _AccidentReportFormScreenState
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(
+    final picked = await showAccidentTimePicker(
       context: context,
-      initialTime: _incidentTime ?? TimeOfDay.now(),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(
-              primary: Color(0xFF2563EB), onPrimary: Colors.white),
-        ),
-        child: child!,
-      ),
+      lang: widget.lang,
+      initialTime: _incidentTime,
     );
     if (picked != null) setState(() => _incidentTime = picked);
   }
