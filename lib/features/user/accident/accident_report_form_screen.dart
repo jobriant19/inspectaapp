@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../home/alert/required_field_alert.dart';
 import 'accident_result_popup.dart';
 import 'camera/accident_camera_screen.dart';
+import 'picker/accident_pick_affected.dart';
 import 'picker/accident_pick_cause.dart';
 import 'picker/accident_pick_date.dart';
 import 'picker/accident_pick_location.dart';
@@ -347,6 +348,27 @@ class _AccidentReportFormScreenState
     if (result != null) setState(() => _selectedSeverity = result);
   }
 
+  Future<void> _pickAffectedParty() async {
+    final user = await showAccidentPickAffectedDialog(
+      context,
+      lang: widget.lang,
+      currentUserId: Supabase.instance.client.auth.currentUser?.id,
+      selectedUserId: _selectedVictim?['id_user']?.toString(),
+      currentLokasiId: _currentUserLokasiId,
+      currentUnitId: _currentUserUnitId,
+      currentSubunitId: _currentUserSubunitId,
+      currentAreaId: _currentUserAreaId,
+    );
+    if (user != null) {
+      setState(() {
+        _selectedVictim = user;
+        _victimManualName = null;
+        _selectedSupervisor = null;
+      });
+      await _autoLoadSupervisor(user);
+    }
+  }
+
   Future<void> _showUserPicker({
     required String role,
     required Function(Map<String, dynamic>) onSelected,
@@ -593,12 +615,7 @@ class _AccidentReportFormScreenState
                     label: t['victim']!, selectedUser: _selectedVictim,
                     manualName: _victimManualName, placeholder: t['select_victim']!,
                     icon: Icons.person_outline,
-                    onPickerTap: () => _showUserPicker(
-                      role: 'victim',
-                      onSelected: (u) => setState(() {
-                        _selectedVictim = u; _victimManualName = null; _selectedSupervisor = null;
-                      }),
-                    ),
+                    onPickerTap: _pickAffectedParty,
                     onManualChanged: (val) => setState(() {
                       _victimManualName = val; _selectedVictim = null; _selectedSupervisor = null;
                     }),
