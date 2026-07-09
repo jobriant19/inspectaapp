@@ -362,18 +362,11 @@ class _AccidentReportListScreenState
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(t['title']!,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.poppins(
                 color: const Color.fromARGB(255, 235, 37, 37),
                 fontWeight: FontWeight.w700,
                 fontSize: 17)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: _fetchReports,
-            icon: const Icon(CupertinoIcons.refresh,
-                color: Color.fromARGB(255, 235, 37, 37)),
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child:
