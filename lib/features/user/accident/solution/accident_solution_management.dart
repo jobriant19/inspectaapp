@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../home/popup/location_permission_popup.dart';
 import '../accident_result_popup.dart';
+import '../camera/accident_resolution_camera_screen.dart';
 import '../picker/accident_pick_cause.dart';
 import '../picker/accident_pick_severity.dart';
 
@@ -35,7 +36,8 @@ class _AccidentSolutionManagementScreenState
   Future<void> _fetchReports() async {
     setState(() => _isLoading = true);
     try {
-      final data = await Supabase.instance.client
+      final supabase = Supabase.instance.client;
+      final data = await supabase
           .from('accident_report')
           .select('''
             id_laporan, judul, tingkat_keparahan, status, penyebab,
@@ -45,9 +47,33 @@ class _AccidentSolutionManagementScreenState
           .inFilter('status', ['Menunggu', 'Ditinjau', 'Selesai'])
           .order('created_at', ascending: false);
 
+      final reportsList = List<Map<String, dynamic>>.from(data);
+
+      final reportIds =
+          reportsList.map((r) => r['id_laporan'] as String).toList();
+      final Map<String, Map<String, dynamic>> resolutionMap = {};
+      if (reportIds.isNotEmpty) {
+        final resolutions = await supabase
+            .from('resolution_accident')
+            .select('''
+              id_resolution, id_laporan, judul_resolusi, deskripsi_resolusi,
+              tindakan_korektif, tindakan_preventif,
+              tanggal_resolusi, created_at, foto_resolusi,
+              hrd:resolution_accident_id_hrd_fkey(nama, gambar_user)
+            ''')
+            .inFilter('id_laporan', reportIds);
+        for (final r in List<Map<String, dynamic>>.from(resolutions)) {
+          resolutionMap[r['id_laporan'].toString()] = r;
+        }
+      }
+
+      for (final r in reportsList) {
+        r['_resolution'] = resolutionMap[r['id_laporan'].toString()];
+      }
+
       if (mounted) {
         setState(() {
-          _reports = List<Map<String, dynamic>>.from(data);
+          _reports = reportsList;
           _isLoading = false;
         });
       }
@@ -75,7 +101,7 @@ class _AccidentSolutionManagementScreenState
               : widget.lang == 'ZH'
                   ? '解决方案管理'
                   : 'Manajemen Solusi',
-          style: GoogleFonts.inter(
+          style: GoogleFonts.poppins(
               color: const Color(0xFF16A34A),
               fontWeight: FontWeight.w700,
               fontSize: 17),
@@ -214,6 +240,7 @@ class _AccidentSolutionManagementScreenState
               reportId: r['id_laporan'] as String,
               reportTitle: r['judul'] ?? '-',
               lang: widget.lang,
+              existingSolution: r['_resolution'] as Map<String, dynamic>?,
             ),
           ),
         );
@@ -407,12 +434,14 @@ class HrdSolutionDetailScreen extends StatefulWidget {
   final String reportId;
   final String reportTitle;
   final String lang;
+  final Map<String, dynamic>? existingSolution;
 
   const HrdSolutionDetailScreen({
     super.key,
     required this.reportId,
     required this.reportTitle,
     required this.lang,
+    this.existingSolution,
   });
 
   @override
@@ -423,6 +452,7 @@ class HrdSolutionDetailScreen extends StatefulWidget {
 class _HrdSolutionDetailScreenState
     extends State<HrdSolutionDetailScreen> {
   Map<String, dynamic>? _solution;
+  // ignore: unused_field
   bool _isLoading = true;
   final bool _isSaving = false;
 
@@ -437,7 +467,25 @@ class _HrdSolutionDetailScreenState
   @override
   void initState() {
     super.initState();
-    _loadSolution();
+    AccidentSolutionCameraWarmupService.instance.warmUp();
+
+    if (widget.existingSolution != null) {
+      _populateFromData(widget.existingSolution);
+      _isLoading = false;
+    } else {
+      _loadSolution();
+    }
+  }
+
+  void _populateFromData(Map<String, dynamic>? data) {
+    _solution = data;
+    if (data != null) {
+      _judulCtrl.text = data['judul_resolusi'] ?? '';
+      _descCtrl.text = data['deskripsi_resolusi'] ?? '';
+      _korektifCtrl.text = data['tindakan_korektif'] ?? '';
+      _preventifCtrl.text = data['tindakan_preventif'] ?? '';
+      _existingImageUrl = data['foto_resolusi'];
+    }
   }
 
   @override
@@ -446,6 +494,7 @@ class _HrdSolutionDetailScreenState
     _descCtrl.dispose();
     _korektifCtrl.dispose();
     _preventifCtrl.dispose();
+    AccidentSolutionCameraWarmupService.instance.release();
     super.dispose();
   }
 
@@ -493,15 +542,8 @@ class _HrdSolutionDetailScreenState
 
       if (mounted) {
         setState(() {
-          _solution = data;
+          _populateFromData(data);
           _isLoading = false;
-          if (data != null) {
-            _judulCtrl.text = data['judul_resolusi'] ?? '';
-            _descCtrl.text = data['deskripsi_resolusi'] ?? '';
-            _korektifCtrl.text = data['tindakan_korektif'] ?? '';
-            _preventifCtrl.text = data['tindakan_preventif'] ?? '';
-            _existingImageUrl = data['foto_resolusi'];
-          }
         });
       }
     } catch (e) {
@@ -511,201 +553,30 @@ class _HrdSolutionDetailScreenState
   }
 
   Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 20),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Text(
-              widget.lang == 'EN'
-                  ? 'Add Solution Photo'
-                  : widget.lang == 'ZH'
-                      ? '添加解决方案照片'
-                      : 'Tambah Foto Solusi',
-              style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1E293B)),
-            ),
-            const SizedBox(height: 20),
-            // CAMERA
-            GestureDetector(
-              onTap: () async {
-                Navigator.pop(context);
-                final img = await Navigator.push<XFile?>(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AccidentCameraScreen()),
-                );
-                if (img != null && mounted) setState(() => _imageFile = img);
-              },
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDF4),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: const Color(0xFFDCFCE7), width: 1.5),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF16A34A),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(CupertinoIcons.camera_fill,
-                          color: Colors.white, size: 22),
-                    ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.lang == 'EN'
-                              ? 'Take Photo'
-                              : widget.lang == 'ZH'
-                                  ? '拍照'
-                                  : 'Ambil Foto',
-                          style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                              color: const Color(0xFF1E293B)),
-                        ),
-                        Text(
-                          widget.lang == 'EN'
-                              ? 'Open camera directly'
-                              : widget.lang == 'ZH'
-                                  ? '直接打开相机'
-                                  : 'Buka kamera langsung',
-                          style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: const Color(0xFF94A3B8)),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    const Icon(CupertinoIcons.chevron_right,
-                        size: 16, color: Color(0xFF16A34A)),
-                  ],
-                ),
-              ),
-            ),
-            // GALLERY
-            GestureDetector(
-              onTap: () async {
-                Navigator.pop(context);
-                final img = await picker.pickImage(
-                    source: ImageSource.gallery, imageQuality: 80);
-                if (img != null && mounted) setState(() => _imageFile = img);
-              },
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFF),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: const Color(0xFFDCFCE7), width: 1.5),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF15803D),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                          CupertinoIcons.photo_fill_on_rectangle_fill,
-                          color: Colors.white,
-                          size: 22),
-                    ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.lang == 'EN'
-                              ? 'Choose from Gallery'
-                              : widget.lang == 'ZH'
-                                  ? '从相册选择'
-                                  : 'Pilih dari Galeri',
-                          style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                              color: const Color(0xFF1E293B)),
-                        ),
-                        Text(
-                          widget.lang == 'EN'
-                              ? 'Select existing photo'
-                              : widget.lang == 'ZH'
-                                  ? '选择现有照片'
-                                  : 'Pilih foto yang sudah ada',
-                          style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: const Color(0xFF94A3B8)),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    const Icon(CupertinoIcons.chevron_right,
-                        size: 16, color: Color(0xFF16A34A)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // CANCEL
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Center(
-                  child: Text(
-                    widget.lang == 'EN'
-                        ? 'Cancel'
-                        : widget.lang == 'ZH'
-                            ? '取消'
-                            : 'Batal',
-                    style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                        color: const Color(0xFF64748B)),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    final XFile? result = await Navigator.push<XFile?>(
+      context,
+      MaterialPageRoute(builder: (_) => const AccidentSolutionCameraScreen()),
     );
+    if (result != null && mounted) setState(() => _imageFile = result);
+    AccidentSolutionCameraWarmupService.instance.warmUp();
   }
 
   Widget _buildPhotoWidget() {
+    if (_isLoading) {
+      return Shimmer.fromColors(
+        baseColor: const Color(0xFFDCFCE7),
+        highlightColor: const Color(0xFFF0FDF4),
+        child: Container(
+          height: 150,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+
     final hasPhoto = _imageFile != null || _existingImageUrl != null;
     if (!hasPhoto) {
       return GestureDetector(
@@ -940,6 +811,11 @@ class _HrdSolutionDetailScreenState
     }
   }
 
+  double _bottomSafeSpacing(BuildContext context) {
+    final double navInset = MediaQuery.of(context).padding.bottom;
+    return navInset > 0 ? navInset + 16 : 28;
+  }
+
   Widget _buildFormField({
     required TextEditingController ctrl,
     required IconData icon,
@@ -1026,11 +902,7 @@ class _HrdSolutionDetailScreenState
           child: Container(color: CupertinoColors.systemGrey5, height: 1),
         ),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CupertinoActivityIndicator(
-                  radius: 14, color: Color(0xFF16A34A)))
-          : Stack(
+      body: Stack(
               children: [
                 SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
@@ -1194,7 +1066,7 @@ class _HrdSolutionDetailScreenState
               ],
             ),
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, _bottomSafeSpacing(context)),
         decoration: const BoxDecoration(
           color: Colors.white,
           border: Border(
@@ -1248,116 +1120,6 @@ class _HrdSolutionDetailScreenState
           ),
         ),
       ),
-    );
-  }
-}
-
-// ============================================================
-// KAMERA KHUSUS ACCIDENT REPORT
-// ============================================================
-class AccidentCameraScreen extends StatefulWidget {
-  const AccidentCameraScreen({super.key});
-
-  @override
-  State<AccidentCameraScreen> createState() => _AccidentCameraScreenState();
-}
-
-class _AccidentCameraScreenState extends State<AccidentCameraScreen> with WidgetsBindingObserver {
-  CameraController? _ctrl;
-  List<CameraDescription>? _cameras;
-  int _camIndex = 0;
-  bool _ready = false;
-  final ImagePicker _picker = ImagePicker();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _init();
-  }
-
-  @override
-  void dispose() { WidgetsBinding.instance.removeObserver(this); _ctrl?.dispose(); super.dispose(); }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_ctrl == null || !_ctrl!.value.isInitialized) return;
-    if (state == AppLifecycleState.inactive) { _ctrl!.dispose(); }
-    else if (state == AppLifecycleState.resumed) { _init(); }
-  }
-
-  Future<void> _init() async {
-    _cameras = await availableCameras();
-    if (_cameras != null && _cameras!.isNotEmpty) await _setCamera(_camIndex);
-  }
-
-  Future<void> _setCamera(int i) async {
-    await _ctrl?.dispose();
-    _ctrl = CameraController(_cameras![i], ResolutionPreset.high, enableAudio: false);
-    try {
-      await _ctrl!.initialize();
-      if (mounted) setState(() => _ready = true);
-    } on CameraException catch (e) { debugPrint('Camera error: ${e.code}'); }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_ready || _ctrl == null) {
-      return const Scaffold(backgroundColor: Colors.black, body: Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 16)));
-    }
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(children: [
-        Center(child: CameraPreview(_ctrl!)),
-        Positioned(
-          top: 0, left: 0, right: 0,
-          child: SafeArea(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.black.withValues(alpha:0.4),
-              child: Row(children: [
-                IconButton(icon: const Icon(CupertinoIcons.back, color: Colors.white), onPressed: () => Navigator.pop(context)),
-                Expanded(child: Center(child: Text('FOTO BUKTI', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)))),
-                const SizedBox(width: 48),
-              ]),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: 40, left: 0, right: 0,
-          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            GestureDetector(
-              onTap: () async {
-                final img = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-                if (img != null && mounted) Navigator.pop(context, img);
-              },
-              child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.photo, color: Colors.white)),
-            ),
-            GestureDetector(
-              onTap: () async {
-                if (_ctrl == null || _ctrl!.value.isTakingPicture) return;
-                try {
-                  final pic = await _ctrl!.takePicture();
-                  if (mounted) Navigator.pop(context, pic);
-                } on CameraException catch (e) { debugPrint('Snap error: ${e.code}'); }
-              },
-              child: Container(
-                width: 72, height: 72,
-                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 4)),
-                child: Padding(padding: const EdgeInsets.all(4), child: Container(decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle))),
-              ),
-            ),
-            GestureDetector(
-              onTap: () {
-                if (_cameras == null || _cameras!.length < 2) return;
-                setState(() { _ready = false; _camIndex = (_camIndex + 1) % _cameras!.length; });
-                _setCamera(_camIndex);
-              },
-              child: Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), shape: BoxShape.circle), child: const Icon(CupertinoIcons.switch_camera, color: Colors.white)),
-            ),
-          ]),
-        ),
-      ]),
     );
   }
 }
