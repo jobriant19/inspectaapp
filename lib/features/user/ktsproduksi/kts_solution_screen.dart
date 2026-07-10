@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/utils/jabatan_helper.dart';
 import '../home/alert/required_field_alert.dart';
 import '../home/popup/location_permission_popup.dart';
 import 'camera/kts_solution_camera_screen.dart';
@@ -279,15 +280,6 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
     }
   }
 
-  String _formatDate(String? d) {
-    if (d == null) return '-';
-    try {
-      return DateFormat('dd MMM yyyy, HH:mm').format(DateTime.parse(d).toLocal());
-    } catch (_) {
-      return d;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final p = widget.penyelesaian;
@@ -330,6 +322,68 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
     ]);
   }
 
+  Widget _resultLabel(IconData icon, String label, {Color color = const Color(0xFF12B76A)}) {
+    return Row(children: [
+      Icon(icon, size: 15, color: color),
+      const SizedBox(width: 7),
+      Text(label,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF12B76A))),
+    ]);
+  }
+
+  Widget _resultValueBox(String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Text(value,
+          style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF0F172A), height: 1.5)),
+    );
+  }
+
+  String _jabatanLabel(Map<String, dynamic> user) {
+    final idJabatan = user['id_jabatan'] as int?;
+    final isVerificator = user['is_verificator'] as bool?;
+    final jabatanNama =
+        (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan'] as String?;
+    return JabatanHelper.getDisplayRole(
+      isVerificatorFlag: isVerificator,
+      idJabatan: idJabatan,
+      jabatanFromDb: jabatanNama,
+      lang: widget.lang,
+    );
+  }
+
+  Widget _buildJabatanBadge(Map<String, dynamic> user) {
+    final idJabatan = user['id_jabatan'] as int?;
+    final isVerificator = user['is_verificator'] as bool?;
+    final label = _jabatanLabel(user);
+    if (label.isEmpty) return const SizedBox.shrink();
+    final color = JabatanHelper.getPrimaryColor(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    final icon = JabatanHelper.getRoleIcon(
+        isVerificatorFlag: isVerificator, idJabatan: idJabatan);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 11, color: color),
+        const SizedBox(width: 4),
+        Text(label,
+            style: GoogleFonts.inter(
+                fontSize: 10.5, fontWeight: FontWeight.w700, color: color)),
+      ]),
+    );
+  }
+
   Widget _buildSolutionResult(Map<String, dynamic> p) {
     final solver = p['solver'] as Map<String, dynamic>?;
     final biaya = p['additional_cost'] as num?;
@@ -338,7 +392,12 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
         : '-';
     final String? penyebab = p['penyebab']?.toString();
     final String? bagian = p['bagian']?.toString();
-    final String? faktorNama = p['penyebab']?.toString();
+
+    // FIX: cause factor sekarang diambil dari relasi faktor_penyebab_kts
+    // (sesuai yang dipilih user lewat picker di form), bukan dari field 'penyebab'.
+    final Map<String, dynamic>? faktorPenyebab =
+        p['faktor_penyebab_kts'] as Map<String, dynamic>?;
+    final String? faktorNama = faktorPenyebab?['nama_subkategoritemuan']?.toString();
 
     return Container(
       decoration: BoxDecoration(
@@ -370,100 +429,126 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
                         style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF16A34A))),
                   ]),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
+
                 if (bagian != null && bagian.isNotEmpty) ...[
-                  _resultRow(CupertinoIcons.square_grid_2x2_fill, _t('bagian'), bagian),
-                  const SizedBox(height: 12),
+                  _resultLabel(CupertinoIcons.square_grid_2x2_fill, _t('bagian')),
+                  const SizedBox(height: 8),
+                  _resultValueBox(bagian),
+                  const SizedBox(height: 16),
                 ],
+
                 if (penyebab != null && penyebab.isNotEmpty) ...[
-                  Text(_t('cause'),
-                      style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600, letterSpacing: 0.3)),
-                  const SizedBox(height: 4),
-                  Text(penyebab, style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF0F172A), height: 1.5)),
-                  const SizedBox(height: 12),
+                  _resultLabel(CupertinoIcons.question_circle_fill, _t('cause')),
+                  const SizedBox(height: 8),
+                  _resultValueBox(penyebab),
+                  const SizedBox(height: 16),
                 ],
+
                 if (faktorNama != null && faktorNama.isNotEmpty) ...[
-                  _resultRow(CupertinoIcons.tag_fill, _t('cause_factor'), faktorNama),
-                  const SizedBox(height: 12),
+                  _resultLabel(CupertinoIcons.tag_fill, _t('cause_factor')),
+                  const SizedBox(height: 8),
+                  _resultValueBox(faktorNama),
+                  const SizedBox(height: 16),
                 ],
-                Text(_t('tindakan'),
-                    style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600, letterSpacing: 0.3)),
-                const SizedBox(height: 6),
-                Text(p['catatan_penyelesaian'] ?? '-',
-                    style: GoogleFonts.inter(fontSize: 15, color: const Color(0xFF0F172A), height: 1.5)),
+
+                _resultLabel(CupertinoIcons.hammer_fill, _t('tindakan')),
+                const SizedBox(height: 8),
+                _resultValueBox(p['catatan_penyelesaian']?.toString() ?? '-'),
+
                 if (biaya != null && biaya > 0) ...[
                   const SizedBox(height: 16),
+                  _resultLabel(CupertinoIcons.money_dollar_circle_fill, _t('cost'), color: const Color(0xFFEA580C)),
+                  const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF7ED),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFFFED7AA)),
                     ),
-                    child: Row(children: [
-                      const Icon(CupertinoIcons.money_dollar_circle, color: Color(0xFFEA580C), size: 18),
-                      const SizedBox(width: 8),
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(_t('cost'), style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF92400E), fontWeight: FontWeight.w600)),
-                        Text(biayaStr, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFFEA580C))),
-                      ]),
-                    ]),
+                    child: Text(biayaStr,
+                        style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: const Color(0xFFEA580C))),
                   ),
                 ],
                 if (solver != null) ...[
                   const SizedBox(height: 16),
+                  _resultLabel(CupertinoIcons.person_fill, _t('resolved_by')),
+                  const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFF),
+                      color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                    child: Row(children: [
-                      solver['gambar_user'] != null
-                          ? CircleAvatar(radius: 20, backgroundImage: NetworkImage(solver['gambar_user']))
-                          : Container(
-                              width: 40, height: 40,
-                              decoration: const BoxDecoration(color: Color(0xFFEFF6FF), shape: BoxShape.circle),
-                              child: const Icon(CupertinoIcons.person_fill, size: 20, color: Color(0xFF1D4ED8)),
-                            ),
-                      const SizedBox(width: 12),
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(_t('resolved_by'), style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF94A3B8), fontWeight: FontWeight.w600)),
-                        Text(solver['nama'] ?? '-', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF0F172A))),
-                      ]),
-                    ]),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        solver['gambar_user'] != null
+                            ? CircleAvatar(radius: 20, backgroundImage: NetworkImage(solver['gambar_user']))
+                            : Container(
+                                width: 40, height: 40,
+                                decoration: const BoxDecoration(color: Color(0xFFDCFCE7), shape: BoxShape.circle),
+                                child: const Icon(CupertinoIcons.person_fill, size: 19, color: Color(0xFF12B76A)),
+                              ),
+                        const SizedBox(width: 12),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(solver['nama'] ?? '-',
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF0F172A))),
+                            if (_jabatanLabel(solver).isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              _buildJabatanBadge(solver),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
                 if (p['tanggal_selesai'] != null) ...[
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    const Icon(CupertinoIcons.clock_fill, size: 13, color: Color(0xFF94A3B8)),
-                    const SizedBox(width: 6),
-                    Text('${_t('resolved_at')}: ${_formatDate(p['tanggal_selesai'])}',
-                        style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
-                  ]),
+                  const SizedBox(height: 16),
+                  _resultLabel(CupertinoIcons.clock_fill, _t('resolved_at')),
+                  const SizedBox(height: 8),
+                  Builder(builder: (context) {
+                    DateTime? dt;
+                    try { dt = DateTime.parse(p['tanggal_selesai'].toString()).toLocal(); } catch (_) {}
+                    final dateStr = dt != null ? DateFormat('dd MMM yyyy').format(dt) : '-';
+                    final timeStr = dt != null ? DateFormat('HH:mm').format(dt) : '-';
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(children: [
+                        const Icon(CupertinoIcons.calendar, size: 15, color: Color(0xFF16A34A)),
+                        const SizedBox(width: 8),
+                        Text(dateStr,
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF0F172A))),
+                        const SizedBox(width: 10),
+                        Container(width: 1, height: 12, color: const Color(0xFFCBD5E1)),
+                        const SizedBox(width: 10),
+                        const Icon(CupertinoIcons.clock, size: 13, color: Color(0xFF16A34A)),
+                        const SizedBox(width: 6),
+                        Text(timeStr,
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF0F172A))),
+                      ]),
+                    );
+                  }),
                 ],
               ],
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _resultRow(IconData icon, String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(10)),
-      child: Row(children: [
-        Icon(icon, size: 14, color: const Color(0xFF1D4ED8)),
-        const SizedBox(width: 8),
-        Text('$label: ', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF1D4ED8), fontWeight: FontWeight.w600)),
-        Expanded(child: Text(value,
-            style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF0F172A), fontWeight: FontWeight.w700),
-            overflow: TextOverflow.ellipsis)),
-      ]),
     );
   }
 
