@@ -3,10 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
-const List<String> kKtsBagianKasieList = [
-  'Laser', 'Mesin', 'Spot', 'Las', 'Ftw', 'Cat',
-  'Assy', 'Ekspedisi & Packing', 'Purchasing', 'Engineering', 'PPIC',
-];
+import '../../user/analytics/kts production/kts_section_location_picker.dart';
 
 class _C {
   static const primary      = Color(0xFFF59E0B);
@@ -34,7 +31,7 @@ class _KasieRow {
   });
 }
 
-enum _RangeFilter { thisMonth, threeMonths, sixMonths }
+enum _RangeFilter { thisMonth, threeMonths, sixMonths, oneYear, custom }
 
 extension _RF on _RangeFilter {
   String label(String lang) {
@@ -45,6 +42,10 @@ extension _RF on _RangeFilter {
         return lang == 'EN' ? '3 Months' : lang == 'ZH' ? '3个月' : '3 Bulan';
       case _RangeFilter.sixMonths:
         return lang == 'EN' ? '6 Months' : lang == 'ZH' ? '6个月' : '6 Bulan';
+      case _RangeFilter.oneYear:
+        return lang == 'EN' ? '1 Year' : lang == 'ZH' ? '1年' : '1 Tahun';
+      case _RangeFilter.custom:
+        return lang == 'EN' ? 'Custom' : lang == 'ZH' ? '自定义' : 'Kustom';
     }
   }
 
@@ -53,13 +54,14 @@ extension _RF on _RangeFilter {
       case _RangeFilter.thisMonth:   return 1;
       case _RangeFilter.threeMonths: return 3;
       case _RangeFilter.sixMonths:   return 6;
+      case _RangeFilter.oneYear:     return 12;
+      case _RangeFilter.custom:      return 12; 
     }
   }
 }
 
 class AdminKtsKasieTab extends StatefulWidget {
   final String lang;
-
   const AdminKtsKasieTab({super.key, required this.lang});
 
   @override
@@ -113,23 +115,38 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
     },
   };
 
-  // FILTER STATE
-  _RangeFilter _range         = _RangeFilter.threeMonths;
-  String?      _filterBagian;
-  bool         _chartExpanded = false;
-  bool         _loading       = false;
+  // STATE
+  _RangeFilter _range = _RangeFilter.threeMonths;
+  String? _filterBagian;
+  bool _chartExpanded = false;
+  bool _loading = false;
+  DateTime? _customStart;
+  DateTime? _customEnd;
 
-  List<_KasieRow> _rows        = [];
-  List<String>    _bulanLabels = [];
+  List<_KasieRow> _rows = [];
+  List<String> _bulanLabels = [];
+  Map<String, String> _sectionNameMap = {};
+  Map<String, String> _sectionDisplayMap = {};
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadSectionNameMap().then((_) => _loadData());
   }
 
+  // MONTH RANGE
   List<DateTime> _getMonths() {
-    final now   = DateTime.now();
+    if (_range == _RangeFilter.custom && _customStart != null && _customEnd != null) {
+      final List<DateTime> months = [];
+      DateTime cursor = DateTime(_customStart!.year, _customStart!.month, 1);
+      final last = DateTime(_customEnd!.year, _customEnd!.month, 1);
+      while (!cursor.isAfter(last) && months.length < 12) {
+        months.add(cursor);
+        cursor = DateTime(cursor.year, cursor.month + 1, 1);
+      }
+      return months;
+    }
+    final now = DateTime.now();
     final count = _range.monthCount;
     return List.generate(count, (i) {
       final offset = count - 1 - i;
@@ -137,50 +154,106 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
     });
   }
 
+  Future<void> _loadSectionNameMap() async {
+    try {
+      final res = await _db
+          .from('section')
+          .select('nama_section_id, nama_section_en, nama_section_zh');
+      final rows = List<Map<String, dynamic>>.from(res);
+      final map = <String, String>{};
+      final displayMap = <String, String>{};
+      for (final r in rows) {
+        final idName = (r['nama_section_id'] as String?)?.trim();
+        if (idName == null || idName.isEmpty) continue;
+        map[idName.toLowerCase()] = idName;
+        final enName = (r['nama_section_en'] as String?)?.trim();
+        if (enName != null && enName.isNotEmpty) map[enName.toLowerCase()] = idName;
+        final zhName = (r['nama_section_zh'] as String?)?.trim();
+        if (zhName != null && zhName.isNotEmpty) map[zhName.toLowerCase()] = idName;
+
+        String display = idName;
+        if (widget.lang == 'EN') {
+          if (enName != null && enName.isNotEmpty) display = enName;
+        } else if (widget.lang == 'ZH') {
+          if (zhName != null && zhName.isNotEmpty) display = zhName;
+        }
+        displayMap[idName.toLowerCase()] = display;
+      }
+      if (mounted) setState(() { _sectionNameMap = map; _sectionDisplayMap = displayMap; });
+    } catch (e) {
+      debugPrint('loadSectionNameMap error: $e');
+    }
+  }
+
+  String _resolveSectionName(String raw) {
+    final key = raw.trim().toLowerCase();
+    return _sectionNameMap[key] ?? raw.trim();
+  }
+
+  String _displaySectionName(String raw) {
+    if (raw.isEmpty) return raw;
+    return _sectionDisplayMap[raw.trim().toLowerCase()] ?? raw;
+  }
+
+  String _normKey(String raw) => raw.trim().toLowerCase();
+
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
       final months = _getMonths();
-      final locale = widget.lang == 'ID'
-          ? 'id_ID'
-          : widget.lang == 'EN'
-              ? 'en_US'
-              : 'zh_CN';
+      final locale = widget.lang == 'ID' ? 'id_ID'
+          : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
 
-      _bulanLabels = months
-          .map((m) => DateFormat('MMM yy', locale).format(m))
-          .toList();
+      _bulanLabels = months.map((m) => DateFormat('MMM yy', locale).format(m)).toList();
 
-      var kasieQuery = _db
+      final kasieRes = await _db
           .from('User')
-          .select('id_user, nama, bagian_kasie')
+          .select('''
+            id_user, nama, bagian_kasie, id_section,
+            section:id_section(nama_section_id, nama_section_en, nama_section_zh)
+          ''')
           .eq('id_jabatan', 3);
 
-      if (_filterBagian != null) {
-        kasieQuery = kasieQuery.eq('bagian_kasie', _filterBagian!);
+      var kasieList = List<Map<String, dynamic>>.from(kasieRes);
+      String kasieMatchKey(Map<String, dynamic> k) {
+        final id = k['id_section']?.toString();
+        if (id != null && id.isNotEmpty) return 'id:$id';
+        final raw = (k['bagian_kasie'] as String?)?.trim() ?? '';
+        if (raw.isEmpty) return '';
+        return 'name:${_normKey(_resolveSectionName(raw))}';
       }
 
-      final kasieRes  = await kasieQuery;
-      final kasieList = List<Map<String, dynamic>>.from(kasieRes);
+      String kasieBagianLabel(Map<String, dynamic> k) {
+        final sectionJoin = k['section'] as Map<String, dynamic>?;
+        final joinedName = (sectionJoin?['nama_section_id'] as String?)?.trim();
+        if (joinedName != null && joinedName.isNotEmpty) return joinedName;
+        final raw = (k['bagian_kasie'] as String?)?.trim() ?? '';
+        return raw.isEmpty ? '' : _resolveSectionName(raw);
+      }
+
+      if (_filterBagian != null) {
+        kasieList = kasieList.where((k) {
+          final label = kasieBagianLabel(k);
+          return label.isNotEmpty && _normKey(label) == _normKey(_filterBagian!);
+        }).toList();
+      }
 
       if (kasieList.isEmpty) {
-        setState(() {
-          _rows   = [];
-          _loading = false;
-        });
+        setState(() { _rows = []; _loading = false; });
         return;
       }
 
       final start = months.first;
-      final end   = DateTime(
-        months.last.year, months.last.month + 1, 0, 23, 59, 59,
-      );
+      final end = DateTime(months.last.year, months.last.month + 1, 0, 23, 59, 59);
 
-      final penyelesaianRes = await _db.from('temuan').select('''
+      final penyelesaianRes = await _db
+          .from('temuan')
+          .select('''
             id_temuan,
             created_at,
             penyelesaian!temuan_id_penyelesaian_fkey(
-              bagian
+              bagian,
+              id_section
             )
           ''')
           .eq('jenis_temuan', 'KTS Production')
@@ -188,25 +261,30 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
           .lte('created_at', end.toIso8601String())
           .not('id_penyelesaian', 'is', null);
 
-      final penyelesaianList =
-          List<Map<String, dynamic>>.from(penyelesaianRes);
-
-      final Map<String, Set<int>> bagianMonthSet = {};
+      final penyelesaianList = List<Map<String, dynamic>>.from(penyelesaianRes);
+      final Map<String, Map<int, int>> bagianMonthCounts = {};
       for (final row in penyelesaianList) {
         final p = row['penyelesaian'] as Map<String, dynamic>?;
         if (p == null) continue;
-        final bagian =
-            (p['bagian'] as String?)?.trim() ?? '';
-        if (bagian.isEmpty) continue;
-        final createdAt =
-            DateTime.tryParse(row['created_at']?.toString() ?? '');
+
+        final idSection = p['id_section']?.toString();
+        String key;
+        if (idSection != null && idSection.isNotEmpty) {
+          key = 'id:$idSection';
+        } else {
+          final rawBagian = (p['bagian'] as String?)?.trim() ?? '';
+          if (rawBagian.isEmpty) continue;
+          key = 'name:${_normKey(_resolveSectionName(rawBagian))}';
+        }
+
+        final createdAt = DateTime.tryParse(row['created_at']?.toString() ?? '');
         if (createdAt == null) continue;
 
         for (int i = 0; i < months.length; i++) {
           final m = months[i];
-          if (createdAt.year == m.year &&
-              createdAt.month == m.month) {
-            bagianMonthSet.putIfAbsent(bagian, () => {}).add(i);
+          if (createdAt.year == m.year && createdAt.month == m.month) {
+            final monthMap = bagianMonthCounts.putIfAbsent(key, () => {});
+            monthMap[i] = (monthMap[i] ?? 0) + 1;
             break;
           }
         }
@@ -215,28 +293,30 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
       final rows = kasieList.map((k) {
         final kasieId   = k['id_user']?.toString() ?? '';
         final kasieNama = k['nama']?.toString() ?? '-';
-        final bagian    =
-            (k['bagian_kasie'] as String?)?.trim() ?? '';
+        final bagian = kasieBagianLabel(k);
+        final key = kasieMatchKey(k);
 
-        final monthSet = bagianMonthSet[bagian] ?? {};
-        final bulanan  = <int, int>{};
+        final monthCounts = key.isEmpty ? <int, int>{} : (bagianMonthCounts[key] ?? {});
+        final bulanan = <int, int>{};
+        int total = 0;
         for (int i = 0; i < months.length; i++) {
-          bulanan[i] = monthSet.contains(i) ? 1 : 0;
+          final v = monthCounts[i] ?? 0;
+          bulanan[i] = v;
+          total += v;
         }
-        final total = monthSet.length;
 
         return _KasieRow(
-          kasieId:   kasieId,
+          kasieId: kasieId,
           kasieNama: kasieNama,
-          bagian:    bagian,
-          bulanan:   bulanan,
-          total:     total,
+          bagian: bagian,
+          bulanan: bulanan,
+          total: total,
         );
       }).toList()
         ..sort((a, b) => b.total.compareTo(a.total));
 
       setState(() {
-        _rows   = rows;
+        _rows = rows;
         _loading = false;
       });
     } catch (e) {
@@ -245,265 +325,224 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
     }
   }
 
+  // FILTER PICKERS
   void _showRangePicker() async {
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: _C.primaryLight, width: 1.5),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-                decoration: const BoxDecoration(
-                  color: _C.primaryLight,
-                  borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+              decoration: const BoxDecoration(
+                color: _C.primaryLight,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.date_range_rounded, color: _C.primary, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  widget.lang == 'EN' ? 'Select Period'
+                      : widget.lang == 'ZH' ? '选择期间' : 'Pilih Periode',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary),
+                )),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18, color: _C.textSec),
+                  onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero,
+                ),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            ..._RangeFilter.values.where((r) => r != _RangeFilter.custom).map((r) {
+              final sel = _range == r;
+              return GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() => _range = r);
+                  _loadData();
+                },
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: sel ? _C.primaryLight : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: sel ? _C.primary : const Color(0xFFE2E8F0),
+                      width: sel ? 1.8 : 1,
+                    ),
+                  ),
+                  child: Row(children: [
+                    Expanded(child: Text(r.label(widget.lang),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: sel ? _C.primaryDark : const Color(0xFF1E293B),
+                      ),
+                    )),
+                    if (sel) const Icon(Icons.check_circle_rounded, color: _C.primary, size: 20),
+                  ]),
+                ),
+              );
+            }),
+            GestureDetector(
+              onTap: () { Navigator.pop(ctx); _showCustomRangePicker(); },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: _range == _RangeFilter.custom ? _C.primaryLight : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _range == _RangeFilter.custom ? _C.primary : const Color(0xFFE2E8F0),
+                    width: _range == _RangeFilter.custom ? 1.8 : 1,
+                  ),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.date_range_rounded,
-                      color: _C.primary, size: 20),
+                  const Icon(Icons.edit_calendar_rounded, size: 16, color: _C.primary),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.lang == 'EN'
-                          ? 'Select Period'
-                          : widget.lang == 'ZH'
-                              ? '选择期间'
-                              : 'Pilih Periode',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: _C.textPrimary,
-                      ),
+                  Expanded(child: Text(
+                    _range == _RangeFilter.custom && _customStart != null && _customEnd != null
+                        ? '${DateFormat('MMM yyyy').format(_customStart!)} – ${DateFormat('MMM yyyy').format(_customEnd!)}'
+                        : (widget.lang == 'EN' ? 'Custom (Start – End)' : widget.lang == 'ZH' ? '自定义（开始-结束）' : 'Kustom (Mulai – Selesai)'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _range == _RangeFilter.custom ? _C.primaryDark : const Color(0xFF1E293B),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close,
-                        size: 18, color: _C.textSec),
-                    onPressed: () => Navigator.pop(ctx),
-                    padding: EdgeInsets.zero,
-                  ),
+                  )),
+                  if (_range == _RangeFilter.custom) const Icon(Icons.check_circle_rounded, color: _C.primary, size: 20),
                 ]),
               ),
-              const SizedBox(height: 8),
-              ..._RangeFilter.values.map((r) {
-                final sel = _range == r;
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    setState(() => _range = r);
-                    _loadData();
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: sel ? _C.primaryLight : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: sel
-                            ? _C.primary
-                            : const Color(0xFFE2E8F0),
-                        width: sel ? 1.8 : 1,
-                      ),
-                    ),
-                    child: Row(children: [
-                      Expanded(
-                        child: Text(
-                          r.label(widget.lang),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: sel
-                                ? _C.primaryDark
-                                : const Color(0xFF1E293B),
-                          ),
-                        ),
-                      ),
-                      if (sel)
-                        const Icon(Icons.check_circle_rounded,
-                            color: _C.primary, size: 20),
-                    ]),
-                  ),
-                );
-              }),
-              const SizedBox(height: 12),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+          ]),
         ),
       ),
     );
+  }
+
+  void _showCustomRangePicker() async {
+    final now = DateTime.now();
+    DateTime tempStart = _customStart ?? DateTime(now.year, now.month, 1);
+    DateTime tempEnd   = _customEnd   ?? DateTime(now.year, now.month, 1);
+
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      Widget monthYearPicker(String title, DateTime value, ValueChanged<DateTime> onChanged) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(12), border: Border.all(color: _C.divider)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _C.textSec)),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: DropdownButton<int>(
+                isExpanded: true, value: value.month, underline: const SizedBox.shrink(),
+                items: List.generate(12, (i) => i + 1).map((m) => DropdownMenuItem(value: m,
+                  child: Text(DateFormat('MMMM').format(DateTime(2024, m, 1)), style: const TextStyle(fontSize: 13)))).toList(),
+                onChanged: (m) { if (m != null) onChanged(DateTime(value.year, m, 1)); },
+              )),
+              const SizedBox(width: 8),
+              Expanded(child: DropdownButton<int>(
+                isExpanded: true, value: value.year, underline: const SizedBox.shrink(),
+                items: List.generate(6, (i) => now.year - 4 + i).map((y) => DropdownMenuItem(value: y,
+                  child: Text('$y', style: const TextStyle(fontSize: 13)))).toList(),
+                onChanged: (y) { if (y != null) onChanged(DateTime(y, value.month, 1)); },
+              )),
+            ]),
+          ]),
+        );
+      }
+
+      final monthsDiff = (tempEnd.year - tempStart.year) * 12 + (tempEnd.month - tempStart.month);
+      final isValid = monthsDiff >= 0 && monthsDiff < 12;
+
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+              decoration: const BoxDecoration(color: _C.primaryLight, borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              child: Row(children: [
+                const Icon(Icons.edit_calendar_rounded, color: _C.primary, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(widget.lang == 'EN' ? 'Custom Period' : widget.lang == 'ZH' ? '自定义期间' : 'Periode Kustom',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _C.textPrimary))),
+                IconButton(icon: const Icon(Icons.close, size: 18, color: _C.textSec), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            monthYearPicker(widget.lang == 'EN' ? 'Start' : widget.lang == 'ZH' ? '开始' : 'Mulai', tempStart, (d) => setLocal(() => tempStart = d)),
+            monthYearPicker(widget.lang == 'EN' ? 'End' : widget.lang == 'ZH' ? '结束' : 'Selesai', tempEnd, (d) => setLocal(() => tempEnd = d)),
+            if (!isValid)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  widget.lang == 'EN' ? 'Range must be between 0–12 months' : widget.lang == 'ZH' ? '范围必须在0-12个月之间' : 'Rentang maksimal 12 bulan',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFFEF4444))),
+              ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: SizedBox(width: double.infinity, child: ElevatedButton(
+                onPressed: isValid ? () {
+                  Navigator.pop(ctx);
+                  setState(() { _range = _RangeFilter.custom; _customStart = tempStart; _customEnd = tempEnd; });
+                  _loadData();
+                } : null,
+                style: ElevatedButton.styleFrom(backgroundColor: _C.primary, foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                child: Text(widget.lang == 'EN' ? 'Apply' : widget.lang == 'ZH' ? '应用' : 'Terapkan'),
+              )),
+            ),
+          ]),
+        ),
+      );
+    }));
   }
 
   void _showBagianPicker() async {
-    final items = [null, ...kKtsBagianKasieList];
-    await showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.6),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _C.primaryLight, width: 1.5),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
-                decoration: const BoxDecoration(
-                  color: _C.primaryLight,
-                  borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20)),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.grid_view_rounded,
-                      color: _C.primary, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _t('pilih_bagian'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: _C.textPrimary,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close,
-                        size: 18, color: _C.textSec),
-                    onPressed: () => Navigator.pop(ctx),
-                    padding: EdgeInsets.zero,
-                  ),
-                ]),
-              ),
-              Flexible(
-                child: ListView.builder(
-                  padding:
-                      const EdgeInsets.only(bottom: 12, top: 4),
-                  itemCount: items.length,
-                  itemBuilder: (_, i) {
-                    final item = items[i];
-                    final lbl  = item ?? _t('semua_bagian');
-                    final sel  = item == _filterBagian;
-                    return InkWell(
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        setState(() => _filterBagian = item);
-                        _loadData();
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: sel
-                              ? _C.primaryLight
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: sel
-                                ? _C.primary
-                                : const Color(0xFFE2E8F0),
-                            width: sel ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Row(children: [
-                          Container(
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              color: sel
-                                  ? _C.primary
-                                  : _C.primaryLight,
-                              borderRadius:
-                                  BorderRadius.circular(9),
-                            ),
-                            child: Center(
-                              child: Text(
-                                lbl.isNotEmpty
-                                    ? lbl[0].toUpperCase()
-                                    : '#',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: sel
-                                      ? Colors.white
-                                      : _C.primaryDark,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              lbl,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: sel
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: sel
-                                    ? _C.primaryDark
-                                    : const Color(0xFF1E293B),
-                              ),
-                            ),
-                          ),
-                          if (sel)
-                            const Icon(
-                                Icons.check_circle_rounded,
-                                color: _C.primary,
-                                size: 18),
-                        ]),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    final result = await showKtsSectionLocationPicker(context, lang: widget.lang, accentColor: _C.primary);
+    if (result == null) return;
+    setState(() => _filterBagian = result.isAllSections ? null : result.sectionName);
+    _loadData();
   }
 
+  // FILTER BAR
   Widget _buildFilterBar() {
+    String rangeLabel = _range.label(widget.lang);
+    if (_range == _RangeFilter.custom && _customStart != null && _customEnd != null) {
+      rangeLabel = '${DateFormat('MMM yy').format(_customStart!)}–${DateFormat('MMM yy').format(_customEnd!)}';
+    }
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: Row(children: [
-        _filterBtn(
-          label: _range.label(widget.lang),
+        // RANGE MONTH BUTTON
+        Expanded(child: _filterBtn(
+          label: rangeLabel,
           color: _C.primary,
-          active: true,
+          active: _range != _RangeFilter.threeMonths,
           icon: Icons.date_range_rounded,
           onTap: _showRangePicker,
-        ),
+        )),
         const SizedBox(width: 8),
-        Expanded(
-          child: _filterBtn(
-            label: _filterBagian ?? _t('semua_bagian'),
-            color: _C.primary,
-            active: _filterBagian != null,
-            icon: Icons.grid_view_rounded,
-            onTap: _showBagianPicker,
-          ),
-        ),
+        // SECTION BUTTON
+        Expanded(child: _filterBtn(
+          label: _filterBagian != null ? _displaySectionName(_filterBagian!) : _t('semua_bagian'),
+          color: _C.primary,
+          active: _filterBagian != null,
+          icon: Icons.grid_view_rounded,
+          onTap: _showBagianPicker,
+        )),
       ]),
     );
   }
@@ -523,110 +562,70 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
         decoration: BoxDecoration(
           color: active ? color : Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: active ? color : _C.primaryLight,
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha:0.12),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border.all(color: active ? color : _C.primaryLight, width: 1.5),
+          boxShadow: [BoxShadow(color: color.withValues(alpha:0.12), blurRadius: 6, offset: const Offset(0, 2))],
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon,
-                size: 14, color: active ? Colors.white : color),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: active ? Colors.white : color,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
+        child: Row(children: [
+          Icon(icon, size: 14, color: active ? Colors.white : color),
+          const SizedBox(width: 6),
+          Expanded(child: Text(label,
+            style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w600,
+              color: active ? Colors.white : color,
             ),
-            const SizedBox(width: 4),
-            Icon(Icons.keyboard_arrow_down_rounded,
-                size: 16,
-                color: active ? Colors.white : color),
-          ],
-        ),
+            overflow: TextOverflow.ellipsis,
+          )),
+          const SizedBox(width: 4),
+          Icon(Icons.keyboard_arrow_down_rounded,
+              size: 16, color: active ? Colors.white : color),
+        ]),
       ),
     );
   }
 
+  // CHART TOGGLE HEADER
   Widget _buildChartToggle() {
-    final locale = widget.lang == 'ID'
-        ? 'id_ID'
-        : widget.lang == 'EN'
-            ? 'en_US'
-            : 'zh_CN';
+    final locale = widget.lang == 'ID' ? 'id_ID'
+        : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
     final months = _getMonths();
-    final String rangeLabel;
+    String rangeLabel;
     if (months.length == 1) {
-      rangeLabel =
-          DateFormat('MMMM yyyy', locale).format(months.first);
+      rangeLabel = DateFormat('MMMM yyyy', locale).format(months.first);
     } else {
-      rangeLabel =
-          '${DateFormat('MMM', locale).format(months.first)} – '
+      rangeLabel = '${DateFormat('MMM', locale).format(months.first)} – '
           '${DateFormat('MMM yyyy', locale).format(months.last)}';
     }
 
     return GestureDetector(
-      onTap: () =>
-          setState(() => _chartExpanded = !_chartExpanded),
+      onTap: () => setState(() => _chartExpanded = !_chartExpanded),
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: _C.primary.withValues(alpha:0.45), width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: _C.primary.withValues(alpha:0.07),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border.all(color: _C.primary.withValues(alpha:0.45), width: 1.2),
+          boxShadow: [BoxShadow(
+              color: _C.primary.withValues(alpha:0.07), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(children: [
-          const Icon(Icons.bar_chart_rounded,
-              size: 16, color: _C.primary),
+          const Icon(Icons.bar_chart_rounded, size: 16, color: _C.primary),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${_t('grafik')} ${_t('laporan_kts')} – $rangeLabel',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: _C.primaryDark,
-              ),
-            ),
-          ),
+          Expanded(child: Text(
+            '${_t('grafik')} ${_t('laporan_kts')} – $rangeLabel',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _C.primaryDark),
+          )),
           AnimatedRotation(
             turns: _chartExpanded ? 0.5 : 0,
             duration: const Duration(milliseconds: 250),
-            child: const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 20,
-              color: _C.primary,
-            ),
+            child: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: _C.primary),
           ),
         ]),
       ),
     );
   }
 
+  // HORIZONTAL BAR CHART
   Widget _buildChart() {
     if (_loading) {
       return Shimmer.fromColors(
@@ -636,9 +635,7 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           height: 200,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
+              color: Colors.white, borderRadius: BorderRadius.circular(12)),
         ),
       );
     }
@@ -648,9 +645,13 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
     final sorted  = [...nonZero, ...zero];
 
     if (sorted.isEmpty) return _emptyBox();
-
-    final xMax   = _range.monthCount;
-    final xTicks = List.generate(xMax + 1, (i) => i);
+    final int xMax = _getMonths().length;
+    final int tickStep = xMax <= 6 ? 1 : (xMax / 6).ceil();
+    final List<int> xTicks = [];
+    for (int v = 0; v <= xMax; v += tickStep) {
+      xTicks.add(v);
+    }
+    if (xTicks.last != xMax) xTicks.add(xMax);
 
     const double labelW  = 72.0;
     const double barH    = 22.0;
@@ -663,131 +664,115 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.primaryLight, width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: _C.primary.withValues(alpha:0.07),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        boxShadow: [BoxShadow(
+            color: _C.primary.withValues(alpha:0.07), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: LayoutBuilder(builder: (ctx, constraints) {
         final barAreaW = constraints.maxWidth - labelW - 8;
+
         final List<double> tickX = xTicks
             .map((v) => xMax > 0 ? (v / xMax) * barAreaW : 0.0)
             .toList();
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // LABEL X
-            Row(children: [
-              SizedBox(width: labelW + 8),
-              SizedBox(
-                width: barAreaW,
-                height: 16,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: List.generate(xTicks.length, (i) {
-                    double left = tickX[i];
-                    if (i == xTicks.length - 1) left -= 8;
-                    return Positioned(
-                      left: left,
-                      top: 0,
-                      child: Text(
-                        '${xTicks[i]}',
-                        style: const TextStyle(
-                          fontSize: 9,
-                          color: Color(0xFF94A3B8),
-                          fontWeight: FontWeight.w600,
-                        ),
-                        textAlign: i == 0
-                            ? TextAlign.left
-                            : i == xTicks.length - 1
-                                ? TextAlign.right
-                                : TextAlign.center,
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // X LABEL LINE
+          Row(children: [
+            SizedBox(width: labelW + 8),
+            SizedBox(
+              width: barAreaW,
+              height: 16,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: List.generate(xTicks.length, (i) {
+                  double left = tickX[i];
+                  if (i == xTicks.length - 1) left -= 8;
+                  return Positioned(
+                    left: left,
+                    top: 0,
+                    child: Text(
+                      '${xTicks[i]}',
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w600,
                       ),
-                    );
-                  }),
+                      textAlign: i == 0 ? TextAlign.left
+                          : i == xTicks.length - 1 ? TextAlign.right
+                          : TextAlign.center,
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ]),
+
+          // TOP LINE
+          Row(children: [
+            SizedBox(width: labelW + 8),
+            Container(width: barAreaW, height: 1, color: const Color(0xFFE2E8F0)),
+          ]),
+          const SizedBox(height: 4),
+
+          // BAR ROWS
+          ...sorted.map((row) {
+            final frac     = xMax > 0 ? row.total / xMax : 0.0;
+            final barWidth = (barAreaW * frac).clamp(0.0, barAreaW);
+            final isZero   = row.total == 0;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: rowVPad),
+              child: SizedBox(
+                height: barH,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // LEFT LABEL KASIE NAME
+                    SizedBox(
+                      width: labelW,
+                      child: Text(
+                        row.kasieNama,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: isZero
+                              ? const Color(0xFFCBD5E1)
+                              : const Color(0xFF334155),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // BAR AREA
+                    Expanded(child: CustomPaint(
+                      painter: _KasieBarPainter(
+                        tickX: tickX,
+                        barWidth: barWidth,
+                        barH: barH,
+                        barVPad: rowVPad * 0.5,
+                        isZero: isZero,
+                      ),
+                      child: const SizedBox.expand(),
+                    )),
+                  ],
                 ),
               ),
-            ]),
+            );
+          }),
 
-            // GARIS ATAS
-            Row(children: [
-              SizedBox(width: labelW + 8),
-              Container(
-                  width: barAreaW,
-                  height: 1,
-                  color: const Color(0xFFE2E8F0)),
-            ]),
-            const SizedBox(height: 4),
-
-            // BARIS BAR
-            ...sorted.map((row) {
-              final frac     =
-                  xMax > 0 ? row.total / xMax : 0.0;
-              final barWidth =
-                  (barAreaW * frac).clamp(0.0, barAreaW);
-              final isZero   = row.total == 0;
-
-              return Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: rowVPad),
-                child: SizedBox(
-                  height: barH,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: labelW,
-                        child: Text(
-                          row.kasieNama,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: isZero
-                                ? const Color(0xFFCBD5E1)
-                                : const Color(0xFF334155),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: CustomPaint(
-                          painter: _KasieBarPainter(
-                            tickX: tickX,
-                            barWidth: barWidth,
-                            barH: barH,
-                            barVPad: rowVPad * 0.5,
-                            isZero: isZero,
-                          ),
-                          child: const SizedBox.expand(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-
-            const SizedBox(height: 4),
-            // GARIS BAWAH
-            Row(children: [
-              SizedBox(width: labelW + 8),
-              Container(
-                  width: barAreaW,
-                  height: 1,
-                  color: const Color(0xFFE2E8F0)),
-            ]),
-          ],
-        );
+          const SizedBox(height: 4),
+          // BOTTOM LINE
+          Row(children: [
+            SizedBox(width: labelW + 8),
+            Container(width: barAreaW, height: 1, color: const Color(0xFFE2E8F0)),
+          ]),
+        ]);
       }),
     );
   }
 
+  // TABLE
   Widget _buildTable() {
     if (_loading) {
       return Shimmer.fromColors(
@@ -797,247 +782,191 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           height: 200,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
+              color: Colors.white, borderRadius: BorderRadius.circular(12)),
         ),
       );
     }
 
     if (_rows.isEmpty) return _emptyBox();
-
-    final locale = widget.lang == 'ID'
-        ? 'id_ID'
-        : widget.lang == 'EN'
-            ? 'en_US'
-            : 'zh_CN';
     final months = _getMonths();
-    // ignore: unused_local_variable
+    if (months.length > 6) {
+      return _buildWideTable(months);
+    }
+
+    final locale = widget.lang == 'ID' ? 'id_ID'
+        : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
     final bulanLabels3 = months
         .map((m) => DateFormat('MMM', locale).format(m))
         .toList();
 
     final List<int> colTotals = List.generate(
-      _bulanLabels.length,
-      (i) => _rows.fold(0, (s, r) => s + (r.bulanan[i] ?? 0)),
-    );
-    final int grandTotal =
-        _rows.fold(0, (s, r) => s + r.total);
+        _bulanLabels.length,
+        (i) => _rows.fold(0, (s, r) => s + (r.bulanan[i] ?? 0)));
+    final int grandTotal = _rows.fold(0, (s, r) => s + r.total);
 
     const int flexSection = 3;
     const int flexKasie   = 4;
     const int flexMonth   = 2;
     const int flexTotal   = 2;
 
-    Widget headerCell(
-      String text, {
-      int flex = 2,
-      TextAlign align = TextAlign.left,
-      Color? color,
-    }) =>
+    Widget headerCell(String text, {int flex = 2, TextAlign align = TextAlign.left, Color? color}) =>
+      Expanded(
+        flex: flex,
+        child: Text(text,
+          textAlign: align,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: color ?? _C.textSec,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+
+    Widget buildHeaderRow() => Container(
+      decoration: const BoxDecoration(
+        color: _C.primaryLight,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(children: [
+        headerCell(_t('bagian'), flex: flexSection, align: TextAlign.center),
+        headerCell(_t('kasie'), flex: flexKasie, align: TextAlign.center),
+        ...bulanLabels3.map((lbl) =>
+          headerCell(lbl, flex: flexMonth, align: TextAlign.center)),
+        headerCell(_t('total'),
+          flex: flexTotal,
+          align: TextAlign.center,
+          color: _C.primaryDark),
+      ]),
+    );
+
+    Widget buildDataRow(int idx, _KasieRow row) => Container(
+      decoration: BoxDecoration(
+        border: idx > 0
+            ? const Border(top: BorderSide(color: _C.divider))
+            : null,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(children: [
+        // SECTION
         Expanded(
-          flex: flex,
+          flex: flexSection,
           child: Text(
-            text,
-            textAlign: align,
+            row.bagian.isEmpty ? '-' : _displaySectionName(row.bagian),
+            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: color ?? _C.textSec,
+              fontSize: 11, fontWeight: FontWeight.w600,
+              color: row.total > 0 ? _C.textPrimary : const Color(0xFFCBD5E1),
             ),
             overflow: TextOverflow.ellipsis,
           ),
-        );
-
-    Widget buildHeaderRow() => Container(
-          decoration: const BoxDecoration(
-            color: _C.primaryLight,
-            borderRadius: BorderRadius.vertical(
-                top: Radius.circular(12)),
+        ),
+        // KASIE NAME
+        Expanded(
+          flex: flexKasie,
+          child: Text(
+            row.kasieNama,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              color: row.total > 0 ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
-          padding: const EdgeInsets.symmetric(
-              horizontal: 12, vertical: 10),
-          child: Row(children: [
-            headerCell(_t('bagian'), flex: flexSection),
-            headerCell(_t('kasie'), flex: flexKasie),
-            ..._bulanLabels.map((lbl) => headerCell(
-                  lbl,
-                  flex: flexMonth,
-                  align: TextAlign.center,
-                )),
-            headerCell(
-              _t('total'),
-              flex: flexTotal,
-              align: TextAlign.center,
-              color: _C.primaryDark,
-            ),
-          ]),
-        );
-
-    Widget buildDataRow(int idx, _KasieRow row) => Container(
-          decoration: BoxDecoration(
-            border: idx > 0
-                ? const Border(
-                    top: BorderSide(color: _C.divider))
-                : null,
-          ),
-          padding: const EdgeInsets.symmetric(
-              horizontal: 12, vertical: 8),
-          child: Row(children: [
-            // BAGIAN
-            Expanded(
-              flex: flexSection,
-              child: Text(
-                row.bagian.isEmpty ? '-' : row.bagian,
+        ),
+        // VALUE PER MONTH
+        ...List.generate(_bulanLabels.length, (mi) {
+          final val = row.bulanan[mi] ?? 0;
+          return Expanded(
+            flex: flexMonth,
+            child: Center(child: Container(
+              width: 26, height: 26,
+              decoration: BoxDecoration(
+                color: val > 0
+                    ? _C.barColor.withValues(alpha:0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Center(child: Text(
+                '$val',
                 style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: row.total > 0
-                      ? _C.textPrimary
-                      : const Color(0xFFCBD5E1),
+                  fontSize: 11, fontWeight: FontWeight.w700,
+                  color: val > 0 ? _C.barColor : const Color(0xFFCBD5E1),
                 ),
-                overflow: TextOverflow.ellipsis,
+              )),
+            )),
+          );
+        }),
+        // TOTAL
+        Expanded(
+          flex: flexTotal,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: row.total > 0 ? _C.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${row.total}',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w900,
+                color: row.total > 0 ? Colors.white : const Color(0xFFCBD5E1),
               ),
             ),
-            // KASIE NAME
-            Expanded(
-              flex: flexKasie,
-              child: Text(
-                row.kasieNama,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: row.total > 0
-                      ? const Color(0xFF334155)
-                      : const Color(0xFFCBD5E1),
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            // NILAI PER BULAN
-            ...List.generate(_bulanLabels.length, (mi) {
-              final val = row.bulanan[mi] ?? 0;
-              return Expanded(
-                flex: flexMonth,
-                child: Center(
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color: val > 0
-                          ? _C.barColor.withValues(alpha:0.15)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$val',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: val > 0
-                              ? _C.barColor
-                              : const Color(0xFFCBD5E1),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-            // TOTAL
-            Expanded(
-              flex: flexTotal,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: row.total > 0
-                        ? _C.primary
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${row.total}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      color: row.total > 0
-                          ? Colors.white
-                          : const Color(0xFFCBD5E1),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ]),
-        );
+          )),
+        ),
+      ]),
+    );
 
     Widget buildFooterRow() => Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFFFF7ED),
-            borderRadius: BorderRadius.vertical(
-                bottom: Radius.circular(12)),
-            border: Border(
-                top: BorderSide(color: _C.divider, width: 1.5)),
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+        border: Border(top: BorderSide(color: _C.divider, width: 1.5)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(children: [
+        // LABEL "TOTAL" SPAN SECTION + KASIE
+        Expanded(
+          flex: flexSection + flexKasie,
+          child: Text(
+            widget.lang == 'EN' ? 'Total' : widget.lang == 'ZH' ? '合计' : 'Total',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w900, color: _C.textPrimary),
           ),
-          padding: const EdgeInsets.symmetric(
-              horizontal: 12, vertical: 10),
-          child: Row(children: [
-            Expanded(
-              flex: flexSection + flexKasie,
-              child: Text(
-                widget.lang == 'EN'
-                    ? 'Total'
-                    : widget.lang == 'ZH'
-                        ? '合计'
-                        : 'Total',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: _C.textPrimary,
-                ),
-              ),
+        ),
+        // TOTAL PER MONTH
+        ...List.generate(_bulanLabels.length, (mi) => Expanded(
+          flex: flexMonth,
+          child: Center(child: Text(
+            '${colTotals[mi]}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w900, color: _C.primaryDark),
+          )),
+        )),
+        // GRAND TOTAL
+        Expanded(
+          flex: flexTotal,
+          child: Center(child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: BoxDecoration(
+              color: _C.primary,
+              borderRadius: BorderRadius.circular(8),
             ),
-            ...List.generate(_bulanLabels.length, (mi) => Expanded(
-                  flex: flexMonth,
-                  child: Center(
-                    child: Text(
-                      '${colTotals[mi]}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: _C.primaryDark,
-                      ),
-                    ),
-                  ),
-                )),
-            Expanded(
-              flex: flexTotal,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _C.primary,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '$grandTotal',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
+            child: Text(
+              '$grandTotal',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white),
             ),
-          ]),
-        );
+          )),
+        ),
+      ]),
+    );
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -1045,20 +974,150 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.primaryLight, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: _C.primary.withValues(alpha:0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        boxShadow: [BoxShadow(
+            color: _C.primary.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 3))],
       ),
       child: Column(children: [
         buildHeaderRow(),
-        ..._rows.asMap().entries
-            .map((e) => buildDataRow(e.key, e.value)),
+        ..._rows.asMap().entries.map((e) => buildDataRow(e.key, e.value)),
         buildFooterRow(),
       ]),
+    );
+  }
+
+  Widget _buildWideTable(List<DateTime> months) {
+    final locale = widget.lang == 'ID' ? 'id_ID'
+        : widget.lang == 'EN' ? 'en_US' : 'zh_CN';
+    final bulanLabels3 = months.map((m) => DateFormat('MMM', locale).format(m)).toList();
+    final int grandTotal = _rows.fold(0, (s, r) => s + r.total);
+
+    const double leftW  = 150.0;
+    const double monthW = 46.0;
+    const double totalW = 56.0;
+    const double rowH   = 40.0;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _C.primaryLight, width: 1.5),
+        boxShadow: [BoxShadow(color: _C.primary.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 3))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // KOLOM KIRI TETAP (Bagian + Kasie)
+          SizedBox(width: leftW, child: Column(children: [
+            Container(
+              height: rowH, color: _C.primaryLight,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(children: [
+                Expanded(flex: 5, child: Align(alignment: Alignment.center,
+                  child: Text(_t('bagian'), textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec)))),
+                Expanded(flex: 6, child: Align(alignment: Alignment.center,
+                  child: Text(_t('kasie'), textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec)))),
+              ]),
+            ),
+            ..._rows.asMap().entries.map((e) {
+              final idx = e.key; final row = e.value;
+              return Container(
+                height: rowH,
+                decoration: BoxDecoration(border: idx > 0 ? const Border(top: BorderSide(color: _C.divider)) : null),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(children: [
+                  Expanded(flex: 5, child: Text(
+                    row.bagian.isEmpty ? '-' : _displaySectionName(row.bagian),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? _C.textPrimary : const Color(0xFFCBD5E1)),
+                    overflow: TextOverflow.ellipsis)),
+                  Expanded(flex: 6, child: Text(
+                    row.kasieNama,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                    overflow: TextOverflow.ellipsis)),
+                ]),
+              );
+            }),
+            Container(
+              height: rowH,
+              decoration: const BoxDecoration(color: Color(0xFFFFF7ED), border: Border(top: BorderSide(color: _C.divider, width: 1.5))),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Align(alignment: Alignment.center, child: Text(
+                widget.lang == 'EN' ? 'Total' : widget.lang == 'ZH' ? '合计' : 'Total',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: _C.textPrimary))),
+            ),
+          ])),
+          Container(width: 1, color: _C.divider),
+          // KOLOM KANAN SCROLLABLE (Bulan + Total)
+          Expanded(child: LayoutBuilder(builder: (_, rightConstraints) {
+            final availW = rightConstraints.maxWidth;
+            final neededW = monthW * months.length + totalW;
+            final effMonthW = neededW < availW && months.isNotEmpty
+                ? (availW - totalW) / months.length
+                : monthW;
+            final totalContentW = neededW < availW ? availW : neededW;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: neededW < availW ? const NeverScrollableScrollPhysics() : const ClampingScrollPhysics(),
+              child: SizedBox(width: totalContentW, child: Column(children: [
+                Container(
+                  height: rowH, color: _C.primaryLight,
+                  child: Row(children: [
+                    ...bulanLabels3.map((lbl) => SizedBox(width: effMonthW, child: Center(
+                      child: Text(lbl, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.textSec))))),
+                    SizedBox(width: totalW, child: Center(
+                      child: Text(_t('total'), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _C.primaryDark)))),
+                  ]),
+                ),
+                ..._rows.asMap().entries.map((e) {
+                  final idx = e.key; final row = e.value;
+                  return Container(
+                    height: rowH,
+                    decoration: BoxDecoration(border: idx > 0 ? const Border(top: BorderSide(color: _C.divider)) : null),
+                    child: Row(children: [
+                      ...List.generate(months.length, (mi) {
+                        final val = row.bulanan[mi] ?? 0;
+                        return SizedBox(width: effMonthW, child: Center(child: Container(
+                          width: 26, height: 26,
+                          decoration: BoxDecoration(
+                            color: val > 0 ? _C.barColor.withValues(alpha:0.15) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Center(child: Text('$val',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: val > 0 ? _C.barColor : const Color(0xFFCBD5E1)))),
+                        )));
+                      }),
+                      SizedBox(width: totalW, child: Center(child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(color: row.total > 0 ? _C.primary : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+                        child: Text('${row.total}', textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: row.total > 0 ? Colors.white : const Color(0xFFCBD5E1)))))),
+                    ]),
+                  );
+                }),
+                Container(
+                  height: rowH,
+                  decoration: const BoxDecoration(color: Color(0xFFFFF7ED), border: Border(top: BorderSide(color: _C.divider, width: 1.5))),
+                  child: Row(children: [
+                    ...List.generate(months.length, (mi) {
+                      final colTotal = _rows.fold(0, (s, r) => s + (r.bulanan[mi] ?? 0));
+                      return SizedBox(width: effMonthW, child: Center(child: Text('$colTotal',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: _C.primaryDark))));
+                    }),
+                    SizedBox(width: totalW, child: Center(child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      decoration: BoxDecoration(color: _C.primary, borderRadius: BorderRadius.circular(8)),
+                      child: Text('$grandTotal', textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white))))),
+                  ]),
+                ),
+              ])),
+            );
+          })),
+        ]),
+      ),
     );
   }
 
@@ -1071,24 +1130,16 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _C.primaryLight, width: 1.5),
       ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.bar_chart_outlined,
-                size: 40, color: _C.primaryLight),
-            const SizedBox(height: 8),
-            Text(
-              _t('tidak_ada'),
-              style: const TextStyle(
-                  color: _C.textSec, fontSize: 13),
-            ),
-          ],
-        ),
-      ),
+      child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.bar_chart_outlined, size: 40, color: _C.primaryLight),
+        const SizedBox(height: 8),
+        Text(_t('tidak_ada'),
+          style: const TextStyle(color: _C.textSec, fontSize: 13)),
+      ])),
     );
   }
 
+  // BUILD
   @override
   Widget build(BuildContext context) {
     return Column(children: [
@@ -1104,14 +1155,11 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
               AnimatedSize(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
-                child: _chartExpanded
-                    ? _buildChart()
-                    : const SizedBox.shrink(),
+                child: _chartExpanded ? _buildChart() : const SizedBox.shrink(),
               ),
               // SECTION TITLE
               Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Row(children: [
                   Container(
                     padding: const EdgeInsets.all(6),
@@ -1119,20 +1167,13 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
                       color: _C.barColor.withValues(alpha:0.12),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(
-                        Icons.person_outline_rounded,
-                        size: 14,
-                        color: _C.barColor),
+                    child: const Icon(Icons.person_outline_rounded,
+                        size: 14, color: _C.barColor),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    '${_t('laporan_kts')} ${_t('kasie')}',
+                  Text('${_t('laporan_kts')} ${_t('kasie')}',
                     style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: _C.barColor,
-                    ),
-                  ),
+                      fontSize: 14, fontWeight: FontWeight.w800, color: _C.barColor)),
                 ]),
               ),
               _buildTable(),
@@ -1144,6 +1185,7 @@ class _AdminKtsKasieTabState extends State<AdminKtsKasieTab> {
   }
 }
 
+// CUSTOM PAINTER FOR HORIZONTAL BAR
 class _KasieBarPainter extends CustomPainter {
   final List<double> tickX;
   final double barWidth;
@@ -1171,12 +1213,12 @@ class _KasieBarPainter extends CustomPainter {
         gridPaint,
       );
     }
+
     if (!isZero && barWidth > 0) {
       final barPaint = Paint()..color = const Color(0xFFAB47BC);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-              0, barVPad, barWidth, size.height - barVPad * 2),
+          Rect.fromLTWH(0, barVPad, barWidth, size.height - barVPad * 2),
           const Radius.circular(4),
         ),
         barPaint,
