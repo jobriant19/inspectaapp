@@ -56,8 +56,14 @@ class _FindingLocationFilterScreenState
   String? _userSpecificId;
   String? _userSpecificType;
   Set<String> _userPicIds = {};
+  int? _userJabatanId;
 
-  bool get _isProAccess => widget.isProMode || widget.userRole == 'Eksekutif';
+  String? _userUnitLokasiId; 
+  String? _userSubunitUnitId; 
+  String? _userSubunitLokasiId;
+
+  bool get _isProAccess =>
+      widget.isProMode || widget.userRole == 'Eksekutif' || _userJabatanId == 1;
 
   String _t(String id, String en, String zh) {
     if (widget.lang == 'EN') return en;
@@ -85,9 +91,66 @@ class _FindingLocationFilterScreenState
     _tabCtrl = TabController(length: 4, vsync: this)..addListener(_onTabChanged);
     _searchCtrl.addListener(_onSearchChanged);
     _computeUserSpecific();
-    _loadUserPicIds();
+    _initUserContextThenLoadTabs();
+  }
+
+  Future<void> _initUserContextThenLoadTabs() async {
+    await _loadUserJabatan();
+    await Future.wait([_loadUserPicIds(), _loadDerivedScopeIds()]);
     for (int i = 0; i < 4; i++) {
       _loadTabData(i);
+    }
+  }
+
+  Future<void> _loadUserJabatan() async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+      final data = await Supabase.instance.client
+          .from('User')
+          .select('id_jabatan')
+          .eq('id_user', userId)
+          .maybeSingle();
+      if (mounted) {
+        setState(() => _userJabatanId = data?['id_jabatan'] as int?);
+      }
+    } catch (e) {
+      debugPrint('Error loading user jabatan: $e');
+    }
+  }
+
+  Future<void> _loadDerivedScopeIds() async {
+    try {
+      final supabase = Supabase.instance.client;
+
+      if (_userJabatanId == 2 && widget.userLokasiId == null && widget.userUnitId != null) {
+        final row = await supabase
+            .from('unit')
+            .select('id_lokasi')
+            .eq('id_unit', widget.userUnitId!)
+            .maybeSingle();
+        _userUnitLokasiId = row?['id_lokasi']?.toString();
+      }
+
+      if (_userJabatanId == 3 && widget.userSubunitId != null) {
+        final row = await supabase
+            .from('subunit')
+            .select('id_unit, id_lokasi')
+            .eq('id_subunit', widget.userSubunitId!)
+            .maybeSingle();
+        if (row != null) {
+          if (widget.userUnitId == null) {
+            _userSubunitUnitId = row['id_unit']?.toString();
+          }
+          if (widget.userLokasiId == null) {
+            _userSubunitLokasiId = row['id_lokasi']?.toString();
+          }
+        }
+      }
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Error loading derived scope ids: $e');
     }
   }
 
@@ -141,15 +204,42 @@ class _FindingLocationFilterScreenState
 
     switch (tabIndex) {
       case 0:
+        // Jabatan level Unit (2) tanpa id_lokasi: pakai lokasi dari unit User.
+        if (_userJabatanId == 2 && widget.userLokasiId == null) {
+          if (_userUnitLokasiId == null) return false;
+          return itemId == _userUnitLokasiId;
+        }
+        // Jabatan level Subunit (3) tanpa id_lokasi: pakai lokasi dari subunit User.
+        if (_userJabatanId == 3 && widget.userLokasiId == null) {
+          if (_userSubunitLokasiId == null) return false;
+          return itemId == _userSubunitLokasiId;
+        }
         if (widget.userLokasiId == null) return false;
         return itemId == widget.userLokasiId;
       case 1:
+        // Jabatan level Subunit (3) tanpa id_unit: pakai unit dari subunit User.
+        if (_userJabatanId == 3 && widget.userUnitId == null) {
+          if (_userSubunitUnitId == null) return false;
+          return itemId == _userSubunitUnitId;
+        }
         if (widget.userUnitId == null) return false;
         return itemId == widget.userUnitId;
       case 2:
+        if (_userJabatanId == 2) {
+          if (widget.userUnitId == null) return false;
+          return raw['id_unit']?.toString() == widget.userUnitId;
+        }
         if (widget.userSubunitId == null) return false;
         return itemId == widget.userSubunitId;
       case 3:
+        if (_userJabatanId == 2) {
+          if (widget.userUnitId == null) return false;
+          return raw['id_unit']?.toString() == widget.userUnitId;
+        }
+        if (_userJabatanId == 3) {
+          if (widget.userSubunitId == null) return false;
+          return raw['id_subunit']?.toString() == widget.userSubunitId;
+        }
         if (widget.userAreaId == null) return false;
         return itemId == widget.userAreaId;
       default:

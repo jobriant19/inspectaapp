@@ -55,8 +55,14 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
   String? _userUnitId;
   String? _userSubunitId;
   String? _userAreaId;
+  int? _userJabatanId;
 
-  bool get _hasFullAccess => widget.isProMode || widget.userRole == 'Eksekutif';
+  String? _userUnitLokasiId;
+  String? _userSubunitUnitId;
+  String? _userSubunitLokasiId;
+
+  bool get _hasFullAccess =>
+      widget.isProMode || widget.userRole == 'Eksekutif' || _userJabatanId == 1;
 
   static const List<Color> _levelColors = [
     Color(0xFF10B981), Color(0xFF6366F1), Color(0xFFFBBF24), Color(0xFFF472B6),
@@ -89,7 +95,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
 
       final userData = await _sb
           .from('User')
-          .select('id_area, id_subunit, id_unit, id_lokasi')
+          .select('id_area, id_subunit, id_unit, id_lokasi, id_jabatan')
           .eq('id_user', userId)
           .maybeSingle();
 
@@ -98,6 +104,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
         _userUnitId    = userData['id_unit']?.toString();
         _userSubunitId = userData['id_subunit']?.toString();
         _userAreaId    = userData['id_area']?.toString();
+        _userJabatanId = userData['id_jabatan'] as int?;
 
         if (userData['id_area'] != null) {
           _userSpecificId   = userData['id_area'].toString();
@@ -150,6 +157,20 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
       List<_SearchResult> subunit = (futures[2] as List).map((r) => _makeResult(r, 'subunit', 2)).toList();
       List<_SearchResult> area    = (futures[3] as List).map((r) => _makeResult(r, 'area', 3)).toList();
 
+      if (_userJabatanId == 2 && _userUnitId != null) {
+        final userUnitRows = unit.where((u) => u.id == _userUnitId).toList();
+        if (userUnitRows.isNotEmpty) {
+          _userUnitLokasiId = userUnitRows.first.raw['id_lokasi']?.toString();
+        }
+      }
+      if (_userJabatanId == 3 && _userSubunitId != null) {
+        final userSubunitRows = subunit.where((s) => s.id == _userSubunitId).toList();
+        if (userSubunitRows.isNotEmpty) {
+          _userSubunitUnitId   = userSubunitRows.first.raw['id_unit']?.toString();
+          _userSubunitLokasiId = userSubunitRows.first.raw['id_lokasi']?.toString();
+        }
+      }
+
       if (!_hasFullAccess) {
         lokasi  = lokasi.where((r) => r.isPic || _isInUserScope(r)).toList();
         unit    = unit.where((r) => r.isPic || _isInUserScope(r)).toList();
@@ -189,15 +210,44 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
   bool _isInUserScope(_SearchResult r) {
     switch (r.type) {
       case 'lokasi':
+        // Jabatan level Unit (2) tanpa id_lokasi: pakai lokasi dari unit User.
+        if (_userJabatanId == 2 && _userLokasiId == null) {
+          if (_userUnitLokasiId == null) return false;
+          return r.id == _userUnitLokasiId;
+        }
+        // Jabatan level Subunit (3) tanpa id_lokasi: pakai lokasi dari subunit User.
+        if (_userJabatanId == 3 && _userLokasiId == null) {
+          if (_userSubunitLokasiId == null) return false;
+          return r.id == _userSubunitLokasiId;
+        }
         if (_userLokasiId == null) return false;
         return r.id == _userLokasiId;
       case 'unit':
+        // Jabatan level Subunit (3) tanpa id_unit: pakai unit dari subunit User.
+        if (_userJabatanId == 3 && _userUnitId == null) {
+          if (_userSubunitUnitId == null) return false;
+          return r.id == _userSubunitUnitId;
+        }
         if (_userUnitId == null) return false;
         return r.id == _userUnitId;
       case 'subunit':
+        // Jabatan level Unit (id_jabatan == 2): tampilkan SEMUA subunit
+        // yang merupakan bagian dari unit User tersebut.
+        if (_userJabatanId == 2) {
+          if (_userUnitId == null) return false;
+          return r.raw['id_unit']?.toString() == _userUnitId;
+        }
         if (_userSubunitId == null) return false;
         return r.id == _userSubunitId;
       case 'area':
+        if (_userJabatanId == 2) {
+          if (_userUnitId == null) return false;
+          return r.raw['id_unit']?.toString() == _userUnitId;
+        }
+        if (_userJabatanId == 3) {
+          if (_userSubunitId == null) return false;
+          return r.raw['id_subunit']?.toString() == _userSubunitId;
+        }
         if (_userAreaId == null) return false;
         return r.id == _userAreaId;
       default:
