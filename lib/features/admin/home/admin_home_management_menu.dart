@@ -234,6 +234,7 @@ class AdminHomeManagementMenu extends StatelessWidget {
                                     : 'Kelola',
                             style: GoogleFonts.poppins(
                               fontSize: 10,
+                              fontWeight: FontWeight.w600,
                               color: Colors.white.withValues(alpha:0.75),
                             ),
                           ),
