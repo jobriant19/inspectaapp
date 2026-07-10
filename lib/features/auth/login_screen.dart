@@ -12,7 +12,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/utils/font_warmup.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String? initialLang;
+
+  const LoginScreen({super.key, this.initialLang});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -103,6 +105,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialLang != null &&
+        _translations.containsKey(widget.initialLang)) {
+      selectedLanguage = widget.initialLang!;
+    }
     _loadSavedCredentials();
     _emailController.addListener(() => setState(() {}));
     _passwordController.addListener(() => setState(() {}));
@@ -208,6 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 initialTotalTemuan:   sTotalTemuan,
                 initialTemuanBelum:   sTemuanBelum,
                 initialTemuanSelesai: sTemuanSelesai,
+                initialLang:          selectedLanguage,
               ),
               transitionDuration: Duration.zero,
               reverseTransitionDuration: Duration.zero,
@@ -245,9 +252,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      final savedLang = prefs.getString('lang');
-      if (savedLang != null && _translations.containsKey(savedLang)) {
-        selectedLanguage = savedLang;
+      if (widget.initialLang == null) {
+        final savedLang = prefs.getString('lang');
+        if (savedLang != null && _translations.containsKey(savedLang)) {
+          selectedLanguage = savedLang;
+        }
       }
       isRememberMe = prefs.getBool('remember_me') ?? false;
       if (isRememberMe) {
@@ -566,6 +575,7 @@ class _LoginScreenState extends State<LoginScreen> {
               initialTotalTemuan:   sTotalTemuan,
               initialTemuanBelum:   sTemuanBelum,
               initialTemuanSelesai: sTemuanSelesai,
+              initialLang:          selectedLanguage,
             ),
             transitionDuration: Duration.zero,
             reverseTransitionDuration: Duration.zero,

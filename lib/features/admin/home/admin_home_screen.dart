@@ -21,6 +21,7 @@ class AdminHomeScreen extends StatefulWidget {
   final int? initialTotalTemuan;
   final int? initialTemuanBelum;
   final int? initialTemuanSelesai;
+  final String? initialLang;
 
   const AdminHomeScreen({
     super.key,
@@ -32,6 +33,7 @@ class AdminHomeScreen extends StatefulWidget {
     this.initialTotalTemuan,
     this.initialTemuanBelum,
     this.initialTemuanSelesai,
+    this.initialLang,
   });
 
   @override
@@ -46,7 +48,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   String? _adminImage;
   bool _isLoadingStats = true;
 
-  // Stats
+  // CARD STATE
   int _totalUsers = 0;
   int _totalLokasi = 0;
   int _totalKategori = 0;
@@ -68,6 +70,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     );
     _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
 
+    if (widget.initialLang != null) {
+      _lang = widget.initialLang!;
+    }
+
     if (widget.initialUserName != null) {
       _adminName = widget.initialUserName!;
     }
@@ -81,7 +87,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
       _isLoadingStats = false;
     }
 
-    _loadLanguage().then((_) async {
+    final Future<void> langFuture =
+        widget.initialLang != null ? Future.value() : _loadLanguage();
+
+    langFuture.then((_) async {
       GoogleFonts.pendingFonts([
         GoogleFonts.poppins(),
         GoogleFonts.sourceCodePro(),
@@ -296,11 +305,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           ),
           const Spacer(),
 
-          // ── Tombol Pilihan Bahasa ──
           _buildLangSwitcher(),
           const SizedBox(width: 10),
 
-          // ── Avatar → AdminProfileScreen ──
           GestureDetector(
             onTap: () {
               Navigator.push(
@@ -369,117 +376,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
     );
   }
 
-  // ── Widget Pemilih Bahasa ──
   Widget _buildLangSwitcher() {
-    final langs = [
-      {'code': 'ID', 'flag': '🇮🇩'},
-      {'code': 'EN', 'flag': '🇺🇸'},
-      {'code': 'ZH', 'flag': '🇨🇳'},
-    ];
-
     return GestureDetector(
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (ctx) => Container(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _lang == 'EN'
-                      ? 'Select Language'
-                      : _lang == 'ZH'
-                          ? '选择语言'
-                          : 'Pilih Bahasa',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                    color: const Color.fromARGB(255, 29, 199, 97),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ...langs.map((l) {
-                  final isSelected = _lang == l['code'];
-                  final labels = {
-                    'ID': 'Bahasa Indonesia',
-                    'EN': 'English',
-                    'ZH': '中文',
-                  };
-                  return GestureDetector(
-                    onTap: () async {
-                      final prefs =
-                          await SharedPreferences.getInstance();
-                      await prefs.setString('lang', l['code']!);
-                      if (mounted) {
-                        setState(() {
-                          _lang = l['code']!;
-                        });
-                      }
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    }, 
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFF059669).withValues(alpha: 0.08)
-                            : Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isSelected
-                              ? const Color(0xFF059669)
-                              : Colors.grey.shade200,
-                          width: isSelected ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(l['flag']!,
-                              style: const TextStyle(fontSize: 24)),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Text(
-                              labels[l['code']]!,
-                              style: GoogleFonts.poppins(
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                fontSize: 15,
-                                color: isSelected
-                                    ? const Color(0xFF059669)
-                                    : const Color.fromARGB(255, 7, 139, 97),
-                              ),
-                            ),
-                          ),
-                          if (isSelected)
-                            const Icon(Icons.check_circle_rounded,
-                                color:  Color(0xFF059669), size: 20),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-        );
-      },
+      onTap: _showLanguagePicker,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
@@ -512,6 +411,141 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             const Icon(Icons.keyboard_arrow_down_rounded,
                 size: 14, color:  Color(0xFF059669)),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showLanguagePicker() {
+    const langs = [
+      {'code': 'ID', 'flag': '🇮🇩', 'label': 'Bahasa Indonesia'},
+      {'code': 'EN', 'flag': '🇺🇸', 'label': 'English'},
+      {'code': 'ZH', 'flag': '🇨🇳', 'label': '中文'},
+    ];
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF059669).withValues(alpha: 0.2),
+                blurRadius: 30,
+                spreadRadius: 2,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 12, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _lang == 'EN'
+                            ? 'Select Language'
+                            : _lang == 'ZH'
+                                ? '选择语言'
+                                : 'Pilih Bahasa',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 17,
+                          color: const Color(0xFF059669),
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF059669).withValues(alpha: 0.08),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close_rounded,
+                            size: 18, color: Color(0xFF059669)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                child: Column(
+                  children: langs.map((l) {
+                    final isSelected = _lang == l['code'];
+                    return GestureDetector(
+                      onTap: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('lang', l['code']!);
+                        if (mounted) setState(() => _lang = l['code']!);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF059669).withValues(alpha: 0.08)
+                              : const Color(0xFFF8FAFF),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF059669)
+                                : const Color(0xFFE0E7FF),
+                            width: isSelected ? 1.6 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFFE0E7FF)),
+                              ),
+                              child: Text(l['flag']!,
+                                  style: const TextStyle(fontSize: 22)),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                l['label']!,
+                                style: GoogleFonts.poppins(
+                                  fontWeight:
+                                      isSelected ? FontWeight.w700 : FontWeight.w600,
+                                  fontSize: 15,
+                                  color: isSelected
+                                      ? const Color(0xFF059669)
+                                      : const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(Icons.check_circle_rounded,
+                                  color: Color(0xFF059669), size: 20),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

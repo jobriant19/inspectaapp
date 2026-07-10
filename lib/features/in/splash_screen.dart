@@ -60,9 +60,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
       final prefs = await SharedPreferences.getInstance();
       final onboardingDone = prefs.getBool('onboarding_complete') ?? false;
+      final savedLang = prefs.getString('lang') ?? 'EN';
 
       return onboardingDone
-          ? () => Navigator.pushReplacement(context, _slideRoute(const LoginScreen()))
+          ? () => Navigator.pushReplacement(
+              context, _slideRoute(LoginScreen(initialLang: savedLang)))
           : () => Navigator.pushReplacement(context, _slideRoute(const OnboardingScreen()));
     } catch (e) {
       debugPrint('SplashScreen resolve error: $e');
@@ -205,6 +207,7 @@ class _SplashScreenState extends State<SplashScreen> {
             initialTotalTemuan: sTotalTemuan,
             initialTemuanBelum: sTemuanBelum,
             initialTemuanSelesai: sTemuanSelesai,
+            initialLang: lang,
           )),
         );
       }
@@ -361,7 +364,10 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
         child: Stack(
           children: [
-            // Efek lingkaran pudar
+            const Offstage(
+              offstage: true,
+              child: Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 1)),
+            ),
             Center(
               child: Container(
                 width: 500, height: 500,
