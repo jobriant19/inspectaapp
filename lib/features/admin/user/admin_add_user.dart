@@ -303,9 +303,27 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
     );
   }
 
+  // Label field dengan ikon di kiri, warna ungu, Poppins w700
+  Widget _buildFieldLabel(String label, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: _primary),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            color: _primary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTextField(
     TextEditingController ctrl,
-    IconData icon,
     String hint, {
     bool obscure = false,
     TextInputType? keyboardType,
@@ -331,7 +349,6 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
           hintText: hint,
           hintStyle:
               GoogleFonts.poppins(color: Colors.black26, fontSize: 13),
-          prefixIcon: Icon(icon, color: Colors.black38, size: 20),
           border: InputBorder.none,
           contentPadding:
               const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -711,63 +728,73 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  _buildLabel(_lang == 'EN'
-                      ? 'Full Name'
-                      : _lang == 'ZH'
-                          ? '姓名'
-                          : 'Nama Lengkap'),
+                  _buildFieldLabel(
+                      _lang == 'EN'
+                          ? 'Full Name'
+                          : _lang == 'ZH'
+                              ? '姓名'
+                              : 'Nama Lengkap',
+                      Icons.person_outline),
                   const SizedBox(height: 6),
-                  _buildTextField(namaCtrl, Icons.person_outline,
+                  _buildTextField(namaCtrl,
                       _lang == 'EN' ? 'Enter full name...' : 'Masukkan nama lengkap...'),
                   const SizedBox(height: 14),
 
-                  _buildLabel('Email'),
+                  _buildFieldLabel('Email', Icons.email_outlined),
                   const SizedBox(height: 6),
-                  _buildTextField(emailCtrl, Icons.email_outlined,
+                  _buildTextField(emailCtrl,
                       'email@example.com',
                       keyboardType: TextInputType.emailAddress),
                   const SizedBox(height: 14),
 
-                  _buildLabel(_lang == 'EN'
-                      ? 'Phone'
-                      : _lang == 'ZH'
-                          ? '电话'
-                          : 'Telepon'),
+                  _buildFieldLabel(
+                      _lang == 'EN'
+                          ? 'Phone'
+                          : _lang == 'ZH'
+                              ? '电话'
+                              : 'Telepon',
+                      Icons.phone_outlined),
                   const SizedBox(height: 6),
                   _buildTextField(
-                      phoneCtrl, Icons.phone_outlined,
+                      phoneCtrl,
                       _lang == 'EN' ? 'e.g. 08123456789' : 'cth. 08123456789',
                       keyboardType: TextInputType.phone),
                   const SizedBox(height: 14),
 
-                  _buildLabel(_lang == 'EN'
-                      ? 'Password'
-                      : _lang == 'ZH'
-                          ? '密码'
-                          : 'Kata Sandi'),
+                  _buildFieldLabel(
+                      _lang == 'EN'
+                          ? 'Password'
+                          : _lang == 'ZH'
+                              ? '密码'
+                              : 'Kata Sandi',
+                      Icons.lock_outline),
                   const SizedBox(height: 6),
                   _buildTextField(
-                      passCtrl, Icons.lock_outline,
+                      passCtrl,
                       _lang == 'EN' ? 'Min 6 characters' : 'Minimal 6 karakter',
                       obscure: true),
                   const SizedBox(height: 14),
 
-                  _buildLabel(_lang == 'EN'
-                      ? 'Job Title'
-                      : _lang == 'ZH'
-                          ? '职位'
-                          : 'Jabatan'),
+                  _buildFieldLabel(
+                      _lang == 'EN'
+                          ? 'Job Title'
+                          : _lang == 'ZH'
+                              ? '职位'
+                              : 'Jabatan',
+                      Icons.work_outline_rounded),
                   const SizedBox(height: 6),
                   _buildJabatanDropdown(),
 
                   // KASIE SECTION 
                   if (selectedJabatan == 3) ...[
                     const SizedBox(height: 14),
-                    _buildLabel(_lang == 'EN'
-                        ? 'Kasie Section'
-                        : _lang == 'ZH'
-                            ? '科长部门'
-                            : 'Bagian Kasie'),
+                    _buildFieldLabel(
+                        _lang == 'EN'
+                            ? 'Kasie Section'
+                            : _lang == 'ZH'
+                                ? '科长部门'
+                                : 'Bagian Kasie',
+                        Icons.apartment_outlined),
                     const SizedBox(height: 6),
                     _buildBagianKasiePicker(),
                   ],
@@ -788,11 +815,13 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  _buildLabel(_lang == 'EN'
-                      ? 'Location'
-                      : _lang == 'ZH'
-                          ? '位置'
-                          : 'Lokasi'),
+                  _buildFieldLabel(
+                      _lang == 'EN'
+                          ? 'Location'
+                          : _lang == 'ZH'
+                              ? '位置'
+                              : 'Lokasi',
+                      Icons.map),
                   const SizedBox(height: 6),
                   _buildLocationDropdown<String>(
                     items: lokasiList,
@@ -809,7 +838,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  _buildLabel('Unit'),
+                  _buildFieldLabel('Unit', Icons.apartment_outlined),
                   const SizedBox(height: 6),
                   _buildLocationDropdown<String>(
                     items: unitList,
@@ -828,7 +857,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  _buildLabel('Sub-Unit'),
+                  _buildFieldLabel('Sub-Unit', Icons.layers_outlined),
                   const SizedBox(height: 6),
                   _buildLocationDropdown<String>(
                     items: subunitList,
@@ -847,7 +876,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  _buildLabel('Area'),
+                  _buildFieldLabel('Area', Icons.pin_drop_outlined),
                   const SizedBox(height: 6),
                   _buildLocationDropdown<String>(
                     items: areaList,
@@ -878,11 +907,13 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  _buildLabel(_lang == 'EN'
-                      ? 'Select Supervisor'
-                      : _lang == 'ZH'
-                          ? '选择主管'
-                          : 'Pilih Supervisor'),
+                  _buildFieldLabel(
+                      _lang == 'EN'
+                          ? 'Select Supervisor'
+                          : _lang == 'ZH'
+                              ? '选择主管'
+                              : 'Pilih Supervisor',
+                      Icons.person_search_outlined),
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10),

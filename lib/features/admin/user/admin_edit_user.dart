@@ -360,45 +360,44 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  _buildLabel(
+                  _buildFieldLabel(
                     _lang == 'EN'
                         ? 'Full Name'
                         : _lang == 'ZH'
                             ? '姓名'
                             : 'Nama Lengkap',
+                    Icons.person_outline,
                   ),
                   const SizedBox(height: 6),
                   _buildTextField(
                     _namaCtrl,
-                    Icons.person_outline,
                     _lang == 'EN'
                         ? 'Enter full name...'
                         : 'Masukkan nama lengkap...',
                   ),
                   const SizedBox(height: 14),
 
-                  _buildLabel('Email'),
+                  _buildFieldLabel('Email', Icons.email_outlined),
                   const SizedBox(height: 6),
                   _buildTextField(
                     _emailCtrl,
-                    Icons.email_outlined,
                     'email@example.com',
                     keyboardType: TextInputType.emailAddress,
                     enabled: false,
                   ),
                   const SizedBox(height: 14),
 
-                  _buildLabel(
+                  _buildFieldLabel(
                     _lang == 'EN'
                         ? 'Phone'
                         : _lang == 'ZH'
                             ? '电话'
                             : 'Telepon',
+                    Icons.phone_outlined,
                   ),
                   const SizedBox(height: 6),
                   _buildTextField(
                     _phoneCtrl,
-                    Icons.phone_outlined,
                     _lang == 'EN' ? 'e.g. 08123456789' : 'cth. 08123456789',
                     keyboardType: TextInputType.phone,
                   ),
@@ -475,7 +474,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     const SizedBox(height: 10),
                     _buildTextField(
                       _passCtrl,
-                      Icons.lock_outline,
                       _lang == 'EN'
                           ? 'New password (min 6 characters)'
                           : _lang == 'ZH'
@@ -499,12 +497,13 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                   ],
                   const SizedBox(height: 14),
 
-                  _buildLabel(
+                  _buildFieldLabel(
                     _lang == 'EN'
                         ? 'Job Title'
                         : _lang == 'ZH'
                             ? '职位'
                             : 'Jabatan',
+                    Icons.work_outline_rounded,
                   ),
                   const SizedBox(height: 6),
                   _buildJabatanDropdown(),
@@ -512,12 +511,13 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
 
                   // KASIE SECTION
                   if (_selectedJabatan == 3) ...[
-                    _buildLabel(
+                    _buildFieldLabel(
                       _lang == 'EN'
                           ? 'Kasie Section'
                           : _lang == 'ZH'
                               ? '科长部门'
                               : 'Bagian Kasie',
+                      Icons.apartment_outlined,
                     ),
                     const SizedBox(height: 6),
                     _buildBagianKasiePicker(),
@@ -540,8 +540,9 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  _buildLabel(
+                  _buildFieldLabel(
                     _lang == 'EN' ? 'Location' : _lang == 'ZH' ? '位置' : 'Lokasi',
+                    Icons.map,
                   ),
                   const SizedBox(height: 6),
                   _buildLocationDropdown(
@@ -559,7 +560,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  _buildLabel('Unit'),
+                  _buildFieldLabel('Unit', Icons.apartment_outlined),
                   const SizedBox(height: 6),
                   _buildLocationDropdown(
                     items: _unitList,
@@ -577,7 +578,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  _buildLabel('Sub-Unit'),
+                  _buildFieldLabel('Sub-Unit', Icons.layers_outlined),
                   const SizedBox(height: 6),
                   _buildLocationDropdown(
                     items: _subunitList,
@@ -595,7 +596,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  _buildLabel('Area'),
+                  _buildFieldLabel('Area', Icons.pin_drop_outlined),
                   const SizedBox(height: 6),
                   _buildLocationDropdown(
                     items: _areaList,
@@ -625,12 +626,13 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  _buildLabel(
+                  _buildFieldLabel(
                     _lang == 'EN'
                         ? 'Select Supervisor'
                         : _lang == 'ZH'
                             ? '选择主管'
                             : 'Pilih Supervisor',
+                    Icons.person_search_outlined,
                   ),
                   const SizedBox(height: 6),
                   _buildSupervisorDropdown(),
@@ -806,12 +808,30 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     );
   }
 
+  // Label field dengan ikon di kiri, warna ungu, Poppins w700
+  Widget _buildFieldLabel(String label, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: _primary),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            color: _primary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDivider() =>
       Divider(color: Colors.grey.shade100, thickness: 1.5);
 
   Widget _buildTextField(
     TextEditingController ctrl,
-    IconData icon,
     String hint, {
     bool obscure = false,
     TextInputType? keyboardType,
@@ -837,7 +857,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
           hintText: hint,
           hintStyle:
               GoogleFonts.poppins(color: Colors.black26, fontSize: 13),
-          prefixIcon: Icon(icon, color: Colors.black38, size: 20),
           border: InputBorder.none,
           contentPadding:
               const EdgeInsets.symmetric(vertical: 14, horizontal: 16),

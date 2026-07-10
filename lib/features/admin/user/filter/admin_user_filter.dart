@@ -658,7 +658,10 @@ class _AdminUserRoleFilterDialog extends StatelessWidget {
                     isSelected: selectedJabatanId == null,
                     onTap: () => Navigator.pop(context, {'id': null, 'name': null}),
                   ),
-                  ...jabatanList.map((jab) {
+                  ...(List<Map<String, dynamic>>.from(jabatanList)
+                        ..sort((a, b) => (b['id_jabatan'] as int)
+                            .compareTo(a['id_jabatan'] as int)))
+                      .map((jab) {
                     final id = jab['id_jabatan'] as int;
                     final nama = jab['nama_jabatan']?.toString() ?? '';
                     return _buildRoleCard(
