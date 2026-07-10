@@ -7,6 +7,7 @@ import 'admin_add_user.dart';
 import 'admin_delete_user.dart';
 import 'admin_detail_user.dart';
 import 'admin_edit_user.dart';
+import 'filter/admin_user_filter.dart';
 
 class AdminUserScreen extends StatefulWidget {
   final String lang;
@@ -36,12 +37,29 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   String? _filterJabatanName;
   String _sortOrder = 'none';
 
-  List<Map<String, dynamic>> _allLokasiFilter = [];
-  List<Map<String, dynamic>> _allUnitFilter = [];
-  List<Map<String, dynamic>> _allSubunitFilter = [];
-  List<Map<String, dynamic>> _allAreaFilter = [];
-  // ignore: unused_field
-  bool _filterDataLoaded = false;
+  String? get _activeLocationLevel {
+    if (_filterAreaId != null) return 'Area';
+    if (_filterSubunitId != null) return 'Subunit';
+    if (_filterUnitId != null) return 'Unit';
+    if (_filterLokasiId != null) return 'Lokasi';
+    return null;
+  }
+
+  String? get _activeLocationId {
+    if (_filterAreaId != null) return _filterAreaId;
+    if (_filterSubunitId != null) return _filterSubunitId;
+    if (_filterUnitId != null) return _filterUnitId;
+    if (_filterLokasiId != null) return _filterLokasiId;
+    return null;
+  }
+
+  String? get _activeLocationChipLabel {
+    if (_filterAreaName != null) return _filterAreaName;
+    if (_filterSubunitName != null) return _filterSubunitName;
+    if (_filterUnitName != null) return _filterUnitName;
+    if (_filterLokasiName != null) return _filterLokasiName;
+    return null;
+  }
 
   final Map<String, int> _monthlyPoints = {};
   Map<String, String> _sectionNameMap = {};
@@ -90,22 +108,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             .select('id_user, poin')
             .gte('created_at', monthStart)
             .lt('created_at', monthEnd),
-        Supabase.instance.client
-            .from('lokasi')
-            .select('id_lokasi, nama_lokasi')
-            .order('nama_lokasi'),
-        Supabase.instance.client
-            .from('unit')
-            .select('id_unit, nama_unit, id_lokasi')
-            .order('nama_unit'),
-        Supabase.instance.client
-            .from('subunit')
-            .select('id_subunit, nama_subunit, id_unit')
-            .order('nama_subunit'),
-        Supabase.instance.client
-            .from('area')
-            .select('id_area, nama_area, id_subunit')
-            .order('nama_area'),
       ]);
 
       if (mounted) {
@@ -121,11 +123,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
           _jabatanList = List<Map<String, dynamic>>.from(results[1] as List);
           _monthlyPoints.clear();
           _monthlyPoints.addAll(pMap);
-          _allLokasiFilter   = List<Map<String, dynamic>>.from(results[3] as List);
-          _allUnitFilter     = List<Map<String, dynamic>>.from(results[4] as List);
-          _allSubunitFilter  = List<Map<String, dynamic>>.from(results[5] as List);
-          _allAreaFilter     = List<Map<String, dynamic>>.from(results[6] as List);
-          _filterDataLoaded  = true;
           _applyFilter();
           _isLoading = false;
         });
@@ -270,7 +267,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                   : 'Kelola Pengguna',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
-            fontSize: 16,
+            fontSize: 17,
             color: _appBarColor,
           ),
         ),
@@ -354,6 +351,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                           : 'Daftarkan akun pengguna baru',
                                   style: GoogleFonts.poppins(
                                       fontSize: 10,
+                                      fontWeight: FontWeight.w600,
                                       color:
                                           Colors.white.withValues(alpha:0.85)),
                                 ),
@@ -381,18 +379,15 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 spacing: 8,
                 runSpacing: 4,
                 children: [
-                  if (_filterAreaName != null)
-                    _buildActiveFilterChip('📍 $_filterAreaName',
-                      () => setState(() { _filterAreaId = null; _filterAreaName = null; _applyFilter(); })),
-                  if (_filterSubunitName != null)
-                    _buildActiveFilterChip('📍 $_filterSubunitName',
-                      () => setState(() { _filterSubunitId = null; _filterSubunitName = null; _applyFilter(); })),
-                  if (_filterUnitName != null)
-                    _buildActiveFilterChip('📍 $_filterUnitName',
-                      () => setState(() { _filterUnitId = null; _filterUnitName = null; _applyFilter(); })),
-                  if (_filterLokasiName != null)
-                    _buildActiveFilterChip('📍 $_filterLokasiName',
-                      () => setState(() { _filterLokasiId = null; _filterLokasiName = null; _applyFilter(); })),
+                  if (_activeLocationChipLabel != null)
+                    _buildActiveFilterChip('📍 $_activeLocationChipLabel',
+                      () => setState(() {
+                        _filterLokasiId = null; _filterLokasiName = null;
+                        _filterUnitId = null; _filterUnitName = null;
+                        _filterSubunitId = null; _filterSubunitName = null;
+                        _filterAreaId = null; _filterAreaName = null;
+                        _applyFilter();
+                      })),
                   if (_filterJabatanName != null)
                     _buildActiveFilterChip('💼 $_filterJabatanName',
                       () => setState(() { _filterJabatanId = null; _filterJabatanName = null; _applyFilter(); })),
@@ -789,9 +784,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 : _langCode == 'ZH'
                     ? '位置'
                     : 'Lokasi',
-            icon: Icons.location_on_outlined,
+            icon: Icons.map,
             isActive: hasLokasiFilter,
-            onTap: () => _showFilterDialog('lokasi'),
+            onTap: _openLocationFilter,
           ),
         ),
         const SizedBox(width: 8),
@@ -804,7 +799,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                     : 'Jabatan',
             icon: Icons.work_outline,
             isActive: hasJabatanFilter,
-            onTap: () => _showFilterDialog('jabatan'),
+            onTap: _openRoleFilter,
           ),
         ),
         const SizedBox(width: 8),
@@ -817,359 +812,76 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                     : 'Urutan',
             icon: Icons.sort_by_alpha_rounded,
             isActive: hasSortFilter,
-            onTap: () => _showFilterDialog('sort'),
+            onTap: _openSortFilter,
           ),
         ),
       ],
     );
   }
 
-  void _showFilterDialog(String type) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) {
-          String dialogTitle = '';
-          if (type == 'lokasi') {
-            dialogTitle = _langCode == 'EN' ? 'Filter by Location' : _langCode == 'ZH' ? '按位置筛选' : 'Filter Lokasi';
-          } else if (type == 'jabatan') {
-            dialogTitle = _langCode == 'EN' ? 'Filter by Position' : _langCode == 'ZH' ? '按职位筛选' : 'Filter Jabatan';
-          } else {
-            dialogTitle = _langCode == 'EN' ? 'Sort Order' : _langCode == 'ZH' ? '排序方式' : 'Urutan Abjad';
-          }
-          String? tempLokasiId   = _filterLokasiId;
-          String? tempUnitId     = _filterUnitId;
-          String? tempSubunitId  = _filterSubunitId;
-          String? tempAreaId     = _filterAreaId;
-
-          return Dialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // HEADER
-                Container(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
-                  decoration: BoxDecoration(
-                    color: _primary.withValues(alpha:0.04),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        type == 'lokasi' ? Icons.location_on_outlined
-                            : type == 'jabatan' ? Icons.work_outline
-                            : Icons.sort_by_alpha_rounded,
-                        color: _primary, size: 20,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(dialogTitle,
-                        style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1E3A8A)))),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(ctx),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
-                          child: Icon(Icons.close, size: 16, color: Colors.grey.shade500),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // OPTIONS
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 400),
-                  child: type == 'lokasi'
-                      // LOCATION
-                      ? StatefulBuilder(
-                          builder: (ctx2, setInner) {
-                            final filteredUnits = tempLokasiId == null ? _allUnitFilter
-                                : _allUnitFilter.where((u) => u['id_lokasi']?.toString() == tempLokasiId).toList();
-                            final filteredSubunits = tempUnitId == null ? _allSubunitFilter
-                                : _allSubunitFilter.where((s) => s['id_unit']?.toString() == tempUnitId).toList();
-                            final filteredAreas = tempSubunitId == null ? _allAreaFilter
-                                : _allAreaFilter.where((a) => a['id_subunit']?.toString() == tempSubunitId).toList();
-
-                            return SingleChildScrollView(
-                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // LOCATION TAB
-                                  _buildCascadeSection(
-                                    label: _langCode == 'EN' ? 'Location' : 'Lokasi',
-                                    color: const Color(0xFF10B981),
-                                    items: _allLokasiFilter,
-                                    idKey: 'id_lokasi',
-                                    nameKey: 'nama_lokasi',
-                                    selectedId: tempLokasiId,
-                                    onReset: () => setInner(() {
-                                      tempLokasiId = null; tempUnitId = null;
-                                      tempSubunitId = null; tempAreaId = null;
-                                    }),
-                                    onSelect: (id, name) => setInner(() {
-                                      tempLokasiId = id; tempUnitId = null;
-                                      tempSubunitId = null; tempAreaId = null;
-                                    }),
-                                  ),
-                                  if (tempLokasiId != null && filteredUnits.isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    _buildCascadeSection(
-                                      label: 'Unit',
-                                      color: const Color(0xFF6366F1),
-                                      items: filteredUnits,
-                                      idKey: 'id_unit',
-                                      nameKey: 'nama_unit',
-                                      selectedId: tempUnitId,
-                                      onReset: () => setInner(() {
-                                        tempUnitId = null; tempSubunitId = null; tempAreaId = null;
-                                      }),
-                                      onSelect: (id, name) => setInner(() {
-                                        tempUnitId = id; tempSubunitId = null; tempAreaId = null;
-                                      }),
-                                    ),
-                                  ],
-                                  if (tempUnitId != null && filteredSubunits.isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    _buildCascadeSection(
-                                      label: 'Sub-Unit',
-                                      color: const Color(0xFFFBBF24),
-                                      items: filteredSubunits,
-                                      idKey: 'id_subunit',
-                                      nameKey: 'nama_subunit',
-                                      selectedId: tempSubunitId,
-                                      onReset: () => setInner(() { tempSubunitId = null; tempAreaId = null; }),
-                                      onSelect: (id, name) => setInner(() { tempSubunitId = id; tempAreaId = null; }),
-                                    ),
-                                  ],
-                                  if (tempSubunitId != null && filteredAreas.isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    _buildCascadeSection(
-                                      label: 'Area',
-                                      color: const Color(0xFFF472B6),
-                                      items: filteredAreas,
-                                      idKey: 'id_area',
-                                      nameKey: 'nama_area',
-                                      selectedId: tempAreaId,
-                                      onReset: () => setInner(() => tempAreaId = null),
-                                      onSelect: (id, name) => setInner(() => tempAreaId = id),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            );
-                          },
-                        )
-                      : SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: Column(
-                            children: [
-                              _buildDialogOption(
-                                label: _langCode == 'EN' ? 'All (No Filter)' : 'Semua (Tanpa Filter)',
-                                isSelected: type == 'jabatan' ? _filterJabatanId == null : _sortOrder == 'none',
-                                onTap: () {
-                                  setState(() {
-                                    if (type == 'jabatan') { _filterJabatanId = null; _filterJabatanName = null; }
-                                    else { _sortOrder = 'none'; }
-                                    _applyFilter();
-                                  });
-                                  Navigator.pop(ctx);
-                                },
-                              ),
-                              if (type == 'jabatan') ...[
-                                ..._jabatanList.map((jab) {
-                                  final id = jab['id_jabatan'] as int;
-                                  final nama = jab['nama_jabatan']?.toString() ?? '';
-                                  return _buildDialogOption(
-                                    label: nama,
-                                    isSelected: _filterJabatanId == id,
-                                    onTap: () {
-                                      setState(() { _filterJabatanId = id; _filterJabatanName = nama; _applyFilter(); });
-                                      Navigator.pop(ctx);
-                                    },
-                                  );
-                                }),
-                              ] else ...[
-                                _buildDialogOption(
-                                  label: _langCode == 'EN' ? 'A → Z (Ascending)' : 'A → Z (Ascending)',
-                                  isSelected: _sortOrder == 'asc',
-                                  onTap: () {
-                                    setState(() { _sortOrder = 'asc'; _applyFilter(); });
-                                    Navigator.pop(ctx);
-                                  },
-                                ),
-                                _buildDialogOption(
-                                  label: _langCode == 'EN' ? 'Z → A (Descending)' : 'Z → A (Descending)',
-                                  isSelected: _sortOrder == 'desc',
-                                  onTap: () {
-                                    setState(() { _sortOrder = 'desc'; _applyFilter(); });
-                                    Navigator.pop(ctx);
-                                  },
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                ),
-
-                // APPLY BUTTON FOR LOCATION
-                if (type == 'lokasi')
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          final lokasiNama = _allLokasiFilter.firstWhere(
-                            (l) => l['id_lokasi']?.toString() == tempLokasiId, orElse: () => {})['nama_lokasi']?.toString();
-                          final unitNama = _allUnitFilter.firstWhere(
-                            (u) => u['id_unit']?.toString() == tempUnitId, orElse: () => {})['nama_unit']?.toString();
-                          final subNama = _allSubunitFilter.firstWhere(
-                            (s) => s['id_subunit']?.toString() == tempSubunitId, orElse: () => {})['nama_subunit']?.toString();
-                          final areaNama = _allAreaFilter.firstWhere(
-                            (a) => a['id_area']?.toString() == tempAreaId, orElse: () => {})['nama_area']?.toString();
-
-                          setState(() {
-                            _filterLokasiId    = tempLokasiId;   _filterLokasiName   = lokasiNama;
-                            _filterUnitId      = tempUnitId;     _filterUnitName     = unitNama;
-                            _filterSubunitId   = tempSubunitId;  _filterSubunitName  = subNama;
-                            _filterAreaId      = tempAreaId;     _filterAreaName     = areaNama;
-                            _applyFilter();
-                          });
-                          Navigator.pop(ctx);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: Text(_langCode == 'EN' ? 'Apply' : 'Terapkan',
-                            style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                  )
-                else
-                  const SizedBox(height: 8),
-              ],
-            ),
-          );
-        },
-      ),
+  Future<void> _openLocationFilter() async {
+    final result = await showAdminUserLocationFilterDialog(
+      context,
+      lang: widget.lang,
+      initialLevel: _activeLocationLevel,
+      initialId: _activeLocationId,
     );
+    if (result == null) return;
+    final level = result['level'];
+    final id = result['id'];
+    final name = result['name'];
+    setState(() {
+      // reset semua level dulu, karena hanya 1 level filter aktif
+      _filterLokasiId = null; _filterLokasiName = null;
+      _filterUnitId = null; _filterUnitName = null;
+      _filterSubunitId = null; _filterSubunitName = null;
+      _filterAreaId = null; _filterAreaName = null;
+
+      if (id != null) {
+        switch (level) {
+          case 'Unit':
+            _filterUnitId = id; _filterUnitName = name;
+            break;
+          case 'Subunit':
+            _filterSubunitId = id; _filterSubunitName = name;
+            break;
+          case 'Area':
+            _filterAreaId = id; _filterAreaName = name;
+            break;
+          default:
+            _filterLokasiId = id; _filterLokasiName = name;
+        }
+      }
+      _applyFilter();
+    });
   }
 
-  Widget _buildCascadeSection({
-    required String label,
-    required Color color,
-    required List<Map<String, dynamic>> items,
-    required String idKey,
-    required String nameKey,
-    required String? selectedId,
-    required VoidCallback onReset,
-    required void Function(String id, String name) onSelect,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(width: 3, height: 14,
-              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(width: 6),
-            Text(label, style: GoogleFonts.poppins(
-                fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
-            const Spacer(),
-            if (selectedId != null)
-              GestureDetector(
-                onTap: onReset,
-                child: Text(_langCode == 'EN' ? 'Reset' : 'Reset',
-                  style: GoogleFonts.poppins(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
-              ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            ...items.map((item) {
-              final id = item[idKey]?.toString() ?? '';
-              final name = item[nameKey]?.toString() ?? '';
-              final isSelected = selectedId == id;
-              return GestureDetector(
-                onTap: () => onSelect(id, name),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isSelected ? color : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected ? color : Colors.grey.shade300,
-                      width: isSelected ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Text(name, style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? Colors.white : const Color(0xFF1E3A8A),
-                  )),
-                ),
-              );
-            }),
-          ],
-        ),
-      ],
+  Future<void> _openRoleFilter() async {
+    final result = await showAdminUserRoleFilterDialog(
+      context,
+      lang: widget.lang,
+      jabatanList: _jabatanList,
+      selectedJabatanId: _filterJabatanId,
     );
+    if (result == null) return;
+    setState(() {
+      _filterJabatanId = result['id'] as int?;
+      _filterJabatanName = result['name'] as String?;
+      _applyFilter();
+    });
   }
 
-  Widget _buildDialogOption({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? _primary.withValues(alpha:0.08) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? _primary : Colors.grey.shade200,
-            width: isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected
-                      ? _primary
-                      : const Color(0xFF1E3A8A),
-                ),
-              ),
-            ),
-            if (isSelected)
-              const Icon(Icons.check_circle_rounded,
-                  color: _primary, size: 18),
-          ],
-        ),
-      ),
+  Future<void> _openSortFilter() async {
+    final result = await showAdminUserSortFilterDialog(
+      context,
+      lang: widget.lang,
+      currentSort: _sortOrder,
     );
+    if (result == null) return;
+    setState(() {
+      _sortOrder = result;
+      _applyFilter();
+    });
   }
 }
 
