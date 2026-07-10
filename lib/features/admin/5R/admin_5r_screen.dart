@@ -204,7 +204,7 @@ class _Admin5RScreenState extends State<Admin5RScreen>
                             style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A),
+                              color: const Color(0xFF0EA5E9),
                             ),
                           ),
                         ],
@@ -478,7 +478,6 @@ class _Admin5RScreenState extends State<Admin5RScreen>
   }
 
   Widget _buildTabBar() {
-    const activeColor = Color.fromARGB(255, 29, 199, 97);
 
     final tabLabels = _lang == 'EN'
         ? ['Members', 'Inspection', 'Location', 'Recurring Findings']
@@ -505,12 +504,12 @@ class _Admin5RScreenState extends State<Admin5RScreen>
           controller: _tabController,
           isScrollable: false,
           indicator: BoxDecoration(
-            color: activeColor,
+            color: Color(0xFF0EA5E9),
             borderRadius: BorderRadius.circular(9),
           ),
           indicatorSize: TabBarIndicatorSize.tab,
           labelColor: Colors.white,
-          unselectedLabelColor: activeColor,
+          unselectedLabelColor: Color(0xFF0EA5E9),
           labelStyle: GoogleFonts.poppins(
             fontWeight: FontWeight.w700, fontSize: 11.5),
           unselectedLabelStyle: GoogleFonts.poppins(
