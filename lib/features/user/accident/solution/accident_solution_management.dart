@@ -1,18 +1,12 @@
-import 'dart:io';
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import '../../home/popup/location_permission_popup.dart';
-import '../accident_result_popup.dart';
-import '../camera/accident_resolution_camera_screen.dart';
 import '../picker/accident_pick_cause.dart';
 import '../picker/accident_pick_severity.dart';
 import 'accident_add_solution.dart';
+import 'accident_edit_solution.dart';
 
 class AccidentSolutionManagementScreen extends StatefulWidget {
   final String lang;
@@ -25,6 +19,11 @@ class AccidentSolutionManagementScreen extends StatefulWidget {
 
 class _AccidentSolutionManagementScreenState
     extends State<AccidentSolutionManagementScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _selectedStatus = 'Menunggu';
+  int _currentPage = 1;
+  static const int _itemsPerPage = 6;
   List<Map<String, dynamic>> _reports = [];
   bool _isLoading = true;
 
@@ -32,6 +31,12 @@ class _AccidentSolutionManagementScreenState
   void initState() {
     super.initState();
     _fetchReports();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchReports() async {
@@ -76,12 +81,289 @@ class _AccidentSolutionManagementScreenState
         setState(() {
           _reports = reportsList;
           _isLoading = false;
+          _currentPage = 1;
         });
       }
     } catch (e) {
       debugPrint('Error fetching HRD reports: $e');
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  List<Map<String, dynamic>> get _filteredReports {
+    final q = _searchQuery.trim().toLowerCase();
+    return _reports.where((r) {
+      if ((r['status'] ?? '') != _selectedStatus) return false;
+      if (q.isEmpty) return true;
+      final judul = (r['judul'] ?? '').toString().toLowerCase();
+      final lokasi = (r['lokasi']?['nama_lokasi'] ?? '').toString().toLowerCase();
+      final penyebabLabel =
+          AccidentCauseData.labelOf(r['penyebab'] as String?, widget.lang).toLowerCase();
+      final severityLabel =
+          AccidentSeverityData.labelOf(r['tingkat_keparahan'] as String?, widget.lang).toLowerCase();
+      return judul.contains(q) ||
+          lokasi.contains(q) ||
+          penyebabLabel.contains(q) ||
+          severityLabel.contains(q);
+    }).toList();
+  }
+
+  int get _totalPages {
+    final len = _filteredReports.length;
+    if (len == 0) return 1;
+    return (len / _itemsPerPage).ceil();
+  }
+
+  List<Map<String, dynamic>> get _paginatedReports {
+    final filtered = _filteredReports;
+    final start = (_currentPage - 1) * _itemsPerPage;
+    if (start >= filtered.length) return [];
+    final end = (start + _itemsPerPage).clamp(0, filtered.length);
+    return filtered.sublist(start, end);
+  }
+
+  String _searchHint() {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Search reports...';
+      case 'ZH':
+        return '搜索报告...';
+      default:
+        return 'Cari laporan...';
+    }
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.25)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF16A34A).withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: (val) {
+            setState(() {
+              _searchQuery = val;
+              _currentPage = 1;
+            });
+          },
+          style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF1E293B)),
+          decoration: InputDecoration(
+            hintText: _searchHint(),
+            hintStyle: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF94A3B8)),
+            prefixIcon: const Icon(CupertinoIcons.search, color: Color(0xFF16A34A), size: 20),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(CupertinoIcons.clear_circled_solid,
+                        color: Color(0xFF94A3B8), size: 20),
+                    onPressed: () {
+                      setState(() {
+                        _searchController.clear();
+                        _searchQuery = '';
+                        _currentPage = 1;
+                      });
+                    },
+                  )
+                : null,
+            filled: true,
+            fillColor: Colors.transparent,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            border: InputBorder.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusTabs() {
+    const statuses = ['Menunggu', 'Ditinjau', 'Selesai'];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Row(
+        children: [
+          for (final st in statuses) ...[
+            Expanded(child: _buildStatusTab(st)),
+            if (st != statuses.last) const SizedBox(width: 8),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusTab(String status) {
+    final isActive = _selectedStatus == status;
+    final color = _statusColor(status);
+    final bg = _statusBg(status);
+    final icon = _statusIconFor(status);
+    final label = _statusLabelFor(status);
+    final count = _reports.where((r) => (r['status'] ?? '') == status).length;
+
+    return GestureDetector(
+      onTap: () {
+        if (isActive) return;
+        setState(() {
+          _selectedStatus = status;
+          _currentPage = 1;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        decoration: BoxDecoration(
+          color: isActive ? color : bg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: isActive ? 1 : 0.35)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: isActive ? Colors.white : color),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: isActive ? Colors.white : color),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '$count',
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: isActive ? Colors.white.withValues(alpha: 0.85) : color.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaginationBar() {
+    final totalPages = _totalPages;
+    if (totalPages <= 1) return const SizedBox.shrink();
+    const Color mainColor = Color(0xFF16A34A);
+    final bool canPrev = _currentPage > 1;
+    final bool canNext = _currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers(totalPages);
+
+    return Container(
+      margin: EdgeInsets.fromLTRB(15, 0, 15, 12 + MediaQuery.of(context).padding.bottom),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: mainColor.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(color: mainColor.withValues(alpha: 0.12), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          _buildArrowButton(
+            icon: Icons.arrow_back_ios_new_rounded,
+            enabled: canPrev,
+            mainColor: mainColor,
+            onTap: () {
+              if (!canPrev) return;
+              setState(() => _currentPage -= 1);
+            },
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Row(
+              children: [
+                for (final p in pageNumbers) ...[
+                  Expanded(child: _buildPageNumberButton(p, mainColor)),
+                  if (p != pageNumbers.last) const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _buildArrowButton(
+            icon: Icons.arrow_forward_ios_rounded,
+            enabled: canNext,
+            mainColor: mainColor,
+            onTap: () {
+              if (!canNext) return;
+              setState(() => _currentPage += 1);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<int> _visiblePageNumbers(int totalPages) {
+    const int maxVisible = 5;
+    if (totalPages <= maxVisible) return List.generate(totalPages, (i) => i + 1);
+    int start = _currentPage - 2;
+    int end = _currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = maxVisible;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (maxVisible - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  Widget _buildPageNumberButton(int page, Color mainColor) {
+    final bool isActive = page == _currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page == _currentPage) return;
+        setState(() => _currentPage = page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? mainColor : mainColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive ? null : Border.all(color: mainColor.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(color: isActive ? Colors.white : mainColor, fontWeight: FontWeight.w800, fontSize: 13),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArrowButton({
+    required IconData icon,
+    required bool enabled,
+    required Color mainColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? mainColor.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 15, color: enabled ? mainColor : Colors.grey.shade400),
+      ),
+    );
   }
 
   @override
@@ -108,33 +390,32 @@ class _AccidentSolutionManagementScreenState
               fontSize: 17),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: _fetchReports,
-            icon: const Icon(CupertinoIcons.refresh,
-                color: Color(0xFF16A34A)),
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-              color: CupertinoColors.systemGrey5, height: 1),
+          child: Container(color: CupertinoColors.systemGrey5, height: 1),
         ),
       ),
       body: _isLoading
           ? _buildShimmer()
-          : RefreshIndicator(
-              onRefresh: _fetchReports,
-              color: const Color(0xFF16A34A),
-              child: _reports.isEmpty
-                  ? _buildEmpty()
-                  : ListView.builder(
-                      padding:
-                          const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                      itemCount: _reports.length,
-                      itemBuilder: (_, i) =>
-                          _buildReportCard(_reports[i]),
-                    ),
+          : Column(
+              children: [
+                _buildSearchBar(),
+                _buildStatusTabs(),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _fetchReports,
+                    color: const Color(0xFF16A34A),
+                    child: _paginatedReports.isEmpty
+                        ? _buildEmpty()
+                        : ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            itemCount: _paginatedReports.length,
+                            itemBuilder: (_, i) => _buildReportCard(_paginatedReports[i]),
+                          ),
+                  ),
+                ),
+                _buildPaginationBar(),
+              ],
             ),
     );
   }
@@ -394,21 +675,53 @@ class _AccidentSolutionManagementScreenState
     );
   }
 
+  String _emptyMessageFor(String status) {
+    switch (status) {
+      case 'Ditinjau':
+        return widget.lang == 'EN'
+            ? 'No reports under review'
+            : widget.lang == 'ZH'
+                ? '没有正在审核的报告'
+                : 'Belum ada laporan yang sedang ditinjau';
+      case 'Selesai':
+        return widget.lang == 'EN'
+            ? 'No completed reports yet'
+            : widget.lang == 'ZH'
+                ? '还没有已完成的报告'
+                : 'Belum ada laporan yang selesai';
+      default:
+        return widget.lang == 'EN'
+            ? 'No pending reports'
+            : widget.lang == 'ZH'
+                ? '没有等待中的报告'
+                : 'Belum ada laporan yang menunggu';
+    }
+  }
+
   Widget _buildEmpty() {
+    final color = _statusColor(_selectedStatus);
+    final bg = _statusBg(_selectedStatus);
+    final icon = _statusIconFor(_selectedStatus);
+    final message = _emptyMessageFor(_selectedStatus);
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(CupertinoIcons.checkmark_shield,
-              size: 64, color: Color(0xFF16A34A)),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: bg,
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withValues(alpha: 0.35)),
+            ),
+            child: Icon(icon, size: 44, color: color),
+          ),
           const SizedBox(height: 16),
           Text(
-            widget.lang == 'EN'
-                ? 'No reports to resolve'
-                : widget.lang == 'ZH'
-                    ? '无需解决的报告'
-                    : 'Belum ada laporan untuk diselesaikan',
-            style: GoogleFonts.inter(
+            message,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
                 color: const Color(0xFF1E293B)),
@@ -431,641 +744,6 @@ class _AccidentSolutionManagementScreenState
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class HrdSolutionDetailScreen extends StatefulWidget {
-  final String reportId;
-  final String reportTitle;
-  final String lang;
-  final Map<String, dynamic> existingSolution;
-
-  const HrdSolutionDetailScreen({
-    super.key,
-    required this.reportId,
-    required this.reportTitle,
-    required this.lang,
-    required this.existingSolution,
-  });
-
-  @override
-  State<HrdSolutionDetailScreen> createState() =>
-      _HrdSolutionDetailScreenState();
-}
-
-class _HrdSolutionDetailScreenState
-    extends State<HrdSolutionDetailScreen> {
-  Map<String, dynamic>? _solution;
-  // ignore: unused_field
-  bool _isLoading = true;
-  final bool _isSaving = false;
-
-  final _judulCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
-  final _korektifCtrl = TextEditingController();
-  final _preventifCtrl = TextEditingController();
-
-  XFile? _imageFile;
-  String? _existingImageUrl;
-
-  @override
-  void initState() {
-    super.initState();
-    AccidentSolutionCameraWarmupService.instance.warmUp();
-    _populateFromData(widget.existingSolution);
-    _isLoading = false;
-  }
-
-  void _populateFromData(Map<String, dynamic>? data) {
-    _solution = data;
-    if (data != null) {
-      _judulCtrl.text = data['judul_resolusi'] ?? '';
-      _descCtrl.text = data['deskripsi_resolusi'] ?? '';
-      _korektifCtrl.text = data['tindakan_korektif'] ?? '';
-      _preventifCtrl.text = data['tindakan_preventif'] ?? '';
-      _existingImageUrl = data['foto_resolusi'];
-    }
-  }
-
-  @override
-  void dispose() {
-    _judulCtrl.dispose();
-    _descCtrl.dispose();
-    _korektifCtrl.dispose();
-    _preventifCtrl.dispose();
-    AccidentSolutionCameraWarmupService.instance.release();
-    super.dispose();
-  }
-
-  Future<bool> _checkAtmiOrBlock() async {
-    final result = await LocationPermissionPopup.requestWithPopup(context, lang: widget.lang);
-    if (result.isAtAtmi) return true;
-    if (!mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(children: [
-          const Icon(Icons.location_off_rounded, color: Colors.white, size: 16),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              widget.lang == 'EN'
-                  ? 'Solution can only be saved within PT ATMI Solo area.'
-                  : widget.lang == 'ZH'
-                      ? '解决方案只能在PT ATMI Solo区域内保存。'
-                      : 'Solusi hanya dapat disimpan di area PT ATMI Solo.',
-            ),
-          ),
-        ]),
-        backgroundColor: Colors.orange.shade700,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-    return false;
-  }
-
-  Future<void> _pickImage() async {
-    final XFile? result = await Navigator.push<XFile?>(
-      context,
-      MaterialPageRoute(builder: (_) => const AccidentSolutionCameraScreen()),
-    );
-    if (result != null && mounted) setState(() => _imageFile = result);
-    AccidentSolutionCameraWarmupService.instance.warmUp();
-  }
-
-  Widget _buildPhotoWidget() {
-    if (_isLoading) {
-      return Shimmer.fromColors(
-        baseColor: const Color(0xFFDCFCE7),
-        highlightColor: const Color(0xFFF0FDF4),
-        child: Container(
-          height: 150,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    }
-
-    final hasPhoto = _imageFile != null || _existingImageUrl != null;
-    if (!hasPhoto) {
-      return GestureDetector(
-        onTap: _pickImage,
-        child: Container(
-          height: 150,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFF),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFDCFCE7), width: 1.5),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF0FDF4),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(CupertinoIcons.camera,
-                    color: Color(0xFF16A34A), size: 28),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                widget.lang == 'EN'
-                    ? 'Add Solution Photo'
-                    : widget.lang == 'ZH'
-                        ? '添加解决方案照片'
-                        : 'Tambah Foto Solusi',
-                style: GoogleFonts.inter(
-                    color: const Color(0xFF16A34A),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13),
-              ),
-              Text(
-                widget.lang == 'EN'
-                    ? 'Tap to take or select a photo'
-                    : widget.lang == 'ZH'
-                        ? '点击拍照或选择照片'
-                        : 'Ketuk untuk ambil atau pilih foto',
-                style: GoogleFonts.inter(
-                    fontSize: 11, color: const Color(0xFF94A3B8)),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    return Stack(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: _imageFile != null
-              ? (kIsWeb
-                  ? Image.network(_imageFile!.path,
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover)
-                  : Image.file(File(_imageFile!.path),
-                      height: 180,
-                      width: double.infinity,
-                      fit: BoxFit.cover))
-              : Image.network(_existingImageUrl!,
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover),
-        ),
-        Positioned(
-          right: 10,
-          bottom: 10,
-          child: GestureDetector(
-            onTap: _pickImage,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha:0.6),
-                  borderRadius: BorderRadius.circular(20)),
-              child: Row(
-                children: [
-                  const Icon(CupertinoIcons.camera_rotate,
-                      color: Colors.white, size: 14),
-                  const SizedBox(width: 6),
-                  Text(
-                    widget.lang == 'EN'
-                        ? 'Retake'
-                        : widget.lang == 'ZH'
-                            ? '重拍'
-                            : 'Ganti',
-                    style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _saveSolution() async {
-    if (_judulCtrl.text.trim().isEmpty || _descCtrl.text.trim().isEmpty) {
-      await showResultPopup(
-        context,
-        icon: CupertinoIcons.exclamationmark_circle_fill,
-        iconColor: const Color(0xFFEF4444),
-        iconBgColor: const Color(0xFFFFF1F2),
-        message: widget.lang == 'ZH'
-            ? '标题和描述为必填项！'
-            : widget.lang == 'EN'
-                ? 'Title and description required!'
-                : 'Judul dan deskripsi wajib diisi!',
-        duration: const Duration(milliseconds: 500),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CupertinoActivityIndicator(radius: 18, color: Color(0xFF16A34A)),
-              const SizedBox(height: 16),
-              Text(
-                widget.lang == 'ZH'
-                    ? '正在保存...'
-                    : widget.lang == 'EN'
-                        ? 'Saving solution...'
-                        : 'Menyimpan solusi...',
-                style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1E293B)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    try {
-      final supabase = Supabase.instance.client;
-      final userId = supabase.auth.currentUser!.id;
-
-      String? imageUrl = _existingImageUrl;
-      if (_imageFile != null) {
-        final bytes = await _imageFile!.readAsBytes();
-        final fileName =
-            '$userId/solution_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        await supabase.storage.from('temuan_images').uploadBinary(
-            fileName, bytes,
-            fileOptions: const FileOptions(contentType: 'image/jpeg'));
-        imageUrl =
-            supabase.storage.from('temuan_images').getPublicUrl(fileName);
-      }
-
-      await supabase.from('resolution_accident').update({
-        'judul_resolusi': _judulCtrl.text.trim(),
-        'deskripsi_resolusi': _descCtrl.text.trim(),
-        'tindakan_korektif': _korektifCtrl.text.trim().isEmpty
-            ? null
-            : _korektifCtrl.text.trim(),
-        'tindakan_preventif': _preventifCtrl.text.trim().isEmpty
-            ? null
-            : _preventifCtrl.text.trim(),
-        'updated_at': DateTime.now().toIso8601String(),
-        'foto_resolusi': imageUrl,
-      }).eq('id_resolution', _solution!['id_resolution']);
-
-      if (mounted) {
-        Navigator.of(context).pop();
-        await showResultPopup(
-          context,
-          icon: CupertinoIcons.checkmark_circle_fill,
-          iconColor: const Color(0xFF16A34A),
-          iconBgColor: const Color(0xFFF0FDF4),
-          message: widget.lang == 'ZH'
-              ? '解决方案保存成功！'
-              : widget.lang == 'EN'
-                  ? 'Solution saved successfully!'
-                  : 'Solusi berhasil disimpan!',
-          duration: const Duration(milliseconds: 500),
-        );
-        if (mounted) Navigator.of(context).pop(true);
-      }
-    } catch (e) {
-      debugPrint('Save solution error: $e');
-      if (mounted) {
-        Navigator.of(context).pop();
-        await showResultPopup(
-          context,
-          icon: CupertinoIcons.xmark_circle_fill,
-          iconColor: const Color(0xFFEF4444),
-          iconBgColor: const Color(0xFFFFF1F2),
-          message: 'Error: $e',
-          duration: const Duration(milliseconds: 500),
-        );
-      }
-    }
-  }
-
-  double _bottomSafeSpacing(BuildContext context) {
-    final double navInset = MediaQuery.of(context).padding.bottom;
-    return navInset > 0 ? navInset + 16 : 28;
-  }
-
-  Widget _buildFormField({
-    required TextEditingController ctrl,
-    required IconData icon,
-    required String label,
-    required String hint,
-    int maxLines = 1,
-    Color borderColor = const Color(0xFF16A34A),
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 15, color: const Color(0xFF16A34A)),
-            const SizedBox(width: 6),
-            Text(label,
-                style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF16A34A))),
-            const Text(' *',
-                style: TextStyle(
-                    color: Color(0xFFEF4444),
-                    fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: ctrl,
-          maxLines: maxLines,
-          style: GoogleFonts.inter(fontSize: 14, color: Colors.black87),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: GoogleFonts.inter(
-                color: const Color(0xFFCBD5E1), fontSize: 13),
-            filled: true,
-            fillColor: const Color(0xFFF8FAFF),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                    color: borderColor.withValues(alpha:0.3), width: 1)),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: borderColor, width: 1.5)),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F4FF),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back, color: Color(0xFF16A34A)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          widget.lang == 'EN'
-              ? 'Edit Solution'
-              : widget.lang == 'ZH'
-                  ? '编辑解决方案'
-                  : 'Edit Solusi',
-          style: GoogleFonts.poppins(
-              color: const Color(0xFF16A34A),
-              fontWeight: FontWeight.w700,
-              fontSize: 17),
-        ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: CupertinoColors.systemGrey5, height: 1),
-        ),
-      ),
-      body: Stack(
-              children: [
-                SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // SOLUTION PHOTO
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: const Color(0xFFDCFCE7), width: 1.5),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(CupertinoIcons.camera_fill,
-                                    size: 15, color: Color(0xFF16A34A)),
-                                const SizedBox(width: 6),
-                                Text(
-                                  widget.lang == 'EN'
-                                      ? 'Solution Photo'
-                                      : widget.lang == 'ZH'
-                                          ? '解决方案照片'
-                                          : 'Foto Solusi',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF16A34A)),
-                                ),
-                                const Text(' *',
-                                    style: TextStyle(
-                                        color: Color(0xFFEF4444),
-                                        fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            _buildPhotoWidget(),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // TITLE FORM & DESCRIPTION
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: const Color(0xFFDCFCE7), width: 1.5),
-                        ),
-                        child: Column(
-                          children: [
-                            _buildFormField(
-                              ctrl: _judulCtrl,
-                              icon: CupertinoIcons.pencil,
-                              label: widget.lang == 'ID'
-                                  ? 'Judul Solusi'
-                                  : widget.lang == 'ZH'
-                                      ? '解决方案标题'
-                                      : 'Solution Title',
-                              hint: widget.lang == 'ID'
-                                  ? 'Contoh: Penanganan Insiden Terpeleset di Gudang'
-                                  : widget.lang == 'ZH'
-                                      ? '例如：仓库滑倒事故处理'
-                                      : 'e.g. Warehouse Slip Incident Resolution',
-                              borderColor: const Color(0xFF16A34A),
-                            ),
-                            const SizedBox(height: 16),
-                            _buildFormField(
-                              ctrl: _descCtrl,
-                              icon: CupertinoIcons.doc_text_fill,
-                              label: widget.lang == 'ID'
-                                  ? 'Deskripsi Solusi'
-                                  : widget.lang == 'ZH'
-                                      ? '解决方案描述'
-                                      : 'Solution Description',
-                              hint: widget.lang == 'ID'
-                                  ? 'Jelaskan proses penyelesaian secara lengkap dan rinci...'
-                                  : widget.lang == 'ZH'
-                                      ? '详细描述解决过程...'
-                                      : 'Describe the resolution process in full detail...',
-                              maxLines: 4,
-                              borderColor: const Color(0xFF16A34A),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // CORRECTIVE ACTION
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: const Color(0xFFDCFCE7), width: 1.5),
-                        ),
-                        child: _buildFormField(
-                          ctrl: _korektifCtrl,
-                          icon: CupertinoIcons.wrench_fill,
-                          label: widget.lang == 'ID'
-                              ? 'Tindakan Korektif'
-                              : widget.lang == 'ZH'
-                                  ? '纠正措施'
-                                  : 'Corrective Action',
-                          hint: widget.lang == 'ID'
-                              ? 'Contoh: Memperbaiki lantai licin dan memasang rambu peringatan'
-                              : widget.lang == 'ZH'
-                                  ? '例如：修复湿滑地面并安装警示标志'
-                                  : 'e.g. Repaired the slippery floor and installed warning signs',
-                          maxLines: 3,
-                          borderColor: const Color(0xFF16A34A),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // PREVENTIF ACTION
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: const Color(0xFFDCFCE7), width: 1.5),
-                        ),
-                        child: _buildFormField(
-                          ctrl: _preventifCtrl,
-                          icon: CupertinoIcons.shield_fill,
-                          label: widget.lang == 'ID'
-                              ? 'Tindakan Preventif'
-                              : widget.lang == 'ZH'
-                                  ? '预防措施'
-                                  : 'Preventive Action',
-                          hint: widget.lang == 'ID'
-                              ? 'Contoh: Melakukan inspeksi rutin area kerja setiap minggu'
-                              : widget.lang == 'ZH'
-                                  ? '例如：每周对工作区域进行例行检查'
-                                  : 'e.g. Conduct routine weekly work area inspections',
-                          maxLines: 3,
-                          borderColor: const Color(0xFF16A34A),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_isSaving)
-                  Container(
-                    color: Colors.black.withValues(alpha:0.3),
-                    child: const Center(
-                      child: CupertinoActivityIndicator(
-                          radius: 14, color: Colors.white),
-                    ),
-                  ),
-              ],
-            ),
-      bottomNavigationBar: Container(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, _bottomSafeSpacing(context)),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(
-              top: BorderSide(color: CupertinoColors.systemGrey5, width: 1)),
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF16A34A), Color(0xFF15803D)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF16A34A).withValues(alpha:0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ElevatedButton(
-            onPressed: _isSaving
-                ? null
-                : () async {
-                    if (!await _checkAtmiOrBlock()) return;
-                    _saveSolution();
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-            ),
-            child: Text(
-              widget.lang == 'ID'
-                  ? 'Perbarui Solusi'
-                  : widget.lang == 'ZH'
-                      ? '更新解决方案'
-                      : 'Update Solution',
-              style: GoogleFonts.inter(
-                  fontSize: 16, fontWeight: FontWeight.w700),
-            ),
           ),
         ),
       ),
