@@ -12,6 +12,7 @@ import '../accident_result_popup.dart';
 import '../camera/accident_resolution_camera_screen.dart';
 import '../picker/accident_pick_cause.dart';
 import '../picker/accident_pick_severity.dart';
+import 'accident_add_solution.dart';
 
 class AccidentSolutionManagementScreen extends StatefulWidget {
   final String lang;
@@ -233,15 +234,22 @@ class _AccidentSolutionManagementScreenState
 
     return GestureDetector(
       onTap: () async {
+        final existingSolution = r['_resolution'] as Map<String, dynamic>?;
         final changed = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
-            builder: (_) => HrdSolutionDetailScreen(
-              reportId: r['id_laporan'] as String,
-              reportTitle: r['judul'] ?? '-',
-              lang: widget.lang,
-              existingSolution: r['_resolution'] as Map<String, dynamic>?,
-            ),
+            builder: (_) => existingSolution == null
+                ? AccidentAddSolutionScreen(
+                    reportId: r['id_laporan'] as String,
+                    reportTitle: r['judul'] ?? '-',
+                    lang: widget.lang,
+                  )
+                : HrdSolutionDetailScreen(
+                    reportId: r['id_laporan'] as String,
+                    reportTitle: r['judul'] ?? '-',
+                    lang: widget.lang,
+                    existingSolution: existingSolution,
+                  ),
           ),
         );
         if (changed == true) _fetchReports();
@@ -434,14 +442,14 @@ class HrdSolutionDetailScreen extends StatefulWidget {
   final String reportId;
   final String reportTitle;
   final String lang;
-  final Map<String, dynamic>? existingSolution;
+  final Map<String, dynamic> existingSolution;
 
   const HrdSolutionDetailScreen({
     super.key,
     required this.reportId,
     required this.reportTitle,
     required this.lang,
-    this.existingSolution,
+    required this.existingSolution,
   });
 
   @override
@@ -468,13 +476,8 @@ class _HrdSolutionDetailScreenState
   void initState() {
     super.initState();
     AccidentSolutionCameraWarmupService.instance.warmUp();
-
-    if (widget.existingSolution != null) {
-      _populateFromData(widget.existingSolution);
-      _isLoading = false;
-    } else {
-      _loadSolution();
-    }
+    _populateFromData(widget.existingSolution);
+    _isLoading = false;
   }
 
   void _populateFromData(Map<String, dynamic>? data) {
@@ -524,32 +527,6 @@ class _HrdSolutionDetailScreenState
       ),
     );
     return false;
-  }
-
-  Future<void> _loadSolution() async {
-    setState(() => _isLoading = true);
-    try {
-      final data = await Supabase.instance.client
-          .from('resolution_accident')
-          .select('''
-            id_resolution, judul_resolusi, deskripsi_resolusi,
-            tindakan_korektif, tindakan_preventif,
-            tanggal_resolusi, created_at, foto_resolusi,
-            hrd:resolution_accident_id_hrd_fkey(nama, gambar_user)
-          ''')
-          .eq('id_laporan', widget.reportId)
-          .maybeSingle();
-
-      if (mounted) {
-        setState(() {
-          _populateFromData(data);
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading solution: $e');
-      if (mounted) setState(() => _isLoading = false);
-    }
   }
 
   Future<void> _pickImage() async {
@@ -745,39 +722,18 @@ class _HrdSolutionDetailScreenState
             supabase.storage.from('temuan_images').getPublicUrl(fileName);
       }
 
-      if (_solution == null) {
-        await supabase.from('resolution_accident').insert({
-          'id_laporan': widget.reportId,
-          'id_hrd': userId,
-          'judul_resolusi': _judulCtrl.text.trim(),
-          'deskripsi_resolusi': _descCtrl.text.trim(),
-          'tindakan_korektif': _korektifCtrl.text.trim().isEmpty
-              ? null
-              : _korektifCtrl.text.trim(),
-          'tindakan_preventif': _preventifCtrl.text.trim().isEmpty
-              ? null
-              : _preventifCtrl.text.trim(),
-          'tanggal_resolusi':
-              DateTime.now().toIso8601String().substring(0, 10),
-          'foto_resolusi': imageUrl,
-        });
-        await supabase
-            .from('accident_report')
-            .update({'status': 'Selesai'}).eq('id_laporan', widget.reportId);
-      } else {
-        await supabase.from('resolution_accident').update({
-          'judul_resolusi': _judulCtrl.text.trim(),
-          'deskripsi_resolusi': _descCtrl.text.trim(),
-          'tindakan_korektif': _korektifCtrl.text.trim().isEmpty
-              ? null
-              : _korektifCtrl.text.trim(),
-          'tindakan_preventif': _preventifCtrl.text.trim().isEmpty
-              ? null
-              : _preventifCtrl.text.trim(),
-          'updated_at': DateTime.now().toIso8601String(),
-          'foto_resolusi': imageUrl,
-        }).eq('id_resolution', _solution!['id_resolution']);
-      }
+      await supabase.from('resolution_accident').update({
+        'judul_resolusi': _judulCtrl.text.trim(),
+        'deskripsi_resolusi': _descCtrl.text.trim(),
+        'tindakan_korektif': _korektifCtrl.text.trim().isEmpty
+            ? null
+            : _korektifCtrl.text.trim(),
+        'tindakan_preventif': _preventifCtrl.text.trim().isEmpty
+            ? null
+            : _preventifCtrl.text.trim(),
+        'updated_at': DateTime.now().toIso8601String(),
+        'foto_resolusi': imageUrl,
+      }).eq('id_resolution', _solution!['id_resolution']);
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -873,7 +829,6 @@ class _HrdSolutionDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final bool isEdit = _solution != null;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4FF),
@@ -887,10 +842,10 @@ class _HrdSolutionDetailScreenState
         ),
         title: Text(
           widget.lang == 'EN'
-              ? (isEdit ? 'Edit Solution' : 'Add Solution')
+              ? 'Edit Solution'
               : widget.lang == 'ZH'
-                  ? (isEdit ? '编辑解决方案' : '添加解决方案')
-                  : (isEdit ? 'Edit Solusi' : 'Tambah Solusi'),
+                  ? '编辑解决方案'
+                  : 'Edit Solusi',
           style: GoogleFonts.poppins(
               color: const Color(0xFF16A34A),
               fontWeight: FontWeight.w700,
@@ -1103,17 +1058,11 @@ class _HrdSolutionDetailScreenState
                   borderRadius: BorderRadius.circular(16)),
             ),
             child: Text(
-              isEdit
-                  ? (widget.lang == 'ID'
-                      ? 'Perbarui Solusi'
-                      : widget.lang == 'ZH'
-                          ? '更新解决方案'
-                          : 'Update Solution')
-                  : (widget.lang == 'ID'
-                      ? 'Simpan Solusi'
-                      : widget.lang == 'ZH'
-                          ? '保存解决方案'
-                          : 'Save Solution'),
+              widget.lang == 'ID'
+                  ? 'Perbarui Solusi'
+                  : widget.lang == 'ZH'
+                      ? '更新解决方案'
+                      : 'Update Solution',
               style: GoogleFonts.inter(
                   fontSize: 16, fontWeight: FontWeight.w700),
             ),
