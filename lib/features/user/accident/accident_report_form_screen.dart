@@ -16,10 +16,8 @@ import 'picker/accident_pick_date.dart';
 import 'picker/accident_pick_location.dart';
 import 'picker/accident_pick_severity.dart';
 import 'picker/accident_pick_time.dart';
+import 'picker/accident_pick_witness.dart';
 
-// ============================================================
-// LAYAR FORM LAPORAN KECELAKAAN (CREATE & EDIT)
-// ============================================================
 class AccidentReportFormScreen extends StatefulWidget {
   final String lang;
   final Map<String, dynamic>? existingReport;
@@ -72,8 +70,6 @@ class _AccidentReportFormScreenState
       'victim': 'Pihak Terdampak',
       'select_victim': 'Pilih Pihak Terdampak',
       'supervisor': 'Supervisor',
-      'select_supervisor': 'Pilih Supervisor',
-      'supervisor_hint': 'Pilih pihak terdampak terlebih dahulu',
       'witness': 'Saksi',
       'select_witness': 'Pilih Saksi',
       'detail_title': 'Detail Kecelakaan',
@@ -123,8 +119,6 @@ class _AccidentReportFormScreenState
       'victim': 'Affected Party',
       'select_victim': 'Select Affected Party',
       'supervisor': 'Supervisor',
-      'select_supervisor': 'Select Supervisor',
-      'supervisor_hint': 'Please select affected party first',
       'witness': 'Witness',
       'select_witness': 'Select Witness',
       'detail_title': 'Accident Details',
@@ -173,8 +167,6 @@ class _AccidentReportFormScreenState
       'who_sub': '确认受伤人员和目击者',
       'victim': '受影响方',
       'select_victim': '选择受影响方',
-      'supervisor': '主管',
-      'select_supervisor': '选择主管',
       'supervisor_hint': '请先选择受影响方',
       'witness': '目击者',
       'select_witness': '选择目击者',
@@ -369,29 +361,23 @@ class _AccidentReportFormScreenState
     }
   }
 
-  Future<void> _showUserPicker({
-    required String role,
-    required Function(Map<String, dynamic>) onSelected,
-  }) async {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => _AccidentUserPickerSheet(
-        lang: widget.lang,
-        role: role,
-        filterLokasiId: (role == 'victim' || role == 'witness') ? _currentUserLokasiId : null,
-        filterUnitId: (role == 'victim' || role == 'witness') ? _currentUserUnitId : null,
-        filterSubunitId: (role == 'victim' || role == 'witness') ? _currentUserSubunitId : null,
-        filterAreaId: (role == 'victim' || role == 'witness') ? _currentUserAreaId : null,
-        onSelected: (u) async {
-          onSelected(u);
-          if (role == 'victim') await _autoLoadSupervisor(u);
-        },
-      ),
+  Future<void> _pickWitness() async {
+    final user = await showAccidentPickWitnessDialog(
+      context,
+      lang: widget.lang,
+      currentUserId: Supabase.instance.client.auth.currentUser?.id,
+      selectedUserId: _selectedWitness?['id_user']?.toString(),
+      currentLokasiId: _currentUserLokasiId,
+      currentUnitId: _currentUserUnitId,
+      currentSubunitId: _currentUserSubunitId,
+      currentAreaId: _currentUserAreaId,
     );
+    if (user != null) {
+      setState(() {
+        _selectedWitness = user;
+        _witnessManualName = null;
+      });
+    }
   }
 
   Future<void> _autoLoadSupervisor(Map<String, dynamic> victim) async {
@@ -447,9 +433,6 @@ class _AccidentReportFormScreenState
           (_victimManualName != null && _victimManualName!.trim().isNotEmpty);
       if (!victimFilled) {
         missing.add(MissingFieldItem(icon: Icons.person_outline, label: t['victim']!));
-      }
-      if (_selectedSupervisor == null) {
-        missing.add(MissingFieldItem(icon: Icons.supervisor_account_outlined, label: t['supervisor']!));
       }
       final bool witnessFilled = _selectedWitness != null ||
           (_witnessManualName != null && _witnessManualName!.trim().isNotEmpty);
@@ -624,29 +607,13 @@ class _AccidentReportFormScreenState
                     }),
                   ),
                   const SizedBox(height: 10),
-                  _buildUserPickerCard(
-                    label: t['supervisor']!,
-                    value: _selectedSupervisor?['nama'],
-                    placeholder: (_selectedVictim == null && (_victimManualName == null || _victimManualName!.trim().isEmpty))
-                        ? t['supervisor_hint']! : t['select_supervisor']!,
-                    icon: Icons.supervisor_account_outlined,
-                    isLocked: _selectedVictim == null && (_victimManualName == null || _victimManualName!.trim().isEmpty),
-                    onTap: (_selectedVictim == null && (_victimManualName == null || _victimManualName!.trim().isEmpty))
-                        ? null
-                        : () => _showUserPicker(
-                              role: 'supervisor',
-                              onSelected: (u) => setState(() => _selectedSupervisor = u),
-                            ),
-                  ),
+                  _buildSupervisorCard(),
                   const SizedBox(height: 10),
                   _buildUserPickerWithManual(
                     label: t['witness']!, selectedUser: _selectedWitness,
                     manualName: _witnessManualName, placeholder: t['select_witness']!,
                     icon: Icons.visibility_outlined,
-                    onPickerTap: () => _showUserPicker(
-                      role: 'witness',
-                      onSelected: (u) => setState(() { _selectedWitness = u; _witnessManualName = null; }),
-                    ),
+                    onPickerTap: _pickWitness,
                     onManualChanged: (val) => setState(() { _witnessManualName = val; _selectedWitness = null; }),
                     onClear: () => setState(() { _selectedWitness = null; _witnessManualName = null; }),
                   ),
@@ -786,14 +753,15 @@ class _AccidentReportFormScreenState
     );
   }
 
-  Widget _buildLabel(String label, {required IconData icon}) {
+  Widget _buildLabel(String label, {required IconData icon, bool required = true}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8, left: 2),
       child: Row(children: [
         Icon(icon, size: 16, color: const Color(0xFF1D72F3)),
         const SizedBox(width: 6),
         Text(label, style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF1D72F3))),
-        const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed, fontWeight: FontWeight.bold)),
+        if (required)
+          const Text(' *', style: TextStyle(color: CupertinoColors.destructiveRed, fontWeight: FontWeight.bold)),
       ]),
     );
   }
@@ -999,29 +967,42 @@ class _AccidentReportFormScreenState
     );
   }
 
-  Widget _buildUserPickerCard({
-    required String label, required String? value, required String placeholder,
-    required IconData icon, VoidCallback? onTap, bool isLocked = false,
-  }) {
+  Widget _buildSupervisorCard() {
+    final hasValue = _selectedSupervisor != null;
+    final String displayText = hasValue
+        ? (_selectedSupervisor!['nama'] ?? '-')
+        : (widget.lang == 'EN'
+            ? 'Not yet available (select affected party first)'
+            : widget.lang == 'ZH'
+                ? '暂无数据（请先选择受影响方）'
+                : 'Belum tersedia (pilih pihak terdampak terlebih dahulu)');
+
     return _buildSectionCard(children: [
-      _buildLabel(label, icon: icon),
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFF),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: value != null ? const Color(0xFF2563EB) : const Color(0xFFE0E7FF), width: value != null ? 1.5 : 1),
+      _buildLabel(t['supervisor']!, icon: Icons.supervisor_account_outlined, required: false),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasValue ? const Color(0xFF16A34A).withValues(alpha: 0.4) : const Color(0xFFE0E7FF),
+            width: hasValue ? 1.5 : 1,
           ),
-          child: Row(children: [
-            Expanded(child: Text(value ?? placeholder,
-                style: GoogleFonts.inter(fontSize: 15, color: value != null ? Colors.black87 : const Color(0xFFCBD5E1), fontWeight: value != null ? FontWeight.w500 : FontWeight.normal))),
-            isLocked
-                ? const Icon(CupertinoIcons.lock_fill, color: Color(0xFFCBD5E1), size: 18)
-                : const Icon(CupertinoIcons.chevron_forward, color: Color(0xFF2563EB), size: 18),
-          ]),
         ),
+        child: Row(children: [
+          Expanded(
+            child: Text(
+              displayText,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color: hasValue ? Colors.black87 : const Color(0xFFCBD5E1),
+                fontWeight: hasValue ? FontWeight.w500 : FontWeight.normal,
+              ),
+            ),
+          ),
+          if (hasValue)
+            const Icon(CupertinoIcons.checkmark_circle_fill, color: Color(0xFF16A34A), size: 18),
+        ]),
       ),
     ]);
   }
@@ -1174,195 +1155,6 @@ class _AccidentReportFormScreenState
           ]),
         ),
       ),
-    );
-  }
-}
-
-// ============================================================
-// WIDGET PEMILIH USER
-// ============================================================
-class _AccidentUserPickerSheet extends StatefulWidget {
-  final String lang;
-  final String role;
-  final Function(Map<String, dynamic>) onSelected;
-  final String? filterLokasiId;
-  final String? filterUnitId;
-  final String? filterSubunitId;
-  final String? filterAreaId;
-
-  const _AccidentUserPickerSheet({
-    required this.lang, required this.role, required this.onSelected,
-    this.filterLokasiId, this.filterUnitId, this.filterSubunitId, this.filterAreaId,
-  });
-
-  @override
-  State<_AccidentUserPickerSheet> createState() => _AccidentUserPickerSheetState();
-}
-
-class _AccidentUserPickerSheetState extends State<_AccidentUserPickerSheet> {
-  List<Map<String, dynamic>> _users = [];
-  List<Map<String, dynamic>> _filtered = [];
-  bool _isLoading = true;
-  final _searchCtrl = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchUsers();
-    _searchCtrl.addListener(() {
-      final q = _searchCtrl.text.toLowerCase();
-      setState(() {
-        _filtered = _users.where((u) => u['nama'].toString().toLowerCase().contains(q)).toList();
-      });
-    });
-  }
-
-  @override
-  void dispose() { _searchCtrl.dispose(); super.dispose(); }
-
-  Future<void> _fetchUsers() async {
-    try {
-      final hasFilter = widget.filterLokasiId != null || widget.filterUnitId != null ||
-          widget.filterSubunitId != null || widget.filterAreaId != null;
-      List<Map<String, dynamic>> result = [];
-      const cols = 'id_user, nama, jabatan!User_id_jabatan_fkey(nama_jabatan), gambar_user, id_lokasi, id_unit, id_subunit, id_area';
-      final q = Supabase.instance.client.from('User').select(cols);
-
-      if (hasFilter) {
-        if (widget.filterAreaId != null) {
-          result = List<Map<String, dynamic>>.from(await q.eq('id_area', widget.filterAreaId!).order('nama'));
-        }
-        if (result.isEmpty && widget.filterSubunitId != null) {
-          result = List<Map<String, dynamic>>.from(await q.eq('id_subunit', widget.filterSubunitId!).order('nama'));
-        }
-        if (result.isEmpty && widget.filterUnitId != null) {
-          result = List<Map<String, dynamic>>.from(await q.eq('id_unit', widget.filterUnitId!).order('nama'));
-        }
-        if (result.isEmpty && widget.filterLokasiId != null) {
-          result = List<Map<String, dynamic>>.from(await q.eq('id_lokasi', widget.filterLokasiId!).order('nama'));
-        }
-      } else {
-        result = List<Map<String, dynamic>>.from(await q.order('nama'));
-      }
-
-      if (mounted) setState(() { _users = result; _filtered = result; _isLoading = false; });
-    } catch (e) {
-      debugPrint('Error fetching users: $e');
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  String get _roleTitle {
-    switch (widget.role) {
-      case 'victim': return widget.lang == 'EN' ? 'Select Affected Party' : widget.lang == 'ZH' ? '选择受影响方' : 'Pilih Pihak Terdampak';
-      case 'supervisor': return widget.lang == 'EN' ? 'Select Supervisor' : widget.lang == 'ZH' ? '选择主管' : 'Pilih Supervisor';
-      case 'witness': return widget.lang == 'EN' ? 'Select Witness' : widget.lang == 'ZH' ? '选择目击者' : 'Pilih Saksi';
-      default: return widget.lang == 'EN' ? 'Select User' : 'Pilih Pengguna';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      child: Column(children: [
-        Container(margin: const EdgeInsets.only(top: 10), width: 40, height: 4,
-            decoration: BoxDecoration(color: CupertinoColors.systemGrey4, borderRadius: BorderRadius.circular(2))),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-          child: Row(children: [
-            Expanded(child: Text(_roleTitle, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)))),
-            IconButton(icon: const Icon(CupertinoIcons.xmark, color: Color(0xFF94A3B8), size: 20), onPressed: () => Navigator.pop(context)),
-          ]),
-        ),
-        if (widget.filterLokasiId != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFBFDBFE))),
-              child: Row(children: [
-                const Icon(CupertinoIcons.location_fill, size: 13, color: Color(0xFF2563EB)),
-                const SizedBox(width: 6),
-                Text(
-                  widget.lang == 'EN' ? 'Showing users from your location' : 'Menampilkan pengguna di lokasi Anda',
-                  style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF2563EB), fontWeight: FontWeight.w500),
-                ),
-              ]),
-            ),
-          ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-          child: TextFormField(
-            controller: _searchCtrl,
-            style: GoogleFonts.inter(fontSize: 15),
-            decoration: InputDecoration(
-              hintText: widget.lang == 'EN' ? 'Search...' : widget.lang == 'ZH' ? '搜索...' : 'Cari...',
-              hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1)),
-              prefixIcon: const Icon(CupertinoIcons.search, color: Color(0xFF2563EB), size: 20),
-              filled: true, fillColor: const Color(0xFFF8FAFF),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: const BorderSide(color: Color(0xFFE0E7FF))),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5)),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text('${_filtered.length} ${widget.lang == 'EN' ? 'users found' : 'pengguna ditemukan'}',
-              style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
-        ),
-        const SizedBox(height: 6),
-        Expanded(
-          child: _isLoading
-              ? const Center(child: CupertinoActivityIndicator(radius: 14, color: Color(0xFF2563EB)))
-              : _filtered.isEmpty
-                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(CupertinoIcons.person_crop_circle_badge_xmark, size: 48, color: Color(0xFFE2E8F0)),
-                      const SizedBox(height: 12),
-                      Text(widget.lang == 'EN' ? 'No users found' : 'Tidak ada pengguna',
-                          style: GoogleFonts.inter(color: const Color(0xFF94A3B8), fontSize: 14)),
-                    ]))
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                      itemCount: _filtered.length,
-                      itemBuilder: (_, i) {
-                        final u = _filtered[i];
-                        final name = u['nama'] ?? '';
-                        final role = u['jabatan']?['nama_jabatan'] ?? '';
-                        return Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () { widget.onSelected(u); Navigator.pop(context); },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              margin: const EdgeInsets.only(bottom: 6),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFF1F5F9))),
-                              child: Row(children: [
-                                CircleAvatar(
-                                  radius: 20, backgroundColor: const Color(0xFFEFF6FF),
-                                  backgroundImage: u['gambar_user'] != null ? NetworkImage(u['gambar_user']) : null,
-                                  child: u['gambar_user'] == null
-                                      ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                          style: GoogleFonts.inter(color: const Color(0xFF2563EB), fontWeight: FontWeight.bold))
-                                      : null,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(name, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF1E293B))),
-                                  if (role.isNotEmpty) Text(role, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF94A3B8))),
-                                ])),
-                                const Icon(CupertinoIcons.chevron_right, size: 14, color: Color(0xFFCBD5E1)),
-                              ]),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-        ),
-      ]),
     );
   }
 }
