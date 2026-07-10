@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shimmer/shimmer.dart';
 
 class AdminHomeInfoCard extends StatelessWidget {
   final String adminName;
@@ -156,38 +155,12 @@ class AdminHomeInfoCard extends StatelessWidget {
                   ),
                 ),
                 Container(height: 1, color: Colors.white.withValues(alpha:0.18)),
-                // STATS
-                isLoadingStats
-                    ? _buildStatsShimmer()
-                    : _buildBannerStats(),
+                // STATS 
+                _buildBannerStats(),
                 const SizedBox(height: 4),
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatsShimmer() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      child: Shimmer.fromColors(
-        baseColor: Colors.grey.shade200,
-        highlightColor: Colors.grey.shade50,
-        child: Row(
-          children: List.generate(4, (_) {
-            return Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha:0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            );
-          }),
         ),
       ),
     );
