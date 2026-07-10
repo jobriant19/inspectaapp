@@ -4,6 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../core/utils/jabatan_helper.dart';
+import '../../accident/picker/accident_pick_cause.dart';
+import '../../accident/picker/accident_pick_severity.dart';
+
 class AccidentVerificationHistoryScreen extends StatefulWidget {
   final String lang;
   final int? userJabatanId;
@@ -105,6 +109,7 @@ class AccidentVerificationHistoryScreenState
                 nama,
                 id_jabatan,
                 gambar_user,
+                is_verificator,
                 jabatan:id_jabatan (nama_jabatan)
               )
             ''')
@@ -131,11 +136,13 @@ class AccidentVerificationHistoryScreenState
             final jabatanName =
                 rawVerif['jabatan']?['nama_jabatan']?.toString() ?? '';
             final fotoUrl = rawVerif['gambar_user']?.toString() ?? '';
+            final isVerificatorFlag = rawVerif['is_verificator'];
             verifDetailMap[vid] = {
               'nama': nama,
               'jabatan': jabatanName,
               'jabatan_id': jabatanId?.toString() ?? '',
               'foto_url': fotoUrl,
+              'is_verificator': isVerificatorFlag?.toString() ?? '',
             };
           }
 
@@ -211,21 +218,29 @@ class AccidentVerificationHistoryScreenState
     final String title = data['judul']?.toString() ?? '-';
     final String? imageUrl = data['foto_bukti']?.toString();
     final bool? finalOutcome = data['hasil_verifikasi_mayoritas'] as bool?;
-    final String severity = data['tingkat_keparahan'] ?? '';
+
+    final rawSeverity = data['tingkat_keparahan'] as String?;
+    final String severityLabel = AccidentSeverityData.labelOf(rawSeverity, _lang);
+    final Color sevColor = AccidentSeverityData.colorOf(rawSeverity);
+    final IconData severityIcon = AccidentSeverityData.iconOf(rawSeverity);
+
+    final rawCause = data['penyebab'] as String?;
+    final String causeLabel = AccidentCauseData.labelOf(rawCause, _lang);
+    final Color causeColor = AccidentCauseData.colorOf(rawCause);
+    final IconData causeIcon = AccidentCauseData.iconOf(rawCause);
+
     final String lokasiName = data['lokasi']?['nama_lokasi']?.toString() ?? '-';
-    final String pelaporName = data['pelapor']?['nama']?.toString() ?? '-';
 
     String finalisasiDateStr = '-';
     try {
       final rawDate = data['updated_at'] ?? data['created_at'];
       if (rawDate != null) {
         final dt = DateTime.parse(rawDate.toString()).toLocal();
-        finalisasiDateStr = DateFormat('dd MMM yyyy, HH:mm').format(dt);
+        finalisasiDateStr = DateFormat('dd MMM yyyy').format(dt);
       }
     } catch (_) {}
 
-    final stats =
-        lid != null ? (_accidentVoteStats[lid] ?? {}) : <String, dynamic>{};
+    final stats = lid != null ? (_accidentVoteStats[lid] ?? {}) : <String, dynamic>{};
 
     final Map<String, Map<String, String>> verifDetailMap =
         (stats['verif_detail_map'] as Map?)?.map(
@@ -239,21 +254,16 @@ class AccidentVerificationHistoryScreenState
 
     final Color accent =
         finalOutcome == true ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-    final String statusLabel =
-        finalOutcome == true ? t('valid') : t('invalid');
+    final String statusLabel = finalOutcome == true ? t('valid') : t('invalid');
     final IconData statusIcon =
         finalOutcome == true ? Icons.verified_rounded : Icons.cancel_rounded;
-
-    final Color sevColor = severity == 'Berat'
-        ? const Color(0xFFDC2626)
-        : severity == 'Menengah'
-            ? const Color(0xFFF97316)
-            : const Color(0xFF16A34A);
 
     final int totalVotes = (stats['total'] as int?) ?? 0;
     final double validRatio = totalVotes > 0
         ? ((stats['valid_count'] as int?) ?? 0) / totalVotes
         : 0.0;
+
+    const double imgSize = 85;
 
     return GestureDetector(
       onTap: () => _showAccidentHistoryDetail(
@@ -264,35 +274,53 @@ class AccidentVerificationHistoryScreenState
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withValues(alpha:0.25), width: 1.5),
+          border: Border.all(color: accent, width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: accent.withValues(alpha:0.08),
-                blurRadius: 14,
-                offset: const Offset(0, 4))
+                color: accent.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 4)),
           ],
         ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-              child: Row(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── BARIS UTAMA: GAMBAR + KONTEN (gaya accident_report_list_screen) ──
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      color: Colors.grey.shade100,
+                  Container(
+                    width: imgSize,
+                    height: imgSize,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          sevColor.withValues(alpha: 0.15),
+                          sevColor.withValues(alpha: 0.08),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: Colors.black.withValues(alpha: 0.15), width: 1.5),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12.5),
                       child: imageUrl != null
-                          ? Image.network(imageUrl,
+                          ? Image.network(
+                              imageUrl,
+                              width: imgSize,
+                              height: imgSize,
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => Icon(
                                   Icons.warning_amber_rounded,
-                                  color: sevColor, size: 28))
+                                  color: sevColor, size: 30),
+                            )
                           : Icon(Icons.warning_amber_rounded,
-                              color: sevColor, size: 28),
+                              color: sevColor, size: 30),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -300,102 +328,150 @@ class AccidentVerificationHistoryScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDC2626),
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Text(
-                              _lang == 'ID' ? 'KECELAKAAN'
-                                  : _lang == 'ZH' ? '事故' : 'ACCIDENT',
-                              style: GoogleFonts.poppins(
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white),
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: sevColor.withValues(alpha:0.1),
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(
-                                  color: sevColor.withValues(alpha:0.4), width: 1),
-                            ),
-                            child: Text(severity,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 8,
+                        // JUDUL + SEVERITY BADGE (badge "ACCIDENT" dihapus)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
                                     fontWeight: FontWeight.w700,
-                                    color: sevColor)),
-                          ),
-                        ]),
-                        const SizedBox(height: 5),
-                        Text(title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF1E3A8A),
-                                height: 1.25)),
-                        const SizedBox(height: 5),
-                        Row(children: [
-                          const Icon(Icons.place_rounded,
-                              size: 12, color: Color(0xFF0891B2)),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(lokasiName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF0891B2))),
-                          ),
-                        ]),
-                        const SizedBox(height: 3),
-                        Row(children: [
-                          Icon(Icons.person_outline,
-                              size: 12, color: Colors.grey.shade500),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(pelaporName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade600)),
-                          ),
-                        ]),
+                                    fontSize: 14,
+                                    height: 1.3,
+                                    color: const Color(0xFF0F172A)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: sevColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(9),
+                                border: Border.all(color: sevColor, width: 1.2),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(severityIcon, size: 11, color: sevColor),
+                                  const SizedBox(width: 3),
+                                  Text(severityLabel,
+                                      style: GoogleFonts.inter(
+                                          color: sevColor,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 10)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 4),
+
+                        // LOKASI BADGE
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color:
-                                const Color(0xFF1E3A8A).withValues(alpha:0.06),
-                            borderRadius: BorderRadius.circular(8),
+                            color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                                color: const Color(0xFF1E3A8A)
-                                    .withValues(alpha:0.12)),
+                                color: const Color(0xFF10B981).withValues(alpha: 0.4)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.verified_rounded,
-                                  size: 11, color: Color(0xFF1E3A8A)),
+                              const Icon(Icons.location_city_rounded,
+                                  size: 12, color: Color(0xFF10B981)),
                               const SizedBox(width: 4),
-                              Text(
-                                '${_lang == 'ID' ? 'Final' : 'Finalized'}: $finalisasiDateStr',
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF1E3A8A)),
+                              Flexible(
+                                child: Text(
+                                  lokasiName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF10B981)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+
+                        // PENYEBAB CHIP
+                        Row(children: [
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: causeColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(causeIcon, size: 10, color: causeColor),
+                                  const SizedBox(width: 4),
+                                  Text(causeLabel,
+                                      style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          color: causeColor,
+                                          fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ]),
+                        const SizedBox(height: 8),
+
+                        // TANGGAL FINAL + STATUS VALID/INVALID
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(13),
+                            border: Border.all(
+                                color: const Color(0xFFE2E8F0), width: 1.1),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_month_rounded,
+                                  size: 14, color: Color(0xFF64748B)),
+                              const SizedBox(width: 5),
+                              Text(finalisasiDateStr,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11.5,
+                                      color: const Color(0xFF475569),
+                                      fontWeight: FontWeight.w600)),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                      color: accent.withValues(alpha: 0.35)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(statusIcon, size: 13, color: accent),
+                                    const SizedBox(width: 4),
+                                    Text(statusLabel,
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: accent)),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -403,170 +479,146 @@ class AccidentVerificationHistoryScreenState
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: accent,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withValues(alpha:0.4),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(statusIcon, color: Colors.white, size: 18),
-                            const SizedBox(height: 3),
-                            Text(
-                              statusLabel,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
-            ),
-            Container(height: 1, color: Colors.grey.shade100),
-            if (verifDetailMap.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      const Icon(Icons.verified_user_rounded,
-                          size: 13, color: Color(0xFF1E3A8A)),
-                      const SizedBox(width: 5),
-                      Text(
-                        _lang == 'ID' ? 'Diverifikasi Oleh'
-                            : _lang == 'ZH' ? '由...验证' : 'Verified By',
-                        style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1E3A8A)),
-                      ),
-                    ]),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: verifDetailMap.entries.map((entry) {
-                        final nama = entry.value['nama'] ?? '-';
-                        final jabatan = entry.value['jabatan'] ?? '';
-                        final jabatanId = entry.value['jabatan_id'] ?? '';
-                        final fotoUrl = entry.value['foto_url'] ?? '';
 
-                        Color badgeColor;
-                        IconData badgeIcon;
-                        if (jabatanId == '5') {
-                          badgeColor = const Color(0xFFEC4899);
-                          badgeIcon = Icons.people_rounded;
-                        } else if (jabatanId == '2') {
-                          badgeColor = const Color(0xFF3B82F6);
-                          badgeIcon = Icons.workspace_premium_rounded;
-                        } else if (jabatanId == '1') {
-                          badgeColor = const Color(0xFFFB7185);
-                          badgeIcon = Icons.workspace_premium_rounded;
-                        } else {
-                          badgeColor = const Color(0xFF8B5CF6);
-                          badgeIcon = Icons.badge_rounded;
-                        }
-
-                        return Container(
-                          padding:
-                              const EdgeInsets.fromLTRB(6, 5, 10, 5),
-                          decoration: BoxDecoration(
-                            color: badgeColor.withValues(alpha:0.07),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                                color: badgeColor.withValues(alpha:0.25),
-                                width: 1),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: badgeColor.withValues(alpha:0.15),
-                                  border: Border.all(
-                                      color: badgeColor.withValues(alpha:0.4),
-                                      width: 1.5),
-                                ),
-                                child: ClipOval(
-                                  child: fotoUrl.isNotEmpty
-                                      ? Image.network(fotoUrl,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
-                                              Icon(badgeIcon,
-                                                  size: 14,
-                                                  color: badgeColor))
-                                      : Icon(badgeIcon,
-                                          size: 14, color: badgeColor),
-                                ),
-                              ),
-                              const SizedBox(width: 7),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(nama,
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: badgeColor)),
-                                  if (jabatan.isNotEmpty)
-                                    Text(jabatan,
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 9,
-                                            color:
-                                                badgeColor.withValues(alpha:0.7),
-                                            fontWeight: FontWeight.w500)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
+              // ── VERIFIED BY — gaya sama seperti "Reported by" pada accident detail ──
+              const SizedBox(height: 12),
+              Container(height: 1, color: Colors.grey.shade100),
+              const SizedBox(height: 10),
+              if (verifDetailMap.isNotEmpty) ...[
+                Row(children: [
+                  const Icon(Icons.verified_user_rounded,
+                      size: 14, color: Color(0xFF1D72F3)),
+                  const SizedBox(width: 6),
+                  Text(
+                    _lang == 'ID'
+                        ? 'Diverifikasi Oleh'
+                        : _lang == 'ZH'
+                            ? '验证人'
+                            : 'Verified By',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1D72F3)),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFF),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE0E7FF), width: 1),
+                  ),
+                  child: Column(
+                    children: verifDetailMap.entries.map((entry) {
+                      final isLast = entry.key == verifDetailMap.keys.last;
+                      return Column(
+                        children: [
+                          _buildVerifiedPersonRow(entry.value),
+                          if (!isLast)
+                            Container(height: 1, color: const Color(0xFFF1F5F9)),
+                        ],
+                      );
+                    }).toList(),
+                  ),
                 ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                child: Row(children: [
+              ] else
+                Row(children: [
                   Icon(Icons.info_outline_rounded,
                       size: 13, color: Colors.grey.shade400),
                   const SizedBox(width: 5),
                   Text(
                     _lang == 'ID'
                         ? 'Belum ada yang memverifikasi'
-                        : 'No verifier yet',
+                        : _lang == 'ZH'
+                            ? '暂无验证人'
+                            : 'No verifier yet',
                     style: GoogleFonts.poppins(
                         fontSize: 11, color: Colors.grey.shade400),
                   ),
                 ]),
-              ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  // Baris satu verifikator, gaya identik "Reported by" pada accident_detail_screen
+  Widget _buildVerifiedPersonRow(Map<String, String> verifier) {
+    final nama = (verifier['nama']?.isNotEmpty ?? false) ? verifier['nama']! : '-';
+    final fotoUrl = verifier['foto_url'] ?? '';
+    final jabatanNama = verifier['jabatan'] ?? '';
+    final idJabatan = int.tryParse(verifier['jabatan_id'] ?? '');
+    final isVerificatorRaw = verifier['is_verificator'] ?? '';
+    final bool? isVerificatorFlag = isVerificatorRaw == 'true'
+        ? true
+        : (isVerificatorRaw == 'false' ? false : null);
+
+    final String jabatanLabel = JabatanHelper.getDisplayRole(
+      isVerificatorFlag: isVerificatorFlag,
+      idJabatan: idJabatan,
+      jabatanFromDb: jabatanNama.isNotEmpty ? jabatanNama : null,
+      lang: _lang,
+    );
+    final Color badgeColor = JabatanHelper.getPrimaryColor(
+        isVerificatorFlag: isVerificatorFlag, idJabatan: idJabatan);
+    final IconData badgeIcon = JabatanHelper.getRoleIcon(
+        isVerificatorFlag: isVerificatorFlag, idJabatan: idJabatan);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          fotoUrl.isNotEmpty
+              ? CircleAvatar(radius: 18, backgroundImage: NetworkImage(fotoUrl))
+              : Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                      color: Color(0xFFEFF6FF), shape: BoxShape.circle),
+                  child: const Icon(Icons.person_rounded,
+                      size: 18, color: Color(0xFF1D72F3)),
+                ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(nama,
+                    style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                        color: Colors.black)),
+                if (jabatanLabel.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: badgeColor.withValues(alpha: 0.4), width: 1),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(badgeIcon, size: 11, color: badgeColor),
+                      const SizedBox(width: 4),
+                      Text(jabatanLabel,
+                          style: GoogleFonts.inter(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: badgeColor)),
+                    ]),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
