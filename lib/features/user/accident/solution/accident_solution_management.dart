@@ -7,10 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import '../home/popup/location_permission_popup.dart';
-import 'accident_result_popup.dart';
-import 'picker/accident_pick_cause.dart';
-import 'picker/accident_pick_severity.dart';
+import '../../home/popup/location_permission_popup.dart';
+import '../accident_result_popup.dart';
+import '../picker/accident_pick_cause.dart';
+import '../picker/accident_pick_severity.dart';
 
 class AccidentSolutionManagementScreen extends StatefulWidget {
   final String lang;

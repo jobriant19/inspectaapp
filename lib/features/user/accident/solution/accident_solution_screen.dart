@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/utils/jabatan_helper.dart';
+import '../../../../core/utils/jabatan_helper.dart';
 
 class AccidentResolutionScreen extends StatefulWidget {
   final String reportId;

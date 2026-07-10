@@ -8,7 +8,7 @@ import '../home/popup/location_permission_popup.dart';
 import 'accident_detail_screen.dart';
 import 'accident_report_form_screen.dart';
 import 'accident_result_popup.dart';
-import 'accident_solution_management.dart';
+import 'solution/accident_solution_management.dart';
 import 'picker/accident_pick_cause.dart';
 import 'picker/accident_pick_severity.dart';
 
