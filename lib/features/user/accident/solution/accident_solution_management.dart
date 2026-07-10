@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../accident_detail_screen.dart';
 import '../picker/accident_pick_cause.dart';
 import '../picker/accident_pick_severity.dart';
 import 'accident_add_solution.dart';
@@ -423,7 +424,7 @@ class _AccidentSolutionManagementScreenState
   Color _statusColor(String status) {
     switch (status) {
       case 'Ditinjau':
-        return const Color(0xFF2563EB);
+        return const Color(0xFFF97316); // Perlu Solusi -> oranye
       case 'Selesai':
         return const Color(0xFF16A34A);
       default:
@@ -434,7 +435,7 @@ class _AccidentSolutionManagementScreenState
   Color _statusBg(String status) {
     switch (status) {
       case 'Ditinjau':
-        return const Color(0xFFEFF6FF);
+        return const Color(0xFFFFF7ED);
       case 'Selesai':
         return const Color(0xFFF0FDF4);
       default:
@@ -445,7 +446,7 @@ class _AccidentSolutionManagementScreenState
   IconData _statusIconFor(String status) {
     switch (status) {
       case 'Ditinjau':
-        return Icons.visibility_rounded;
+        return Icons.build_circle_rounded; // ikon "perlu solusi"
       case 'Selesai':
         return Icons.check_circle_rounded;
       default:
@@ -457,10 +458,10 @@ class _AccidentSolutionManagementScreenState
     switch (status) {
       case 'Ditinjau':
         return widget.lang == 'EN'
-            ? 'Under Review'
+            ? 'Needs Solution'
             : widget.lang == 'ZH'
-                ? '审核中'
-                : 'Ditinjau';
+                ? '需要解决方案'
+                : 'Perlu Solusi';
       case 'Selesai':
         return widget.lang == 'EN'
             ? 'Completed'
@@ -515,7 +516,25 @@ class _AccidentSolutionManagementScreenState
 
     return GestureDetector(
       onTap: () async {
+        final status = (r['status'] ?? '').toString();
         final existingSolution = r['_resolution'] as Map<String, dynamic>?;
+
+        if (status == 'Menunggu') {
+          final changed = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AccidentReportDetailScreen(
+                reportId: r['id_laporan'] as String,
+                lang: widget.lang,
+              ),
+            ),
+          );
+          if (changed == true) _fetchReports();
+          return;
+        }
+
+        // Status Ditinjau (Perlu Solusi) & belum ada solusi -> tambah solusi.
+        // Status Selesai (sudah ada solusi) -> edit solusi.
         final changed = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
@@ -679,10 +698,10 @@ class _AccidentSolutionManagementScreenState
     switch (status) {
       case 'Ditinjau':
         return widget.lang == 'EN'
-            ? 'No reports under review'
+            ? 'No reports need a solution yet'
             : widget.lang == 'ZH'
-                ? '没有正在审核的报告'
-                : 'Belum ada laporan yang sedang ditinjau';
+                ? '暂无需要解决方案的报告'
+                : 'Belum ada laporan yang perlu solusi';
       case 'Selesai':
         return widget.lang == 'EN'
             ? 'No completed reports yet'

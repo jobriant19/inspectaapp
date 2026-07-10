@@ -4,11 +4,6 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
-// ============================================================
-// ADMIN VERIFICATION SCREEN
-// Mengatur konfigurasi sistem verifikasi dan menampilkan
-// hasil semua verifikasi (temuan & accident report)
-// ============================================================
 class AdminVerificationScreen extends StatefulWidget {
   final String lang;
   const AdminVerificationScreen({super.key, required this.lang});
@@ -2548,18 +2543,6 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
     );
   }
 
-  Widget _buildVoteChip(IconData icon, String label, Color color) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 11, color: color),
-      const SizedBox(width: 3),
-      Text(label,
-          style: GoogleFonts.poppins(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: color)),
-    ]);
-  }
-
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -2645,25 +2628,6 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
           ),
         ),
       ],
-    );
-  }
-
-  // ── Helper vote pill untuk findings card ──
-  Widget _AdminVotePill(
-      {required String label, required Color color, required IconData icon}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withOpacity(0.3), width: 1)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 9, color: color),
-        const SizedBox(width: 3),
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
-      ]),
     );
   }
 }

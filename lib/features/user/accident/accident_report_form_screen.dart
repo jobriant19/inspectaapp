@@ -534,6 +534,7 @@ class _AccidentReportFormScreenState
             : null;
         await supabase.from('accident_report').insert({
           ...data,
+          'status': 'Menunggu',
           'id_pelapor': user.id,
           'id_pihak_terdampak': victimId,
           'nama_pihak_terdampak': victimManual,
