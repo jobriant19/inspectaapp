@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../../core/services/notification_service.dart';
 import 'accident_verification.dart';
+import 'finding_verification_history.dart';
 
 // Tambahkan di luar class, di bawah semua import
 void unawaited(Future<void> future) {
@@ -38,17 +38,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   bool _showSuccess = false;
   Map<String, dynamic>? _temuanData;
 
-  bool _historyLoading = false;
-  List<Map<String, dynamic>> _historyList = [];
-  Map<String, Map<String, dynamic>> _voteStats = {};
-  Map<String, int> _historyPointMap = {};
-
   int _countdown = 5;
   Timer? _countdownTimer;
   int _verificationSecondsLeft = 300;
   Timer? _verificationTimer;
-  bool _verificationExpired = false;
-  bool _allVotedByUser = false;
 
   int _tabIndex = 0;
 
@@ -57,11 +50,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
   // ── Konfigurasi verifikasi dari DB ──
   int _verifikasiDurasiHari = 7;
-  int _minSuaraFinalisasi = 3;
-  bool _autoValidJikaTimeout = true;
   
   bool _isDecoyMode = false;
-  Map<String, dynamic>? _decoyData;
 
   // Internal: set berisi index sesi verifikasi mana yang akan jadi decoy
   // dalam batch 10 verifikasi berikutnya. Diisi ulang setiap batch habis.
@@ -81,9 +71,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       'card_title': 'Verification Review',
       'card_subtitle': 'Examine the finding & completion carefully. Is this report valid?',
       'finding': 'Finding',
-      'completion': 'Completion',
+      'completion': 'Solution',
       'finding_notes': 'Finding Notes',
-      'completion_notes': 'Completion Notes',
+      'completion_notes': 'Solution Notes',
       'category': 'Category',
       'location': 'Location',
       'swipe_correct': 'SWIPE — VALID',
@@ -132,9 +122,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       'card_title': 'Tinjauan Verifikasi',
       'card_subtitle': 'Periksa temuan & penyelesaian dengan teliti. Apakah laporan ini valid?',
       'finding': 'Temuan',
-      'completion': 'Penyelesaian',
+      'completion': 'Solusi',
       'finding_notes': 'Catatan Temuan',
-      'completion_notes': 'Catatan Penyelesaian',
+      'completion_notes': 'Catatan Solusi',
       'category': 'Kategori',
       'location': 'Lokasi',
       'swipe_correct': 'GESER — VALID',
@@ -183,9 +173,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       'card_title': '验证审查',
       'card_subtitle': '仔细检查发现和完成情况。此报告是否有效？',
       'finding': '发现',
-      'completion': '完成',
+      'completion': '解决方案',
       'finding_notes': '发现说明',
-      'completion_notes': '完成说明',
+      'completion_notes': '解决方案说明',
       'category': '类别',
       'location': '地点',
       'swipe_correct': '滑动 — 有效',
@@ -261,10 +251,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             _verifikasiDurasiHari = row['nilai_int'] ?? 7;
             break;
           case 'min_suara_finalisasi':
-            _minSuaraFinalisasi = row['nilai_int'] ?? 3;
             break;
           case 'auto_valid_jika_timeout':
-            _autoValidJikaTimeout = (row['nilai_int'] ?? 1) == 1;
             break;
           // Hapus case 'jeda_decoy_min' dan 'jeda_decoy_max'
           // Admin tidak lagi mengatur posisi decoy
@@ -316,7 +304,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       _temuanData = null;
       _showVerifPopup = false;
       _isDecoyMode = false;
-      _decoyData = null;
     });
 
     try {
@@ -380,17 +367,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
       if (result == null) {
         await _checkAndAutoFinalizeTimeout();
-        final totalEligible = await _client
-            .from('temuan')
-            .select('id_temuan')
-            .eq('status_temuan', 'Selesai')
-            .eq('is_verif', false);
         setState(() {
           _noData = true;
           _isLoading = false;
-          _allVotedByUser = verifiedIds.isNotEmpty &&
-              totalEligible
-                  .every((t) => verifiedIds.contains(t['id_temuan']));
         });
         return;
       }
@@ -427,14 +406,12 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           setState(() {
             _noData = true;
             _isLoading = false;
-            _allVotedByUser = true;
           });
           return;
         }
         setState(() {
           _temuanData = nextResult;
           _isLoading = false;
-          _allVotedByUser = false;
         });
         _startCountdown();
         return;
@@ -443,7 +420,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       setState(() {
         _temuanData = result;
         _isLoading = false;
-        _allVotedByUser = false;
       });
       _startCountdown();
     } catch (e) {
@@ -542,10 +518,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       // karena gambar temuan dan penyelesaian sengaja tidak cocok
       setState(() {
         _isDecoyMode = true;
-        _decoyData = Map.from(primary); // simpan data asli untuk referensi
+// simpan data asli untuk referensi
         _temuanData = decoyTemuan;       // tampilkan yang sudah di-swap
         _isLoading = false;
-        _allVotedByUser = false;
       });
       _startCountdown();
     } catch (e) {
@@ -587,7 +562,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     // Durasi dari config (dalam hari), untuk UI tampilkan 5 menit sebagai batas baca
     setState(() {
       _verificationSecondsLeft = 120;
-      _verificationExpired = false;
     });
     _verificationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
@@ -598,7 +572,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         setState(() => _verificationSecondsLeft--);
       } else {
         timer.cancel();
-        setState(() => _verificationExpired = true);
         _loadNextTemuan();
       }
     });
@@ -765,7 +738,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       if (mounted) {
         setState(() {
           _isDecoyMode = false;
-          _decoyData = null;
           _showSuccess = false;
         });
         _loadNextTemuan();
@@ -1028,175 +1000,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     );
   }
 
-  Future<void> _loadHistory() async {
-    setState(() => _historyLoading = true);
-    try {
-      final userId = _client.auth.currentUser!.id;
-
-      final response = await _client
-          .from('verifikasi_log')
-          .select('''
-            id_log,
-            jawaban_benar,
-            waktu_verifikasi,
-            temuan:id_temuan (
-              id_temuan,
-              judul_temuan,
-              deskripsi_temuan,
-              gambar_temuan,
-              status_temuan,
-              is_verif,
-              hasil_verifikasi_mayoritas,
-              created_at,
-              lokasi:id_lokasi (nama_lokasi),
-              area:id_area (nama_area),
-              unit:id_unit (nama_unit),
-              kategoritemuan:id_kategoritemuan_uuid (nama_kategoritemuan),
-              penyelesaian:id_penyelesaian (
-                gambar_penyelesaian,
-                catatan_penyelesaian,
-                tanggal_selesai
-              )
-            )
-          ''')
-          .eq('id_verificator', userId)
-          .order('waktu_verifikasi', ascending: false);
-
-      final List<Map<String, dynamic>> processed = [];
-      final List<String> temuanIds = [];
-
-      for (final item in response) {
-        final rawTemuan = item['temuan'];
-        if (rawTemuan == null) continue;
-        final data = Map<String, dynamic>.from(rawTemuan as Map);
-        data['user_vote'] = item['jawaban_benar'] as bool? ?? false;
-        data['waktu_verifikasi'] = item['waktu_verifikasi'];
-        data['id_log'] = item['id_log'];
-        processed.add(data);
-        final tid = data['id_temuan']?.toString();
-        if (tid != null && tid.isNotEmpty) temuanIds.add(tid);
-      }
-
-      final Map<String, Map<String, dynamic>> voteStats = {};
-      if (temuanIds.isNotEmpty) {
-        final allVotes = await _client
-            .from('verifikasi_log')
-            .select('id_temuan, jawaban_benar')
-            .inFilter('id_temuan', temuanIds);
-
-        // Hitung total verificator gabungan: id_jabatan=1 AND is_verificator=true
-        // PLUS semua is_verificator=true (union, deduplicated)
-        int totalVerificators = 0;
-        try {
-          // Ambil semua user dengan id_jabatan=1 ATAU is_verificator=true
-          // sesuai query: WHERE id_jabatan = 1 OR is_verificator = true
-          final jabatanUsers = await _client
-              .from('User')
-              .select('id_user')
-              .eq('id_jabatan', 1);
-          
-          final verifUsers = await _client
-              .from('User')
-              .select('id_user')
-              .eq('is_verificator', true);
-
-          // Gabungkan dengan deduplikasi (union)
-          final Set<String> allIds = {};
-          for (final v in jabatanUsers) {
-            allIds.add(v['id_user'].toString());
-          }
-          for (final v in verifUsers) {
-            allIds.add(v['id_user'].toString());
-          }
-          totalVerificators = allIds.length;
-
-          // Fallback minimal
-          if (totalVerificators == 0) totalVerificators = 1;
-        } catch (e) {
-          debugPrint('Load verificators error: $e');
-          totalVerificators = 1;
-        }
-
-        for (final tid in temuanIds) {
-          final votesForTemuan =
-              allVotes.where((v) => v['id_temuan']?.toString() == tid).toList();
-          final int validCount =
-              votesForTemuan.where((v) => v['jawaban_benar'] == true).length;
-          final int invalidCount =
-              votesForTemuan.where((v) => v['jawaban_benar'] == false).length;
-          voteStats[tid] = {
-            'valid_count': validCount,
-            'invalid_count': invalidCount,
-            'total': validCount + invalidCount,
-            'total_verificators': totalVerificators,
-          };
-        }
-      }
-
-      // Poin map
-      final Map<String, int> pointMap = {};
-      try {
-        final pointLogs = await _client
-            .from('log_poin')
-            .select('poin, tipe_aktivitas, created_at, deskripsi')
-            .eq('id_user', userId)
-            .inFilter('tipe_aktivitas', [
-              'verifikasi_partisipasi',
-              'verifikasi_benar',
-              'verifikasi_salah',
-            ])
-            .order('created_at', ascending: false);
-
-        for (int i = 0; i < processed.length; i++) {
-          final tid = processed[i]['id_temuan']?.toString();
-          if (tid == null || tid.isEmpty) continue;
-
-          // Cek log yang punya marker #T{id}
-          int net = 0;
-          for (final log in pointLogs) {
-            final desc = log['deskripsi']?.toString() ?? '';
-            final tipe = log['tipe_aktivitas']?.toString() ?? '';
-
-            // Partisipasi: cari berdasarkan waktu ±30 detik
-            if (tipe == 'verifikasi_partisipasi') {
-              final rawWaktu = processed[i]['waktu_verifikasi'];
-              if (rawWaktu != null) {
-                final verifyTime =
-                    DateTime.parse(rawWaktu.toString()).toUtc();
-                final rawCt = log['created_at'];
-                if (rawCt != null) {
-                  final logTime = DateTime.parse(rawCt.toString()).toUtc();
-                  if (logTime.difference(verifyTime).inSeconds.abs() <= 30) {
-                    net += (log['poin'] as num).toInt();
-                  }
-                }
-              }
-            }
-            // Bonus/penalti: cari berdasarkan marker #T{id}
-            else if (desc.contains('#T$tid')) {
-              net += (log['poin'] as num).toInt();
-            }
-          }
-          pointMap[tid] = net;
-        }
-      } catch (e) {
-        debugPrint('Load point map error: $e');
-      }
-
-      if (mounted) {
-        setState(() {
-          _historyList = processed;
-          _voteStats = voteStats;
-          _historyPointMap = pointMap;
-          _historyLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Load history error: $e');
-      if (mounted) setState(() => _historyLoading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isHrdMode) {
@@ -1215,7 +1018,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 _buildHeader(),
                 _buildTabBar(),
                 Expanded(
-                  child: _tabIndex == 0 ? _buildVerifyTab() : _buildHistoryTab(),
+                  child: _tabIndex == 0
+                      ? _buildVerifyTab()
+                      : FindingVerificationHistory(lang: _lang),
                 ),
               ],
             ),
@@ -1543,7 +1348,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF1E3A8A),
+                color: const Color(0xFF1D72F3),
               ),
             ),
           ),
@@ -1607,13 +1412,13 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
                     color: _tabIndex == 0
-                        ? const Color(0xFF0EA5E9)
+                        ? const Color(0xFF1D72F3)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: _tabIndex == 0
                         ? [
                             BoxShadow(
-                              color: const Color(0xFF0EA5E9).withValues(alpha:0.3),
+                              color: const Color(0xFF1D72F3).withValues(alpha:0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             )
@@ -1627,7 +1432,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           size: 15,
                           color: _tabIndex == 0
                               ? Colors.white
-                              : const Color(0xFF0EA5E9)),
+                              : const Color(0xFF1D72F3)),
                       const SizedBox(width: 5),
                       Text(
                         t('tab_verify'),
@@ -1636,7 +1441,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                           fontSize: 14,
                           color: _tabIndex == 0
                               ? Colors.white
-                              : const Color(0xFF0EA5E9),
+                              : const Color(0xFF1D72F3),
                         ),
                       ),
                     ],
@@ -1650,7 +1455,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 onTap: () {
                   if (_tabIndex != 1) {
                     setState(() => _tabIndex = 1);
-                    _loadHistory();
                   }
                 },
                 child: AnimatedContainer(
@@ -1805,11 +1609,13 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             children: [
               _ImageBox(
                   label: t('finding'),
+                  labelIcon: Icons.report_problem_outlined,
                   url: temuan['gambar_temuan'],
                   color: const Color(0xFFFF6B6B)),
               const SizedBox(width: 12),
               _ImageBox(
                   label: t('completion'),
+                  labelIcon: Icons.task_alt_rounded,
                   url: temuan['penyelesaian']?['gambar_penyelesaian'],
                   color: const Color(0xFF4ADE80)),
             ],
@@ -1817,22 +1623,31 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           const SizedBox(height: 14),
           _NoteCard(
               label: t('finding_notes'),
+              labelIcon: Icons.sticky_note_2_outlined,
               text: temuan['deskripsi_temuan'],
               color: const Color(0xFFFF6B6B)),
           const SizedBox(height: 8),
           _NoteCard(
               label: t('completion_notes'),
+              labelIcon: Icons.sticky_note_2_outlined,
               text: temuan['penyelesaian']?['catatan_penyelesaian'],
               color: const Color(0xFF4ADE80)),
           const SizedBox(height: 8),
-          _InfoRow(
-              icon: Icons.category_outlined,
-              text:
-                  '${t("category")}: ${temuan['kategoritemuan']?['nama_kategoritemuan'] ?? '-'}'),
-          _InfoRow(
-              icon: Icons.location_on_outlined,
-              text:
-                  '${t("location")}: ${temuan['lokasi']?['nama_lokasi'] ?? '-'} ${temuan['area']?['nama_area'] != null ? '— ${temuan['area']['nama_area']}' : ''}'),
+          _buildIconSectionTitle(Icons.category_outlined, t('category')),
+          _buildInfoValueCard(
+            icon: Icons.category_outlined,
+            text:
+                temuan['kategoritemuan']?['nama_kategoritemuan']?.toString() ?? '-',
+            color: const Color(0xFF6366F1),
+          ),
+          const SizedBox(height: 14),
+          _buildIconSectionTitle(Icons.location_on_outlined, t('location')),
+          _buildInfoValueCard(
+            icon: Icons.location_on_outlined,
+            text:
+                '${temuan['lokasi']?['nama_lokasi'] ?? '-'}${temuan['area']?['nama_area'] != null ? ' — ${temuan['area']['nama_area']}' : ''}',
+            color: const Color(0xFF10B981),
+          ),
           const SizedBox(height: 20),
           _buildVerificationTimerBar(),
           const SizedBox(height: 12),
@@ -1906,10 +1721,71 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     );
   }
 
+  Widget _buildIconSectionTitle(IconData icon, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0, top: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF1D72F3)),
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: const Color(0xFF1D72F3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoValueCard({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF0F172A),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVerificationTimerBar() {
     final int minutes = _verificationSecondsLeft ~/ 60;
     final int seconds = _verificationSecondsLeft % 60;
-    final double progress = _verificationSecondsLeft / 300.0;
+    final double progress = _verificationSecondsLeft / 120.0;
     final bool isUrgent = _verificationSecondsLeft <= 60;
     final Color timerColor =
         isUrgent ? const Color(0xFFDC2626) : const Color(0xFF00C9E4);
@@ -2234,463 +2110,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       ),
     );
   }
-
-  Widget _buildHistoryTab() {
-    if (_historyLoading) return _buildHistoryShimmer();
-    if (_historyList.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.history_toggle_off, size: 70, color: Colors.grey.shade300),
-            const SizedBox(height: 16),
-            Text(t('hist_empty'),
-                style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey.shade400)),
-          ],
-        ),
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _historyList.length,
-      itemBuilder: (_, i) => _buildHistoryCard(_historyList[i]),
-    );
-  }
-
-  Widget _buildHistoryShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade200,
-      highlightColor: Colors.grey.shade50,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: 5,
-        itemBuilder: (_, __) => Container(
-          margin: const EdgeInsets.only(bottom: 14),
-          height: 90,
-          decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(18)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHistoryCard(Map<String, dynamic> data) {
-    final String? tid = data['id_temuan']?.toString();
-    final String title = data['judul_temuan']?.toString() ?? '-';
-    final String? imageUrl = data['gambar_temuan']?.toString();
-    final String? completionImageUrl =
-        data['penyelesaian']?['gambar_penyelesaian']?.toString();
-    final bool userVote = data['user_vote'] as bool? ?? false;
-    final bool? finalOutcome = data['hasil_verifikasi_mayoritas'] as bool?;
-    final bool isFinalized = data['is_verif'] as bool? ?? false;
-
-    final stats =
-        tid != null ? (_voteStats[tid] ?? {}) : <String, dynamic>{};
-    final int validCount = (stats['valid_count'] as int?) ?? 0;
-    final int invalidCount = (stats['invalid_count'] as int?) ?? 0;
-    final int totalVotes = (stats['total'] as int?) ?? 0;
-    final int totalVerificators =
-        (stats['total_verificators'] as int?) ?? 0;
-
-    final int netPoint =
-        tid != null ? (_historyPointMap[tid] ?? 0) : 0;
-
-    // ── STATUS: Mayoritas / Minoritas / Menunggu ──
-    Color accent;
-    String statusLabel;
-    IconData statusIcon;
-
-    if (!isFinalized || finalOutcome == null) {
-      // Belum semua voter vote → pending
-      accent = Colors.orange.shade400;
-      statusLabel = t('pending');
-      statusIcon = Icons.hourglass_empty_rounded;
-    } else {
-      // Sudah finalized (is_verif=true) → tampil mayoritas/minoritas
-      final bool inMajority = userVote == finalOutcome;
-      accent = inMajority
-          ? const Color(0xFF16A34A)
-          : const Color(0xFFDC2626);
-      statusLabel = inMajority ? t('majority') : t('minority');
-      statusIcon = inMajority
-          ? Icons.emoji_events_rounded
-          : Icons.highlight_off_rounded;
-    }
-
-    final String voteLabel = userVote ? t('valid') : t('invalid');
-    final Color voteColor =
-        userVote ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-
-    String loc = '-';
-    if (data['area']?['nama_area'] != null) {
-      loc = data['area']['nama_area'].toString();
-    } else if (data['unit']?['nama_unit'] != null) {
-      loc = data['unit']['nama_unit'].toString();
-    } else if (data['lokasi']?['nama_lokasi'] != null) {
-      loc = data['lokasi']['nama_lokasi'].toString();
-    }
-
-    String date = '-';
-    try {
-      final rawDate = data['waktu_verifikasi'] ?? data['created_at'];
-      if (rawDate != null) {
-        final dt = DateTime.parse(rawDate.toString()).toLocal();
-        date = DateFormat('dd MMM yyyy, HH:mm').format(dt);
-      }
-    } catch (_) {}
-
-    final double validRatio =
-        totalVotes > 0 ? validCount / totalVotes : 0.0;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withValues(alpha:0.25), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-              color: accent.withValues(alpha:0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 6,
-                height: 88,
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(19),
-                      bottomLeft: Radius.circular(4)),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _HistoryThumb(url: imageUrl, label: t('finding')),
-              const SizedBox(width: 6),
-              _HistoryThumb(url: completionImageUrl, label: t('completion')),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A),
-                              height: 1.25)),
-                      const SizedBox(height: 5),
-                      Row(children: [
-                        _VotePill(
-                            label: voteLabel,
-                            color: voteColor,
-                            icon: userVote
-                                ? Icons.thumb_up_rounded
-                                : Icons.thumb_down_rounded),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Row(children: [
-                            Icon(Icons.place_outlined,
-                                size: 11, color: Colors.grey.shade500),
-                            const SizedBox(width: 2),
-                            Expanded(
-                              child: Text(loc,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 10,
-                                      color: Colors.grey.shade500)),
-                            ),
-                          ]),
-                        ),
-                      ]),
-                      const SizedBox(height: 3),
-                      Row(children: [
-                        Icon(Icons.access_time_rounded,
-                            size: 10, color: Colors.grey.shade400),
-                        const SizedBox(width: 3),
-                        Text(date,
-                            style: GoogleFonts.poppins(
-                                fontSize: 9.5, color: Colors.grey.shade400)),
-                      ]),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha:0.1),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                            color: accent.withValues(alpha:0.3), width: 1.5),
-                      ),
-                      child: Icon(statusIcon, color: accent, size: 22),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(statusLabel,
-                        style: GoogleFonts.poppins(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: accent)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          Container(
-              margin: const EdgeInsets.symmetric(horizontal: 12),
-              height: 1,
-              color: accent.withValues(alpha:0.12)),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(children: [
-                      Icon(Icons.how_to_vote_rounded,
-                          size: 13,
-                          color: const Color(0xFF1E3A8A).withValues(alpha:0.7)),
-                      const SizedBox(width: 5),
-                      Text(t('vote_breakdown'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A))),
-                    ]),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isFinalized
-                            ? const Color(0xFF16A34A).withValues(alpha:0.1)
-                            : Colors.orange.withValues(alpha:0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isFinalized
-                              ? const Color(0xFF16A34A).withValues(alpha:0.3)
-                              : Colors.orange.withValues(alpha:0.3),
-                        ),
-                      ),
-                      child: Row(children: [
-                        Icon(
-                            isFinalized
-                                ? Icons.verified_rounded
-                                : Icons.pending_rounded,
-                            size: 10,
-                            color: isFinalized
-                                ? const Color(0xFF16A34A)
-                                : Colors.orange),
-                        const SizedBox(width: 3),
-                        Text(
-                            isFinalized
-                                ? t('finalized')
-                                : t('not_finalized'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: isFinalized
-                                    ? const Color(0xFF16A34A)
-                                    : Colors.orange)),
-                      ]),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Column(children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _VoteCountChip(
-                          icon: Icons.thumb_up_rounded,
-                          label: t('votes_valid'),
-                          count: validCount,
-                          color: const Color(0xFF16A34A)),
-                      Text(
-                          '$totalVotes / $totalVerificators ${_lang == 'EN' ? 'voters' : _lang == 'ZH' ? '投票者' : 'pemilih'}',
-                          style: GoogleFonts.poppins(
-                              fontSize: 9.5, color: Colors.grey.shade500)),
-                      _VoteCountChip(
-                          icon: Icons.thumb_down_rounded,
-                          label: t('votes_invalid'),
-                          count: invalidCount,
-                          color: const Color(0xFFDC2626),
-                          iconOnRight: true),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Stack(children: [
-                      Container(
-                          height: 8,
-                          width: double.infinity,
-                          color: const Color(0xFFDC2626).withValues(alpha:0.18)),
-                      FractionallySizedBox(
-                        widthFactor: validRatio.clamp(0.0, 1.0),
-                        child: Container(
-                          height: 8,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                                colors: [Color(0xFF16A34A), Color(0xFF4ADE80)]),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                      ),
-                    ]),
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: finalOutcome == null
-                            ? Colors.orange.withValues(alpha:0.07)
-                            : finalOutcome
-                                ? const Color(0xFF16A34A).withValues(alpha:0.07)
-                                : const Color(0xFFDC2626).withValues(alpha:0.07),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: finalOutcome == null
-                              ? Colors.orange.withValues(alpha:0.2)
-                              : finalOutcome
-                                  ? const Color(0xFF16A34A).withValues(alpha:0.2)
-                                  : const Color(0xFFDC2626).withValues(alpha:0.2),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(t('majority_result'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 9,
-                                  color: Colors.grey.shade500,
-                                  fontWeight: FontWeight.w500)),
-                          const SizedBox(height: 2),
-                          Row(children: [
-                            Icon(
-                                finalOutcome == null
-                                    ? Icons.hourglass_empty_rounded
-                                    : finalOutcome
-                                        ? Icons.thumb_up_rounded
-                                        : Icons.thumb_down_rounded,
-                                size: 13,
-                                color: finalOutcome == null
-                                    ? Colors.orange
-                                    : finalOutcome
-                                        ? const Color(0xFF16A34A)
-                                        : const Color(0xFFDC2626)),
-                            const SizedBox(width: 4),
-                            Text(
-                                finalOutcome == null
-                                    ? t('pending')
-                                    : finalOutcome
-                                        ? t('valid')
-                                        : t('invalid'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: finalOutcome == null
-                                        ? Colors.orange
-                                        : finalOutcome
-                                            ? const Color(0xFF16A34A)
-                                            : const Color(0xFFDC2626))),
-                          ]),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Builder(
-                      builder: (_) {
-                        final int displayPoint = isFinalized ? netPoint : 0;
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: displayPoint >= 0
-                                ? const Color(0xFF1E3A8A).withValues(alpha:0.05)
-                                : const Color(0xFFDC2626).withValues(alpha:0.05),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: displayPoint >= 0
-                                  ? const Color(0xFF1E3A8A).withValues(alpha:0.15)
-                                  : const Color(0xFFDC2626).withValues(alpha:0.15),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(t('your_points'),
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 9,
-                                      color: Colors.grey.shade500,
-                                      fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 2),
-                              Row(children: [
-                                Icon(
-                                    displayPoint >= 0
-                                        ? Icons.star_rounded
-                                        : Icons.star_half_rounded,
-                                    size: 13,
-                                    color: displayPoint >= 0
-                                        ? const Color(0xFFF59E0B)
-                                        : const Color(0xFFDC2626)),
-                                const SizedBox(width: 4),
-                                Text(
-                                    !isFinalized
-                                        ? '-'
-                                        : displayPoint > 0
-                                            ? '+$displayPoint'
-                                            : '$displayPoint',
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: displayPoint >= 0
-                                            ? const Color(0xFF1E3A8A)
-                                            : const Color(0xFFDC2626))),
-                                const SizedBox(width: 3),
-                                Text(_lang == 'ZH' ? '积分' : 'Poin',
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 9,
-                                        color: Colors.grey.shade500)),
-                              ]),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ]),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -2699,9 +2118,78 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
 class _ImageBox extends StatelessWidget {
   final String label;
+  final IconData labelIcon;
   final String? url;
   final Color color;
-  const _ImageBox({required this.label, required this.url, required this.color});
+  const _ImageBox({
+    required this.label,
+    required this.labelIcon,
+    required this.url,
+    required this.color,
+  });
+
+  void _openFullImage(BuildContext context) {
+    if (url == null || url!.isEmpty) return;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.92),
+      builder: (dialogContext) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(dialogContext).pop(),
+          child: Material(
+            color: Colors.transparent,
+            child: Stack(
+              children: [
+                Center(
+                  child: GestureDetector(
+                    onTap: () {}, // cegah dialog tertutup saat gambar disentuh
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 4,
+                      child: Image.network(
+                        url!,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (_, child, progress) {
+                          if (progress == null) return child;
+                          return const Center(
+                              child: CircularProgressIndicator(
+                                  color: Color(0xFF00C9E4)));
+                        },
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Icon(Icons.broken_image_outlined,
+                              color: Colors.white54, size: 48),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 44,
+                  right: 20,
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(dialogContext).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.3)),
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          color: Colors.white, size: 24),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2710,43 +2198,61 @@ class _ImageBox extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Container(
-                width: 6,
-                height: 14,
-                decoration: BoxDecoration(
-                    color: color, borderRadius: BorderRadius.circular(3))),
-            const SizedBox(width: 6),
+            Icon(labelIcon, size: 15, color: const Color(0xFF1D72F3)),
+            const SizedBox(width: 5),
             Text(label,
                 style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1E3A8A))),
+                    color: const Color(0xFF1D72F3))),
           ]),
           const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              height: 140,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  border: Border.all(color: color.withValues(alpha:0.3)),
-                  borderRadius: BorderRadius.circular(14)),
-              child: (url != null && url!.isNotEmpty)
-                  ? Image.network(url!,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (_, child, progress) {
-                        if (progress == null) return child;
-                        return const Center(
-                            child: CircularProgressIndicator(
-                                color: Color(0xFF00C9E4)));
-                      },
-                      errorBuilder: (_, __, ___) => Center(
-                          child: Icon(Icons.broken_image_outlined,
-                              color: Colors.grey.shade400, size: 36)))
-                  : Center(
-                      child: Icon(Icons.image_not_supported_outlined,
-                          color: Colors.grey.shade400, size: 36)),
+          GestureDetector(
+            onTap: () => _openFullImage(context),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                height: 140,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    border: Border.all(color: color.withValues(alpha:0.3)),
+                    borderRadius: BorderRadius.circular(14)),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    (url != null && url!.isNotEmpty)
+                        ? Image.network(url!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (_, child, progress) {
+                              if (progress == null) return child;
+                              return const Center(
+                                  child: CircularProgressIndicator(
+                                      color: Color(0xFF00C9E4)));
+                            },
+                            errorBuilder: (_, __, ___) => Center(
+                                child: Icon(Icons.broken_image_outlined,
+                                    color: Colors.grey.shade400, size: 36)))
+                        : Center(
+                            child: Icon(Icons.image_not_supported_outlined,
+                                color: Colors.grey.shade400, size: 36)),
+                    if (url != null && url!.isNotEmpty)
+                      Positioned(
+                        right: 6,
+                        bottom: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.zoom_in_rounded,
+                              color: Colors.white, size: 16),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -2757,9 +2263,15 @@ class _ImageBox extends StatelessWidget {
 
 class _NoteCard extends StatelessWidget {
   final String label;
+  final IconData labelIcon;
   final String? text;
   final Color color;
-  const _NoteCard({required this.label, required this.text, required this.color});
+  const _NoteCard({
+    required this.label,
+    required this.labelIcon,
+    required this.text,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2771,40 +2283,21 @@ class _NoteCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withValues(alpha:0.2))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: color.withValues(alpha:0.8))),
+        Row(children: [
+          Icon(labelIcon, size: 13, color: color.withValues(alpha: 0.8)),
+          const SizedBox(width: 5),
+          Text(label,
+              style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color.withValues(alpha:0.8))),
+        ]),
         const SizedBox(height: 4),
         Text((text != null && text!.isNotEmpty) ? text! : '-',
             style: GoogleFonts.poppins(
                 fontSize: 13, color: const Color(0xFF1E3A8A), height: 1.4),
             maxLines: 3,
             overflow: TextOverflow.ellipsis),
-      ]),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _InfoRow({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(children: [
-        Icon(icon, size: 15, color: Colors.grey.shade500),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(text,
-              style: GoogleFonts.poppins(
-                  fontSize: 12, color: Colors.grey.shade600),
-              overflow: TextOverflow.ellipsis),
-        ),
       ]),
     );
   }
@@ -2997,97 +2490,5 @@ class _CountdownAutoNextState extends State<_CountdownAutoNext> {
     return Text('${widget.textPrefix} $_count ${widget.textSuffix}',
         style: GoogleFonts.poppins(
             fontSize: 12, color: Colors.grey.shade400));
-  }
-}
-
-class _HistoryThumb extends StatelessWidget {
-  final String? url;
-  final String label;
-  const _HistoryThumb({required this.url, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 8.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade500)),
-        const SizedBox(height: 3),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            width: 52,
-            height: 52,
-            color: Colors.grey.shade100,
-            child: (url != null && url!.isNotEmpty)
-                ? Image.network(url!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Icon(
-                        Icons.broken_image_outlined,
-                        size: 20,
-                        color: Colors.grey.shade400))
-                : Icon(Icons.image_not_supported_outlined,
-                    size: 20, color: Colors.grey.shade400),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _VotePill extends StatelessWidget {
-  final String label;
-  final Color color;
-  final IconData icon;
-  const _VotePill({required this.label, required this.color, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-          color: color.withValues(alpha:0.1),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withValues(alpha:0.3), width: 1)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 9, color: color),
-        const SizedBox(width: 3),
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
-      ]),
-    );
-  }
-}
-
-class _VoteCountChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final int count;
-  final Color color;
-  final bool iconOnRight;
-
-  const _VoteCountChip({
-    required this.icon,
-    required this.label,
-    required this.count,
-    required this.color,
-    this.iconOnRight = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final iconWidget = Icon(icon, size: 11, color: color);
-    final textWidget = Text('$count $label',
-        style: GoogleFonts.poppins(
-            fontSize: 10, fontWeight: FontWeight.w700, color: color));
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: iconOnRight
-          ? [textWidget, const SizedBox(width: 3), iconWidget]
-          : [iconWidget, const SizedBox(width: 3), textWidget],
-    );
   }
 }
