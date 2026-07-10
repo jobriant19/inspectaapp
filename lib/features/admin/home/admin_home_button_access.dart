@@ -12,64 +12,14 @@ class AdminHomeButtonAccess extends StatelessWidget {
     required this.lang,
   });
 
-  static Future<Map<String, bool>> _fetchSettings() async {
-    final Map<String, bool> result = {
-      'pro_mode': true,
-      'preventive_maintenance': true,
-    };
-    try {
-      final rows = await _sb
-          .from('app_settings')
-          .select('setting_key, setting_value')
-          .inFilter('setting_key', [
-        'pro_mode_button_visible',
-        'preventive_maintenance_visible',
-      ]);
-      for (final row in rows) {
-        final key = row['setting_key'] as String;
-        final value = row['setting_value'] as bool? ?? true;
-        if (key == 'pro_mode_button_visible') result['pro_mode'] = value;
-        if (key == 'preventive_maintenance_visible') {
-          result['preventive_maintenance'] = value;
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching app_settings: $e');
-    }
-    return result;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, bool>>(
-      future: _fetchSettings(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return Container(
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                  color: const Color(0xFF059669).withValues(alpha:0.15)),
-            ),
-          );
-        }
-
-        return Column(
-          children: [
-            _ProModeToggleCard(
-              lang: lang,
-              initialValue: snapshot.data!['pro_mode']!,
-            ),
-            const SizedBox(height: 10),
-            _PreventiveMaintenanceToggleCard(
-              lang: lang,
-              initialValue: snapshot.data!['preventive_maintenance']!,
-            ),
-          ],
-        );
-      },
+    return Column(
+      children: [
+        _ProModeToggleCard(lang: lang),
+        const SizedBox(height: 10),
+        _PreventiveMaintenanceToggleCard(lang: lang),
+      ],
     );
   }
 }
@@ -77,11 +27,9 @@ class AdminHomeButtonAccess extends StatelessWidget {
 // MODE PROFESSIONAL TOGGLE
 class _ProModeToggleCard extends StatefulWidget {
   final String lang;
-  final bool initialValue;
 
   const _ProModeToggleCard({
     required this.lang,
-    required this.initialValue,
   });
 
   @override
@@ -91,14 +39,33 @@ class _ProModeToggleCard extends StatefulWidget {
 class _ProModeToggleCardState extends State<_ProModeToggleCard> {
   static const String _kKey = 'pro_mode_button_visible';
   static const Color _primary = Color(0xFF059669);
+  static const LinearGradient _iconGradient = LinearGradient(
+    colors: [Color(0xFF4ADE80), Color(0xFF16A34A)],
+  );
 
-  late bool _isVisible;
+  bool _isVisible = true;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _isVisible = widget.initialValue;
+    _loadInitialValue();
+  }
+
+  Future<void> _loadInitialValue() async {
+    try {
+      final row = await _sb
+          .from('app_settings')
+          .select('setting_value')
+          .eq('setting_key', _kKey)
+          .maybeSingle();
+      final value = row?['setting_value'] as bool? ?? true;
+      if (mounted && value != _isVisible) {
+        setState(() => _isVisible = value);
+      }
+    } catch (e) {
+      debugPrint('Error loading $_kKey: $e');
+    }
   }
 
   Future<void> _toggle(bool value) async {
@@ -162,17 +129,26 @@ class _ProModeToggleCardState extends State<_ProModeToggleCard> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              color: _isVisible
-                  ? _primary.withValues(alpha:0.10)
-                  : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(10),
+              gradient: _isVisible ? _iconGradient : null,
+              color: _isVisible ? null : Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: _isVisible
+                  ? [
+                      BoxShadow(
+                        color: _primary.withValues(alpha:0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : [],
             ),
             child: Icon(
               Icons.workspace_premium_rounded,
-              size: 18,
-              color: _isVisible ? _primary : Colors.grey.shade400,
+              color: _isVisible ? Colors.white : Colors.grey.shade400,
+              size: 26,
             ),
           ),
           const SizedBox(width: 12),
@@ -186,7 +162,7 @@ class _ProModeToggleCardState extends State<_ProModeToggleCard> {
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1E3A8A),
+                    color: _isVisible ? _primary : Colors.grey.shade600,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -210,7 +186,7 @@ class _ProModeToggleCardState extends State<_ProModeToggleCard> {
                         color: _isVisible
                             ? const Color(0xFF10B981)
                             : Colors.grey.shade500,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -244,11 +220,9 @@ class _ProModeToggleCardState extends State<_ProModeToggleCard> {
 // PREVENTIF MAINTENANCE TOGGLE
 class _PreventiveMaintenanceToggleCard extends StatefulWidget {
   final String lang;
-  final bool initialValue;
 
   const _PreventiveMaintenanceToggleCard({
     required this.lang,
-    required this.initialValue,
   });
 
   @override
@@ -260,14 +234,33 @@ class _PreventiveMaintenanceToggleCardState
     extends State<_PreventiveMaintenanceToggleCard> {
   static const String _kKey = 'preventive_maintenance_visible';
   static const Color _primary = Color(0xFF1D4ED8);
+  static const LinearGradient _iconGradient = LinearGradient(
+    colors: [Color(0xFF60A5FA), Color(0xFF1D4ED8)],
+  );
 
-  late bool _isVisible;
+  bool _isVisible = true;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _isVisible = widget.initialValue;
+    _loadInitialValue();
+  }
+
+  Future<void> _loadInitialValue() async {
+    try {
+      final row = await _sb
+          .from('app_settings')
+          .select('setting_value')
+          .eq('setting_key', _kKey)
+          .maybeSingle();
+      final value = row?['setting_value'] as bool? ?? true;
+      if (mounted && value != _isVisible) {
+        setState(() => _isVisible = value);
+      }
+    } catch (e) {
+      debugPrint('Error loading $_kKey: $e');
+    }
   }
 
   Future<void> _toggle(bool value) async {
@@ -331,17 +324,26 @@ class _PreventiveMaintenanceToggleCardState
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              color: _isVisible
-                  ? _primary.withValues(alpha:0.10)
-                  : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(10),
+              gradient: _isVisible ? _iconGradient : null,
+              color: _isVisible ? null : Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: _isVisible
+                  ? [
+                      BoxShadow(
+                        color: _primary.withValues(alpha:0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : [],
             ),
             child: Icon(
               Icons.build_circle_rounded,
-              size: 18,
-              color: _isVisible ? _primary : Colors.grey.shade400,
+              color: _isVisible ? Colors.white : Colors.grey.shade400,
+              size: 26,
             ),
           ),
           const SizedBox(width: 12),
@@ -355,7 +357,7 @@ class _PreventiveMaintenanceToggleCardState
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1E3A8A),
+                    color: _isVisible ? _primary : Colors.grey.shade600,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -379,7 +381,7 @@ class _PreventiveMaintenanceToggleCardState
                         color: _isVisible
                             ? const Color(0xFF3B82F6)
                             : Colors.grey.shade500,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
