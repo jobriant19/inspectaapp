@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'audit_pick_time.dart';
 import 'audit_schedule_popup.dart';
 
 // ─── Colour constants ───────────────────────
@@ -110,6 +111,13 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     return j['nama_id']?.toString() ?? '-';
   }
 
+  String _todayStr() {
+    final n = DateTime.now();
+    return '${n.year.toString().padLeft(4, '0')}-'
+        '${n.month.toString().padLeft(2, '0')}-'
+        '${n.day.toString().padLeft(2, '0')}';
+  }
+
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
   @override
   void initState() {
@@ -188,6 +196,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
           .from('audit_schedule')
           .select('periode_mulai, periode_selesai, id_jenis_audit, notif_time')
           .eq('status', 'pending')
+          .gte('periode_selesai', _todayStr())
           .order('created_at', ascending: false)
           .limit(1);
       if ((rows as List).isNotEmpty && mounted) {
@@ -223,6 +232,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
             'User_Auditor:User!fk_audit_schedule_auditor(id_user, nama, gambar_user, '
             'jabatan!User_id_jabatan_fkey(nama_jabatan))')
         .eq('status', 'pending')
+        .gte('periode_selesai', _todayStr())
         .order('created_at', ascending: false);
 
     final List<_AuditorAssignment> list = [];
@@ -280,10 +290,13 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     final daysUntilMonday = (DateTime.monday - now.weekday + 7) % 7;
     final firstMonday     = now.add(
         Duration(days: daysUntilMonday == 0 ? 0 : daysUntilMonday));
+    final initial = (_periodeAwal != null && _periodeAwal!.isAfter(firstMonday))
+        ? _periodeAwal!
+        : firstMonday;
 
     final picked = await showDatePicker(
       context: context,
-      initialDate: _periodeAwal ?? firstMonday,
+      initialDate: initial,
       firstDate:   firstMonday,
       lastDate:    DateTime(now.year + 2),
       selectableDayPredicate: (day) => day.weekday == DateTime.monday,
@@ -302,17 +315,11 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     }
   }
 
-  // ─── Time picker notifikasi ───────────────────────────────────────────────
   Future<void> _pickNotifTime() async {
-    final picked = await showTimePicker(
+    final picked = await showAuditTimePicker(
       context: context,
+      lang: widget.lang,
       initialTime: _notifTime,
-      builder: (c, child) => Theme(
-        data: ThemeData.light().copyWith(
-          colorScheme: const ColorScheme.light(primary: _SC.primary),
-        ),
-        child: child!,
-      ),
     );
     if (picked != null) setState(() => _notifTime = picked);
   }
@@ -505,11 +512,10 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                                           fontSize: 13,
                                           fontWeight: FontWeight.w700,
                                           color: _SC.textMain)),
-                                  if (jabatan != null)
-                                    Text(jabatan,
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 11,
-                                            color: _SC.textSub)),
+                                  if (jabatan != null) ...[
+                                    const SizedBox(height: 3),
+                                    _JabatanBadge(jabatan: jabatan),
+                                  ],
                                 ],
                               ),
                             ),
@@ -778,7 +784,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     // ignore: unnecessary_null_comparison
-    final isUpdate = _assignments != null;
+    final isUpdate = _assignments.any((a) => a.auditor['id_schedule'] != null);
 
     return Scaffold(
       backgroundColor: _SC.surface,
@@ -815,12 +821,9 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // ── Jenis Audit ──────────────────────────────
-                        Text(
-                          _t('Audit Type', 'Jenis Audit', '审计类型'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _SC.textSub),
+                        _SectionLabel(
+                          icon: Icons.assignment_rounded,
+                          text: _t('Audit Type', 'Jenis Audit', '审计类型'),
                         ),
                         const SizedBox(height: 8),
                         Wrap(
@@ -857,12 +860,9 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         const SizedBox(height: 20),
 
                         // ── Periode Audit ──────────────────────────────
-                        Text(
-                          _t('Audit Period', 'Periode Audit', '审计期间'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _SC.textSub),
+                        _SectionLabel(
+                          icon: Icons.date_range_rounded,
+                          text: _t('Audit Period', 'Periode Audit', '审计期间'),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -902,12 +902,9 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         const SizedBox(height: 20),
 
                         // ── Assign Auditor (Multi) ────────────────────────
-                        Text(
-                          _t('Assign Auditors', 'Pilih Auditor', '分配审计员'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _SC.textSub),
+                        _SectionLabel(
+                          icon: Icons.groups_rounded,
+                          text: _t('Assign Auditors', 'Pilih Auditor', '分配审计员'),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -957,10 +954,10 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w700,
                                                 color: _SC.textMain)),
-                                        if (jabatan != null)
-                                          Text(jabatan,
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 11, color: _SC.textSub)),
+                                        if (jabatan != null) ...[
+                                          const SizedBox(height: 3),
+                                          _JabatanBadge(jabatan: jabatan),
+                                        ],
                                         const SizedBox(height: 4),
                                         // Badge lokasi yang ditugaskan
                                         Container(
@@ -1021,12 +1018,11 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         ],
 
                         // Search field + list auditor (untuk tambah auditor baru)
-                        Text(
-                          _t('Add Auditor', 'Tambah Auditor', '添加审计员'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: _SC.textSub),
+                        _SectionLabel(
+                          icon: Icons.person_add_alt_1_rounded,
+                          text: _t('Add Auditor', 'Tambah Auditor', '添加审计员'),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
                         const SizedBox(height: 8),
                         TextField(
@@ -1080,12 +1076,9 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         const SizedBox(height: 16),
 
                         // ── Waktu Notifikasi ───────────────────────────────
-                        Text(
-                          _t('Reminder Time', 'Waktu Pengingat', '提醒时间'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _SC.textSub),
+                        _SectionLabel(
+                          icon: Icons.notifications_active_rounded,
+                          text: _t('Reminder Time', 'Waktu Pengingat', '提醒时间'),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -1140,13 +1133,9 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         const SizedBox(height: 20),
 
                         // ── Notes ──────────────────────────────────────
-                        Text(
-                          _t('Notes (optional)', 'Catatan (opsional)',
-                              '备注（可选）'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _SC.textSub),
+                        _SectionLabel(
+                          icon: Icons.sticky_note_2_rounded,
+                          text: _t('Notes (optional)', 'Catatan (opsional)', '备注（可选）'),
                         ),
                         const SizedBox(height: 8),
                         TextField(
@@ -1302,10 +1291,7 @@ class _AuditorTileSelectable extends StatelessWidget {
                           color: isAssigned
                               ? const Color(0xFF10B981)
                               : _SC.textMain)),
-                  if (jabatan != null)
-                    Text(jabatan,
-                        style: GoogleFonts.poppins(
-                            fontSize: 10, color: _SC.textSub)),
+                  if (jabatan != null) _JabatanBadge(jabatan: jabatan),
                 ],
               ),
             ),
@@ -1422,6 +1408,93 @@ class _DateField extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _JabatanBadge extends StatelessWidget {
+  final String? jabatan;
+  const _JabatanBadge({required this.jabatan});
+
+  _JabatanStyle get _style {
+    final j = (jabatan ?? '').toLowerCase();
+    if (j.contains('eksekutif')) {
+      return const _JabatanStyle(Color(0xFFDC2626), Icons.workspace_premium_rounded);
+    } else if (j.contains('manager')) {
+      return const _JabatanStyle(Color(0xFF2563EB), Icons.badge_rounded);
+    } else if (j.contains('kasie')) {
+      return const _JabatanStyle(Color(0xFF7C3AED), Icons.supervisor_account_rounded);
+    } else if (j.contains('hrd')) {
+      return const _JabatanStyle(Color(0xFFF59E0B), Icons.groups_2_rounded);
+    } else if (j.contains('admin')) {
+      return const _JabatanStyle(Color(0xFF0EA5E9), Icons.admin_panel_settings_rounded);
+    }
+    return const _JabatanStyle(Color(0xFF64748B), Icons.person_rounded); // Staff / default
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (jabatan == null || jabatan!.trim().isEmpty) return const SizedBox.shrink();
+    final s = _style;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: s.color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: s.color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(s.icon, size: 10, color: s.color),
+          const SizedBox(width: 4),
+          Text(
+            jabatan!,
+            style: GoogleFonts.poppins(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: s.color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JabatanStyle {
+  final Color color;
+  final IconData icon;
+  const _JabatanStyle(this.color, this.icon);
+}
+
+class _SectionLabel extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final double fontSize;
+  final FontWeight fontWeight;
+  const _SectionLabel({
+    required this.icon,
+    required this.text,
+    this.fontSize = 12,
+    this.fontWeight = FontWeight.w700,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: fontSize + 2, color: _SC.primary),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+            color: _SC.textSub,
+          ),
+        ),
+      ],
     );
   }
 }
