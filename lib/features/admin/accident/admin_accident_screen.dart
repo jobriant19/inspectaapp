@@ -207,7 +207,7 @@ class _AdminAccidentScreenState extends State<AdminAccidentScreen>
                             style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A),
+                              color: const Color(0xFFEF4444),
                             ),
                           ),
                         ],
@@ -499,7 +499,7 @@ class _AdminAccidentScreenState extends State<AdminAccidentScreen>
   }
 
   Widget _buildTabBar() {
-    const activeColor = Color.fromARGB(255, 29, 199, 97);
+    const activeColor = Color(0xFFEF4444);
 
     final tabLabels = _lang == 'EN'
         ? ['Members', 'Location', 'Recurring Accident']

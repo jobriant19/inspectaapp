@@ -204,7 +204,7 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
                             style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A),
+                              color: const Color(0xFFF59E0B),
                             ),
                           ),
                         ],
@@ -482,7 +482,7 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
   }
 
   Widget _buildTabBar() {
-    const activeColor = Color.fromARGB(255, 29, 199, 97);
+    const activeColor = Color(0xFFF59E0B);
 
     final tabLabels = _lang == 'EN'
         ? ['Members', 'Cause', 'Kasie', 'Recurring KTS']

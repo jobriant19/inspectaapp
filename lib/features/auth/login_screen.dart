@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:ui';
 import 'dart:async';
+import '../admin/admin_shell_screen.dart';
 import '../user/home/popup/home_point_popup.dart';
 import 'auth_service.dart';
 import '../admin/home/admin_home_screen.dart';
@@ -203,23 +204,21 @@ class _LoginScreenState extends State<LoginScreen> {
           if (!mounted) return;
 
           Navigator.pushReplacement(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (_, __, ___) => AdminHomeScreen(
-                initialUserName:      userData['nama'],
-                initialUserImage:     userData['gambar_user'],
-                initialTotalUsers:    sTotalUsers,
-                initialTotalLokasi:   sTotalLokasi,
-                initialTotalKategori: sTotalKategori,
-                initialTotalTemuan:   sTotalTemuan,
-                initialTemuanBelum:   sTemuanBelum,
-                initialTemuanSelesai: sTemuanSelesai,
-                initialLang:          selectedLanguage,
-              ),
-              transitionDuration: Duration.zero,
-              reverseTransitionDuration: Duration.zero,
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => AdminShellScreen(
+              initialUserName:      userData['nama'],
+              initialUserImage:     userData['gambar_user'],
+              initialTotalUsers:    sTotalUsers,
+              initialTotalLokasi:   sTotalLokasi,
+              initialTotalKategori: sTotalKategori,
+              initialTotalTemuan:   sTotalTemuan,
+              initialLang:          selectedLanguage,
             ),
-          );
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        );
         } else {
           // User via Google
           if (!mounted) return;
@@ -564,23 +563,21 @@ class _LoginScreenState extends State<LoginScreen> {
         if (!mounted) return;
 
         Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => AdminHomeScreen(
-              initialUserName:      userData['nama'],
-              initialUserImage:     userData['gambar_user'],
-              initialTotalUsers:    sTotalUsers,
-              initialTotalLokasi:   sTotalLokasi,
-              initialTotalKategori: sTotalKategori,
-              initialTotalTemuan:   sTotalTemuan,
-              initialTemuanBelum:   sTemuanBelum,
-              initialTemuanSelesai: sTemuanSelesai,
-              initialLang:          selectedLanguage,
+            context,
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) => AdminShellScreen(
+                initialUserName:      userData['nama'],
+                initialUserImage:     userData['gambar_user'],
+                initialTotalUsers:    sTotalUsers,
+                initialTotalLokasi:   sTotalLokasi,
+                initialTotalKategori: sTotalKategori,
+                initialTotalTemuan:   sTotalTemuan,
+                initialLang:          selectedLanguage,
+              ),
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
             ),
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
-          ),
-        );
+          );
       } else {
         if (!mounted) return;
         await warmupPointPopupFonts();
