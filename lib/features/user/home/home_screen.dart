@@ -1330,6 +1330,7 @@ class _HomeScreenState extends State<HomeScreen> {
               initialIsVisitor: _isVisitorMode,
               initialUserJabatanId: _userJabatanId,
               initialUserLocation: _userLocationName,
+              initialUserLocationLevel: _userLocationLevel,
               initialIsVerificator: _isVerifRole,
             ),
             transitionsBuilder: (_, anim, __, child) => SlideTransition(

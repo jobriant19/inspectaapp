@@ -17,6 +17,7 @@ class AccountScreen extends StatefulWidget {
   final String? initialUserImage;
   final String? initialUserRole;
   final String? initialUserLocation;
+  final String? initialUserLocationLevel;
   final bool? initialIsVisitor;
   final int? initialUserJabatanId;
   final bool? initialIsVerificator;
@@ -28,6 +29,7 @@ class AccountScreen extends StatefulWidget {
     this.initialUserImage,
     this.initialUserRole,
     this.initialUserLocation,
+    this.initialUserLocationLevel,
     this.initialIsVisitor,
     this.initialUserJabatanId,
     this.initialIsVerificator,
@@ -46,6 +48,7 @@ class _AccountScreenState extends State<AccountScreen> {
   String? _userImage;
   String _userJabatan = "Loading...";
   String _userLokasiSpesifik = "Tidak terdefinisi";
+  String? _userLokasiLevel;
   bool _isVisitor = false;
   int? _userJabatanId;
   bool _isVerificatorUser = false;
@@ -116,6 +119,22 @@ class _AccountScreenState extends State<AccountScreen> {
 
   String getTxt(String key) => _txt[_currentLang]?[key] ?? key;
 
+  static const Map<String, Color> _levelColors = {
+    'lokasi': Color(0xFF10B981),
+    'unit': Color(0xFF6366F1),
+    'subunit': Color(0xFFFBBF24),
+    'area': Color(0xFFF472B6),
+  };
+
+  Color get _locationColor =>
+      _levelColors[_userLokasiLevel?.toLowerCase()] ?? const Color(0xFFF472B6);
+
+  Color _darken(Color color, [double amount = 0.16]) {
+    final hsl = HSLColor.fromColor(color);
+    final lightness = (hsl.lightness - amount).clamp(0.0, 1.0);
+    return hsl.withLightness(lightness).toColor();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -124,6 +143,7 @@ class _AccountScreenState extends State<AccountScreen> {
     _userName           = widget.initialUserName ?? '';
     _userImage          = widget.initialUserImage;
     _userLokasiSpesifik = widget.initialUserLocation ?? '...';
+    _userLokasiLevel    = widget.initialUserLocationLevel;
     _isVisitor          = widget.initialIsVisitor ?? false;
     _userJabatanId      = widget.initialUserJabatanId;
     _isVerificatorUser  = widget.initialIsVerificator ?? false;
@@ -215,18 +235,23 @@ class _AccountScreenState extends State<AccountScreen> {
       final idArea    = userRow['id_area'];
 
       String locationName = _userLokasiSpesifik;
+      String? locationLevel;
       if (idArea != null) {
         final data = await Supabase.instance.client.from('area').select('nama_area').eq('id_area', idArea).maybeSingle();
         locationName = data?['nama_area'] ?? locationName;
+        locationLevel = 'area';
       } else if (idSubunit != null) {
         final data = await Supabase.instance.client.from('subunit').select('nama_subunit').eq('id_subunit', idSubunit).maybeSingle();
         locationName = data?['nama_subunit'] ?? locationName;
+        locationLevel = 'subunit';
       } else if (idUnit != null) {
         final data = await Supabase.instance.client.from('unit').select('nama_unit').eq('id_unit', idUnit).maybeSingle();
         locationName = data?['nama_unit'] ?? locationName;
+        locationLevel = 'unit';
       } else if (idLokasi != null) {
         final data = await Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', idLokasi).maybeSingle();
         locationName = data?['nama_lokasi'] ?? locationName;
+        locationLevel = 'lokasi';
       }
 
       // ── Prioritas is_verificator SELALU menang ──
@@ -249,6 +274,7 @@ class _AccountScreenState extends State<AccountScreen> {
           _userImage           = dbImage ?? metaImage;
           _userJabatan         = jabatanName;          // ← sudah benar: Verificator
           _userLokasiSpesifik  = locationName;
+          _userLokasiLevel     = locationLevel;
           _isVisitor           = isVisitor;
           _userJabatanId       = idJabatan;
           _isVerificatorUser   = isVerificator;        // ← set di sini, TIDAK early return
@@ -625,7 +651,11 @@ class _AccountScreenState extends State<AccountScreen> {
       return _buildVisitorCard();
     }
 
-    final List<Color> gradientColors = JabatanHelper.getGradientColors(
+    final Color roleColor = JabatanHelper.getPrimaryColor(
+      isVerificatorFlag: _isVerificatorUser,
+      idJabatan: _userJabatanId,
+    );
+    final IconData roleIcon = JabatanHelper.getRoleIcon(
       isVerificatorFlag: _isVerificatorUser,
       idJabatan: _userJabatanId,
     );
@@ -656,90 +686,175 @@ class _AccountScreenState extends State<AccountScreen> {
         ).then((_) => _fetchUserDataSilent());
       },
       child: Container(
-        height: 140,
+        padding: const EdgeInsets.all(20),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 1.5),
           gradient: LinearGradient(
-            colors: gradientColors,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
+            colors: JabatanHelper.getCardGradient(
+              isVerificatorFlag: _isVerificatorUser,
+              idJabatan: _userJabatanId,
+            ),
+            stops: const [0.0, 0.35, 0.65, 1.0],
           ),
           boxShadow: [
             BoxShadow(
-              color: gradientColors.last.withValues(alpha:0.4),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
+              color: Colors.cyan.withValues(alpha: 0.15),
+              blurRadius: 20,
+              spreadRadius: -5,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(25),
-          child: Stack(
-            children: [
-              Positioned(
-                right: -50, top: -40,
-                child: CircleAvatar(radius: 90, backgroundColor: Colors.white.withValues(alpha:0.06)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // AVATAR — ukuran dikembalikan seperti semula (radius 35)
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.cyan.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
-              Positioned(
-                right: 20, bottom: -70,
-                child: CircleAvatar(radius: 70, backgroundColor: Colors.white.withValues(alpha:0.04)),
+              child: CircleAvatar(
+                radius: 35,
+                backgroundColor: const Color(0xFF1D72F3),
+                backgroundImage:
+                    _userImage != null ? NetworkImage(_userImage!) : null,
+                child: _userImage == null
+                    ? const Icon(Icons.person, color: Colors.white, size: 35)
+                    : null,
               ),
-              Positioned(
-                left: -30, bottom: -20,
-                child: CircleAvatar(radius: 50, backgroundColor: Colors.black.withValues(alpha:0.05)),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 35,
-                      backgroundColor: Colors.white.withValues(alpha:0.8),
-                      backgroundImage: _userImage != null ? NetworkImage(_userImage!) : null,
-                      child: _userImage == null ? const Icon(Icons.person, color: Color(0xFF1D72F3), size: 35) : null,
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(_userName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, height: 1.2)),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha:0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _userJabatan,
-                              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha:0.95), fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(Icons.location_on, color: Colors.white.withValues(alpha:0.8), size: 16),
-                              const SizedBox(width: 5),
-                              Expanded(
-                                child: Text(
-                                  _userLokasiSpesifik,
-                                  style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha:0.8)),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+            ),
+            const SizedBox(width: 16),
+
+            // NAMA + BADGE JABATAN + BADGE LOKASI
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // BARIS 1: NAMA — auto mengecil, selalu 1 baris penuh
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _userName,
+                      maxLines: 1,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // BARIS 2: BADGE JABATAN — warna identik dengan user_info_card.dart
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [roleColor, _darken(roleColor)],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.75), width: 1.1),
+                      boxShadow: [
+                        BoxShadow(
+                          color: roleColor.withValues(alpha: 0.35),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(roleIcon, size: 11.5, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _userJabatan,
+                              maxLines: 1,
+                              style: GoogleFonts.poppins(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // BARIS 3: BADGE LOKASI SPESIFIK — disamakan dengan user_info_card.dart
+                  Container(
+                    constraints: const BoxConstraints(maxWidth: 165),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [_locationColor, _darken(_locationColor)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.75), width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _locationColor.withValues(alpha: 0.35),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.map, size: 13, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            _userLokasiSpesifik,
+                            maxLines: 2,
+                            softWrap: true,
+                            overflow: TextOverflow.clip,
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward_ios, color: Color(0xFF0F172A), size: 18),
+          ],
         ),
       ),
     );
