@@ -1,8 +1,9 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../auth/login_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -17,21 +18,37 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String _selectedLanguage = 'EN';
   Timer? _timer;
 
+  // Prevents the language dialog from opening twice or colliding with auto-slide.
+  bool _isDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
-    // Memulai timer untuk auto scroll setiap 5 detik
+    _startAutoSlideTimer();
+  }
+
+  // Starts the periodic auto-slide timer for the onboarding pages.
+  void _startAutoSlideTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
-      if (_currentPage < 3) {
-        _currentPage++;
-      } else {
-        _currentPage = 0;
+      // Skip the tick if the widget is gone, the controller is not ready yet,
+      // or a dialog is currently open (avoids race conditions/conflicts).
+      if (!mounted || !_pageController.hasClients || _isDialogOpen) {
+        return;
       }
-      _pageController.animateToPage(
-        _currentPage,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeIn,
-      );
+      try {
+        // Read the actual page from the controller instead of a manual
+        // counter, so it can never desync from the real PageView state.
+        final int actualPage = _pageController.page?.round() ?? _currentPage;
+        final int nextPage = actualPage < 3 ? actualPage + 1 : 0;
+        _pageController.animateToPage(
+          nextPage,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeIn,
+        );
+      } catch (_) {
+        // Ignore transient exceptions (e.g. widget rebuilding mid-animation).
+      }
     });
   }
 
@@ -42,7 +59,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
-  // --- Teks Multi-Bahasa untuk Onboarding ---
+  // Onboarding slide text for all supported languages.
   final Map<String, Map<String, String>> _onboardingText = {
     'EN': {
       'title1': 'Welcome to Inspecta',
@@ -54,7 +71,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'title4': 'Celebrate Achievements',
       'desc4': 'Unlock rewards and celebrate milestones with your team.',
       'get_started': 'Get Started',
-      'skip': 'Skip'
+      'skip': 'Skip',
+      'next': 'Next',
+      'select_language': 'Select Language'
     },
     'ID': {
       'title1': 'Selamat Datang di Inspecta',
@@ -66,7 +85,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'title4': 'Rayakan Pencapaian',
       'desc4': 'Buka hadiah dan rayakan pencapaian bersama tim Anda.',
       'get_started': 'Mulai',
-      'skip': 'Lewati'
+      'skip': 'Lewati',
+      'next': 'Berikutnya',
+      'select_language': 'Pilih Bahasa'
     },
     'ZH': {
       'title1': '欢迎来到 Inspecta',
@@ -78,13 +99,71 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'title4': '庆祝成就',
       'desc4': '解锁奖励，与团队一起庆祝里程碑。',
       'get_started': '开始使用',
-      'skip': '跳过'
+      'skip': '跳过',
+      'next': '下一步',
+      'select_language': '选择语言'
     },
   };
 
+  // Text used by the permission rationale dialogs, for all supported languages.
+  static const Map<String, Map<String, String>> _permissionText = {
+    'EN': {
+      'location_title': 'Allow Location Access',
+      'location_desc':
+          'Inspecta uses your location to verify you are at PT ATMI Solo before creating findings or resolutions.',
+      'camera_title': 'Allow Camera Access',
+      'camera_desc':
+          'Inspecta uses your camera to capture photo evidence for findings and resolutions.',
+      'allow': 'Allow',
+    },
+    'ID': {
+      'location_title': 'Izinkan Akses Lokasi',
+      'location_desc':
+          'Inspecta menggunakan lokasi Anda untuk memverifikasi bahwa Anda berada di PT ATMI Solo sebelum membuat temuan atau penyelesaian.',
+      'camera_title': 'Izinkan Akses Kamera',
+      'camera_desc':
+          'Inspecta menggunakan kamera Anda untuk mengambil foto bukti temuan dan penyelesaian.',
+      'allow': 'Izinkan',
+    },
+    'ZH': {
+      'location_title': '允许访问位置',
+      'location_desc': 'Inspecta 使用您的位置信息，在创建发现或解决方案之前验证您是否在PT ATMI Solo。',
+      'camera_title': '允许访问相机',
+      'camera_desc': 'Inspecta 使用您的相机拍摄发现和解决方案的照片证据。',
+      'allow': '允许',
+    },
+  };
+
+  String _permTxt(String key) =>
+      _permissionText[_selectedLanguage]?[key] ?? _permissionText['EN']![key]!;
+
+  // Returns the correct font family per language so Mandarin glyphs render
+  // instantly instead of showing tofu boxes while the font loads.
+  TextStyle _localizedStyle({
+    required double fontSize,
+    required FontWeight fontWeight,
+    Color? color,
+    double? height,
+  }) {
+    if (_selectedLanguage == 'ZH') {
+      return GoogleFonts.notoSansSc(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: color,
+        height: height,
+      );
+    }
+    return GoogleFonts.poppins(
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+    );
+  }
+
   String getTxt(String key) => _onboardingText[_selectedLanguage]![key] ?? key;
 
-  // Data untuk setiap halaman onboarding
+  // Builds the list of onboarding pages using the currently selected language.
   List<Widget> _buildPages() {
     return [
       _buildPage(
@@ -110,10 +189,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ];
   }
 
+  // Saves onboarding completion, then runs the permission flow before
+  // navigating to the login screen. Triggered by both Skip and Get Started.
   void _navigateToLogin() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_complete', true);
     await prefs.setString('lang', _selectedLanguage);
+
+    if (!mounted) return;
+
+    // Step 1: location rationale dialog, then the system location prompt.
+    await _requestLocationWithRationale();
+
+    if (!mounted) return;
+
+    // Step 2: camera rationale dialog, then the system camera prompt.
+    await _requestCameraWithRationale();
 
     if (mounted) {
       Navigator.pushReplacement(
@@ -123,6 +214,205 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
+  // Shows the styled location rationale dialog and fires the system
+  // permission prompt directly from the button tap, so the browser treats it
+  // as a fresh user gesture (this removes the delay seen on Flutter Web).
+  Future<void> _requestLocationWithRationale() async {
+    final Completer<void> completer = Completer<void>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (ctx) => _buildPermissionDialog(
+        ctx: ctx,
+        icon: Icons.location_on_rounded,
+        gradientColors: const [Color(0xFF64B5F6), Color(0xFF1D72F3)],
+        title: _permTxt('location_title'),
+        description: _permTxt('location_desc'),
+        buttonLabel: _permTxt('allow'),
+        onAllow: () async {
+          Navigator.of(ctx).pop();
+          try {
+            await Permission.location.request();
+          } catch (_) {}
+          if (!completer.isCompleted) completer.complete();
+        },
+        onSkip: () {
+          Navigator.of(ctx).pop();
+          if (!completer.isCompleted) completer.complete();
+        },
+      ),
+    );
+
+    return completer.future;
+  }
+
+  // Shows the styled camera rationale dialog and fires the system permission
+  // prompt directly from the button tap, right after the location step.
+  Future<void> _requestCameraWithRationale() async {
+    final Completer<void> completer = Completer<void>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (ctx) => _buildPermissionDialog(
+        ctx: ctx,
+        icon: Icons.camera_alt_rounded,
+        gradientColors: const [Color(0xFF4DD0E1), Color(0xFF00ACC1)],
+        title: _permTxt('camera_title'),
+        description: _permTxt('camera_desc'),
+        buttonLabel: _permTxt('allow'),
+        onAllow: () async {
+          Navigator.of(ctx).pop();
+          try {
+            await Permission.camera.request();
+          } catch (_) {}
+          if (!completer.isCompleted) completer.complete();
+        },
+        onSkip: () {
+          Navigator.of(ctx).pop();
+          if (!completer.isCompleted) completer.complete();
+        },
+      ),
+    );
+
+    return completer.future;
+  }
+
+  // Shared visual style for the permission rationale dialogs, matching the
+  // centered card style used by the location-blocked dialog on Home Screen:
+  // white rounded card, gradient icon circle, bold title, gray description,
+  // full-width primary button. Close (X) button skips this permission step.
+  Widget _buildPermissionDialog({
+    required BuildContext ctx,
+    required IconData icon,
+    required List<Color> gradientColors,
+    required String title,
+    required String description,
+    required String buttonLabel,
+    required VoidCallback onAllow,
+    required VoidCallback onSkip,
+  }) {
+    final Color primaryColor = gradientColors.last;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withValues(alpha: 0.25),
+              blurRadius: 30,
+              spreadRadius: 2,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Close button skips this permission without blocking the flow.
+            Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12, right: 12),
+                child: GestureDetector(
+                  onTap: onSkip,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEFF6FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.close_rounded, size: 18, color: primaryColor),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Gradient icon circle.
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: gradientColors,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: primaryColor.withValues(alpha: 0.35),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Icon(icon, color: Colors.white, size: 36),
+                  ),
+                  const SizedBox(height: 18),
+                  // Title, localized per selected language.
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: _localizedStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // Description, localized per selected language.
+                  Text(
+                    description,
+                    textAlign: TextAlign.center,
+                    style: _localizedStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade600,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  // Primary action button, triggers the real system prompt
+                  // directly from this tap so the gesture stays fresh.
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: onAllow,
+                      child: Text(
+                        buttonLabel,
+                        style: _localizedStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -130,47 +420,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // --- Tombol Skip & Dropdown Bahasa ---
+            // Top row: language button and Skip button.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                   Container(
-                      height: 35,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [BoxShadow(color: Colors.black12.withValues(alpha:0.05), blurRadius: 10)],
-                      ),
-                      child: DropdownButton<String>(
-                        value: _selectedLanguage,
-                        underline: const SizedBox(),
-                        icon: const Icon(Icons.arrow_drop_down, color: Colors.black87),
-                        items: const [
-                          DropdownMenuItem(value: 'EN', child: Text('🇬🇧 English')),
-                          DropdownMenuItem(value: 'ID', child: Text('🇮🇩 Indonesia')),
-                          DropdownMenuItem(value: 'ZH', child: Text('🇨🇳 中文')),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedLanguage = value!;
-                          });
-                        },
-                      ),
-                    ),
+                  GestureDetector(
+                    onTap: () => _showLanguagePicker(),
+                    child: _buildLangButton(),
+                  ),
                   TextButton(
                     onPressed: _navigateToLogin,
                     child: Text(
                       getTxt('skip'),
-                      style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                      style: _localizedStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
               ),
             ),
-            // --- Konten Halaman Scroll ---
+            // Scrollable onboarding page content.
             Expanded(
               flex: 3,
               child: PageView(
@@ -183,7 +453,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: _buildPages(),
               ),
             ),
-            // --- Dot Indicator & Tombol ---
+            // Dot indicator and main action button.
             Expanded(
               flex: 1,
               child: Padding(
@@ -191,29 +461,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Dot Indicator
+                    // Dot indicator.
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(4, (index) => _buildDot(index: index)),
                     ),
                     const Spacer(),
-                    // Tombol Get Started
+                    // Next / Get Started button.
                     Container(
                       width: double.infinity,
                       height: 55,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(15),
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF00C9E4),
-                            Color(0xFF42E27A),
-                          ],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
+                        color: const Color(0xFF1D72F3),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF42E27A).withValues(alpha:0.4),
+                            color: const Color(0xFF1D72F3).withValues(alpha:0.4),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -227,10 +490,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             borderRadius: BorderRadius.circular(15),
                           ),
                         ),
-                        onPressed: _navigateToLogin,
+                        onPressed: () {
+                          if (_currentPage == 3) {
+                            _navigateToLogin();
+                          } else {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 400),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        },
                         child: Text(
-                          getTxt('get_started'),
-                          style: const TextStyle(
+                          _currentPage == 3 ? getTxt('get_started') : getTxt('next'),
+                          style: _localizedStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -249,7 +521,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // Widget untuk membuat satu halaman onboarding
+  // Builds a single onboarding page (image, title, description).
   Widget _buildPage({required String imagePath, required String title, required String description}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -261,20 +533,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: _localizedStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.black87),
           ),
           const SizedBox(height: 15),
           Text(
             description,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.5),
-          ),
-        ],
+            style: _localizedStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.grey, height: 1.5),
+          ),        ],
       ),
     );
   }
 
-  // Widget untuk membuat dot indicator
+  // Builds one dot in the page indicator row.
   Widget _buildDot({required int index}) {
     return GestureDetector(
       onTap: () {
@@ -290,9 +561,183 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         height: 8,
         width: _currentPage == index ? 24 : 8,
         decoration: BoxDecoration(
-          color: _currentPage == index ? const Color(0xFF00C9E4) : Colors.grey.shade300,
+          color: _currentPage == index ? const Color(0xFF1D72F3) : Colors.grey.shade300,
           borderRadius: BorderRadius.circular(5),
         ),
+      ),
+    );
+  }
+
+  // Shows the language picker dialog. Pauses auto-slide while open and
+  // resumes it after closing. Guarded to prevent opening more than once.
+  void _showLanguagePicker() async {
+    if (_isDialogOpen) return;
+    _isDialogOpen = true;
+    _timer?.cancel();
+
+    const langs = [
+      {'code': 'EN', 'flag': '🇺🇸', 'label': 'English'},
+      {'code': 'ID', 'flag': '🇮🇩', 'label': 'Indonesia'},
+      {'code': 'ZH', 'flag': '🇨🇳', 'label': '中文'},
+    ];
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1D72F3).withValues(alpha: 0.2),
+                blurRadius: 30,
+                spreadRadius: 2,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 12, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        getTxt('select_language'),
+                        style: _localizedStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 17,
+                          color: const Color(0xFF1D72F3),
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEFF6FF),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF1D72F3)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                child: Column(
+                  children: langs.map((l) {
+                    final isSelected = _selectedLanguage == l['code'];
+                    return GestureDetector(
+                      onTap: () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setString('lang', l['code']!);
+                        if (mounted) setState(() => _selectedLanguage = l['code']!);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF1D72F3).withValues(alpha: 0.08)
+                              : const Color(0xFFF8FAFF),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF1D72F3)
+                                : const Color(0xFFE0E7FF),
+                            width: isSelected ? 1.6 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFFE0E7FF)),
+                              ),
+                              child: Text(l['flag']!, style: const TextStyle(fontSize: 22)),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                l['label']!,
+                                style: _localizedStyle(
+                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                  fontSize: 15,
+                                  color: isSelected
+                                      ? const Color(0xFF1D72F3)
+                                      : const Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(Icons.check_circle_rounded,
+                                  color: Color(0xFF1D72F3), size: 20),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    _isDialogOpen = false;
+    if (mounted) _startAutoSlideTimer();
+  }
+
+  // Builds the language selector button shown at the top of the screen.
+  Widget _buildLangButton() {
+    const flagMap = {'EN': '🇺🇸', 'ID': '🇮🇩', 'ZH': '🇨🇳'};
+    return Container(
+      height: 35,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF1D72F3).withValues(alpha: 0.35), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1D72F3).withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(flagMap[_selectedLanguage] ?? '🇺🇸', style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
+          Text(
+            _selectedLanguage,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1D72F3),
+            ),
+          ),
+          const SizedBox(width: 2),
+          const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Color(0xFF1D72F3)),
+        ],
       ),
     );
   }

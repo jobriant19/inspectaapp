@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../admin/admin_shell_screen.dart';
-import '../admin/home/admin_home_screen.dart';
 import '../user/home/home_screen.dart';
 import '../auth/login_screen.dart';
 import '../user/home/popup/home_point_popup.dart';
@@ -177,7 +177,7 @@ class _SplashScreenState extends State<SplashScreen> {
       // ── Alur Admin ────────────────────────────────────────────────────────
       if (isAdmin) {
         int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
-        int sTotalTemuan = 0, sTemuanBelum = 0, sTemuanSelesai = 0;
+        int sTotalTemuan = 0;
         try {
           final stats = await Future.wait([
             Supabase.instance.client.from('User').count(),
@@ -191,8 +191,6 @@ class _SplashScreenState extends State<SplashScreen> {
           sTotalLokasi   = stats[1];
           sTotalKategori = stats[2];
           sTotalTemuan   = stats[3];
-          sTemuanBelum   = stats[4];
-          sTemuanSelesai = stats[5];
         } catch (_) {}
 
         if (mounted) await warmupAdminFonts(context);
@@ -363,9 +361,56 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
         child: Stack(
           children: [
-            const Offstage(
-              offstage: true,
-              child: Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 1)),
+            Positioned(
+              top: 0,
+              left: 0,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: 0.02,
+                  child: SizedBox(
+                    width: 1,
+                    height: 1,
+                    child: OverflowBox(
+                      minWidth: 0,
+                      minHeight: 0,
+                      maxWidth: 500,
+                      maxHeight: 500,
+                      alignment: Alignment.topLeft,
+                      child: Wrap(
+                        children: [
+                          // Flag emoji — ukuran 22 (dialog) & 18 (tombol bahasa)
+                          const Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 22)),
+                          const Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 18)),
+                          // Title: fontSize 24, w800
+                          Text(
+                            '欢迎来到Inspecta实时分析攀登排行榜庆祝成就',
+                            style: GoogleFonts.notoSansSc(fontSize: 24, fontWeight: FontWeight.w800),
+                          ),
+                          // Deskripsi & tombol Skip: fontSize 14, w700
+                          Text(
+                            '有纪律高效率地监控报告解决问题通过我们先进的分析仪表板即时获取洞察'
+                            '每项任务都能获得积分并在排行榜上看到您的名字解锁奖励与团队一起庆祝里程碑跳过',
+                            style: GoogleFonts.notoSansSc(fontSize: 14, fontWeight: FontWeight.w700),
+                          ),
+                          // Tombol Next/Get Started: fontSize 18, bold(w700)
+                          Text(
+                            '开始使用下一步',
+                            style: GoogleFonts.notoSansSc(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          // Judul dialog pilih bahasa: fontSize 17, w700
+                          Text(
+                            '选择语言',
+                            style: GoogleFonts.notoSansSc(fontSize: 17, fontWeight: FontWeight.w700),
+                          ),
+                          // Label pilihan bahasa: fontSize 15, w700 & w600
+                          Text('中文', style: GoogleFonts.notoSansSc(fontSize: 15, fontWeight: FontWeight.w700)),
+                          Text('中文', style: GoogleFonts.notoSansSc(fontSize: 15, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
             Center(
               child: Container(

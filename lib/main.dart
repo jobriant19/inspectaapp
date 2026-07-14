@@ -41,6 +41,11 @@ Future<void> main() async {
         GoogleFonts.inter(fontWeight: FontWeight.w800),
         GoogleFonts.inter(fontWeight: FontWeight.w900),
         GoogleFonts.sourceCodePro(),
+        GoogleFonts.notoSansSc(fontWeight: FontWeight.w400),
+        GoogleFonts.notoSansSc(fontWeight: FontWeight.w500),
+        GoogleFonts.notoSansSc(fontWeight: FontWeight.w600),
+        GoogleFonts.notoSansSc(fontWeight: FontWeight.w700),
+        GoogleFonts.notoSansSc(fontWeight: FontWeight.w800),
       ]),
     ]).timeout(const Duration(seconds: 5));
   } catch (_) {}
