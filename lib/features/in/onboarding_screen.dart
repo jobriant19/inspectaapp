@@ -25,6 +25,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void initState() {
     super.initState();
     _startAutoSlideTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _warmUpAssets());
+  }
+  Future<void> _warmUpAssets() async {
+    if (!mounted) return;
+    await Future.wait([
+      precacheImage(const AssetImage('assets/images/onboarding1.png'), context).catchError((_) {}),
+      precacheImage(const AssetImage('assets/images/onboarding2.png'), context).catchError((_) {}),
+      precacheImage(const AssetImage('assets/images/onboarding3.png'), context).catchError((_) {}),
+      precacheImage(const AssetImage('assets/images/onboarding4.png'), context).catchError((_) {}),
+    ]);
   }
 
   // Starts the periodic auto-slide timer for the onboarding pages.
@@ -115,6 +125,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'camera_desc':
           'Inspecta uses your camera to capture photo evidence for findings and resolutions.',
       'allow': 'Allow',
+      'not_now': 'Not Now',
     },
     'ID': {
       'location_title': 'Izinkan Akses Lokasi',
@@ -124,6 +135,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'camera_desc':
           'Inspecta menggunakan kamera Anda untuk mengambil foto bukti temuan dan penyelesaian.',
       'allow': 'Izinkan',
+      'not_now': 'Nanti Saja',
     },
     'ZH': {
       'location_title': '允许访问位置',
@@ -131,6 +143,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'camera_title': '允许访问相机',
       'camera_desc': 'Inspecta 使用您的相机拍摄发现和解决方案的照片证据。',
       'allow': '允许',
+      'not_now': '暂不',
     },
   };
 
@@ -223,14 +236,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (ctx) => _buildPermissionDialog(
         ctx: ctx,
         icon: Icons.location_on_rounded,
-        gradientColors: const [Color(0xFF64B5F6), Color(0xFF1D72F3)],
+        iconBackgroundColor: const Color(0xFFEFF6FF),
+        iconColor: const Color(0xFF1D72F3),
         title: _permTxt('location_title'),
         description: _permTxt('location_desc'),
         buttonLabel: _permTxt('allow'),
+        skipLabel: _permTxt('not_now'),
         onAllow: () async {
           Navigator.of(ctx).pop();
           try {
@@ -256,14 +270,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.55),
       builder: (ctx) => _buildPermissionDialog(
         ctx: ctx,
         icon: Icons.camera_alt_rounded,
-        gradientColors: const [Color(0xFF4DD0E1), Color(0xFF00ACC1)],
+        iconBackgroundColor: const Color(0xFFE0F7FA),
+        iconColor: const Color(0xFF00ACC1),
         title: _permTxt('camera_title'),
         description: _permTxt('camera_desc'),
         buttonLabel: _permTxt('allow'),
+        skipLabel: _permTxt('not_now'),
         onAllow: () async {
           Navigator.of(ctx).pop();
           try {
@@ -281,130 +296,100 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return completer.future;
   }
 
-  // Shared visual style for the permission rationale dialogs, matching the
-  // centered card style used by the location-blocked dialog on Home Screen:
-  // white rounded card, gradient icon circle, bold title, gray description,
-  // full-width primary button. Close (X) button skips this permission step.
+  // Visual style for the permission rationale dialogs, matching the logout
+  // confirmation dialog on Account Screen: white flat card (elevation 0,
+  // rounded 28), a flat-colored icon circle (not gradient), bold title,
+  // gray description, then a primary full-width button stacked above an
+  // outlined secondary button (used to skip this permission step).
   Widget _buildPermissionDialog({
     required BuildContext ctx,
     required IconData icon,
-    required List<Color> gradientColors,
+    required Color iconBackgroundColor,
+    required Color iconColor,
     required String title,
     required String description,
     required String buttonLabel,
+    required String skipLabel,
     required VoidCallback onAllow,
     required VoidCallback onSkip,
   }) {
-    final Color primaryColor = gradientColors.last;
-
     return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: primaryColor.withValues(alpha: 0.25),
-              blurRadius: 30,
-              spreadRadius: 2,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Close button skips this permission without blocking the flow.
-            Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 12, right: 12),
-                child: GestureDetector(
-                  onTap: onSkip,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEFF6FF),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.close_rounded, size: 18, color: primaryColor),
-                  ),
+            // Flat-colored icon circle.
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: iconBackgroundColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: iconColor, size: 38),
+            ),
+            const SizedBox(height: 20),
+            // Title, localized per selected language.
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: _localizedStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Description, localized per selected language.
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: _localizedStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                color: const Color(0xFF64748B),
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+            // Primary action button, triggers the real system prompt
+            // directly from this tap so the gesture stays fresh on web.
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: onAllow,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: iconColor,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Text(
+                  buttonLabel,
+                  style: _localizedStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(28, 0, 28, 28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Gradient icon circle.
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: gradientColors,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withValues(alpha: 0.35),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Icon(icon, color: Colors.white, size: 36),
-                  ),
-                  const SizedBox(height: 18),
-                  // Title, localized per selected language.
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: _localizedStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF0F172A),
-                      height: 1.3,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  // Description, localized per selected language.
-                  Text(
-                    description,
-                    textAlign: TextAlign.center,
-                    style: _localizedStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade600,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  // Primary action button, triggers the real system prompt
-                  // directly from this tap so the gesture stays fresh.
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      onPressed: onAllow,
-                      child: Text(
-                        buttonLabel,
-                        style: _localizedStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
-                      ),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 10),
+            // Secondary outlined button, skips this permission step.
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: onSkip,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Text(
+                  skipLabel,
+                  style: _localizedStyle(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF64748B)),
+                ),
               ),
             ),
           ],
@@ -417,9 +402,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      body: SafeArea(
-        child: Column(
-          children: [
+      body: Stack(
+        children: [
+          // Redundant flag-emoji warm-up local to this screen, so the
+          // language button's flag renders instantly even in edge cases
+          // where SplashScreen's own warm-up did not run first.
+          const Positioned(
+            top: 0,
+            left: 0,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.02,
+                child: SizedBox(
+                  width: 1,
+                  height: 1,
+                  child: Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 22)),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
             // Top row: language button and Skip button.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -440,83 +444,95 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ],
               ),
             ),
-            // Scrollable onboarding page content.
             Expanded(
               flex: 3,
-              child: PageView(
-                controller: _pageController,
-                onPageChanged: (int page) {
-                  setState(() {
+              child: RepaintBoundary(
+                child: PageView(
+                  controller: _pageController,
+                  allowImplicitScrolling: true,
+                  onPageChanged: (int page) {
                     _currentPage = page;
-                  });
-                },
-                children: _buildPages(),
+                  },
+                  children: _buildPages(),
+                ),
               ),
             ),
-            // Dot indicator and main action button.
             Expanded(
               flex: 1,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 25),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Dot indicator.
-                    Row(
+                child: AnimatedBuilder(
+                  animation: _pageController,
+                  builder: (context, _) {
+                    final int page = _pageController.hasClients
+                        ? (_pageController.page?.round() ?? _currentPage)
+                        : _currentPage;
+                    return Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(4, (index) => _buildDot(index: index)),
-                    ),
-                    const Spacer(),
-                    // Next / Get Started button.
-                    Container(
-                      width: double.infinity,
-                      height: 55,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(15),
-                        color: const Color(0xFF1D72F3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF1D72F3).withValues(alpha:0.4),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                      children: [
+                        // Dot indicator.
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            4,
+                            (index) => _buildDot(index: index, currentPage: page),
                           ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
+                        ),
+                        const Spacer(),
+                        // Next / Get Started button.
+                        Container(
+                          width: double.infinity,
+                          height: 55,
+                          decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(15),
+                            color: const Color(0xFF1D72F3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF1D72F3).withValues(alpha:0.4),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                            ),
+                            onPressed: () {
+                              if (page == 3) {
+                                _navigateToLogin();
+                              } else {
+                                _pageController.nextPage(
+                                  duration: const Duration(milliseconds: 400),
+                                  curve: Curves.easeInOut,
+                                );
+                              }
+                            },
+                            child: Text(
+                              page == 3 ? getTxt('get_started') : getTxt('next'),
+                              style: _localizedStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
-                        onPressed: () {
-                          if (_currentPage == 3) {
-                            _navigateToLogin();
-                          } else {
-                            _pageController.nextPage(
-                              duration: const Duration(milliseconds: 400),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                        },
-                        child: Text(
-                          _currentPage == 3 ? getTxt('get_started') : getTxt('next'),
-                          style: _localizedStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
+                        const SizedBox(height: 20),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
           ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -545,8 +561,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // Builds one dot in the page indicator row.
-  Widget _buildDot({required int index}) {
+  Widget _buildDot({required int index, required int currentPage}) {
     return GestureDetector(
       onTap: () {
         _pageController.animateToPage(
@@ -559,9 +574,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         duration: const Duration(milliseconds: 300),
         margin: const EdgeInsets.only(right: 8),
         height: 8,
-        width: _currentPage == index ? 24 : 8,
+        width: currentPage == index ? 24 : 8,
         decoration: BoxDecoration(
-          color: _currentPage == index ? const Color(0xFF1D72F3) : Colors.grey.shade300,
+          color: currentPage == index ? const Color(0xFF1D72F3) : Colors.grey.shade300,
           borderRadius: BorderRadius.circular(5),
         ),
       ),

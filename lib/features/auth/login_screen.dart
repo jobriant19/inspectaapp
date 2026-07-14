@@ -7,7 +7,6 @@ import 'dart:async';
 import '../admin/admin_shell_screen.dart';
 import '../user/home/popup/home_point_popup.dart';
 import 'auth_service.dart';
-import '../admin/home/admin_home_screen.dart';
 import '../user/home/home_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/utils/font_warmup.dart';
@@ -56,6 +55,9 @@ class _LoginScreenState extends State<LoginScreen> {
       'fill_email_reset': 'Fill your email to reset password!',
       'err_unknown': 'Unknown Email! Not registered.',
       'sign_in': 'Sign In',
+      'select_language': 'Select Language',
+      'select_language_desc': 'Choose your preferred display language',
+      'pass_hint': 'Password',
     },
     'ID': {
       'login': 'Masuk',
@@ -77,6 +79,9 @@ class _LoginScreenState extends State<LoginScreen> {
       'fill_email_reset': 'Isi email dulu untuk mereset password!',
       'err_unknown': 'Email Tidak Terdaftar!',
       'sign_in': 'Masuk',
+      'select_language': 'Pilih Bahasa',
+      'select_language_desc': 'Pilih bahasa tampilan yang Anda inginkan',
+      'pass_hint': 'Kata Sandi',
     },
     'ZH': {
       'login': '登录',
@@ -98,6 +103,9 @@ class _LoginScreenState extends State<LoginScreen> {
       'fill_email_reset': '请先填写您的邮箱以重置密码！',
       'err_unknown': '未知的电子邮件！',
       'sign_in': '登录',
+      'select_language': '选择语言',
+      'select_language_desc': '选择您偏好的显示语言',
+      'pass_hint': '密码',
     },
   };
 
@@ -106,8 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.initialLang != null &&
-        _translations.containsKey(widget.initialLang)) {
+    if (widget.initialLang != null && _translations.containsKey(widget.initialLang)) {
       selectedLanguage = widget.initialLang!;
     }
     _loadSavedCredentials();
@@ -125,8 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _setupAuthListener() {
-    _authStateSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+    _authStateSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       if (data.event != AuthChangeEvent.signedIn) return;
       final session = data.session;
       if (session == null) return;
@@ -175,7 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (jabatanGoogle == 6) {
           // Admin via Google
           int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
-          int sTotalTemuan = 0, sTemuanBelum = 0, sTemuanSelesai = 0;
+          int sTotalTemuan = 0;
           try {
             final stats = await Future.wait([
               Supabase.instance.client.from('User').count(),
@@ -192,8 +198,6 @@ class _LoginScreenState extends State<LoginScreen> {
             sTotalLokasi   = stats[1] as int;
             sTotalKategori = stats[2] as int;
             sTotalTemuan   = stats[3] as int;
-            sTemuanBelum   = stats[4] as int;
-            sTemuanSelesai = stats[5] as int;
           } catch (_) {
             if (!mounted) return;
             await precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
@@ -280,50 +284,64 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // Dialog error
+  // Error dialog, restyled to match the logout confirmation dialog style
+  // used on Account Screen: white flat card (elevation 0, rounded 28),
+  // flat-colored icon circle (not gradient), bold title, gray-toned
+  // description area, and a primary full-width action button.
   void _showCustomDialog(String message) {
+    const Color primaryColor = Color(0xFFEF4444); // Red tone for error state
+    const Color iconBackground = Color(0xFFFFEBEB);
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      builder: (ctx) => Dialog(
         backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Flat-colored icon circle.
               Container(
-                padding: const EdgeInsets.all(10),
+                width: 80,
+                height: 80,
                 decoration: const BoxDecoration(
-                  color: Color.fromARGB(255, 255, 25, 25),
+                  color: iconBackground,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.close, color: Colors.white, size: 36),
+                child: const Icon(Icons.error_outline_rounded, color: primaryColor, size: 38),
               ),
               const SizedBox(height: 20),
+              // Error message shown as the title.
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E293B),
+                  height: 1.4,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
+              // Primary action button.
               SizedBox(
                 width: double.infinity,
-                height: 44,
                 child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1976D2),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
                     elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
-                  onPressed: () => Navigator.of(context).pop(),
                   child: Text(
                     getTxt('try_again'),
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14),
                   ),
                 ),
               ),
@@ -530,7 +548,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (isAdmin) {
         int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
-        int sTotalTemuan = 0, sTemuanBelum = 0, sTemuanSelesai = 0;
+        int sTotalTemuan = 0;
         try {
           final stats = await Future.wait([
             Supabase.instance.client.from('User').count(),
@@ -551,8 +569,6 @@ class _LoginScreenState extends State<LoginScreen> {
           sTotalLokasi   = stats[1] as int;
           sTotalKategori = stats[2] as int;
           sTotalTemuan   = stats[3] as int;
-          sTemuanBelum   = stats[4] as int;
-          sTemuanSelesai = stats[5] as int;
         } catch (_) {
           if (!mounted) return;
           await precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
@@ -956,14 +972,14 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header dengan tombol close
+              // Header with title and close button (original layout)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 12, 4),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
-                        'Select Language',
+                        getTxt('select_language'),
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.w700,
                           fontSize: 17,
@@ -1119,6 +1135,11 @@ class _LoginScreenState extends State<LoginScreen> {
     TextInputType keyboardType = TextInputType.text,
   }) {
     final isFilled = controller.text.isNotEmpty;
+
+    final String displayHint = isPassword
+        ? (isPasswordVisible ? getTxt('pass_hint') : hint)
+        : hint;
+
     return Container(
       height: 52,
       decoration: BoxDecoration(
@@ -1135,13 +1156,12 @@ class _LoginScreenState extends State<LoginScreen> {
         textInputAction: isPassword ? TextInputAction.done : TextInputAction.next,
         obscureText: isPassword && !isPasswordVisible,
         onFieldSubmitted: isPassword ? (_) => _submitForm() : null,
-        style: const TextStyle(
-            color: Color(0xFF0D47A1), fontWeight: FontWeight.w600, fontSize: 14),
+        style: GoogleFonts.poppins( color: Color(0xFF1D72F3), fontWeight: FontWeight.w700, fontSize: 14),
         decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(
+          hintText: displayHint,
+          hintStyle: GoogleFonts.poppins(
               color: Color(0xFF64748B),
-              fontSize: 14, fontWeight: FontWeight.w600),
+              fontSize: 14, fontWeight: FontWeight.w700),
           suffixIcon: isPassword
               ? IconButton(
                   icon: Icon(
