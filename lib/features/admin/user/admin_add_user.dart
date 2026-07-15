@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/auth_service.dart';
 import '../../user/analytics/kts production/kts_section_location_picker.dart';
 import 'camera/admin_user_camera.dart';
+import 'picker/admin_user_pick_role.dart';
 import 'picker/admin_user_pick_supervisor.dart';
 
 class AdminAddUserScreen extends StatefulWidget {
@@ -58,12 +59,18 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
 
   String get _lang => widget.lang;
 
-  // Data supervisor yang sedang terpilih (dicari dari supervisorList
-  // berdasarkan selectedSupervisorId), dipakai oleh AdminSupervisorPickerCard.
   Map<String, dynamic>? get _selectedSupervisorData {
     if (selectedSupervisorId == null) return null;
     for (final s in supervisorList) {
       if (s['id_user'] == selectedSupervisorId) return s;
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? get _selectedJabatanData {
+    if (selectedJabatan == null) return null;
+    for (final j in widget.jabatanList) {
+      if (j['id_jabatan'] == selectedJabatan) return j;
     }
     return null;
   }
@@ -628,94 +635,6 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
     );
   }
 
-  Widget _buildJabatanDropdown() {
-    final hasValue = selectedJabatan != null;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: hasValue ? _primary.withValues(alpha:0.05) : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: hasValue ? _primary.withValues(alpha:0.45) : const Color(0xFFCBD5E1),
-          width: hasValue ? 1.4 : 1.2,
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: selectedJabatan,
-          isExpanded: true,
-          dropdownColor: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          icon: Icon(Icons.keyboard_arrow_down_rounded,
-              color: hasValue ? _primary : Colors.black45),
-          hint: Row(children: [
-            const Icon(Icons.work_outline_rounded, size: 16, color: Colors.black26),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                _lang == 'EN'
-                    ? 'Select job title'
-                    : _lang == 'ZH'
-                        ? '请选择职位'
-                        : 'Pilih jabatan',
-                style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ]),
-          selectedItemBuilder: (ctx) => widget.jabatanList.map((j) {
-            return Row(children: [
-              Container(
-                width: 26, height: 26,
-                decoration: BoxDecoration(color: _primary.withValues(alpha:0.14), borderRadius: BorderRadius.circular(7)),
-                child: const Icon(Icons.work_outline_rounded, size: 13, color: _primary),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  j['nama_jabatan'] ?? '-',
-                  style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 14, fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ]);
-          }).toList(),
-          items: widget.jabatanList.map((j) {
-            final id = j['id_jabatan'] as int;
-            final isSelected = selectedJabatan == id;
-            return DropdownMenuItem<int>(
-              value: id,
-              child: Row(children: [
-                Container(
-                  width: 26, height: 26,
-                  decoration: BoxDecoration(
-                    color: isSelected ? _primary : _primary.withValues(alpha:0.12),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: Icon(Icons.work_outline_rounded, size: 13, color: isSelected ? Colors.white : _primary),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    j['nama_jabatan'] ?? '-',
-                    style: GoogleFonts.poppins(
-                      color: isSelected ? _primary : const Color(0xFF1E3A8A),
-                      fontSize: 14,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (isSelected) const Icon(Icons.check_circle_rounded, size: 16, color: _primary),
-              ]),
-            );
-          }).toList(),
-          onChanged: (v) => setState(() => selectedJabatan = v),
-        ),
-      ),
-    );
-  }
-
   Widget _buildBagianKasiePicker() {
     const kasieColor = Color(0xFF0891B2);
     final hasValue = selectedBagianKasie != null && selectedBagianKasie!.isNotEmpty;
@@ -1106,13 +1025,28 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
 
                   _buildFieldLabel(
                       _lang == 'EN'
-                          ? 'Job Title'
+                          ? 'Role'
                           : _lang == 'ZH'
-                              ? '职位'
-                              : 'Jabatan',
+                              ? '角色'
+                              : 'Role',
                       Icons.work_outline_rounded),
                   const SizedBox(height: 6),
-                  _buildJabatanDropdown(),
+                  AdminRolePickerCard(
+                    lang: _lang,
+                    selectedRole: _selectedJabatanData,
+                    onTap: () async {
+                      final result = await showAdminPickRoleDialog(
+                        context,
+                        lang: _lang,
+                        jabatanList: widget.jabatanList,
+                        selectedJabatanId: selectedJabatan,
+                      );
+                      if (result == null) return;
+                      setState(() {
+                        selectedJabatan = result['id_jabatan'] as int?;
+                      });
+                    },
+                  ),
 
                   // KASIE SECTION 
                   if (selectedJabatan == 3) ...[

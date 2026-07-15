@@ -51,12 +51,12 @@ IconData _adminLevelIcon(String level) {
   }
 }
 
-Color _adminRoleColor(int? idJabatan) {
+Color adminRoleColor(int? idJabatan) {
   if (idJabatan == 6) return const Color(0xFF059669);
   return JabatanHelper.getPrimaryColor(isVerificatorFlag: false, idJabatan: idJabatan);
 }
 
-IconData _adminRoleIcon(int? idJabatan) {
+IconData adminRoleIcon(int? idJabatan) {
   if (idJabatan == 6) return Icons.admin_panel_settings_rounded;
   return JabatanHelper.getRoleIcon(isVerificatorFlag: false, idJabatan: idJabatan);
 }
@@ -659,15 +659,15 @@ class _AdminUserRoleFilterDialog extends StatelessWidget {
                     onTap: () => Navigator.pop(context, {'id': null, 'name': null}),
                   ),
                   ...(List<Map<String, dynamic>>.from(jabatanList)
-                        ..sort((a, b) => (b['id_jabatan'] as int)
-                            .compareTo(a['id_jabatan'] as int)))
+                        ..sort((a, b) => (a['id_jabatan'] as int)
+                            .compareTo(b['id_jabatan'] as int)))
                       .map((jab) {
                     final id = jab['id_jabatan'] as int;
                     final nama = jab['nama_jabatan']?.toString() ?? '';
                     return _buildRoleCard(
                       context: context,
-                      icon: _adminRoleIcon(id),
-                      color: _adminRoleColor(id),
+                      icon: adminRoleIcon(id),
+                      color: adminRoleColor(id),
                       label: nama,
                       isSelected: selectedJabatanId == id,
                       onTap: () => Navigator.pop(context, {'id': id, 'name': nama}),

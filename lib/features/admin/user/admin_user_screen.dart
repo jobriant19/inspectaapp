@@ -451,6 +451,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         border: Border.all(color: Colors.black.withValues(alpha:0.08)),
       ),
       child: TextField(
+        textAlignVertical: TextAlignVertical.center,
         onChanged: (v) => setState(() {
           _search = v;
           _applyFilter();
@@ -458,6 +459,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         style: GoogleFonts.poppins(
             color: const Color(0xFF1E3A8A), fontSize: 14),
         decoration: InputDecoration(
+          isDense: true,
           hintText: _langCode == 'EN'
               ? 'Search by name or email...'
               : _langCode == 'ZH'
@@ -497,13 +499,10 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       specificLocation = lokasiName.toString();
     }
 
-    // ROLE COLORS
-    Color roleColor = const Color(0xFF6366F1);
-    final idJabatan = user['id_jabatan'];
-    if (idJabatan == 1) roleColor = const Color(0xFFDC2626); // Eksekutif
-    if (idJabatan == 2) roleColor = const Color(0xFF7C3AED); // Manager
-    if (idJabatan == 3) roleColor = const Color(0xFF0891B2); // Kasie
-    if (idJabatan == 6) roleColor = const Color(0xFF059669); // Admin
+    // ROLE COLOR & ICON — disamakan persis dengan admin_user_filter.dart (Select Role)
+    final idJabatan = user['id_jabatan'] as int?;
+    final Color roleColor = adminRoleColor(idJabatan);
+    final IconData roleIcon = adminRoleIcon(idJabatan);
 
     final bool isKasie = idJabatan == 3;
     final String bagianKasieRaw = (user['bagian_kasie'] as String?)?.trim() ?? '';
@@ -595,7 +594,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                   spacing: 5,
                   runSpacing: 4,
                   children: [
-                    _buildChip(jabatan, roleColor, Icons.work_outline),
+                    _buildChip(jabatan, roleColor, roleIcon),
                     if (isVisitor)
                       _buildChip(
                         _langCode == 'EN' ? 'Visitor' : _langCode == 'ZH' ? '访客' : 'Pengunjung',
