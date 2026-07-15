@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../auth/auth_service.dart';
 import '../../user/analytics/kts production/kts_section_location_picker.dart';
-import '../shared/admin_image_picker_widget.dart';
+import 'camera/admin_user_camera.dart';
 
 class AdminEditUserScreen extends StatefulWidget {
   final String lang;
@@ -35,6 +37,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
 
   bool _showPasswordField = false;
   bool _isSaving = false;
+  bool _isUploadingPhoto = false;
+  bool _successPopupHandled = false;
 
   int? _selectedJabatan;
   bool _isVisitor = false;
@@ -77,6 +81,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     _selectedSectionId = u['id_section'] as String?;
 
     _loadInitialData();
+    AdminUserPhotoCameraWarmupService.instance.warmUp();
   }
 
   @override
@@ -85,6 +90,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     _emailCtrl.dispose();
     _passCtrl.dispose();
     _phoneCtrl.dispose();
+    AdminUserPhotoCameraWarmupService.instance.release();
     super.dispose();
   }
 
@@ -185,13 +191,12 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     final userId = widget.user['id_user'] as String?;
 
     if (nama.isEmpty || email.isEmpty) {
-      _showSnack(
+      _showErrorPopup(
         _lang == 'EN'
             ? 'Name and email are required!'
             : _lang == 'ZH'
                 ? '姓名和邮箱为必填项！'
                 : 'Nama dan email wajib diisi!',
-        isError: true,
       );
       return;
     }
@@ -216,14 +221,13 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
       };
 
       if (pass.isNotEmpty) {
-        if (pass.length < 6) {
-          _showSnack(
+        if (pass.length < 8) {
+          _showErrorPopup(
             _lang == 'EN'
-                ? 'Password must be at least 6 characters'
+                ? 'Password must be at least 8 characters'
                 : _lang == 'ZH'
-                    ? '密码至少需要6个字符'
-                    : 'Password minimal 6 karakter',
-            isError: true,
+                    ? '密码至少需要8个字符'
+                    : 'Password minimal 8 karakter',
           );
           setState(() => _isSaving = false);
           return;
@@ -244,43 +248,306 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
           .update(updateData)
           .eq('id_user', userId!);
 
-      _showSnack(
-        _lang == 'EN'
-            ? 'User updated successfully!'
-            : _lang == 'ZH'
-                ? '用户更新成功！'
-                : 'Pengguna berhasil diperbarui!',
-      );
-
-      widget.onUserUpdated();
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        _showSuccessPopup(
+          _lang == 'EN'
+              ? 'User updated successfully!'
+              : _lang == 'ZH'
+                  ? '用户更新成功！'
+                  : 'Pengguna berhasil diperbarui!',
+        );
+      }
     } catch (e) {
-      _showSnack('Error: $e', isError: true);
+      _showErrorPopup('Error: $e');
       setState(() => _isSaving = false);
     }
   }
 
-  void _showSnack(String msg, {bool isError = false}) {
+  void _showErrorPopup(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Row(
-        children: [
-          Icon(
-            isError ? Icons.error_outline : Icons.check_circle_outline,
-            color: Colors.white,
-            size: 18,
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'error',
+      barrierColor: Colors.black.withValues(alpha:0.45),
+      transitionDuration: const Duration(milliseconds: 320),
+      transitionBuilder: (_, anim, __, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.80, end: 1.0).animate(
+              CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+            ),
+            child: child,
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(msg, style: GoogleFonts.poppins(color: Colors.white)),
+        );
+      },
+      pageBuilder: (ctx, _, __) {
+        Future.delayed(const Duration(milliseconds: 2500), () {
+          if (ctx.mounted && Navigator.of(ctx).canPop()) {
+            Navigator.of(ctx).pop();
+          }
+        });
+
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFDC2626).withValues(alpha:0.25),
+                    blurRadius: 40,
+                    spreadRadius: 4,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: const Color(0xFFDC2626).withValues(alpha:0.25),
+                          width: 2),
+                    ),
+                    child: const Icon(Icons.error_rounded,
+                        color: Color(0xFFDC2626), size: 44),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    _lang == 'EN'
+                        ? 'Failed!'
+                        : _lang == 'ZH'
+                            ? '失败！'
+                            : 'Gagal!',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFDC2626),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 1.0, end: 0.0),
+                      duration: const Duration(milliseconds: 2500),
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 4,
+                        backgroundColor:
+                            const Color(0xFFDC2626).withValues(alpha:0.1),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFFDC2626)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  Future<void> _pickProfilePhoto() async {
+    final XFile? picked = await Navigator.push<XFile?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminUserPhotoCameraScreen(lang: _lang, isEdit: true),
       ),
-      backgroundColor: isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
-    ));
+    );
+    AdminUserPhotoCameraWarmupService.instance.warmUp();
+
+    if (picked == null) return;
+
+    setState(() => _isUploadingPhoto = true);
+    try {
+      final bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last.toLowerCase();
+      final safeExt = ext == 'png' ? 'png' : 'jpg';
+      final userId = widget.user['id_user'] ?? 'edit-user';
+      final fileName =
+          '$userId-${DateTime.now().millisecondsSinceEpoch}.$safeExt';
+
+      await Supabase.instance.client.storage.from('avatars').uploadBinary(
+            'user/$fileName',
+            bytes,
+            fileOptions: FileOptions(
+              contentType: safeExt == 'png' ? 'image/png' : 'image/jpeg',
+              upsert: true,
+            ),
+          );
+
+      final url = Supabase.instance.client.storage
+          .from('avatars')
+          .getPublicUrl('user/$fileName');
+
+      if (mounted) setState(() => _gambarUserUrl = url);
+    } catch (e) {
+      debugPrint('Error uploading profile photo: $e');
+      if (mounted) _showErrorPopup('Error: $e');
+    } finally {
+      if (mounted) setState(() => _isUploadingPhoto = false);
+    }
+  }
+
+  // Popup sukses di tengah layar, style sama seperti admin_news_screen.dart
+  void _showSuccessPopup(String message) {
+    if (!mounted) return;
+    _successPopupHandled = false;
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'success',
+      barrierColor: Colors.black.withValues(alpha:0.45),
+      transitionDuration: const Duration(milliseconds: 320),
+      transitionBuilder: (_, anim, __, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.80, end: 1.0).animate(
+              CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+            ),
+            child: child,
+          ),
+        );
+      },
+      pageBuilder: (ctx, _, __) {
+        void finish() {
+          if (_successPopupHandled) return;
+          _successPopupHandled = true;
+          if (ctx.mounted && Navigator.of(ctx).canPop()) {
+            Navigator.of(ctx).pop();
+          }
+          widget.onUserUpdated();
+          if (mounted) Navigator.pop(context);
+        }
+
+        Future.delayed(const Duration(milliseconds: 2000), finish);
+
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withValues(alpha:0.25),
+                    blurRadius: 40,
+                    spreadRadius: 4,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: const Color(0xFF16A34A).withValues(alpha:0.25),
+                          width: 2),
+                    ),
+                    child: const Icon(Icons.check_circle_rounded,
+                        color: Color(0xFF16A34A), size: 44),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    _lang == 'EN'
+                        ? 'Success!'
+                        : _lang == 'ZH'
+                            ? '成功！'
+                            : 'Berhasil!',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF16A34A),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: Colors.grey.shade600,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 1.0, end: 0.0),
+                      duration: const Duration(milliseconds: 2000),
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 4,
+                        backgroundColor:
+                            const Color(0xFF16A34A).withValues(alpha:0.1),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF16A34A)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: finish,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text(
+                        'OK',
+                        style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -305,7 +572,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                   : 'Edit Pengguna',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w700,
-            fontSize: 16,
+            fontSize: 17,
             color: _primary,
           ),
         ),
@@ -319,32 +586,78 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // AVATAR
-                  _buildLabel(
-                    _lang == 'EN'
-                        ? 'Profile Photo'
-                        : _lang == 'ZH'
-                            ? '头像'
-                            : 'Foto Profil',
+                  Row(
+                    children: [
+                      Icon(Icons.photo_camera_outlined,
+                          size: 14, color: _primary),
+                      const SizedBox(width: 6),
+                      Text(
+                        _lang == 'EN'
+                            ? 'Profile Photo'
+                            : _lang == 'ZH'
+                                ? '头像'
+                                : 'Foto Profil',
+                        style: GoogleFonts.poppins(
+                          color: _primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  AdminImagePickerWidget(
-                    currentImageUrl: _gambarUserUrl,
-                    storageBucket: 'avatars',
-                    storageFolder: 'user',
-                    filePrefix: widget.user['id_user'] ?? 'edit-user',
-                    height: 56,
-                    isCircle: true,
-                    placeholder: Text(
-                      _namaCtrl.text.isNotEmpty
-                          ? _namaCtrl.text[0].toUpperCase()
-                          : '?',
-                      style: GoogleFonts.poppins(
-                        color: _primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
+                  const SizedBox(height: 14),
+                  Center(
+                    child: GestureDetector(
+                      onTap: _isUploadingPhoto ? null : _pickProfilePhoto,
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 52,
+                            backgroundColor: _primary.withValues(alpha:0.10),
+                            backgroundImage: _gambarUserUrl != null
+                                ? CachedNetworkImageProvider(_gambarUserUrl!)
+                                : null,
+                            child: _gambarUserUrl == null
+                                ? Text(
+                                    _namaCtrl.text.isNotEmpty
+                                        ? _namaCtrl.text[0].toUpperCase()
+                                        : '?',
+                                    style: GoogleFonts.poppins(
+                                      color: _primary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 32,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(9),
+                              decoration: BoxDecoration(
+                                color: _primary,
+                                shape: BoxShape.circle,
+                                border:
+                                    Border.all(color: Colors.white, width: 3),
+                              ),
+                              child: _isUploadingPhoto
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.camera_alt_rounded,
+                                      size: 18, color: Colors.white),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    onUploaded: (url) => setState(() => _gambarUserUrl = url),
                   ),
                   const SizedBox(height: 24),
 
@@ -796,18 +1109,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     );
   }
 
-  Widget _buildLabel(String label) {
-    return Text(
-      label,
-      style: GoogleFonts.poppins(
-        color: Colors.black54,
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.3,
-      ),
-    );
-  }
-
   // Label field dengan ikon di kiri, warna ungu, Poppins w700
   Widget _buildFieldLabel(String label, IconData icon) {
     return Row(
@@ -842,7 +1143,9 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         color: enabled ? const Color(0xFFF8FAFC) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: enabled ? Colors.grey.shade200 : Colors.grey.shade100),
+          color: enabled ? const Color(0xFFCBD5E1) : Colors.grey.shade200,
+          width: 1.3,
+        ),
       ),
       child: TextField(
         controller: ctrl,
@@ -852,6 +1155,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         style: GoogleFonts.poppins(
           color: enabled ? const Color(0xFF1E3A8A) : Colors.black38,
           fontSize: 14,
+          fontWeight: FontWeight.w700,
         ),
         decoration: InputDecoration(
           hintText: hint,
@@ -873,8 +1177,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         color: hasValue ? _primary.withValues(alpha:0.05) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: hasValue ? _primary.withValues(alpha:0.45) : Colors.grey.shade200,
-          width: hasValue ? 1.4 : 1,
+          color: hasValue ? _primary.withValues(alpha:0.45) : const Color(0xFFCBD5E1),
+          width: hasValue ? 1.4 : 1.2,
         ),
       ),
       child: DropdownButtonHideUnderline(
@@ -971,8 +1275,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
           color: hasValue ? kasieColor.withValues(alpha:0.05) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: hasValue ? kasieColor.withValues(alpha:0.5) : Colors.grey.shade200,
-            width: hasValue ? 1.4 : 1,
+            color: hasValue ? kasieColor.withValues(alpha:0.5) : const Color(0xFFCBD5E1),
+            width: hasValue ? 1.4 : 1.2,
           ),
         ),
         child: Row(children: [
@@ -1026,8 +1330,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         border: Border.all(
           color: !enabled
               ? Colors.grey.shade100
-              : (hasValue ? color.withValues(alpha:0.45) : Colors.grey.shade200),
-          width: hasValue ? 1.4 : 1,
+              : (hasValue ? color.withValues(alpha:0.45) : const Color(0xFFCBD5E1)),
+          width: hasValue ? 1.4 : 1.2,
         ),
       ),
       child: DropdownButtonHideUnderline(
@@ -1115,8 +1419,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         border: Border.all(
           color: _selectedSupervisorId != null
               ? const Color(0xFF8B5CF6).withValues(alpha:0.45)
-              : Colors.grey.shade200,
-          width: _selectedSupervisorId != null ? 1.4 : 1,
+              : const Color(0xFFCBD5E1),
+          width: _selectedSupervisorId != null ? 1.4 : 1.2,
         ),
       ),
       child: DropdownButtonHideUnderline(
