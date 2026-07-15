@@ -591,7 +591,7 @@ Future<Map<String, dynamic>?> showAdminUserRoleFilterDialog(
   );
 }
 
-class _AdminUserRoleFilterDialog extends StatelessWidget {
+class _AdminUserRoleFilterDialog extends StatefulWidget {
   final String lang;
   final List<Map<String, dynamic>> jabatanList;
   final int? selectedJabatanId;
@@ -602,8 +602,31 @@ class _AdminUserRoleFilterDialog extends StatelessWidget {
     this.selectedJabatanId,
   });
 
+  @override
+  State<_AdminUserRoleFilterDialog> createState() => _AdminUserRoleFilterDialogState();
+}
+
+class _AdminUserRoleFilterDialogState extends State<_AdminUserRoleFilterDialog> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  List<Map<String, dynamic>> _sorted = [];
+  List<Map<String, dynamic>> _filtered = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _sorted = List<Map<String, dynamic>>.from(widget.jabatanList)
+      ..sort((a, b) => (a['id_jabatan'] as int).compareTo(b['id_jabatan'] as int));
+    _filtered = List<Map<String, dynamic>>.from(_sorted);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   String get _title {
-    switch (lang) {
+    switch (widget.lang) {
       case 'EN':
         return 'Select Role';
       case 'ZH':
@@ -613,8 +636,19 @@ class _AdminUserRoleFilterDialog extends StatelessWidget {
     }
   }
 
+  String get _searchHint {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Search role...';
+      case 'ZH':
+        return '搜索角色...';
+      default:
+        return 'Cari role...';
+    }
+  }
+
   String get _allLabel {
-    switch (lang) {
+    switch (widget.lang) {
       case 'EN':
         return 'All Roles';
       case 'ZH':
@@ -624,44 +658,147 @@ class _AdminUserRoleFilterDialog extends StatelessWidget {
     }
   }
 
+  String get _emptyText {
+    switch (widget.lang) {
+      case 'EN':
+        return 'No roles found';
+      case 'ZH':
+        return '未找到角色';
+      default:
+        return 'Role tidak ditemukan';
+    }
+  }
+
+  void _applySearch(String q) {
+    final query = q.trim().toLowerCase();
+    setState(() {
+      _filtered = query.isEmpty
+          ? List<Map<String, dynamic>>.from(_sorted)
+          : _sorted
+              .where((e) =>
+                  (e['nama_jabatan'] ?? '').toString().toLowerCase().contains(query))
+              .toList();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
     return Dialog(
       backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      clipBehavior: Clip.antiAlias,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: _AdminFilterColors.primaryLight,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: _adminFilterDialogHeader(
-              context: context,
-              icon: Icons.badge_rounded,
-              title: _title,
+      child: Container(
+        width: _kAdminFilterDialogWidth,
+        height: screenHeight * _kAdminFilterDialogHeightFactor,
+        color: Colors.white,
+        child: Column(children: [
+          // HEADER
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _AdminFilterColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.badge_rounded,
+                    color: _AdminFilterColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _title,
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    color: _AdminFilterColors.primary,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(Icons.close_rounded,
+                      color: Color(0xFF64748B), size: 18),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
+          // SEARCH
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: _AdminFilterColors.primary.withValues(alpha: 0.35),
+                    width: 1.3),
+                boxShadow: [
+                  BoxShadow(
+                    color: _AdminFilterColors.primary.withValues(alpha: 0.08),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: _applySearch,
+                textAlignVertical: TextAlignVertical.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: _AdminFilterColors.textPrimary,
+                    fontWeight: FontWeight.w500),
+                decoration: InputDecoration(
+                  hintText: _searchHint,
+                  hintStyle:
+                      TextStyle(fontSize: 12.5, color: _AdminFilterColors.textMuted),
+                  prefixIcon: const Icon(Icons.search_rounded,
+                      color: _AdminFilterColors.primary, size: 19),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
             ),
           ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 420),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
-              child: Column(
-                children: [
-                  _buildRoleCard(
-                    context: context,
-                    icon: Icons.apps_rounded,
-                    color: _AdminFilterColors.primary,
-                    label: _allLabel,
-                    isSelected: selectedJabatanId == null,
-                    onTap: () => Navigator.pop(context, {'id': null, 'name': null}),
-                  ),
-                  ...(List<Map<String, dynamic>>.from(jabatanList)
-                        ..sort((a, b) => (a['id_jabatan'] as int)
-                            .compareTo(b['id_jabatan'] as int)))
-                      .map((jab) {
+          const Divider(height: 1, color: _AdminFilterColors.divider),
+          // LIST
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+              children: [
+                _buildRoleCard(
+                  context: context,
+                  icon: Icons.apps_rounded,
+                  color: _AdminFilterColors.primary,
+                  label: _allLabel,
+                  isSelected: widget.selectedJabatanId == null,
+                  onTap: () => Navigator.pop(context, {'id': null, 'name': null}),
+                ),
+                if (_filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(_emptyText,
+                          style: const TextStyle(
+                              fontSize: 12.5, color: _AdminFilterColors.textSecondary)),
+                    ),
+                  )
+                else
+                  ..._filtered.map((jab) {
                     final id = jab['id_jabatan'] as int;
                     final nama = jab['nama_jabatan']?.toString() ?? '';
                     return _buildRoleCard(
@@ -669,15 +806,14 @@ class _AdminUserRoleFilterDialog extends StatelessWidget {
                       icon: adminRoleIcon(id),
                       color: adminRoleColor(id),
                       label: nama,
-                      isSelected: selectedJabatanId == id,
+                      isSelected: widget.selectedJabatanId == id,
                       onTap: () => Navigator.pop(context, {'id': id, 'name': nama}),
                     );
                   }),
-                ],
-              ),
+              ],
             ),
           ),
-        ],
+        ]),
       ),
     );
   }

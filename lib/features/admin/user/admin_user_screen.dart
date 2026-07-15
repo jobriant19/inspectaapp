@@ -8,6 +8,7 @@ import 'admin_delete_user.dart';
 import 'admin_detail_user.dart';
 import 'admin_edit_user.dart';
 import 'filter/admin_user_filter.dart';
+import 'picker/admin_user_indicator.dart';
 
 class AdminUserScreen extends StatefulWidget {
   final String lang;
@@ -36,6 +37,23 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   int? _filterJabatanId;
   String? _filterJabatanName;
   String _sortOrder = 'none';
+
+  // PAGINATION STATE — minimal 10 card user per halaman.
+  int _currentPage = 1;
+  static const int _usersPerPage = 10;
+
+  int get _totalPages {
+    if (_filtered.isEmpty) return 1;
+    return (_filtered.length / _usersPerPage).ceil();
+  }
+
+  List<Map<String, dynamic>> get _pagedUsers {
+    if (_filtered.isEmpty) return [];
+    final start = (_currentPage - 1) * _usersPerPage;
+    if (start >= _filtered.length) return [];
+    final end = (start + _usersPerPage).clamp(0, _filtered.length);
+    return _filtered.sublist(start, end);
+  }
 
   String? get _activeLocationLevel {
     if (_filterAreaId != null) return 'Area';
@@ -192,6 +210,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     }
 
     _filtered = result;
+    _currentPage = 1; // reset ke halaman pertama setiap kali filter berubah
   }
 
   void _showUserDetail(Map<String, dynamic> user) {
@@ -398,24 +417,44 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 ],
               ),
             ),
-          // USER LIST
+          // USER LIST + PAGINATION INDICATOR (selalu di layer paling depan)
           Expanded(
             child: _isLoading
                 ? _buildShimmer()
                 : _filtered.isEmpty
                     ? _buildEmpty()
-                    : RefreshIndicator(
-                        onRefresh: _loadData,
-                        color: _primary,
-                        child: ListView.separated(
-                          padding:
-                              const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                          itemCount: _filtered.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (_, i) =>
-                              _buildUserCard(_filtered[i]),
-                        ),
+                    : Stack(
+                        children: [
+                          RefreshIndicator(
+                            onRefresh: _loadData,
+                            color: _primary,
+                            child: ListView.separated(
+                              padding: EdgeInsets.fromLTRB(
+                                16, 12, 16,
+                                _totalPages > 1 ? 100 : 32, // ruang ekstra agar card terakhir tidak tertutup indicator
+                              ),
+                              itemCount: _pagedUsers.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (_, i) =>
+                                  _buildUserCard(_pagedUsers[i]),
+                            ),
+                          ),
+                          // Indicator ditaruh SETELAH ListView di dalam Stack
+                          // agar selalu berada di layer paling depan (di atas card).
+                          if (_totalPages > 1)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: AdminUserIndicatorScreen(
+                                currentPage: _currentPage,
+                                totalPages: _totalPages,
+                                onPageChanged: (p) =>
+                                    setState(() => _currentPage = p),
+                              ),
+                            ),
+                        ],
                       ),
           ),
         ],
