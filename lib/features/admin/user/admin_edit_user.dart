@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../auth/auth_service.dart';
 import '../../user/analytics/kts production/kts_section_location_picker.dart';
 import 'camera/admin_user_camera.dart';
+import 'picker/admin_user_pick_supervisor.dart';
 
 class AdminEditUserScreen extends StatefulWidget {
   final String lang;
@@ -38,6 +39,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
   bool _showPasswordField = false;
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
+  bool _isNewPasswordVisible = false;
   bool _successPopupHandled = false;
 
   int? _selectedJabatan;
@@ -59,6 +61,16 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
   List<Map<String, dynamic>> _supervisorList = [];
 
   String get _lang => widget.lang;
+
+  // Data supervisor yang sedang terpilih (dicari dari _supervisorList
+  // berdasarkan _selectedSupervisorId), dipakai oleh AdminSupervisorPickerCard.
+  Map<String, dynamic>? get _selectedSupervisorData {
+    if (_selectedSupervisorId == null) return null;
+    for (final s in _supervisorList) {
+      if (s['id_user'] == _selectedSupervisorId) return s;
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -102,7 +114,10 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
           .order('nama_lokasi'),
       Supabase.instance.client
           .from('User')
-          .select('id_user, nama')
+          .select(
+            'id_user, nama, gambar_user, id_jabatan, is_verificator, '
+            'jabatan!User_id_jabatan_fkey(nama_jabatan)',
+          )
           .inFilter('id_jabatan', [2, 3])
           .order('nama'),
     ]);
@@ -788,11 +803,22 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     _buildTextField(
                       _passCtrl,
                       _lang == 'EN'
-                          ? 'New password (min 6 characters)'
+                          ? 'New password (min 8 characters)'
                           : _lang == 'ZH'
-                              ? '新密码（最少6个字符）'
-                              : 'Password baru (minimal 6 karakter)',
-                      obscure: true,
+                              ? '新密码（最少8个字符）'
+                              : 'Password baru (minimal 8 karakter)',
+                      obscure: !_isNewPasswordVisible,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isNewPasswordVisible
+                              ? Icons.visibility_off_rounded
+                              : Icons.visibility_rounded,
+                          color: _primary,
+                          size: 22,
+                        ),
+                        onPressed: () => setState(() =>
+                            _isNewPasswordVisible = !_isNewPasswordVisible),
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Padding(
@@ -948,7 +974,26 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     Icons.person_search_outlined,
                   ),
                   const SizedBox(height: 6),
-                  _buildSupervisorDropdown(),
+                  // Kartu popup pemilih supervisor (menggantikan dropdown lama).
+                  AdminSupervisorPickerCard(
+                    lang: _lang,
+                    selectedSupervisor: _selectedSupervisorData,
+                    onTap: () async {
+                      final result = await showAdminPickSupervisorDialog(
+                        context,
+                        lang: _lang,
+                        supervisorList: _supervisorList,
+                        selectedSupervisorId: _selectedSupervisorId,
+                      );
+                      // null -> dialog ditutup tanpa memilih apa pun, biarkan.
+                      if (result == null) return;
+                      setState(() {
+                        // map kosong ({}) berarti user memilih "Tanpa supervisor".
+                        _selectedSupervisorId =
+                            result.isEmpty ? null : result['id_user'] as String?;
+                      });
+                    },
+                  ),
                   const SizedBox(height: 20),
 
                   _buildDivider(),
@@ -1137,6 +1182,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     bool obscure = false,
     TextInputType? keyboardType,
     bool enabled = true,
+    Widget? suffixIcon,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1161,6 +1207,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
           hintText: hint,
           hintStyle:
               GoogleFonts.poppins(color: Colors.black26, fontSize: 13),
+          suffixIcon: suffixIcon,
           border: InputBorder.none,
           contentPadding:
               const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -1403,139 +1450,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                 }).toList()
               : [],
           onChanged: enabled ? onChanged : null,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSupervisorDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: _selectedSupervisorId != null
-            ? const Color(0xFF8B5CF6).withValues(alpha:0.05)
-            : const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _selectedSupervisorId != null
-              ? const Color(0xFF8B5CF6).withValues(alpha:0.45)
-              : const Color(0xFFCBD5E1),
-          width: _selectedSupervisorId != null ? 1.4 : 1.2,
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _supervisorList.any(
-                  (e) => e['id_user'] == _selectedSupervisorId)
-              ? _selectedSupervisorId
-              : null,
-          isExpanded: true,
-          dropdownColor: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          icon: Icon(Icons.keyboard_arrow_down_rounded,
-              color: _selectedSupervisorId != null ? const Color(0xFF8B5CF6) : Colors.black45),
-          hint: Row(children: [
-            const Icon(Icons.person_search_outlined, size: 16, color: Colors.black26),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                _lang == 'EN'
-                    ? 'Select supervisor (optional)'
-                    : _lang == 'ZH'
-                        ? '选择主管（可选）'
-                        : 'Pilih supervisor (opsional)',
-                style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ]),
-          selectedItemBuilder: (ctx) => [
-            Row(children: [
-              Container(
-                width: 26, height: 26,
-                decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(7)),
-                child: Icon(Icons.remove_circle_outline_rounded, size: 13, color: Colors.grey.shade500),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _lang == 'EN' ? 'No supervisor' : _lang == 'ZH' ? '无主管' : 'Tanpa supervisor',
-                  style: GoogleFonts.poppins(color: Colors.black45, fontSize: 13, fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ]),
-            ..._supervisorList.map((s) => Row(children: [
-                  Container(
-                    width: 26, height: 26,
-                    decoration: BoxDecoration(color: const Color(0xFF8B5CF6).withValues(alpha:0.14), borderRadius: BorderRadius.circular(7)),
-                    child: const Icon(Icons.person_rounded, size: 13, color: Color(0xFF8B5CF6)),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      s['nama'] ?? '-',
-                      style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13, fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ])),
-          ],
-          items: [
-            DropdownMenuItem<String>(
-              value: null,
-              child: Row(children: [
-                Container(
-                  width: 26, height: 26,
-                  decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(7)),
-                  child: Icon(Icons.remove_circle_outline_rounded, size: 13, color: Colors.grey.shade500),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _lang == 'EN'
-                        ? '— No supervisor —'
-                        : _lang == 'ZH'
-                            ? '— 无主管 —'
-                            : '— Tanpa supervisor —',
-                    style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ]),
-            ),
-            ..._supervisorList.map((s) {
-              final id = s['id_user'] as String;
-              final isSelected = _selectedSupervisorId == id;
-              return DropdownMenuItem<String>(
-                value: id,
-                child: Row(children: [
-                  Container(
-                    width: 26, height: 26,
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF8B5CF6).withValues(alpha:0.12),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Icon(Icons.person_rounded, size: 13, color: isSelected ? Colors.white : const Color(0xFF8B5CF6)),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      s['nama'] ?? '-',
-                      style: GoogleFonts.poppins(
-                        color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF1E3A8A),
-                        fontSize: 13,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (isSelected) const Icon(Icons.check_circle_rounded, size: 16, color: Color(0xFF8B5CF6)),
-                ]),
-              );
-            }),
-          ],
-          onChanged: (v) => setState(() => _selectedSupervisorId = v),
         ),
       ),
     );

@@ -59,7 +59,7 @@ class AdminHomeManagementMenu extends StatelessWidget {
             : lang == 'ZH'
                 ? '位置\n管理'
                 : 'Kelola\nLokasi',
-        icon: Icons.location_on_rounded,
+        icon: Icons.map,
         gradient: const [Color(0xFF10B981), Color(0xFF059669)],
         shadow: const Color(0xFF10B981),
         onTap: () => Navigator.push(
