@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../auth/auth_service.dart';
 import '../../user/analytics/kts production/kts_section_location_picker.dart';
 import 'camera/admin_user_camera.dart';
+import 'picker/admin_user_pick_location.dart';
 import 'picker/admin_user_pick_role.dart';
 import 'picker/admin_user_pick_supervisor.dart';
 
@@ -47,18 +48,11 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
   bool _isVisitor = false;
   bool _isVerificator = false;
   String? _gambarUserUrl;
-  String? _selectedLokasiId;
-  String? _selectedUnitId;
-  String? _selectedSubunitId;
-  String? _selectedAreaId;
+  AdminUserLocationSelection _locationSelection = const AdminUserLocationSelection();
   String? _selectedSupervisorId;
   String? _selectedBagianKasie;
   String? _selectedSectionId;
 
-  List<Map<String, dynamic>> _lokasiList = [];
-  List<Map<String, dynamic>> _unitList = [];
-  List<Map<String, dynamic>> _subunitList = [];
-  List<Map<String, dynamic>> _areaList = [];
   List<Map<String, dynamic>> _supervisorList = [];
 
   String get _lang => widget.lang;
@@ -90,17 +84,34 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     _isVisitor = u['is_visitor'] == true;
     _isVerificator = u['is_verificator'] == true;
     _gambarUserUrl = u['gambar_user'] as String?;
-    _selectedLokasiId = u['id_lokasi'] as String?;
-    _selectedUnitId = u['id_unit'] as String?;
-    _selectedSubunitId = u['id_subunit'] as String?;
-    _selectedAreaId = u['id_area'] as String?;
     _selectedSupervisorId = u['id_supervisor'] as String?;
     final bagian = (u['bagian_kasie'] as String?)?.trim();
     _selectedBagianKasie = (bagian == null || bagian.isEmpty) ? null : bagian;
     _selectedSectionId = u['id_section'] as String?;
 
+    _loadInitialLocationSelection(
+      idLokasi: u['id_lokasi'] as String?,
+      idUnit: u['id_unit'] as String?,
+      idSubunit: u['id_subunit'] as String?,
+      idArea: u['id_area'] as String?,
+    );
     _loadInitialData();
     AdminUserPhotoCameraWarmupService.instance.warmUp();
+  }
+
+  Future<void> _loadInitialLocationSelection({
+    String? idLokasi,
+    String? idUnit,
+    String? idSubunit,
+    String? idArea,
+  }) async {
+    final resolved = await resolveAdminUserLocationSelection(
+      idLokasi: idLokasi,
+      idUnit: idUnit,
+      idSubunit: idSubunit,
+      idArea: idArea,
+    );
+    if (mounted) setState(() => _locationSelection = resolved);
   }
 
   @override
@@ -114,95 +125,19 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
   }
 
   Future<void> _loadInitialData() async {
-    final results = await Future.wait([
-      Supabase.instance.client
-          .from('lokasi')
-          .select('id_lokasi, nama_lokasi')
-          .order('nama_lokasi'),
-      Supabase.instance.client
-          .from('User')
-          .select(
-            'id_user, nama, gambar_user, id_jabatan, is_verificator, '
-            'jabatan!User_id_jabatan_fkey(nama_jabatan)',
-          )
-          .inFilter('id_jabatan', [2, 3])
-          .order('nama'),
-    ]);
-
-    final lokasiData = List<Map<String, dynamic>>.from(results[0] as List);
-    final supervisorData = List<Map<String, dynamic>>.from(results[1] as List);
-
-    if (!mounted) return;
-    setState(() {
-      _lokasiList = lokasiData;
-      _supervisorList = supervisorData;
-    });
-
-    if (_selectedLokasiId != null) {
-      await _loadUnit(_selectedLokasiId!, restoreUnit: _selectedUnitId);
-    }
-  }
-
-  Future<void> _loadUnit(String lokasiId, {String? restoreUnit}) async {
     final res = await Supabase.instance.client
-        .from('unit')
-        .select('id_unit, nama_unit')
-        .eq('id_lokasi', lokasiId)
-        .order('nama_unit');
-    if (!mounted) return;
-    setState(() {
-      _unitList = List<Map<String, dynamic>>.from(res);
-      if (restoreUnit == null) {
-        _selectedUnitId = null;
-        _selectedSubunitId = null;
-        _selectedAreaId = null;
-        _subunitList = [];
-        _areaList = [];
-      }
-    });
-    if (restoreUnit != null && _unitList.any((u) => u['id_unit']?.toString() == restoreUnit)) {
-      setState(() => _selectedUnitId = restoreUnit);
-      await _loadSubunit(restoreUnit, restoreSubunit: _selectedSubunitId);
-    }
-  }
+        .from('User')
+        .select(
+          'id_user, nama, gambar_user, id_jabatan, is_verificator, '
+          'jabatan!User_id_jabatan_fkey(nama_jabatan)',
+        )
+        .inFilter('id_jabatan', [2, 3])
+        .order('nama');
 
-  Future<void> _loadSubunit(String unitId, {String? restoreSubunit}) async {
-    final res = await Supabase.instance.client
-        .from('subunit')
-        .select('id_subunit, nama_subunit')
-        .eq('id_unit', unitId)
-        .order('nama_subunit');
     if (!mounted) return;
     setState(() {
-      _subunitList = List<Map<String, dynamic>>.from(res);
-      if (restoreSubunit == null) {
-        _selectedSubunitId = null;
-        _selectedAreaId = null;
-        _areaList = [];
-      }
+      _supervisorList = List<Map<String, dynamic>>.from(res);
     });
-    if (restoreSubunit != null && _subunitList.any((s) => s['id_subunit']?.toString() == restoreSubunit)) {
-      setState(() => _selectedSubunitId = restoreSubunit);
-      await _loadArea(restoreSubunit, restoreArea: _selectedAreaId);
-    }
-  }
-
-  Future<void> _loadArea(String subunitId, {String? restoreArea}) async {
-    final res = await Supabase.instance.client
-        .from('area')
-        .select('id_area, nama_area')
-        .eq('id_subunit', subunitId)
-        .order('nama_area');
-    if (!mounted) return;
-    setState(() {
-      _areaList = List<Map<String, dynamic>>.from(res);
-      if (restoreArea == null) {
-        _selectedAreaId = null;
-      }
-    });
-    if (restoreArea != null && _areaList.any((a) => a['id_area']?.toString() == restoreArea)) {
-      setState(() => _selectedAreaId = restoreArea);
-    }
   }
 
   Future<void> _save() async {
@@ -233,10 +168,10 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         'is_visitor': _isVisitor,
         'is_verificator': _isVerificator,
         'gambar_user': _gambarUserUrl,
-        'id_lokasi': _selectedLokasiId,
-        'id_unit': _selectedUnitId,
-        'id_subunit': _selectedSubunitId,
-        'id_area': _selectedAreaId,
+        'id_lokasi': _locationSelection.idLokasi,
+        'id_unit': _locationSelection.idUnit,
+        'id_subunit': _locationSelection.idSubunit,
+        'id_area': _locationSelection.idArea,
         'id_supervisor': _selectedSupervisorId,
         'bagian_kasie': _selectedJabatan == 3 ? _selectedBagianKasie : null,
         'id_section': _selectedJabatan == 3 ? _selectedSectionId : null,
@@ -896,79 +831,28 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                         : _lang == 'ZH'
                             ? '位置分配'
                             : 'Penempatan Lokasi',
-                    Icons.location_on_outlined,
+                    Icons.location_city_rounded,
                     const Color(0xFF10B981),
                   ),
                   const SizedBox(height: 14),
 
                   _buildFieldLabel(
                     _lang == 'EN' ? 'Location' : _lang == 'ZH' ? '位置' : 'Lokasi',
-                    Icons.map,
+                    Icons.location_city_rounded,
                   ),
                   const SizedBox(height: 6),
-                  _buildLocationDropdown(
-                    items: _lokasiList,
-                    idKey: 'id_lokasi',
-                    nameKey: 'nama_lokasi',
-                    selectedId: _selectedLokasiId,
-                    hint: _lang == 'EN' ? 'Select location' : 'Pilih lokasi',
-                    icon: Icons.location_on_outlined,
-                    color: const Color(0xFF10B981),
-                    onChanged: (v) {
-                      setState(() => _selectedLokasiId = v);
-                      if (v != null) _loadUnit(v);
+                  AdminLocationAssignmentCard(
+                    lang: _lang,
+                    selection: _locationSelection,
+                    onTap: () async {
+                      final result = await showAdminUserPickLocationDialog(
+                        context,
+                        lang: _lang,
+                        initial: _locationSelection,
+                      );
+                      if (result == null) return;
+                      setState(() => _locationSelection = result);
                     },
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildFieldLabel('Unit', Icons.apartment_outlined),
-                  const SizedBox(height: 6),
-                  _buildLocationDropdown(
-                    items: _unitList,
-                    idKey: 'id_unit',
-                    nameKey: 'nama_unit',
-                    selectedId: _selectedUnitId,
-                    hint: _lang == 'EN' ? 'Select unit' : 'Pilih unit',
-                    icon: Icons.apartment_outlined,
-                    color: _primary,
-                    enabled: _selectedLokasiId != null && _unitList.isNotEmpty,
-                    onChanged: (v) {
-                      setState(() => _selectedUnitId = v);
-                      if (v != null) _loadSubunit(v);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildFieldLabel('Sub-Unit', Icons.layers_outlined),
-                  const SizedBox(height: 6),
-                  _buildLocationDropdown(
-                    items: _subunitList,
-                    idKey: 'id_subunit',
-                    nameKey: 'nama_subunit',
-                    selectedId: _selectedSubunitId,
-                    hint: _lang == 'EN' ? 'Select sub-unit' : 'Pilih sub-unit',
-                    icon: Icons.layers_outlined,
-                    color: const Color(0xFFFBBF24),
-                    enabled: _selectedUnitId != null && _subunitList.isNotEmpty,
-                    onChanged: (v) {
-                      setState(() => _selectedSubunitId = v);
-                      if (v != null) _loadArea(v);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildFieldLabel('Area', Icons.pin_drop_outlined),
-                  const SizedBox(height: 6),
-                  _buildLocationDropdown(
-                    items: _areaList,
-                    idKey: 'id_area',
-                    nameKey: 'nama_area',
-                    selectedId: _selectedAreaId,
-                    hint: _lang == 'EN' ? 'Select area' : 'Pilih area',
-                    icon: Icons.pin_drop_outlined,
-                    color: const Color(0xFFF472B6),
-                    enabled: _selectedSubunitId != null && _areaList.isNotEmpty,
-                    onChanged: (v) => setState(() => _selectedAreaId = v),
                   ),
                   const SizedBox(height: 20),
 
@@ -1285,106 +1169,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
           ),
           Icon(Icons.chevron_right_rounded, size: 18, color: hasValue ? kasieColor : Colors.black26),
         ]),
-      ),
-    );
-  }
-
-  Widget _buildLocationDropdown({
-    required List<Map<String, dynamic>> items,
-    required String idKey,
-    required String nameKey,
-    required String? selectedId,
-    required String hint,
-    required ValueChanged<String?> onChanged,
-    required IconData icon,
-    required Color color,
-    bool enabled = true,
-  }) {
-    final hasValue = enabled && items.any((e) => e[idKey]?.toString() == selectedId);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: !enabled
-            ? Colors.grey.shade50
-            : (hasValue ? color.withValues(alpha:0.05) : const Color(0xFFF8FAFC)),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: !enabled
-              ? Colors.grey.shade100
-              : (hasValue ? color.withValues(alpha:0.45) : const Color(0xFFCBD5E1)),
-          width: hasValue ? 1.4 : 1.2,
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: hasValue ? selectedId : null,
-          isExpanded: true,
-          dropdownColor: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          icon: Icon(Icons.keyboard_arrow_down_rounded,
-              color: !enabled ? Colors.grey.shade300 : (hasValue ? color : Colors.black45)),
-          hint: Row(children: [
-            Icon(icon, size: 16, color: !enabled ? Colors.grey.shade300 : Colors.black26),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(hint,
-                  style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
-                  overflow: TextOverflow.ellipsis),
-            ),
-          ]),
-          selectedItemBuilder: enabled
-              ? (ctx) => items.map((item) {
-                    return Row(children: [
-                      Container(
-                        width: 26, height: 26,
-                        decoration: BoxDecoration(color: color.withValues(alpha:0.14), borderRadius: BorderRadius.circular(7)),
-                        child: Icon(icon, size: 13, color: color),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          item[nameKey] ?? '-',
-                          style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13, fontWeight: FontWeight.w600),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ]);
-                  }).toList()
-              : null,
-          items: enabled
-              ? items.map((item) {
-                  final id = item[idKey] as String;
-                  final isSelected = selectedId == id;
-                  return DropdownMenuItem<String>(
-                    value: id,
-                    child: Row(children: [
-                      Container(
-                        width: 26, height: 26,
-                        decoration: BoxDecoration(
-                          color: isSelected ? color : color.withValues(alpha:0.12),
-                          borderRadius: BorderRadius.circular(7),
-                        ),
-                        child: Icon(icon, size: 13, color: isSelected ? Colors.white : color),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          item[nameKey] ?? '-',
-                          style: GoogleFonts.poppins(
-                            color: isSelected ? color : const Color(0xFF1E3A8A),
-                            fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          ),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (isSelected) Icon(Icons.check_circle_rounded, size: 16, color: color),
-                    ]),
-                  );
-                }).toList()
-              : [],
-          onChanged: enabled ? onChanged : null,
-        ),
       ),
     );
   }

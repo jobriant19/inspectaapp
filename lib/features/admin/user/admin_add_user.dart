@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/auth_service.dart';
 import '../../user/analytics/kts production/kts_section_location_picker.dart';
 import 'camera/admin_user_camera.dart';
+import 'picker/admin_user_pick_location.dart';
 import 'picker/admin_user_pick_role.dart';
 import 'picker/admin_user_pick_supervisor.dart';
 
@@ -43,18 +44,11 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
   bool isPasswordVisible = false;
   bool _successPopupHandled = false;
   String? gambarUserUrl;
-  String? selectedLokasiId;
-  String? selectedUnitId;
-  String? selectedSubunitId;
-  String? selectedAreaId;
+  AdminUserLocationSelection _locationSelection = const AdminUserLocationSelection();
   String? selectedSupervisorId;
   String? selectedBagianKasie;
   String? selectedSectionId;
 
-  List<Map<String, dynamic>> lokasiList = [];
-  List<Map<String, dynamic>> unitList = [];
-  List<Map<String, dynamic>> subunitList = [];
-  List<Map<String, dynamic>> areaList = [];
   List<Map<String, dynamic>> supervisorList = [];
 
   String get _lang => widget.lang;
@@ -93,72 +87,17 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
   }
 
   Future<void> _loadDropdowns() async {
-    final results = await Future.wait([
-      Supabase.instance.client
-          .from('lokasi')
-          .select('id_lokasi, nama_lokasi')
-          .order('nama_lokasi'),
-      Supabase.instance.client
-          .from('User')
-          .select(
-            'id_user, nama, gambar_user, id_jabatan, is_verificator, '
-            'jabatan!User_id_jabatan_fkey(nama_jabatan)',
-          )
-          .inFilter('id_jabatan', [2, 3])
-          .order('nama'),
-    ]);
-    if (mounted) {
-      setState(() {
-        lokasiList = List<Map<String, dynamic>>.from(results[0] as List);
-        supervisorList = List<Map<String, dynamic>>.from(results[1] as List);
-      });
-    }
-  }
-
-  Future<void> _loadUnit(String lokasiId) async {
     final res = await Supabase.instance.client
-        .from('unit')
-        .select('id_unit, nama_unit')
-        .eq('id_lokasi', lokasiId)
-        .order('nama_unit');
+        .from('User')
+        .select(
+          'id_user, nama, gambar_user, id_jabatan, is_verificator, '
+          'jabatan!User_id_jabatan_fkey(nama_jabatan)',
+        )
+        .inFilter('id_jabatan', [2, 3])
+        .order('nama');
     if (mounted) {
       setState(() {
-        unitList = List<Map<String, dynamic>>.from(res);
-        subunitList = [];
-        areaList = [];
-        selectedUnitId = null;
-        selectedSubunitId = null;
-        selectedAreaId = null;
-      });
-    }
-  }
-
-  Future<void> _loadSubunit(String unitId) async {
-    final res = await Supabase.instance.client
-        .from('subunit')
-        .select('id_subunit, nama_subunit')
-        .eq('id_unit', unitId)
-        .order('nama_subunit');
-    if (mounted) {
-      setState(() {
-        subunitList = List<Map<String, dynamic>>.from(res);
-        areaList = [];
-        selectedSubunitId = null;
-        selectedAreaId = null;
-      });
-    }
-  }
-
-  Future<void> _loadArea(String subunitId) async {
-    final res = await Supabase.instance.client
-        .from('area')
-        .select('id_area, nama_area')
-        .eq('id_subunit', subunitId)
-        .order('nama_area');
-    if (mounted) {
-      setState(() {
-        areaList = List<Map<String, dynamic>>.from(res);
-        selectedAreaId = null;
+        supervisorList = List<Map<String, dynamic>>.from(res);
       });
     }
   }
@@ -229,10 +168,10 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
         'is_visitor': isVisitor,
         'is_verificator': isVerificator,
         'gambar_user': gambarUserUrl,
-        'id_lokasi': selectedLokasiId,
-        'id_unit': selectedUnitId,
-        'id_subunit': selectedSubunitId,
-        'id_area': selectedAreaId,
+        'id_lokasi': _locationSelection.idLokasi,
+        'id_unit': _locationSelection.idUnit,
+        'id_subunit': _locationSelection.idSubunit,
+        'id_area': _locationSelection.idArea,
         'timestamp': DateTime.now().toIso8601String(),
         'id_supervisor': selectedSupervisorId,
         'bagian_kasie': selectedJabatan == 3 ? selectedBagianKasie : null,
@@ -686,107 +625,6 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
     );
   }
 
-  Widget _buildLocationDropdown<T>({
-    required List<Map<String, dynamic>> items,
-    required String idKey,
-    required String nameKey,
-    required T? selectedId,
-    required String hint,
-    required ValueChanged<T?> onChanged,
-    required IconData icon,
-    required Color color,
-    bool enabled = true,
-  }) {
-    final hasValue = enabled &&
-        items.any((e) => e[idKey]?.toString() == selectedId?.toString());
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: !enabled
-            ? Colors.grey.shade50
-            : (hasValue ? color.withValues(alpha:0.05) : const Color(0xFFF8FAFC)),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: !enabled
-              ? Colors.grey.shade100
-              : (hasValue ? color.withValues(alpha:0.45) : const Color(0xFFCBD5E1)),
-          width: hasValue ? 1.4 : 1.2,
-        ),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: hasValue ? selectedId : null,
-          isExpanded: true,
-          dropdownColor: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          icon: Icon(Icons.keyboard_arrow_down_rounded,
-              color: !enabled ? Colors.grey.shade300 : (hasValue ? color : Colors.black45)),
-          hint: Row(children: [
-            Icon(icon, size: 16, color: !enabled ? Colors.grey.shade300 : Colors.black26),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(hint,
-                  style: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
-                  overflow: TextOverflow.ellipsis),
-            ),
-          ]),
-          selectedItemBuilder: enabled
-              ? (ctx) => items.map((item) {
-                    return Row(children: [
-                      Container(
-                        width: 26, height: 26,
-                        decoration: BoxDecoration(color: color.withValues(alpha:0.14), borderRadius: BorderRadius.circular(7)),
-                        child: Icon(icon, size: 13, color: color),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          item[nameKey] ?? '-',
-                          style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13, fontWeight: FontWeight.w600),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ]);
-                  }).toList()
-              : null,
-          items: enabled
-              ? items.map((item) {
-                  final id = item[idKey] as T;
-                  final isSelected = selectedId?.toString() == id.toString();
-                  return DropdownMenuItem<T>(
-                    value: id,
-                    child: Row(children: [
-                      Container(
-                        width: 26, height: 26,
-                        decoration: BoxDecoration(
-                          color: isSelected ? color : color.withValues(alpha:0.12),
-                          borderRadius: BorderRadius.circular(7),
-                        ),
-                        child: Icon(icon, size: 13, color: isSelected ? Colors.white : color),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          item[nameKey] ?? '-',
-                          style: GoogleFonts.poppins(
-                            color: isSelected ? color : const Color(0xFF1E3A8A),
-                            fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          ),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (isSelected) Icon(Icons.check_circle_rounded, size: 16, color: color),
-                    ]),
-                  );
-                }).toList()
-              : [],
-          onChanged: enabled ? onChanged : null,
-        ),
-      ),
-    );
-  }
-
   Widget _buildToggleRow(
     String label,
     IconData icon,
@@ -1073,7 +911,7 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
                         : _lang == 'ZH'
                             ? '位置分配'
                             : 'Penempatan Lokasi',
-                    Icons.map,
+                    Icons.location_city_rounded,
                     const Color(0xFF10B981),
                   ),
                   const SizedBox(height: 14),
@@ -1084,74 +922,20 @@ class _AdminAddUserScreenState extends State<AdminAddUserScreen> {
                           : _lang == 'ZH'
                               ? '位置'
                               : 'Lokasi',
-                      Icons.map),
+                      Icons.location_city_rounded),
                   const SizedBox(height: 6),
-                  _buildLocationDropdown<String>(
-                    items: lokasiList,
-                    idKey: 'id_lokasi',
-                    nameKey: 'nama_lokasi',
-                    selectedId: selectedLokasiId,
-                    hint: _lang == 'EN' ? 'Select location' : 'Pilih lokasi',
-                    icon: Icons.location_on_outlined,
-                    color: const Color(0xFF10B981),
-                    onChanged: (v) {
-                      setState(() => selectedLokasiId = v);
-                      if (v != null) _loadUnit(v);
+                  AdminLocationAssignmentCard(
+                    lang: _lang,
+                    selection: _locationSelection,
+                    onTap: () async {
+                      final result = await showAdminUserPickLocationDialog(
+                        context,
+                        lang: _lang,
+                        initial: _locationSelection,
+                      );
+                      if (result == null) return;
+                      setState(() => _locationSelection = result);
                     },
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildFieldLabel('Unit', Icons.apartment_outlined),
-                  const SizedBox(height: 6),
-                  _buildLocationDropdown<String>(
-                    items: unitList,
-                    idKey: 'id_unit',
-                    nameKey: 'nama_unit',
-                    selectedId: selectedUnitId,
-                    hint: _lang == 'EN' ? 'Select unit' : 'Pilih unit',
-                    icon: Icons.apartment_outlined,
-                    color: _primary,
-                    enabled:
-                        selectedLokasiId != null && unitList.isNotEmpty,
-                    onChanged: (v) {
-                      setState(() => selectedUnitId = v);
-                      if (v != null) _loadSubunit(v);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildFieldLabel('Sub-Unit', Icons.layers_outlined),
-                  const SizedBox(height: 6),
-                  _buildLocationDropdown<String>(
-                    items: subunitList,
-                    idKey: 'id_subunit',
-                    nameKey: 'nama_subunit',
-                    selectedId: selectedSubunitId,
-                    hint: _lang == 'EN' ? 'Select sub-unit' : 'Pilih sub-unit',
-                    icon: Icons.layers_outlined,
-                    color: const Color(0xFFFBBF24),
-                    enabled:
-                        selectedUnitId != null && subunitList.isNotEmpty,
-                    onChanged: (v) {
-                      setState(() => selectedSubunitId = v);
-                      if (v != null) _loadArea(v);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildFieldLabel('Area', Icons.pin_drop_outlined),
-                  const SizedBox(height: 6),
-                  _buildLocationDropdown<String>(
-                    items: areaList,
-                    idKey: 'id_area',
-                    nameKey: 'nama_area',
-                    selectedId: selectedAreaId,
-                    hint: _lang == 'EN' ? 'Select area' : 'Pilih area',
-                    icon: Icons.pin_drop_outlined,
-                    color: const Color(0xFFF472B6),
-                    enabled:
-                        selectedSubunitId != null && areaList.isNotEmpty,
-                    onChanged: (v) => setState(() => selectedAreaId = v),
                   ),
                   const SizedBox(height: 24),
 
