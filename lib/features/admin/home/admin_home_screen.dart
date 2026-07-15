@@ -593,7 +593,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           style: GoogleFonts.poppins(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFF1E3A8A), 
+            color: Color.fromARGB(255, 52, 211, 153),
           ),
         ),
       ],

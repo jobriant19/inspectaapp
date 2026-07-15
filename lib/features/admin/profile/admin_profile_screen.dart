@@ -9,9 +9,6 @@ import '../../auth/auth_service.dart';
 import '../../../core/utils/image_picker_helper.dart';
 import '../../auth/login_screen.dart';
 
-// ============================================================
-// ADMIN PROFILE SCREEN — CRUD nama & gambar_user
-// ============================================================
 class AdminProfileScreen extends StatefulWidget {
   final String lang;
   final String? initialUserName;
@@ -725,7 +722,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new,
-            color: Color(0xFF059669)),
+            color: Color.fromARGB(255, 29, 199, 97)),
             onPressed: () {
               if (_isEditMode) {
                 setState(() {
@@ -748,21 +745,20 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             getTxt(_isEditMode ? 'edit_title' : 'title'),
             style: GoogleFonts.poppins(
               fontWeight: FontWeight.bold,
-              color: const Color(0xFF059669),
+              color: const Color.fromARGB(255, 29, 199, 97),
               fontSize: 18,
             ),
           ),
           backgroundColor: Colors.white,
           elevation: 1,
-          shadowColor: Colors.black.withValues(alpha:0.08),
           actions: [
             if (!_isEditMode && !_isLoading)
               TextButton.icon(
                 icon: const Icon(Icons.edit_rounded,
-                    color: Color(0xFF059669), size: 18),
+                    color:  Color.fromARGB(255, 29, 199, 97), size: 18),
                 label: Text(getTxt('edit'),
                     style: const TextStyle(
-                        color: Color(0xFF059669),
+                        color: Color.fromARGB(255, 29, 199, 97),
                         fontWeight: FontWeight.bold)),
                 onPressed: () => setState(() => _isEditMode = true),
                 style: TextButton.styleFrom(
@@ -808,12 +804,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             label: getTxt('role'),
                             icon: Icons.work_outline,
                           ),
-                          const SizedBox(height: 24),
-
                           // ── Section: Change Password (selalu tampil, tidak perlu edit mode) ──
                           _buildPasswordSection(),
 
-                          const SizedBox(height: 24),
+                          if (_isEditMode) const SizedBox(height: 16),
 
                           // ── Tombol simpan ──
                           if (_isEditMode)
@@ -845,7 +839,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                               ),
                             ),
 
-                          const SizedBox(height: 40),
+                          const SizedBox(height: 16),
 
                           // ── Tombol logout ──
                           if (!_isEditMode)
@@ -969,14 +963,22 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(
-              getTxt('new_password'),
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF059669),
-                letterSpacing: 0.3,
-              ),
+            child: Row(
+              children: [
+                Icon(Icons.lock_outline,
+                    size: 15,
+                    color: const Color.fromARGB(255, 29, 199, 97)),
+                const SizedBox(width: 6),
+                Text(
+                  getTxt('new_password'),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color.fromARGB(255, 29, 199, 97),
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
             ),
           ),
           _buildPasswordField(
@@ -989,14 +991,22 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           const SizedBox(height: 14),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(
-              getTxt('confirm_password'),
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF059669),
-                letterSpacing: 0.3,
-              ),
+            child: Row(
+              children: [
+                Icon(Icons.lock_outline,
+                    size: 15,
+                    color: const Color.fromARGB(255, 29, 199, 97)),
+                const SizedBox(width: 6),
+                Text(
+                  getTxt('confirm_password'),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color.fromARGB(255, 29, 199, 97),
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
             ),
           ),
           _buildPasswordField(
@@ -1076,10 +1086,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             child: TextField(
               controller: controller,
               obscureText: !isVisible,
-              style: const TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 15,
-                color: Color(0xFF1E293B),
-                fontWeight: FontWeight.w500,
+                color: const Color(0xFF1E293B),
+                fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
                 hintText: hint,
@@ -1146,15 +1156,23 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(label,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF059669),
-                  letterSpacing: 0.3)),
+          child: Row(
+            children: [
+              Icon(icon,
+                  size: 15,
+                  color: const Color.fromARGB(255, 29, 199, 97)),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: const Color.fromARGB(255, 29, 199, 97),
+                      letterSpacing: 0.3)),
+            ],
+          ),
         ),
         Container(
-          margin: const EdgeInsets.only(bottom: 20),
+          margin: const EdgeInsets.only(bottom: 16),
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
@@ -1189,10 +1207,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 child: TextField(
                   controller: controller,
                   enabled: enabled,
-                  style: const TextStyle(
+                  style: GoogleFonts.poppins(
                       fontSize: 15,
-                      color: Color(0xFF1E293B),
-                      fontWeight: FontWeight.w500),
+                      color: const Color(0xFF1E293B),
+                      fontWeight: FontWeight.w600),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     isDense: true,
@@ -1217,15 +1235,23 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(label,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF059669),
-                  letterSpacing: 0.3)),
+          child: Row(
+            children: [
+              Icon(icon,
+                  size: 15,
+                  color: const Color.fromARGB(255, 29, 199, 97)),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: const Color.fromARGB(255, 29, 199, 97),
+                      letterSpacing: 0.3)),
+            ],
+          ),
         ),
         Container(
-          margin: const EdgeInsets.only(bottom: 20),
+          margin: const EdgeInsets.only(bottom: 16),
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
@@ -1252,10 +1278,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               const SizedBox(width: 14),
               Expanded(
                 child: Text(value,
-                    style: const TextStyle(
+                    style: GoogleFonts.poppins(
                         fontSize: 15,
-                        color: Color(0xFF1E293B),
-                        fontWeight: FontWeight.w500),
+                        color: const Color(0xFF1E293B),
+                        fontWeight: FontWeight.w600),
                     overflow: TextOverflow.ellipsis),
               ),
             ],
