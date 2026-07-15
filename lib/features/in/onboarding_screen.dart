@@ -407,7 +407,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // Redundant flag-emoji warm-up local to this screen, so the
           // language button's flag renders instantly even in edge cases
           // where SplashScreen's own warm-up did not run first.
-          const Positioned(
+          Positioned(
             top: 0,
             left: 0,
             child: IgnorePointer(
@@ -416,7 +416,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: SizedBox(
                   width: 1,
                   height: 1,
-                  child: Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 22)),
+                  child: OverflowBox(
+                    minWidth: 0,
+                    minHeight: 0,
+                    maxWidth: 500,
+                    maxHeight: 500,
+                    alignment: Alignment.topLeft,
+                    child: Wrap(
+                      children: const [
+                        Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 22)),
+                        Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 18)),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
