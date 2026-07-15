@@ -111,8 +111,28 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
   String? get _effectiveSubunitId => _isQrFlow ? _resolvedSubunitId : widget.selectedSubunitId;
   String? get _effectiveAreaId => _isQrFlow ? _resolvedAreaId : widget.selectedAreaId;
 
-  // Icon & warna ditentukan langsung dari `qrType` (sudah tahu levelnya sejak
-  // kode QR didekode), sehingga TIDAK perlu menunggu fetch Supabase selesai.
+  Map<String, String>? _currentLocationBackInfo() {
+    String? id;
+    String type;
+    if (_effectiveAreaId != null) {
+      id = _effectiveAreaId;
+      type = 'area';
+    } else if (_effectiveSubunitId != null) {
+      id = _effectiveSubunitId;
+      type = 'subunit';
+    } else if (_effectiveUnitId != null) {
+      id = _effectiveUnitId;
+      type = 'unit';
+    } else if (_effectiveLokasiId != null) {
+      id = _effectiveLokasiId;
+      type = 'lokasi';
+    } else {
+      return null;
+    }
+    if (id == null) return null;
+    return {'action': 'back', 'type': type, 'id': id};
+  }
+
   IconData get _locationLevelIcon {
     final type = widget.qrType;
     if (type != null) {
@@ -510,7 +530,7 @@ class _CameraFindingScreenState extends State<CameraFindingScreen>
                       // BACK BUTTON
                       _CameraIconButton(
                         icon: Icons.arrow_back_ios_new_rounded,
-                        onTap: () => Navigator.pop(context, null),
+                        onTap: () => Navigator.pop(context, _currentLocationBackInfo()),
                         size: 52,
                       ),
                       const SizedBox(width: 10),

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/utils/image_picker_helper.dart';
@@ -54,7 +53,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
   bool _isCameraInitialized = false;
-  final ImagePicker _picker = ImagePicker();
 
   // Form controllers
   final _titleCtrl = TextEditingController();
@@ -70,6 +68,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   String? _selectedEscalation;
 
   Map<String, dynamic>? _currentUserProfile;
+  // ignore: unused_field
   bool _isLoadingUserProfile = true;
 
   late Map<String, String> _texts;
@@ -94,7 +93,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'nama': widget.preSelectedLocationName!.trim(),
       };
     }
-    _initCamera();
     _loadCurrentUserProfile();
     _refreshLocationBreadcrumb();
   }
@@ -188,20 +186,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     _visitorNameCtrl.dispose();
     _visitorCompanyCtrl.dispose();
     super.dispose();
-  }
-
-  // ================================================
-  // Camera Logic
-  // ================================================
-  Future<void> _initCamera() async {
-    try {
-      _cameras = await availableCameras();
-      if (_cameras != null && _cameras!.isNotEmpty) {
-        await _setCamera(_selectedCameraIndex);
-      }
-    } catch (e) {
-      debugPrint("Error init camera: $e");
-    }
   }
 
   Future<void> _setCamera(int index) async {
@@ -965,19 +949,22 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
-            kIsWeb
-                ? Image.network(
-                    _imageXFile!.path,
-                    height: 220,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  )
-                : Image.file(
-                    File(_imageXFile!.path),
-                    height: 220,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
+            GestureDetector(
+              onTap: _showFullImage,
+              child: kIsWeb
+                  ? Image.network(
+                      _imageXFile!.path,
+                      height: 220,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    )
+                  : Image.file(
+                      File(_imageXFile!.path),
+                      height: 220,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+            ),
             // Dark gradient overlay at bottom
             Positioned(
               bottom: 0,
@@ -1031,6 +1018,23 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showFullImage() {
+    if (_imageXFile == null) return;
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        transitionDuration: const Duration(milliseconds: 200),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return FadeTransition(
+            opacity: animation,
+            child: _FullImagePreviewScreen(imageXFile: _imageXFile!),
+          );
+        },
       ),
     );
   }
@@ -1699,6 +1703,53 @@ class EscalationPickerBottomSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _FullImagePreviewScreen extends StatelessWidget {
+  final XFile imageXFile;
+
+  const _FullImagePreviewScreen({required this.imageXFile});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 5.0,
+              child: Center(
+                child: kIsWeb
+                    ? Image.network(imageXFile.path, fit: BoxFit.contain)
+                    : Image.file(File(imageXFile.path), fit: BoxFit.contain),
+              ),
+            ),
+          ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 12,
+            right: 16,
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).pop(),
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3), width: 1),
+                ),
+                child: const Icon(Icons.close_rounded,
+                    color: Colors.white, size: 24),
+              ),
+            ),
+          ),
         ],
       ),
     );

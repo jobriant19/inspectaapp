@@ -47,6 +47,10 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
   String _searchQuery = '';
   int _preSearchTabLevel = 0;
 
+  // FOKUS KE CARD & TAB TERTENTU (dipakai saat kembali dari CameraFindingScreen)
+  final Map<String, GlobalKey> _itemKeys = {};
+  String? _highlightedItemKey;
+
   // USER SPECIFIC DATA
   String? _userSpecificId;
   Set<String> _userPicIds = {};
@@ -752,6 +756,10 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     final IconData levelIcon = _levelIcons[result.level];
     final Color levelColor = _levelColors[result.level];
 
+    final String itemKey = '${result.type}_${result.id}';
+    final GlobalKey cardKey = _itemKeys.putIfAbsent(itemKey, () => GlobalKey());
+    final bool isHighlighted = _highlightedItemKey == itemKey;
+
     Widget pill({required IconData icon, required String label, required Color color}) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -845,6 +853,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
     }
 
     return Padding(
+      key: cardKey,
       padding: const EdgeInsets.only(bottom: 10),
       child: GestureDetector(
         onTap: () => _openCameraFromSearch(result),
@@ -853,9 +862,23 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
             Container(
               constraints: const BoxConstraints(minHeight: 68),
               decoration: BoxDecoration(
-                color: const Color(0xFFF6FAFE),
+                color: isHighlighted
+                    ? levelColor.withValues(alpha: 0.14)
+                    : const Color(0xFFF6FAFE),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.withValues(alpha: 0.15), width: 1),
+                border: Border.all(
+                  color: isHighlighted ? levelColor : Colors.blue.withValues(alpha: 0.15),
+                  width: isHighlighted ? 2 : 1,
+                ),
+                boxShadow: isHighlighted
+                    ? [
+                        BoxShadow(
+                          color: levelColor.withValues(alpha: 0.35),
+                          blurRadius: 12,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
               ),
               child: IntrinsicHeight(
                 child: Row(
@@ -1032,7 +1055,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
                    idS = raw['id_subunit']?.toString(); idA = result.id; break;
     }
     final onSaved = widget.onFindingSaved;
-    final savedResult = await Navigator.push<bool>(context, MaterialPageRoute(
+    final savedResult = await Navigator.push<dynamic>(context, MaterialPageRoute(
       builder: (_) => CameraFindingScreen(
         lang: widget.lang, isProMode: widget.isProMode,
         isVisitorMode: widget.isVisitorMode,
@@ -1047,9 +1070,48 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
 
     if (savedResult == true) {
       Navigator.pop(context, true);
+    } else if (savedResult is Map && savedResult['action'] == 'back') {
+      // Kembali dari tombol back kamera → fokuskan tab & card lokasi terkait
+      _focusOnLocation(
+        savedResult['type']?.toString(),
+        savedResult['id']?.toString(),
+      );
+      CameraWarmupService.instance.warmUp();
     } else {
       CameraWarmupService.instance.warmUp();
     }
+  }
+
+  // Pindah ke tab yang sesuai lalu scroll & highlight card lokasi yang
+  // sebelumnya aktif di CameraFindingScreen.
+  void _focusOnLocation(String? type, String? id) {
+    if (type == null || id == null) return;
+    final level = _typeIndex[type];
+    if (level == null) return;
+
+    final targetKey = '${type}_$id';
+    setState(() {
+      _activeTabLevel = level;
+      _highlightedItemKey = targetKey;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _itemKeys[targetKey]?.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+          alignment: 0.3,
+        );
+      }
+    });
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && _highlightedItemKey == targetKey) {
+        setState(() => _highlightedItemKey = null);
+      }
+    });
   }
 }
 

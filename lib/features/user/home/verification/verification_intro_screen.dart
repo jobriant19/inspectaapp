@@ -69,8 +69,8 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
       // Slide 5
       's5_title': 'Time Limit',
       's5_body':
-          'Each verification must be completed within 5 minutes of starting. Make sure you read the finding carefully!',
-      's5_timer': '5 Minutes',
+          'Each verification must be completed within 2 minutes of starting. Make sure you read the finding carefully!',
+      's5_timer': '2 Minutes',
       's5_sub': 'Per verification session',
       's5_urgent': 'Stay focused!',
     },
@@ -108,8 +108,8 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
       's4_note': 'Hasil dapat dilihat di dashboard The Mountain',
       's5_title': 'Batas Waktu',
       's5_body':
-          'Setiap verifikasi harus diselesaikan dalam 5 menit setelah dimulai. Pastikan Anda membaca temuan dengan teliti!',
-      's5_timer': '5 Menit',
+          'Setiap verifikasi harus diselesaikan dalam 2 menit setelah dimulai. Pastikan Anda membaca temuan dengan teliti!',
+      's5_timer': '2 Menit',
       's5_sub': 'Per sesi verifikasi',
       's5_urgent': 'Tetap fokus!',
     },
@@ -145,8 +145,8 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
       's4_mismatch_pts': '-5积分',
       's4_note': '结果可在The Mountain仪表板上查看',
       's5_title': '时间限制',
-      's5_body': '每次验证必须在开始后5分钟内完成。请确保您仔细阅读发现内容！',
-      's5_timer': '5分钟',
+      's5_body': '每次验证必须在开始后2分钟内完成。请确保您仔细阅读发现内容！',
+      's5_timer': '2分钟',
       's5_sub': '每次验证会话',
       's5_urgent': '保持专注！',
     },
@@ -268,7 +268,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
                     color: const Color(0xFF00C9E4).withValues(alpha:0.3), width: 1),
               ),
               child: const Icon(Icons.arrow_back_ios_new,
-                  size: 16, color: Color(0xFF1E3A8A)),
+                  size: 16, color: Color(0xFF1D72F3)),
             ),
           ),
           const SizedBox(width: 14),
@@ -278,7 +278,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
               style: GoogleFonts.poppins(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF1E3A8A),
+                color: const Color(0xFF1D72F3),
                 letterSpacing: 0.3,
               ),
             ),
@@ -649,12 +649,6 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           const SizedBox(height: 14),
           _SlideBody(t('s5_body')),
           const SizedBox(height: 24),
-
-          _AnimatedTimerBadge(
-            timerLabel: t('s5_timer'),
-            subLabel: t('s5_sub'),
-            urgentLabel: t('s5_urgent'),
-          ),
         ],
       ),
     );
@@ -1326,7 +1320,7 @@ class _TimerIllustrationEnhancedState
       if (!mounted) { t.cancel(); return; }
       setState(() {
         if (_displaySeconds > 0) { _displaySeconds--; }
-        else { _displaySeconds = 300; }
+        else { _displaySeconds = 120; }
       });
     });
   }
@@ -1343,10 +1337,10 @@ class _TimerIllustrationEnhancedState
   Widget build(BuildContext context) {
     final int minutes = _displaySeconds ~/ 60;
     final int seconds = _displaySeconds % 60;
-    final double progress = _displaySeconds / 300.0;
+    final double progress = _displaySeconds / 120.0;
     final bool isUrgent = _displaySeconds <= 60;
     final Color mainColor =
-        isUrgent ? const Color(0xFFDC2626) : const Color(0xFF00C9E4);
+        isUrgent ? const Color(0xFFDC2626) : const Color(0xFF1D72F3);
 
     return AnimatedBuilder(
       animation: Listenable.merge([_rotCtrl, _pulseCtrl]),
@@ -1457,7 +1451,7 @@ class _TimerIllustrationEnhancedState
                   right: 8,
                   child: AnimatedOpacity(
                     opacity: _pulse.value > 1.04 ? 1.0 : 0.3,
-                    duration: const Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 120),
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: const BoxDecoration(
@@ -1469,172 +1463,6 @@ class _TimerIllustrationEnhancedState
                     ),
                   ),
                 ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedTimerBadge extends StatefulWidget {
-  final String timerLabel;
-  final String subLabel;
-  final String urgentLabel;
-
-  const _AnimatedTimerBadge({
-    required this.timerLabel,
-    required this.subLabel,
-    required this.urgentLabel,
-  });
-
-  @override
-  State<_AnimatedTimerBadge> createState() => _AnimatedTimerBadgeState();
-}
-
-class _AnimatedTimerBadgeState extends State<_AnimatedTimerBadge>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _shimmer;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2000))
-      ..repeat();
-    _shimmer = Tween<double>(begin: -1.0, end: 2.0)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _shimmer,
-      builder: (_, __) {
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0891B2), Color(0xFF00C9E4), Color(0xFF0E7490)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF00C9E4).withValues(alpha:0.45),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // SHIMMER OVERLAY
-              Positioned.fill(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: ShaderMask(
-                    shaderCallback: (bounds) {
-                      return LinearGradient(
-                        begin: Alignment(_shimmer.value - 1, 0),
-                        end: Alignment(_shimmer.value, 0),
-                        colors: [
-                          Colors.white.withValues(alpha:0),
-                          Colors.white.withValues(alpha:0.12),
-                          Colors.white.withValues(alpha:0),
-                        ],
-                      ).createShader(bounds);
-                    },
-                    child: Container(
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-
-              // CONTENT
-              Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.timer_rounded,
-                          color: Colors.white70, size: 22),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.timerLabel,
-                        style: GoogleFonts.poppins(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.subLabel,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.white70,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  // PROGRESS BAR DEMO
-                  Container(
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha:0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: 1.0,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha:0.8),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha:0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.bolt_rounded,
-                            color: Colors.white, size: 14),
-                        const SizedBox(width: 4),
-                        Text(
-                          widget.urgentLabel,
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         );
