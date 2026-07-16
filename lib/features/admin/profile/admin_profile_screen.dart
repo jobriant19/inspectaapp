@@ -39,14 +39,13 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   bool _hasChanges = false;
   String? _initialName;
 
-  // Password change state
+  // PASSWORD CHAGE STATE
   bool _showPasswordSection = false;
   final TextEditingController _newPassCtrl = TextEditingController();
   final TextEditingController _confirmPassCtrl = TextEditingController();
   bool _isNewPassVisible = false;
   bool _isConfirmPassVisible = false;
 
-  // Teks UI
   final Map<String, Map<String, String>> _txt = {
     'EN': {
       'title': 'My Profile',
@@ -140,7 +139,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   void initState() {
     super.initState();
 
-    // Set data awal dari parameter — tidak ada skeleton
     if (widget.initialUserName != null) {
       _nameCtrl.text = widget.initialUserName!;
       _initialName = widget.initialUserName;
@@ -159,7 +157,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     });
 
     _fetchProfile();
-    // Pastikan bgadmin sudah di-cache agar home screen langsung muncul saat pop
     WidgetsBinding.instance.addPostFrameCallback((_) {
       precacheImage(
         const AssetImage('assets/images/bgadmin.png'),
@@ -427,7 +424,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           .eq('id_user', user.id);
 
       if (mounted) {
-        Navigator.of(context).pop(); // tutup loading
+        Navigator.of(context).pop();
         setState(() {
           _initialName = _nameCtrl.text.trim();
           _imageUrl = finalImageUrl;
@@ -446,7 +443,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     } catch (e) {
       debugPrint('Error updating admin profile: $e');
       if (mounted) {
-        Navigator.of(context).pop(); // tutup loading
+        Navigator.of(context).pop();
         setState(() => _isSaving = false);
         _showResultDialog(isSuccess: false, errorDetail: e.toString());
       }
@@ -472,7 +469,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     final user = Supabase.instance.client.auth.currentUser!;
 
     try {
-      // 1. Update di Supabase Auth via Edge Function
+      // UPDATE SUPABASE AUTH via EDGE FUNCTION
       await Supabase.instance.client.functions.invoke(
         'update-user-password',
         body: {
@@ -481,7 +478,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         },
       );
 
-      // 2. Update hash di tabel User
+      // UPDATE HASH USER TABLE
       final authService = AuthService();
       final newHash = authService.hashPassword(
         Supabase.instance.client.auth.currentUser!.email ?? '',
@@ -493,7 +490,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           .eq('id_user', user.id);
 
       if (mounted) {
-        Navigator.of(context).pop(); // tutup loading
+        Navigator.of(context).pop();
         setState(() {
           _newPassCtrl.clear();
           _confirmPassCtrl.clear();
@@ -505,7 +502,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     } catch (e) {
       debugPrint('Error updating password: $e');
       if (mounted) {
-        Navigator.of(context).pop(); // tutup loading
+        Navigator.of(context).pop();
         setState(() => _isSaving = false);
         _showResultDialog(isSuccess: false, errorDetail: e.toString());
       }
@@ -709,7 +706,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icon lingkaran merah
               Container(
                 width: 80,
                 height: 80,
@@ -744,7 +740,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 28),
-              // Tombol Logout (merah penuh)
+              // LOGOUT BUTTON
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -769,7 +765,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              // Tombol Batal (outline abu)
+              // CANCEL BUTTON
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
@@ -880,7 +876,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             : SingleChildScrollView(
                 child: Column(
                   children: [
-                    // ── Header dengan background image + overlay hijau ──
                     _AnimatedProfileHeader(
                       jabatan: _jabatan,
                       imageBytes: _imageBytes,
@@ -889,7 +884,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                       onTap: _pickImage,
                     ),
 
-                    // ── Form fields ──
                     Padding(
                       padding:
                           const EdgeInsets.fromLTRB(20, 28, 20, 20),
@@ -907,17 +901,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                             label: getTxt('email'),
                             icon: Icons.email_outlined,
                           ),
-                          _buildReadOnlyField(
-                            value: _jabatan,
-                            label: getTxt('role'),
-                            icon: Icons.work_outline,
-                          ),
-                          // ── Section: Change Password (selalu tampil, tidak perlu edit mode) ──
                           _buildPasswordSection(),
 
                           if (_isEditMode) const SizedBox(height: 16),
 
-                          // ── Tombol simpan ──
+                          // SAVE BUTTON
                           if (_isEditMode)
                             SizedBox(
                               width: double.infinity,
@@ -949,14 +937,14 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
                           const SizedBox(height: 16),
 
-                          // ── Tombol logout ──
+                          // LOGOUT BUTTON
                           if (!_isEditMode)
                             ElevatedButton.icon(
                               icon: const Icon(Icons.logout,
                                   color: Colors.redAccent),
                               label: Text(
                                 getTxt('logout'),
-                                style: const TextStyle(
+                                style: GoogleFonts.poppins(
                                     color: Colors.redAccent,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16),
@@ -984,13 +972,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   Widget _buildPasswordSection() {
-    // Hanya tampil saat edit mode aktif
     if (!_isEditMode) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Toggle header
         GestureDetector(
           onTap: () {
             setState(() {
@@ -1066,7 +1052,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           ),
         ),
 
-        // Form fields (muncul jika toggle aktif)
         if (_showPasswordSection) ...[
           const SizedBox(height: 16),
           Padding(
@@ -1312,6 +1297,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     required String value,
     required String label,
     required IconData icon,
+    bool boxed = true,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1333,34 +1319,45 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
             ],
           ),
         ),
-        Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF059669).withValues(alpha:0.07),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+        if (boxed)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 16),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF059669).withValues(alpha:0.07),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Text(value,
+                style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    color: const Color(0xFF1E293B),
+                    fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 16),
+            child: Text(value,
+                style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    color: const Color(0xFF1E293B),
+                    fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis),
           ),
-          child: Text(value,
-              style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  color: const Color(0xFF1E293B),
-                  fontWeight: FontWeight.w600),
-              overflow: TextOverflow.ellipsis),
-        ),
       ],
     );
   }
 }
 
-// ─── Animated Profile Header ──────────────────────────────────────────────────
 class _AnimatedProfileHeader extends StatefulWidget {
   final String jabatan;
   final Uint8List? imageBytes;
@@ -1410,19 +1407,16 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
       child: Container(
         width: double.infinity,
         height: 220,
-        // ── Fallback warna hijau cerah jika gambar gagal ──
         color: const Color.fromARGB(255, 255, 255, 255),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // ── Background image TANPA overlay ──
             Image.asset(
               'assets/images/bgadmin.png',
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
 
-            // ── Dekorasi lingkaran latar (subtle) ──
             Positioned(
               top: -30,
               right: -20,
@@ -1448,19 +1442,17 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
               ),
             ),
 
-            // ── Konten utama ──
+            // CONTENT
             Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ── Avatar dengan border gradient hijau-biru ──
                   GestureDetector(
                     onTap: widget.onTap,
                     child: Stack(
                       alignment: Alignment.bottomRight,
                       clipBehavior: Clip.none,
                       children: [
-                        // Ring gradient seperti admin_home_screen
                         Container(
                           padding: const EdgeInsets.all(2.5),
                           decoration: BoxDecoration(
@@ -1532,11 +1524,9 @@ class _AnimatedProfileHeaderState extends State<_AnimatedProfileHeader>
 
                   const SizedBox(height: 16),
 
-                  // ── Badge jabatan: border solid hijau, animasi hanya perubahan warna ──
                   AnimatedBuilder(
                     animation: _borderCtrl,
                     builder: (_, child) {
-                      // Interpolasi warna border: hijau cerah ↔ biru cerah
                       final borderColor = Color.lerp(
                         const Color(0xFF34D399),
                         const Color(0xFF38BDF8),
