@@ -51,8 +51,6 @@ IconData _adminLevelIcon(String level) {
   }
 }
 
-// Sentinel ID khusus untuk opsi filter "Verificator" di popup Select Role.
-// Tidak bentrok dengan id_jabatan asli karena semua id_jabatan bernilai positif.
 const int kVerificatorFilterId = -1;
 
 Color adminRoleColor(int? idJabatan) {
@@ -213,13 +211,14 @@ class _AdminUserLocationFilterDialogState extends State<_AdminUserLocationFilter
   }
 
   String get _searchHint {
+    final levelLabel = _adminLevelLabel(_level, widget.lang);
     switch (widget.lang) {
       case 'EN':
-        return 'Search...';
+        return 'Search $levelLabel...';
       case 'ZH':
-        return '搜索...';
+        return '搜索$levelLabel...';
       default:
-        return 'Cari...';
+        return 'Cari $levelLabel...';
     }
   }
 
@@ -422,6 +421,7 @@ class _AdminUserLocationFilterDialogState extends State<_AdminUserLocationFilter
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: (_) => setState(() {}),
+                textAlignVertical: TextAlignVertical.center,
                 style: GoogleFonts.poppins(fontSize: 13, color: _AdminFilterColors.textPrimary),
                 decoration: InputDecoration(
                   hintText: _searchHint,
@@ -429,7 +429,7 @@ class _AdminUserLocationFilterDialogState extends State<_AdminUserLocationFilter
                   prefixIcon: const Icon(Icons.search_rounded, color: _AdminFilterColors.primary, size: 18),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 ),
               ),
             ),
@@ -811,8 +811,6 @@ class _AdminUserRoleFilterDialogState extends State<_AdminUserRoleFilterDialog> 
                   isSelected: widget.selectedJabatanId == null,
                   onTap: () => Navigator.pop(context, {'id': null, 'name': null}),
                 ),
-                // Opsi khusus: filter user dengan is_verificator == true,
-                // terpisah dari daftar jabatan karena bukan berbasis id_jabatan.
                 if (_verificatorMatchesSearch)
                   _buildRoleCard(
                     context: context,
