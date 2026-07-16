@@ -148,12 +148,14 @@ Future<AdminUserLocationSelection?> showAdminUserPickLocationDialog(
   BuildContext context, {
   required String lang,
   AdminUserLocationSelection? initial,
+  int targetLevel = 0,
 }) {
   return showDialog<AdminUserLocationSelection>(
     context: context,
     builder: (ctx) => _AdminUserPickLocationDialog(
       lang: lang,
       initial: initial ?? const AdminUserLocationSelection(),
+      targetLevel: targetLevel,
     ),
   );
 }
@@ -161,10 +163,12 @@ Future<AdminUserLocationSelection?> showAdminUserPickLocationDialog(
 class _AdminUserPickLocationDialog extends StatefulWidget {
   final String lang;
   final AdminUserLocationSelection initial;
+  final int targetLevel;
 
   const _AdminUserPickLocationDialog({
     required this.lang,
     required this.initial,
+    this.targetLevel = 0,
   });
 
   @override
@@ -211,14 +215,12 @@ class _AdminUserPickLocationDialogState
 
     if (_idArea != null || _idSubunit != null) {
       _unlockedUpTo = 3;
-      _activeLevel = 3;
     } else if (_idUnit != null) {
       _unlockedUpTo = 2;
-      _activeLevel = 2;
     } else if (_idLokasi != null) {
       _unlockedUpTo = 1;
-      _activeLevel = 1;
     }
+    _activeLevel = widget.targetLevel.clamp(0, _unlockedUpTo);
 
     _searchCtrl.addListener(() => setState(() {}));
     _initialLoad();
@@ -443,7 +445,7 @@ class _AdminUserPickLocationDialogState
                   color: const Color(0xFFEEF2FF),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.location_city_rounded,
+                child: const Icon(Icons.map,
                     color: Color(0xFF6366F1), size: 20),
               ),
               const SizedBox(width: 12),

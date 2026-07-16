@@ -370,7 +370,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     }
   }
 
-  // Popup sukses di tengah layar, style sama seperti admin_news_screen.dart
   void _showSuccessPopup(String message) {
     if (!mounted) return;
     _successPopupHandled = false;
@@ -831,28 +830,59 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                         : _lang == 'ZH'
                             ? '位置分配'
                             : 'Penempatan Lokasi',
-                    Icons.location_city_rounded,
+                    Icons.map,
                     const Color(0xFF10B981),
                   ),
                   const SizedBox(height: 14),
 
                   _buildFieldLabel(
                     _lang == 'EN' ? 'Location' : _lang == 'ZH' ? '位置' : 'Lokasi',
-                    Icons.location_city_rounded,
+                    Icons.map,
                   ),
                   const SizedBox(height: 6),
-                  AdminLocationAssignmentCard(
-                    lang: _lang,
-                    selection: _locationSelection,
-                    onTap: () async {
-                      final result = await showAdminUserPickLocationDialog(
-                        context,
-                        lang: _lang,
-                        initial: _locationSelection,
-                      );
-                      if (result == null) return;
-                      setState(() => _locationSelection = result);
-                    },
+                  _buildLocationPickerField(
+                    hint: _lang == 'EN' ? 'Select location' : 'Pilih lokasi',
+                    valueText: _locationSelection.namaLokasi,
+                    icon: Icons.location_on_outlined,
+                    color: const Color(0xFF10B981),
+                    enabled: true,
+                    onTap: () => _openLocationPicker(0),
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildFieldLabel('Unit', Icons.apartment_outlined),
+                  const SizedBox(height: 6),
+                  _buildLocationPickerField(
+                    hint: _lang == 'EN' ? 'Select unit' : 'Pilih unit',
+                    valueText: _locationSelection.namaUnit,
+                    icon: Icons.apartment_outlined,
+                    color: _primary,
+                    enabled: _locationSelection.idLokasi != null,
+                    onTap: () => _openLocationPicker(1),
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildFieldLabel('Sub-Unit', Icons.layers_outlined),
+                  const SizedBox(height: 6),
+                  _buildLocationPickerField(
+                    hint: _lang == 'EN' ? 'Select sub-unit' : 'Pilih sub-unit',
+                    valueText: _locationSelection.namaSubunit,
+                    icon: Icons.layers_outlined,
+                    color: const Color(0xFFFBBF24),
+                    enabled: _locationSelection.idUnit != null,
+                    onTap: () => _openLocationPicker(2),
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildFieldLabel('Area', Icons.pin_drop_outlined),
+                  const SizedBox(height: 6),
+                  _buildLocationPickerField(
+                    hint: _lang == 'EN' ? 'Select area' : 'Pilih area',
+                    valueText: _locationSelection.namaArea,
+                    icon: Icons.pin_drop_outlined,
+                    color: const Color(0xFFF472B6),
+                    enabled: _locationSelection.idSubunit != null,
+                    onTap: () => _openLocationPicker(3),
                   ),
                   const SizedBox(height: 20),
 
@@ -880,7 +910,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     Icons.person_search_outlined,
                   ),
                   const SizedBox(height: 6),
-                  // Kartu popup pemilih supervisor (menggantikan dropdown lama).
                   AdminSupervisorPickerCard(
                     lang: _lang,
                     selectedSupervisor: _selectedSupervisorData,
@@ -891,10 +920,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                         supervisorList: _supervisorList,
                         selectedSupervisorId: _selectedSupervisorId,
                       );
-                      // null -> dialog ditutup tanpa memilih apa pun, biarkan.
                       if (result == null) return;
                       setState(() {
-                        // map kosong ({}) berarti user memilih "Tanpa supervisor".
                         _selectedSupervisorId =
                             result.isEmpty ? null : result['id_user'] as String?;
                       });
@@ -1060,7 +1087,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     );
   }
 
-  // Label field dengan ikon di kiri, warna ungu, Poppins w700
   Widget _buildFieldLabel(String label, IconData icon) {
     return Row(
       children: [
@@ -1077,6 +1103,82 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildLocationPickerField({
+    required String hint,
+    required String? valueText,
+    required IconData icon,
+    required Color color,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    final hasValue = enabled && valueText != null && valueText.isNotEmpty;
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: !enabled
+              ? Colors.grey.shade50
+              : (hasValue ? color.withValues(alpha: 0.05) : const Color(0xFFF8FAFC)),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: !enabled
+                ? Colors.grey.shade200
+                : (hasValue ? color.withValues(alpha: 0.5) : const Color(0xFFCBD5E1)),
+            width: hasValue ? 1.4 : 1.2,
+          ),
+        ),
+        child: Row(children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: !enabled
+                  ? Colors.grey.shade200
+                  : (hasValue ? color : color.withValues(alpha: 0.12)),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon,
+                size: 15,
+                color: !enabled
+                    ? Colors.grey.shade400
+                    : (hasValue ? Colors.white : color)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              hasValue ? valueText : hint,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: hasValue ? FontWeight.w700 : FontWeight.w400,
+                color: !enabled
+                    ? Colors.black26
+                    : (hasValue ? color : Colors.black38),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded,
+              size: 18,
+              color: !enabled
+                  ? Colors.grey.shade300
+                  : (hasValue ? color : Colors.black26)),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _openLocationPicker(int targetLevel) async {
+    final result = await showAdminUserPickLocationDialog(
+      context,
+      lang: _lang,
+      initial: _locationSelection,
+      targetLevel: targetLevel,
+    );
+    if (result == null) return;
+    setState(() => _locationSelection = result);
   }
 
   Widget _buildDivider() =>
