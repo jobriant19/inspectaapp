@@ -5,8 +5,6 @@ import 'admin_home_button_access.dart';
 import 'admin_home_info_card.dart';
 import 'admin_home_management_menu.dart';
 
-/// Konten tab Home tanpa Scaffold/header/bottomnav.
-/// Header & bottom navbar sekarang dikelola oleh AdminShellScreen.
 class AdminHomeBody extends StatefulWidget {
   final String lang;
   final String? initialUserName;
@@ -180,7 +178,7 @@ class _AdminHomeBodyState extends State<AdminHomeBody> {
           style: GoogleFonts.poppins(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFF1E3A8A),
+            color: Color.fromARGB(255, 29, 199, 97),
           ),
         ),
       ],

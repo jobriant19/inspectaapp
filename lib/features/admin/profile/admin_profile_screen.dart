@@ -53,10 +53,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       'change_password': 'Change Password',
       'new_password': 'New Password',
       'confirm_password': 'Confirm Password',
-      'password_hint': 'Min 6 characters',
+      'password_hint': 'Min 8 characters',
       'confirm_hint': 'Re-enter new password',
       'password_mismatch': 'Passwords do not match!',
-      'password_too_short': 'Password must be at least 6 characters',
+      'password_too_short': 'Password must be at least 8 characters',
       'password_updated': 'Password updated successfully!',
       'password_error': 'Failed to update password',
       'edit_title': 'Edit Profile',
@@ -81,10 +81,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       'change_password': 'Ubah Password',
       'new_password': 'Password Baru',
       'confirm_password': 'Konfirmasi Password',
-      'password_hint': 'Min 6 karakter',
+      'password_hint': 'Minimal 8 karakter',
       'confirm_hint': 'Ulangi password baru',
       'password_mismatch': 'Password tidak cocok!',
-      'password_too_short': 'Password minimal 6 karakter',
+      'password_too_short': 'Password minimal 8 karakter',
       'password_updated': 'Password berhasil diperbarui!',
       'password_error': 'Gagal memperbarui password',
       'edit_title': 'Ubah Profil',
@@ -109,10 +109,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       'change_password': '修改密码',
       'new_password': '新密码',
       'confirm_password': '确认密码',
-      'password_hint': '最少6个字符',
+      'password_hint': '最少8个字符',
       'confirm_hint': '再次输入新密码',
       'password_mismatch': '两次密码不一致！',
-      'password_too_short': '密码至少需要6个字符',
+      'password_too_short': '密码至少需要8个字符',
       'password_updated': '密码更新成功！',
       'password_error': '更新密码失败',
       'edit_title': '编辑资料',
@@ -457,8 +457,8 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     final newPass = _newPassCtrl.text.trim();
     final confirmPass = _confirmPassCtrl.text.trim();
 
-    if (newPass.length < 6) {
-      _showResultDialog(isSuccess: false, errorDetail: getTxt('password_too_short'));
+    if (newPass.length < 8) {
+      _showPasswordTooShortAlert();
       return;
     }
     if (newPass != confirmPass) {
@@ -577,6 +577,114 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPasswordTooShortAlert() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.25),
+                blurRadius: 30,
+                spreadRadius: 2,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFFEF2F2),
+                        border: Border.all(
+                          color: const Color(0xFFFCA5A5),
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.password_rounded,
+                        color: Color(0xFFDC2626),
+                        size: 34,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      getTxt('password_too_short'),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFDC2626),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.lang == 'EN'
+                          ? 'Please enter at least 8 characters to continue.'
+                          : widget.lang == 'ZH'
+                              ? '请输入至少8个字符以继续。'
+                              : 'Mohon isi minimal 8 karakter untuk melanjutkan.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      widget.lang == 'EN'
+                          ? 'Understood'
+                          : widget.lang == 'ZH'
+                              ? '明白'
+                              : 'Mengerti',
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
@@ -1054,7 +1162,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1072,16 +1180,6 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFD1FAE5),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.lock_outline,
-                color: Color(0xFF059669), size: 20),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: TextField(
               controller: controller,
@@ -1097,7 +1195,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                     color: Colors.grey.shade400, fontSize: 13),
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                contentPadding: EdgeInsets.zero,
               ),
             ),
           ),
@@ -1174,7 +1272,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         Container(
           margin: const EdgeInsets.only(bottom: 16),
           padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -1192,33 +1290,18 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               ),
             ],
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD1FAE5),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: const Color(0xFF059669), size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  enabled: enabled,
-                  style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      color: const Color(0xFF1E293B),
-                      fontWeight: FontWeight.w600),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ),
-            ],
+          child: TextField(
+            controller: controller,
+            enabled: enabled,
+            style: GoogleFonts.poppins(
+                fontSize: 15,
+                color: const Color(0xFF1E293B),
+                fontWeight: FontWeight.w600),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
         ),
       ],
@@ -1253,7 +1336,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
         Container(
           margin: const EdgeInsets.only(bottom: 16),
           padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -1265,27 +1348,12 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               ),
             ],
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD1FAE5),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: const Color(0xFF059669), size: 20),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(value,
-                    style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        color: const Color(0xFF1E293B),
-                        fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis),
-              ),
-            ],
-          ),
+          child: Text(value,
+              style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  color: const Color(0xFF1E293B),
+                  fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis),
         ),
       ],
     );

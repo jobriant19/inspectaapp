@@ -580,7 +580,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           height: 18,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-              colors: [Color(0xFF059669), Color(0xFF34D399)],
+              colors: [Color(0xFF059669), Color(0xFF34D399)],   // ← garis hijau
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
@@ -593,7 +593,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           style: GoogleFonts.poppins(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: Color.fromARGB(255, 52, 211, 153),
+            color: Color.fromARGB(255, 29, 199, 97),
           ),
         ),
       ],
