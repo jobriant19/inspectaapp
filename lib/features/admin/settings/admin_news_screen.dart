@@ -5,7 +5,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/services/fcm_v1_service.dart';
-import '../../shared/account/news_detail_screen.dart';
+import '../../user/account/news_detail_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 

@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/location_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/utils/jabatan_helper.dart';
-import '../../shared/account/account_screen.dart';
+import '../account/account_screen.dart';
 import '../explore/explore_screen.dart';
 import '../analytics/analytics_screen.dart';
 import '../../shared/notifications/notification_screen.dart';

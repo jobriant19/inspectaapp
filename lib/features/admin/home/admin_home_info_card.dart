@@ -490,7 +490,7 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
                       ),
                     ),
                   ),
-                  _fixedWidthDigits(s, secStyle, digitWidth: 14, colonWidth: 6),
+                  _fixedWidthDigits(s, secStyle, digitWidth: 14, colonWidth: 8),
                 ],
               ),
               const SizedBox(height: 3),
