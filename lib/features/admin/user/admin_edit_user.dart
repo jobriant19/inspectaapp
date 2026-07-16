@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../auth/auth_service.dart';
 import '../../user/analytics/kts production/kts_section_location_picker.dart';
+import '../../user/home/alert/required_field_alert.dart';
 import 'camera/admin_user_camera.dart';
 import 'picker/admin_user_pick_location.dart';
 import 'picker/admin_user_pick_role.dart';
@@ -147,14 +148,56 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     final phone = _phoneCtrl.text.trim();
     final userId = widget.user['id_user'] as String?;
 
-    if (nama.isEmpty || email.isEmpty) {
-      _showErrorPopup(
-        _lang == 'EN'
-            ? 'Name and email are required!'
+    final List<MissingFieldItem> missingFields = [];
+    if (_gambarUserUrl == null) {
+      missingFields.add(MissingFieldItem(
+        icon: Icons.photo_camera_outlined,
+        label: _lang == 'EN'
+            ? 'Profile Photo'
             : _lang == 'ZH'
-                ? '姓名和邮箱为必填项！'
-                : 'Nama dan email wajib diisi!',
-      );
+                ? '头像'
+                : 'Foto Profil',
+      ));
+    }
+    if (nama.isEmpty) {
+      missingFields.add(MissingFieldItem(
+        icon: Icons.person_outline,
+        label: _lang == 'EN'
+            ? 'Full Name'
+            : _lang == 'ZH'
+                ? '姓名'
+                : 'Nama Lengkap',
+      ));
+    }
+    if (email.isEmpty) {
+      missingFields.add(const MissingFieldItem(
+        icon: Icons.email_outlined,
+        label: 'Email',
+      ));
+    }
+    if (_showPasswordField && pass.isEmpty) {
+      missingFields.add(MissingFieldItem(
+        icon: Icons.lock_outline,
+        label: _lang == 'EN'
+            ? 'Password'
+            : _lang == 'ZH'
+                ? '密码'
+                : 'Kata Sandi',
+      ));
+    }
+    if (_selectedJabatan == null) {
+      missingFields.add(MissingFieldItem(
+        icon: Icons.work_outline_rounded,
+        label: _lang == 'EN'
+            ? 'Role'
+            : _lang == 'ZH'
+                ? '角色'
+                : 'Role',
+      ));
+    }
+
+    if (missingFields.isNotEmpty) {
+      await RequiredFieldAlert.show(context, lang: _lang, missingFields: missingFields);
       return;
     }
 
@@ -560,6 +603,14 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                           letterSpacing: 0.3,
                         ),
                       ),
+                      Text(
+                        ' *',
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFFDC2626),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -615,7 +666,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
                   // BASIC INFORMATION
                   _buildSectionLabel(
@@ -627,7 +678,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     Icons.person_outline,
                     const Color(0xFF6366F1),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
                   _buildFieldLabel(
                     _lang == 'EN'
@@ -636,6 +687,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                             ? '姓名'
                             : 'Nama Lengkap',
                     Icons.person_outline,
+                    required: true,
                   ),
                   const SizedBox(height: 6),
                   _buildTextField(
@@ -644,9 +696,9 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                         ? 'Enter full name...'
                         : 'Masukkan nama lengkap...',
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
-                  _buildFieldLabel('Email', Icons.email_outlined),
+                  _buildFieldLabel('Email', Icons.email_outlined, required: true),
                   const SizedBox(height: 6),
                   _buildTextField(
                     _emailCtrl,
@@ -654,7 +706,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     keyboardType: TextInputType.emailAddress,
                     enabled: false,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
                   _buildFieldLabel(
                     _lang == 'EN'
@@ -670,7 +722,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     _lang == 'EN' ? 'e.g. 08123456789' : 'cth. 08123456789',
                     keyboardType: TextInputType.phone,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
                   // PASSWORD TOGGLE
                   GestureDetector(
@@ -775,7 +827,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
                   _buildFieldLabel(
                     _lang == 'EN'
@@ -784,6 +836,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                             ? '角色'
                             : 'Role',
                     Icons.work_outline_rounded,
+                    required: true,
                   ),
                   const SizedBox(height: 6),
                   AdminRolePickerCard(
@@ -802,7 +855,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                       });
                     },
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
                   // KASIE SECTION
                   if (_selectedJabatan == 3) ...[
@@ -816,11 +869,9 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     ),
                     const SizedBox(height: 6),
                     _buildBagianKasiePicker(),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                   ],
 
-                  const SizedBox(height: 6),
-                  _buildDivider(),
                   const SizedBox(height: 20),
 
                   // LOCATION
@@ -833,60 +884,60 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     Icons.map,
                     const Color(0xFF10B981),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
                   _buildFieldLabel(
-                    _lang == 'EN' ? 'Location' : _lang == 'ZH' ? '位置' : 'Lokasi',
-                    Icons.map,
-                  ),
+                      _lang == 'EN'
+                          ? 'Location'
+                          : _lang == 'ZH'
+                              ? '位置'
+                              : 'Lokasi',
+                      Icons.location_city_rounded),
                   const SizedBox(height: 6),
                   _buildLocationPickerField(
                     hint: _lang == 'EN' ? 'Select location' : 'Pilih lokasi',
                     valueText: _locationSelection.namaLokasi,
-                    icon: Icons.location_on_outlined,
+                    icon: Icons.location_city_rounded,
                     color: const Color(0xFF10B981),
                     enabled: true,
                     onTap: () => _openLocationPicker(0),
                   ),
                   const SizedBox(height: 12),
 
-                  _buildFieldLabel('Unit', Icons.apartment_outlined),
+                  _buildFieldLabel('Unit', Icons.business_rounded),
                   const SizedBox(height: 6),
                   _buildLocationPickerField(
                     hint: _lang == 'EN' ? 'Select unit' : 'Pilih unit',
                     valueText: _locationSelection.namaUnit,
-                    icon: Icons.apartment_outlined,
+                    icon: Icons.business_rounded,
                     color: _primary,
                     enabled: _locationSelection.idLokasi != null,
                     onTap: () => _openLocationPicker(1),
                   ),
                   const SizedBox(height: 12),
 
-                  _buildFieldLabel('Sub-Unit', Icons.layers_outlined),
+                  _buildFieldLabel('Sub-Unit', Icons.layers_rounded),
                   const SizedBox(height: 6),
                   _buildLocationPickerField(
                     hint: _lang == 'EN' ? 'Select sub-unit' : 'Pilih sub-unit',
                     valueText: _locationSelection.namaSubunit,
-                    icon: Icons.layers_outlined,
+                    icon: Icons.layers_rounded,
                     color: const Color(0xFFFBBF24),
                     enabled: _locationSelection.idUnit != null,
                     onTap: () => _openLocationPicker(2),
                   ),
                   const SizedBox(height: 12),
 
-                  _buildFieldLabel('Area', Icons.pin_drop_outlined),
+                  _buildFieldLabel('Area', Icons.place_rounded),
                   const SizedBox(height: 6),
                   _buildLocationPickerField(
                     hint: _lang == 'EN' ? 'Select area' : 'Pilih area',
                     valueText: _locationSelection.namaArea,
-                    icon: Icons.pin_drop_outlined,
+                    icon: Icons.place_rounded,
                     color: const Color(0xFFF472B6),
                     enabled: _locationSelection.idSubunit != null,
                     onTap: () => _openLocationPicker(3),
                   ),
-                  const SizedBox(height: 20),
-
-                  _buildDivider(),
                   const SizedBox(height: 20),
 
                   // SUPERVISOR
@@ -899,7 +950,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     Icons.manage_accounts_outlined,
                     const Color(0xFF8B5CF6),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
                   _buildFieldLabel(
                     _lang == 'EN'
@@ -929,9 +980,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  _buildDivider(),
-                  const SizedBox(height: 20),
-
                   // ROLE & ACCESS
                   _buildSectionLabel(
                     _lang == 'EN'
@@ -942,7 +990,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     Icons.shield_outlined,
                     const Color(0xFF0891B2),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
 
                   _buildToggleRow(
                     _lang == 'EN'
@@ -967,7 +1015,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
                     (v) => setState(() => _isVerificator = v),
                     const Color(0xFFF59E0B),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
@@ -1087,7 +1135,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     );
   }
 
-  Widget _buildFieldLabel(String label, IconData icon) {
+  Widget _buildFieldLabel(String label, IconData icon, {bool required = false}) {
     return Row(
       children: [
         Icon(icon, size: 14, color: _primary),
@@ -1101,6 +1149,15 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
             letterSpacing: 0.3,
           ),
         ),
+        if (required)
+          Text(
+            ' *',
+            style: GoogleFonts.poppins(
+              color: const Color(0xFFDC2626),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
       ],
     );
   }
@@ -1117,7 +1174,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
           color: !enabled
               ? Colors.grey.shade50
@@ -1181,9 +1239,6 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     setState(() => _locationSelection = result);
   }
 
-  Widget _buildDivider() =>
-      Divider(color: Colors.grey.shade100, thickness: 1.5);
-
   Widget _buildTextField(
     TextEditingController ctrl,
     String hint, {
@@ -1193,6 +1248,7 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
     Widget? suffixIcon,
   }) {
     return Container(
+      height: 52,
       decoration: BoxDecoration(
         color: enabled ? const Color(0xFFF8FAFC) : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
@@ -1206,19 +1262,21 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         obscureText: obscure,
         keyboardType: keyboardType,
         enabled: enabled,
+        textAlignVertical: TextAlignVertical.center,
         style: GoogleFonts.poppins(
           color: enabled ? const Color(0xFF1E3A8A) : Colors.black38,
           fontSize: 14,
           fontWeight: FontWeight.w700,
         ),
         decoration: InputDecoration(
+          isCollapsed: true,
           hintText: hint,
           hintStyle:
               GoogleFonts.poppins(color: Colors.black26, fontSize: 13),
           suffixIcon: suffixIcon,
           border: InputBorder.none,
           contentPadding:
-              const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         ),
       ),
     );
@@ -1237,7 +1295,8 @@ class _AdminEditUserScreenState extends State<AdminEditUserScreen> {
         });
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
           color: hasValue ? kasieColor.withValues(alpha:0.05) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),
