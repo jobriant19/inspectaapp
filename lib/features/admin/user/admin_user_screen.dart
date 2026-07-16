@@ -18,6 +18,48 @@ class AdminUserScreen extends StatefulWidget {
   State<AdminUserScreen> createState() => _AdminUserScreenState();
 }
 
+IconData _locationFilterIcon(String? level) {
+  switch (level) {
+    case 'Unit':
+      return Icons.business_rounded;
+    case 'Subunit':
+      return Icons.layers_rounded;
+    case 'Area':
+      return Icons.place_rounded;
+    default:
+      return Icons.location_city_rounded;
+  }
+}
+
+Color _locationFilterColor(String? level) {
+  switch (level) {
+    case 'Unit':
+      return const Color(0xFF6366F1);
+    case 'Subunit':
+      return const Color(0xFFFBBF24);
+    case 'Area':
+      return const Color(0xFFF472B6);
+    default:
+      return const Color(0xFF10B981);
+  }
+}
+
+String? _userLocationLevel(Map<String, dynamic> user) {
+  if (user['area']?['nama_area'] != null &&
+      (user['area']!['nama_area'] as String).isNotEmpty) {
+    return 'Area';
+  }
+  if (user['subunit']?['nama_subunit'] != null &&
+      (user['subunit']!['nama_subunit'] as String).isNotEmpty) {
+    return 'Subunit';
+  }
+  if (user['unit']?['nama_unit'] != null &&
+      (user['unit']!['nama_unit'] as String).isNotEmpty) {
+    return 'Unit';
+  }
+  return 'Lokasi';
+}
+
 class _AdminUserScreenState extends State<AdminUserScreen> {
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _filtered = [];
@@ -38,7 +80,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
   String? _filterJabatanName;
   String _sortOrder = 'none';
 
-  // PAGINATION STATE — minimal 10 card user per halaman.
+  // PAGINATION STATE
   int _currentPage = 1;
   static const int _usersPerPage = 10;
 
@@ -210,7 +252,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     }
 
     _filtered = result;
-    _currentPage = 1; // reset ke halaman pertama setiap kali filter berubah
+    _currentPage = 1;
   }
 
   void _showUserDetail(Map<String, dynamic> user) {
@@ -387,37 +429,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
               ],
             ),
           ),
-          // ACTIVE FILTER CHIPS
-          if (_filterLokasiId != null || _filterUnitId != null ||
-              _filterSubunitId != null || _filterAreaId != null ||
-              _filterJabatanId != null || _sortOrder != 'none')
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  if (_activeLocationChipLabel != null)
-                    _buildActiveFilterChip('📍 $_activeLocationChipLabel',
-                      () => setState(() {
-                        _filterLokasiId = null; _filterLokasiName = null;
-                        _filterUnitId = null; _filterUnitName = null;
-                        _filterSubunitId = null; _filterSubunitName = null;
-                        _filterAreaId = null; _filterAreaName = null;
-                        _applyFilter();
-                      })),
-                  if (_filterJabatanName != null)
-                    _buildActiveFilterChip('💼 $_filterJabatanName',
-                      () => setState(() { _filterJabatanId = null; _filterJabatanName = null; _applyFilter(); })),
-                  if (_sortOrder != 'none')
-                    _buildActiveFilterChip(
-                      _sortOrder == 'asc' ? '🔤 A→Z' : '🔤 Z→A',
-                      () => setState(() { _sortOrder = 'none'; _applyFilter(); })),
-                ],
-              ),
-            ),
-          // USER LIST + PAGINATION INDICATOR (selalu di layer paling depan)
+          // USER LIST + PAGINATION INDICATOR
           Expanded(
             child: _isLoading
                 ? _buildShimmer()
@@ -431,7 +443,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                             child: ListView.separated(
                               padding: EdgeInsets.fromLTRB(
                                 16, 12, 16,
-                                _totalPages > 1 ? 100 : 32, // ruang ekstra agar card terakhir tidak tertutup indicator
+                                _totalPages > 1 ? 100 : 32,
                               ),
                               itemCount: _pagedUsers.length,
                               separatorBuilder: (_, __) =>
@@ -440,8 +452,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                                   _buildUserCard(_pagedUsers[i]),
                             ),
                           ),
-                          // Indicator ditaruh SETELAH ListView di dalam Stack
-                          // agar selalu berada di layer paling depan (di atas card).
                           if (_totalPages > 1)
                             Positioned(
                               left: 0,
@@ -538,7 +548,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       specificLocation = lokasiName.toString();
     }
 
-    // ROLE COLOR & ICON — disamakan persis dengan admin_user_filter.dart (Select Role)
+    // ROLE COLOR & ICON
     final idJabatan = user['id_jabatan'] as int?;
     final Color roleColor = adminRoleColor(idJabatan);
     final IconData roleIcon = adminRoleIcon(idJabatan);
@@ -651,8 +661,8 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                   const SizedBox(height: 4),
                   _buildChip(
                     specificLocation,
-                    _locationChipColor(user),
-                    Icons.location_on_outlined,
+                    _locationFilterColor(_userLocationLevel(user)),
+                    _locationFilterIcon(_userLocationLevel(user)),
                   ),
                 ],
                 // LINE 3: KASIE SECTION
@@ -687,22 +697,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
         ],
       ),
     ));
-  }
-
-  Color _locationChipColor(Map<String, dynamic> user) {
-    if (user['area']?['nama_area'] != null &&
-        (user['area']!['nama_area'] as String).isNotEmpty) {
-      return const Color(0xFFF472B6);
-    }
-    if (user['subunit']?['nama_subunit'] != null &&
-        (user['subunit']!['nama_subunit'] as String).isNotEmpty) {
-      return const Color(0xFFFBBF24);
-    }
-    if (user['unit']?['nama_unit'] != null &&
-        (user['unit']!['nama_unit'] as String).isNotEmpty) {
-      return const Color(0xFF6366F1);
-    }
-    return const Color(0xFF10B981);
   }
 
   Widget _buildChip(String label, Color color, IconData icon) {
@@ -780,36 +774,8 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     );
   }
 
-  Widget _buildActiveFilterChip(String label, VoidCallback onRemove) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: _primary.withValues(alpha:0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _primary.withValues(alpha:0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-                fontSize: 11,
-                color: _primary,
-                fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: onRemove,
-            child: const Icon(Icons.close_rounded, size: 13, color: _primary),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildFilterButtons() {
-    final hasLokasiFilter = _filterLokasiId != null;
+    final hasLokasiFilter = _activeLocationId != null;
     final hasJabatanFilter = _filterJabatanId != null;
     final hasSortFilter = _sortOrder != 'none';
 
@@ -822,9 +788,22 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 : _langCode == 'ZH'
                     ? '位置'
                     : 'Lokasi',
-            icon: Icons.map,
+            icon: hasLokasiFilter
+                ? _locationFilterIcon(_activeLocationLevel)
+                : Icons.map,
             isActive: hasLokasiFilter,
+            activeLabel: _activeLocationChipLabel,
+            activeColor: _locationFilterColor(_activeLocationLevel),
             onTap: _openLocationFilter,
+            onClear: hasLokasiFilter
+                ? () => setState(() {
+                      _filterLokasiId = null; _filterLokasiName = null;
+                      _filterUnitId = null; _filterUnitName = null;
+                      _filterSubunitId = null; _filterSubunitName = null;
+                      _filterAreaId = null; _filterAreaName = null;
+                      _applyFilter();
+                    })
+                : null,
           ),
         ),
         const SizedBox(width: 8),
@@ -835,9 +814,20 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                 : _langCode == 'ZH'
                     ? '职位'
                     : 'Jabatan',
-            icon: Icons.work_outline,
+            icon: hasJabatanFilter
+                ? adminRoleIcon(_filterJabatanId)
+                : Icons.work_outline,
             isActive: hasJabatanFilter,
+            activeLabel: _filterJabatanName,
+            activeColor: adminRoleColor(_filterJabatanId),
             onTap: _openRoleFilter,
+            onClear: hasJabatanFilter
+                ? () => setState(() {
+                      _filterJabatanId = null;
+                      _filterJabatanName = null;
+                      _applyFilter();
+                    })
+                : null,
           ),
         ),
         const SizedBox(width: 8),
@@ -850,7 +840,16 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
                     : 'Urutan',
             icon: Icons.sort_by_alpha_rounded,
             isActive: hasSortFilter,
+            activeLabel: hasSortFilter
+                ? (_sortOrder == 'asc' ? 'A → Z' : 'Z → A')
+                : null,
             onTap: _openSortFilter,
+            onClear: hasSortFilter
+                ? () => setState(() {
+                      _sortOrder = 'none';
+                      _applyFilter();
+                    })
+                : null,
           ),
         ),
       ],
@@ -869,7 +868,6 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     final id = result['id'];
     final name = result['name'];
     setState(() {
-      // reset semua level dulu, karena hanya 1 level filter aktif
       _filterLokasiId = null; _filterLokasiName = null;
       _filterUnitId = null; _filterUnitName = null;
       _filterSubunitId = null; _filterSubunitName = null;
@@ -928,33 +926,44 @@ class _FilterButton extends StatelessWidget {
   final IconData icon;
   final bool isActive;
   final VoidCallback onTap;
+  final String? activeLabel;
+  final VoidCallback? onClear;
+  final Color? activeColor;
 
   const _FilterButton({
     required this.label,
     required this.icon,
     required this.isActive,
     required this.onTap,
+    this.activeLabel,
+    this.onClear,
+    this.activeColor,
   });
 
   @override
   Widget build(BuildContext context) {
     const primary = Color(0xFF6366F1);
+    final Color color = activeColor ?? primary;
+    final displayLabel = (isActive && activeLabel != null && activeLabel!.isNotEmpty)
+        ? activeLabel!
+        : label;
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
         decoration: BoxDecoration(
-          color: isActive ? primary : Colors.white,
+          color: isActive ? color.withValues(alpha: 0.12) : Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? primary : Colors.grey.shade200,
+            color: isActive ? color.withValues(alpha: 0.55) : Colors.grey.shade200,
             width: isActive ? 1.5 : 1,
           ),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                    color: primary.withValues(alpha:0.2),
+                    color: color.withValues(alpha:0.15),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   )
@@ -965,16 +974,32 @@ class _FilterButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon,
-                size: 14, color: isActive ? Colors.white : primary),
+                size: 14, color: isActive ? color : primary),
             const SizedBox(width: 5),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: isActive ? Colors.white : primary,
+            Flexible(
+              child: Text(
+                displayLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isActive ? color : primary,
+                ),
               ),
             ),
+            if (isActive && onClear != null) ...[
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: onClear,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Icon(Icons.close_rounded,
+                      size: 13, color: color),
+                ),
+              ),
+            ],
           ],
         ),
       ),
