@@ -51,12 +51,18 @@ IconData _adminLevelIcon(String level) {
   }
 }
 
+// Sentinel ID khusus untuk opsi filter "Verificator" di popup Select Role.
+// Tidak bentrok dengan id_jabatan asli karena semua id_jabatan bernilai positif.
+const int kVerificatorFilterId = -1;
+
 Color adminRoleColor(int? idJabatan) {
+  if (idJabatan == kVerificatorFilterId) return const Color(0xFFF59E0B);
   if (idJabatan == 6) return const Color(0xFF059669);
   return JabatanHelper.getPrimaryColor(isVerificatorFlag: false, idJabatan: idJabatan);
 }
 
 IconData adminRoleIcon(int? idJabatan) {
+  if (idJabatan == kVerificatorFilterId) return Icons.verified_user_outlined;
   if (idJabatan == 6) return Icons.admin_panel_settings_rounded;
   return JabatanHelper.getRoleIcon(isVerificatorFlag: false, idJabatan: idJabatan);
 }
@@ -669,6 +675,23 @@ class _AdminUserRoleFilterDialogState extends State<_AdminUserRoleFilterDialog> 
     }
   }
 
+  String get _verificatorLabel {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Verificator';
+      case 'ZH':
+        return '验证员';
+      default:
+        return 'Verifikator';
+    }
+  }
+
+  bool get _verificatorMatchesSearch {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return _verificatorLabel.toLowerCase().contains(q);
+  }
+
   void _applySearch(String q) {
     final query = q.trim().toLowerCase();
     setState(() {
@@ -788,7 +811,19 @@ class _AdminUserRoleFilterDialogState extends State<_AdminUserRoleFilterDialog> 
                   isSelected: widget.selectedJabatanId == null,
                   onTap: () => Navigator.pop(context, {'id': null, 'name': null}),
                 ),
-                if (_filtered.isEmpty)
+                // Opsi khusus: filter user dengan is_verificator == true,
+                // terpisah dari daftar jabatan karena bukan berbasis id_jabatan.
+                if (_verificatorMatchesSearch)
+                  _buildRoleCard(
+                    context: context,
+                    icon: adminRoleIcon(kVerificatorFilterId),
+                    color: adminRoleColor(kVerificatorFilterId),
+                    label: _verificatorLabel,
+                    isSelected: widget.selectedJabatanId == kVerificatorFilterId,
+                    onTap: () => Navigator.pop(
+                        context, {'id': kVerificatorFilterId, 'name': _verificatorLabel}),
+                  ),
+                if (_filtered.isEmpty && !_verificatorMatchesSearch)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 24),
                     child: Center(

@@ -241,7 +241,9 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
       result = result.where((u) => u['id_lokasi']?.toString() == _filterLokasiId).toList();
     }
 
-    if (_filterJabatanId != null) {
+    if (_filterJabatanId == kVerificatorFilterId) {
+      result = result.where((u) => u['is_verificator'] == true).toList();
+    } else if (_filterJabatanId != null) {
       result = result.where((u) => u['id_jabatan'] == _filterJabatanId).toList();
     }
 
