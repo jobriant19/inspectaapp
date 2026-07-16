@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -114,7 +115,7 @@ class AdminHomeInfoCard extends StatelessWidget {
                                   style: GoogleFonts.poppins(
                                     color: Colors.white.withValues(alpha:0.90),
                                     fontSize: 13,
-                                    fontWeight: FontWeight.w500,
+                                    fontWeight: FontWeight.w600,
                                     shadows: [
                                       Shadow(
                                         color: Colors.black.withValues(alpha:0.6),
@@ -231,9 +232,9 @@ class AdminHomeInfoCard extends StatelessWidget {
                   Text(
                     s.label,
                     style: GoogleFonts.poppins(
-                      color: Colors.white.withValues(alpha:0.88),
+                      color: Colors.white,
                       fontSize: 8,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                     textAlign: TextAlign.center,
                     maxLines: 1,
@@ -360,7 +361,6 @@ class AdminHomeClockWidget extends StatefulWidget {
 class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
   late DateTime _now;
   late Timer _timer;
-  final bool _fontReady = true;
 
   @override
   void initState() {
@@ -377,6 +377,30 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
   }
 
   String _pad(int v) => v.toString().padLeft(2, '0');
+
+  Widget _fixedWidthDigits(
+    String text,
+    TextStyle style, {
+    required double digitWidth,
+    required double colonWidth,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: text.split('').map((ch) {
+        final isColon = ch == ':';
+        return SizedBox(
+          width: isColon ? colonWidth : digitWidth,
+          child: Text(
+            ch,
+            textAlign: TextAlign.center,
+            style: style,
+          ),
+        );
+      }).toList(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -415,29 +439,18 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
       dateLabel = '$dayStr, $date $monStr $year';
     }
 
-    final timeStyle = _fontReady
-        ? GoogleFonts.sourceCodePro(
-            color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800,
-            letterSpacing: 1.5,
-            shadows: [Shadow(color: Colors.black.withValues(alpha:0.6), blurRadius: 6)])
-        : const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800,
-            letterSpacing: 1.5, fontFamily: 'monospace');
+    final timeStyle = GoogleFonts.poppins(
+        color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800,
+        shadows: [Shadow(color: Colors.black.withValues(alpha:0.6), blurRadius: 6)]);
 
-    final secStyle = _fontReady
-        ? GoogleFonts.sourceCodePro(
-            color: const Color(0xFF6EE7B7), fontSize: 15, fontWeight: FontWeight.w800,
-            letterSpacing: 1,
-            shadows: [Shadow(color: const Color(0xFF059669).withValues(alpha:0.8), blurRadius: 8)])
-        : const TextStyle(color: Color(0xFF6EE7B7), fontSize: 15, fontWeight: FontWeight.w800,
-            letterSpacing: 1, fontFamily: 'monospace');
+    final secStyle = GoogleFonts.poppins(
+        color: const Color(0xFF6EE7B7), fontSize: 20, fontWeight: FontWeight.w800,
+        shadows: [Shadow(color: const Color(0xFF059669).withValues(alpha:0.8), blurRadius: 8)]);
 
-    final dateStyle = _fontReady
-        ? GoogleFonts.poppins(
-            color: Colors.white.withValues(alpha:0.85), fontSize: 8.5, fontWeight: FontWeight.w600,
+    final dateStyle = GoogleFonts.poppins(
+            color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.w700,
             letterSpacing: 0.3,
-            shadows: [Shadow(color: Colors.black.withValues(alpha:0.5), blurRadius: 4)])
-        : TextStyle(color: Colors.white.withValues(alpha:0.85), fontSize: 8.5,
-            fontWeight: FontWeight.w600, letterSpacing: 0.3);
+            shadows: [Shadow(color: Colors.black.withValues(alpha:0.5), blurRadius: 4)]);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -464,19 +477,30 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text('$h:$m', style: timeStyle),
-                  Text(':', style: _fontReady
-                      ? GoogleFonts.sourceCodePro(
-                          color: Colors.white.withValues(alpha:0.70),
-                          fontSize: 14, fontWeight: FontWeight.w700)
-                      : TextStyle(color: Colors.white.withValues(alpha:0.70),
-                          fontSize: 14, fontWeight: FontWeight.w700,
-                          fontFamily: 'monospace')),
-                  Text(s, style: secStyle),
+                  _fixedWidthDigits('$h:$m', timeStyle, digitWidth: 14, colonWidth: 6),
+                  SizedBox(
+                    width: 8,
+                    child: Text(
+                      ':',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white.withValues(alpha:0.70),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  _fixedWidthDigits(s, secStyle, digitWidth: 14, colonWidth: 6),
                 ],
               ),
               const SizedBox(height: 3),
-              Text(dateLabel, style: dateStyle),
+              Text(
+                dateLabel,
+                style: dateStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+              ),
             ],
           ),
         ],

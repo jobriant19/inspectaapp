@@ -6,8 +6,8 @@ import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../auth/auth_service.dart';
-import '../../../core/utils/image_picker_helper.dart';
 import '../../auth/login_screen.dart';
+import 'camera/admin_profile_camera.dart';
 
 class AdminProfileScreen extends StatefulWidget {
   final String lang;
@@ -157,6 +157,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     });
 
     _fetchProfile();
+    AdminProfileCameraWarmupService.instance.warmUp();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       precacheImage(
         const AssetImage('assets/images/bgadmin.png'),
@@ -170,6 +171,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
     _nameCtrl.dispose();
     _newPassCtrl.dispose();
     _confirmPassCtrl.dispose();
+    AdminProfileCameraWarmupService.instance.release();
     super.dispose();
   }
 
@@ -210,21 +212,27 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
 
   Future<void> _pickImage() async {
     if (!_isEditMode) return;
-    final picked = await ImagePickerHelper.pickImageFromGallery(
-      imageQuality: 70,
-      maxWidth: 800,
-      maxHeight: 800,
+    final XFile? picked = await Navigator.push<XFile?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminProfileCameraScreen(lang: widget.lang),
+      ),
     );
     if (picked != null) {
       final bytes = await picked.readAsBytes();
       final ext = picked.name.split('.').last.toLowerCase();
-      setState(() {
-        _imageFile = picked;
-        _imageBytes = bytes;
-        _imageExt = ext.isEmpty ? 'jpg' : ext;
-        _hasChanges = true;
-      });
+      if (mounted) {
+        setState(() {
+          _imageFile = picked;
+          _imageBytes = bytes;
+          _imageExt = ext.isEmpty ? 'jpg' : ext;
+          _hasChanges = true;
+        });
+      }
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AdminProfileCameraWarmupService.instance.warmUp();
+    });
   }
 
   void _showLoadingDialog() {
@@ -806,20 +814,27 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_isEditMode,
+      canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        setState(() {
-          _isEditMode = false;
-          _nameCtrl.text = _initialName ?? '';
-          _imageFile = null;
-          _imageBytes = null;
-          _imageExt = null;
-          _hasChanges = false;
-          _showPasswordSection = false;
-          _newPassCtrl.clear();
-          _confirmPassCtrl.clear();
-        });
+        if (_isEditMode) {
+          setState(() {
+            _isEditMode = false;
+            _nameCtrl.text = _initialName ?? '';
+            _imageFile = null;
+            _imageBytes = null;
+            _imageExt = null;
+            _hasChanges = false;
+            _showPasswordSection = false;
+            _newPassCtrl.clear();
+            _confirmPassCtrl.clear();
+          });
+        } else {
+          Navigator.of(context).pop({
+            'name': _initialName,
+            'image': _imageUrl,
+          });
+        }
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
@@ -841,7 +856,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                   _confirmPassCtrl.clear();
                 });
               } else {
-                Navigator.of(context).pop();
+                Navigator.of(context).pop({
+                  'name': _initialName,
+                  'image': _imageUrl,
+                });
               }
             },
           ),

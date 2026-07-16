@@ -10,9 +10,6 @@ import 'kts/admin_kts_body.dart';
 import 'preventif/admin_preventif_body.dart';
 import 'profile/admin_profile_screen.dart';
 
-/// AdminShellScreen adalah satu-satunya route untuk seluruh navigasi bottom
-/// navbar admin panel. Header dan bottom navbar TIDAK pernah di-rebuild saat
-/// pindah tab -- hanya area body yang dianimasikan (slide + fade).
 class AdminShellScreen extends StatefulWidget {
   final int initialIndex;
   final String? initialLang;
@@ -44,8 +41,6 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   String _lang = 'ID';
   String _adminName = 'Admin';
   String? _adminImage;
-
-  // arah slide: true = konten baru masuk dari kanan (index naik)
   bool _fromRight = true;
 
   static const _accentByIndex = <int, Color>{
@@ -150,9 +145,9 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           ),
           Column(
             children: [
-              // HEADER -- statis, tidak ikut animasi
+              // HEADER
               SafeArea(bottom: false, child: _buildHeader()),
-              // BODY -- hanya bagian ini yang dianimasikan
+              // BODY
               Expanded(
                 child: ClipRect(
                   child: AnimatedSwitcher(
@@ -185,7 +180,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
               ),
             ],
           ),
-          // BOTTOM NAVBAR -- statis, tidak ikut animasi
+          // BOTTOM NAVBAR
           Positioned(
             left: 0,
             right: 0,
@@ -262,7 +257,14 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   },
                   transitionDuration: const Duration(milliseconds: 300),
                 ),
-              ).then((_) => setState(() {})); // refresh profil bila berubah
+              ).then((result) {
+                if (result != null && result is Map) {
+                  setState(() {
+                    _adminName = (result['name'] as String?) ?? _adminName;
+                    _adminImage = (result['image'] as String?) ?? _adminImage;
+                  });
+                }
+              });
             },
             child: Container(
               padding: const EdgeInsets.all(2),
@@ -315,7 +317,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       onTap: () {
         showDialog(
           context: context,
-          barrierDismissible: true, // tap di luar area untuk menutup
+          barrierDismissible: true,
           barrierColor: Colors.black.withValues(alpha: 0.45),
           builder: (ctx) => Dialog(
             backgroundColor: Colors.transparent,

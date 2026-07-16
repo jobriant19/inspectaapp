@@ -54,11 +54,8 @@ class _AdminHomeBodyState extends State<AdminHomeBody> {
 
     GoogleFonts.pendingFonts([
       GoogleFonts.poppins(),
-      GoogleFonts.sourceCodePro(),
     ]).catchError((_) => <void>[]);
 
-    // Tetap fetch ulang di background agar data terbaru, tanpa memicu shimmer
-    // jika initial stats sudah tersedia.
     _fetchStats();
     _loadAdminInfo();
 
@@ -66,6 +63,15 @@ class _AdminHomeBodyState extends State<AdminHomeBody> {
       precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
           .catchError((_) {});
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminHomeBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialUserName != null &&
+        widget.initialUserName != oldWidget.initialUserName) {
+      setState(() => _adminName = widget.initialUserName!);
+    }
   }
 
   Future<void> _fetchStats({bool showLoading = false}) async {
