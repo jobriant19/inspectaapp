@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/jabatan_helper.dart';
 import '../../auth/login_screen.dart';
-import 'profile_screen.dart';
+import 'profile/profile_screen.dart';
 import 'about_inspecta_screen.dart';
 import 'help_center_screen.dart';
 import 'privacy_security_screen.dart';

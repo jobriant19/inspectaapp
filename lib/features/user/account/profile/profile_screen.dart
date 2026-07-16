@@ -4,10 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
-
-import '../../auth/auth_service.dart';
-import '../../../core/utils/image_picker_helper.dart';
-import '../../../core/utils/jabatan_helper.dart';
+import '../../../auth/auth_service.dart';
+import '../../../../core/utils/jabatan_helper.dart';
+import 'profile_camera.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String lang;
@@ -15,6 +14,7 @@ class ProfileScreen extends StatefulWidget {
   final String? initialUserImage;
   final String? initialUserRole;
   final String? initialUserLocation;
+  final String? initialUserLocationLevel;
   final bool? isVerificator;
   final int? userJabatanId;
 
@@ -25,6 +25,7 @@ class ProfileScreen extends StatefulWidget {
     this.initialUserImage,
     this.initialUserRole,
     this.initialUserLocation,
+    this.initialUserLocationLevel,
     this.isVerificator,
     this.userJabatanId,
   });
@@ -36,6 +37,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _nameController = TextEditingController();
   String _email = '', _jabatan = '', _lokasi = '';
+  String _lokasiLevel = 'lokasi';
   String? _initialName, _imageUrl;
   XFile? _imageFile;
   Uint8List? _imageBytes;
@@ -45,7 +47,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isEditMode = false;
   bool _hasChanges = false;
 
-  // Password change state
+  static const double _kFieldHeight = 58;
+  static const double _kFieldSpacing = 16;
+
   bool _showPasswordSection = false;
   final TextEditingController _newPassCtrl = TextEditingController();
   final TextEditingController _confirmPassCtrl = TextEditingController();
@@ -61,7 +65,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'password_mismatch': 'Passwords do not match!',
             'password_too_short': 'Password must be at least 6 characters',
             'password_updated': 'Password updated successfully!',
-            'password_error': 'Failed to update password' },
+            'password_error': 'Failed to update password',
+            'name_required': 'Name cannot be empty',
+            'level_lokasi': 'Location',
+            'level_unit': 'Unit',
+            'level_subunit': 'Sub Unit',
+            'level_area': 'Area',
+            'specific_location': 'Specific Location' },
     'ID': { 'profile_title': 'Profil Saya', 'edit_title': 'Ubah Profil', 'name': 'Nama', 'email': 'Alamat Email', 'role': 'Jabatan', 'location': 'Lokasi', 'save': 'Simpan Perubahan', 'success': 'Profil Diperbarui!', 'success_body': 'Profil Anda berhasil diperbarui.', 'edit': 'Ubah', 'verifier': 'Verifier', 'error_update': 'Gagal Memperbarui', 'error_body': 'Gagal memperbarui profil. Silakan coba lagi.', 'close': 'Tutup', 'saving': 'Menyimpan profil Anda...', 'uploading': 'Mengunggah foto...', 'change_password': 'Ubah Password',
             'new_password': 'Password Baru',
             'confirm_password': 'Konfirmasi Password',
@@ -70,7 +80,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'password_mismatch': 'Password tidak cocok!',
             'password_too_short': 'Password minimal 6 karakter',
             'password_updated': 'Password berhasil diperbarui!',
-            'password_error': 'Gagal memperbarui password' },
+            'password_error': 'Gagal memperbarui password',
+            'name_required': 'Nama tidak boleh kosong',
+            'level_lokasi': 'Lokasi',
+            'level_unit': 'Unit',
+            'level_subunit': 'Sub Unit',
+            'level_area': 'Area',
+            'specific_location': 'Lokasi Spesifik' },
     'ZH': { 'profile_title': '我的资料', 'edit_title': '编辑资料', 'name': '姓名', 'email': '电子邮件', 'role': '职位', 'location': '地点', 'save': '保存更改', 'success': '资料已更新！', 'success_body': '您的资料已成功更新。', 'edit': '编辑', 'verifier': '验证者', 'error_update': '更新失败', 'error_body': '无法更新资料，请重试。', 'close': '关闭', 'saving': '正在保存资料...', 'uploading': '正在上传照片...', 'change_password': '修改密码',
             'new_password': '新密码',
             'confirm_password': '确认密码',
@@ -79,7 +95,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'password_mismatch': '两次密码不一致！',
             'password_too_short': '密码至少需要6个字符',
             'password_updated': '密码更新成功！',
-            'password_error': '更新密码失败' },
+            'password_error': '更新密码失败',
+            'name_required': '姓名不能为空',
+            'level_lokasi': '地点',
+            'level_unit': '单元',
+            'level_subunit': '子单元',
+            'level_area': '区域',
+            'specific_location': '具体位置' },
   };
   String getTxt(String key) => _txt[widget.lang]?[key] ?? key;
 
@@ -87,6 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadProfile();
+    ProfileCameraWarmupService.instance.warmUp();
     _nameController.addListener(() {
       if (_isEditMode) {
         setState(() => _hasChanges = _nameController.text != _initialName || _imageFile != null);
@@ -99,6 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _nameController.dispose();
     _newPassCtrl.dispose();
     _confirmPassCtrl.dispose();
+    ProfileCameraWarmupService.instance.release();
     super.dispose();
   }
 
@@ -112,6 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ? getTxt('verifier')
           : widget.initialUserRole!;
         _lokasi = widget.initialUserLocation!;
+        _lokasiLevel = widget.initialUserLocationLevel ?? 'lokasi';
         _email = Supabase.instance.client.auth.currentUser?.email ?? '';
         _isScreenLoading = false;
       });
@@ -141,14 +166,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
       
       String lokasi = "N/A";
+      String lokasiLevel = 'lokasi';
       if (row['id_area'] != null) {
         lokasi = (await Supabase.instance.client.from('area').select('nama_area').eq('id_area', row['id_area']).maybeSingle())?['nama_area'] ?? lokasi;
+        lokasiLevel = 'area';
       } else if (row['id_subunit'] != null) {
         lokasi = (await Supabase.instance.client.from('subunit').select('nama_subunit').eq('id_subunit', row['id_subunit']).maybeSingle())?['nama_subunit'] ?? lokasi;
+        lokasiLevel = 'subunit';
       } else if (row['id_unit'] != null) {
         lokasi = (await Supabase.instance.client.from('unit').select('nama_unit').eq('id_unit', row['id_unit']).maybeSingle())?['nama_unit'] ?? lokasi;
+        lokasiLevel = 'unit';
       } else if (row['id_lokasi'] != null) {
         lokasi = (await Supabase.instance.client.from('lokasi').select('nama_lokasi').eq('id_lokasi', row['id_lokasi']).maybeSingle())?['nama_lokasi'] ?? lokasi;
+        lokasiLevel = 'lokasi';
       }
       
       final String? metaImage = user.userMetadata?['avatar_url'] ?? user.userMetadata?['picture'];
@@ -162,6 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _email = row['email'] ?? '';
           _jabatan = jabatan;
           _lokasi = lokasi;
+          _lokasiLevel = lokasiLevel;
           _imageUrl = dbImage ?? metaImage;
         });
       }
@@ -174,21 +205,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _pickImage() async {
     if (!_isEditMode) return;
-    final picked = await ImagePickerHelper.pickImageFromGallery(
-      imageQuality: 70,
-      maxWidth: 800,
-      maxHeight: 800,
+    final XFile? picked = await Navigator.push<XFile?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileCameraScreen(lang: widget.lang),
+      ),
     );
     if (picked != null) {
-      final bytes = await picked.readAsBytes(); // Baca langsung ke bytes
+      final bytes = await picked.readAsBytes();
       final ext = picked.name.split('.').last.toLowerCase();
-      setState(() {
-        _imageFile = picked;
-        _imageBytes = bytes;
-        _imageExt = ext.isEmpty ? 'jpg' : ext;
-        _hasChanges = true;
-      });
+      if (mounted) {
+        setState(() {
+          _imageFile = picked;
+          _imageBytes = bytes;
+          _imageExt = ext.isEmpty ? 'jpg' : ext;
+          _hasChanges = true;
+        });
+      }
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ProfileCameraWarmupService.instance.warmUp();
+    });
   }
 
   void _showLoadingDialog() {
@@ -304,10 +341,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- BAGIAN UTAMA PERBAIKAN: METHOD UNTUK MENYIMPAN PROFIL ---
   Future<void> _updateProfile() async {
+    if (_nameController.text.trim().isEmpty) {
+      _showResultDialog(isSuccess: false, errorDetail: getTxt('name_required'));
+      return;
+    }
+
     setState(() => _isSaving = true);
-    _showLoadingDialog(); // Tampilkan loading dialog
+    _showLoadingDialog();
 
     final user = Supabase.instance.client.auth.currentUser!;
     String? finalImageUrl = _imageUrl;
@@ -351,7 +392,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .eq('id_user', user.id);
 
       if (mounted) {
-        Navigator.of(context).pop(); // Tutup loading dialog
+        Navigator.of(context).pop(); 
         setState(() {
           _initialName = _nameController.text.trim();
           _imageUrl = finalImageUrl;
@@ -366,7 +407,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       debugPrint('Error updating profile: $e');
       if (mounted) {
-        Navigator.of(context).pop(); // Tutup loading dialog
+        Navigator.of(context).pop();
         _showResultDialog(isSuccess: false, errorDetail: e.toString());
       }
     } finally {
@@ -412,7 +453,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .eq('id_user', user.id);
 
       if (mounted) {
-        Navigator.of(context).pop(); // tutup loading
+        Navigator.of(context).pop();
         setState(() {
           _newPassCtrl.clear();
           _confirmPassCtrl.clear();
@@ -424,7 +465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       debugPrint('Error updating password: $e');
       if (mounted) {
-        Navigator.of(context).pop(); // tutup loading
+        Navigator.of(context).pop();
         setState(() => _isSaving = false);
         _showResultDialog(isSuccess: false, errorDetail: e.toString());
       }
@@ -729,11 +770,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildRoleBadge() {
-    // is_verificator TRUE selalu menang, abaikan id_jabatan
     final bool isVerif = widget.isVerificator == true ||
         _jabatan.toLowerCase().contains('verif');
 
-    // Resolve id_jabatan dari nama jika parameter tidak tersedia
     int? resolvedId = widget.userJabatanId;
     if (!isVerif && resolvedId == null) {
       final lower = _jabatan.toLowerCase();
@@ -786,14 +825,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  IconData get _locationLevelIcon {
+    switch (_lokasiLevel) {
+      case 'unit':
+        return Icons.business_rounded;
+      case 'subunit':
+        return Icons.layers_rounded;
+      case 'area':
+        return Icons.place_rounded;
+      case 'lokasi':
+      default:
+        return Icons.location_city_rounded;
+    }
+  }
+
+  Color get _locationLevelColor {
+    switch (_lokasiLevel) {
+      case 'unit':
+        return const Color(0xFF6366F1);
+      case 'subunit':
+        return const Color(0xFFFBBF24);
+      case 'area':
+        return const Color(0xFFF472B6);
+      case 'lokasi':
+      default:
+        return const Color(0xFF10B981);
+    }
+  }
   
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: !_isEditMode, // Izinkan swipe back langsung jika bukan edit mode
+      canPop: !_isEditMode,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        // Hanya masuk sini jika canPop = false (yaitu saat _isEditMode = true)
         setState(() {
           _isEditMode = false;
           _nameController.text = _initialName ?? '';
@@ -852,7 +918,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : SingleChildScrollView(
                 child: Column(
                   children: [
-                    // Header avatar biru
+                    // HEADER AVATAR
                     ClipRRect(
                       borderRadius: const BorderRadius.only(
                         bottomLeft: Radius.circular(36),
@@ -870,7 +936,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               fit: BoxFit.cover,
                               errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                             ),
-                            // Dekorasi lingkaran latar (subtle)
                             Positioned(
                               top: -30, right: -20,
                               child: Container(
@@ -969,7 +1034,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
 
-                    // Form fields
+                    // FORM FIELD
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
                       child: Column(
@@ -981,9 +1046,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             icon: Icons.person_outline,
                             enabled: _isEditMode,
                           ),
-                          _buildInfoField(_email, getTxt('email'), Icons.email_outlined),
-                          _buildInfoField(_jabatan, getTxt('role'), Icons.work_outline),
-                          _buildInfoField(_lokasi, getTxt('location'), Icons.location_on_outlined),
+                          _buildInfoField(_email, getTxt('email'), Icons.email_outlined, showFieldIcon: false),
+                          _buildInfoField(
+                            _lokasi,
+                            getTxt('specific_location'),
+                            Icons.map_rounded,
+                            iconColor: _locationLevelColor,
+                            showFieldIcon: true,
+                            fieldIcon: _locationLevelIcon,
+                          ),
                           const SizedBox(height: 24),
                           _buildPasswordSection(),
                           const SizedBox(height: 16),
@@ -1055,87 +1126,108 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1D72F3), letterSpacing: 0.3),
+          child: Row(
+            children: [
+              Icon(icon, size: 15, color: const Color(0xFF1D72F3)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1D72F3),
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
           ),
         ),
         Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14), // sama persis dengan _buildInfoField
+          height: _kFieldHeight,
+          margin: const EdgeInsets.only(bottom: _kFieldSpacing),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: enabled ? const Color(0xFF1D72F3) : Colors.transparent,
+              color: enabled ? const Color(0xFF1D72F3) : const Color(0xFFE2E8F0),
               width: 1.5,
             ),
             boxShadow: [BoxShadow(color: const Color(0xFF1D72F3).withValues(alpha:0.07), blurRadius: 12, offset: const Offset(0, 4))],
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: const Color(0xFF1D72F3), size: 20),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextField(
+              controller: controller,
+              enabled: enabled,
+              style: GoogleFonts.poppins(fontSize: 15, color: const Color(0xFF1E293B), fontWeight: FontWeight.w500),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  enabled: enabled,
-                  style: const TextStyle(fontSize: 15, color: Color(0xFF1E293B), fontWeight: FontWeight.w500),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildInfoField(String value, String label, IconData icon) {
+  Widget _buildInfoField(
+    String value,
+    String label,
+    IconData icon, {
+    Color? iconColor,
+    bool showFieldIcon = true,
+    IconData? fieldIcon,
+  }) {
+    final Color accent = iconColor ?? const Color(0xFF1D72F3);
+    final IconData boxIcon = fieldIcon ?? icon;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1D72F3), letterSpacing: 0.3),
+          child: Row(
+            children: [
+              Icon(icon, size: 15, color: accent),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: accent, letterSpacing: 0.3),
+              ),
+            ],
           ),
         ),
         Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          height: _kFieldHeight,
+          margin: const EdgeInsets.only(bottom: _kFieldSpacing),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: const Color(0xFF1D72F3).withValues(alpha:0.07), blurRadius: 12, offset: const Offset(0, 4))],
+            border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+            boxShadow: [BoxShadow(color: accent.withValues(alpha:0.07), blurRadius: 12, offset: const Offset(0, 4))],
           ),
           child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(10),
+              if (showFieldIcon) ...[
+                Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha:0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(boxIcon, color: accent, size: 17),
                 ),
-                child: Icon(icon, color: const Color(0xFF1D72F3), size: 20),
-              ),
-              const SizedBox(width: 14),
+                const SizedBox(width: 14),
+              ],
               Expanded(
                 child: Text(
                   value,
-                  style: const TextStyle(fontSize: 15, color: Color(0xFF1E293B), fontWeight: FontWeight.w500),
+                  style: GoogleFonts.poppins(fontSize: 15, color: const Color(0xFF1E293B), fontWeight: FontWeight.w500),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
