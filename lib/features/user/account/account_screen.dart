@@ -43,10 +43,10 @@ class _AccountScreenState extends State<AccountScreen> {
   late String _currentLang;
   bool _isLoading = true;
 
-  // Data User
-  String _userName = "Loading...";
+  // USER DATA
+  String _userName = "...";
   String? _userImage;
-  String _userJabatan = "Loading...";
+  String _userJabatan = "...";
   String _userLokasiSpesifik = "Tidak terdefinisi";
   String? _userLokasiLevel;
   bool _isVisitor = false;
@@ -56,7 +56,6 @@ class _AccountScreenState extends State<AccountScreen> {
   String? _cachedAppVersion;
   String? _cachedAppWebsite;
 
-  // Kamus terjemahan
   final Map<String, Map<String, String>> _txt = {
     'EN': {
       'title': 'My Account',
@@ -167,14 +166,15 @@ class _AccountScreenState extends State<AccountScreen> {
     _fetchUserDataSilent();
     _prefetchAppInfo();
 
-    // Precache gambar About Inspecta di background
-    // sehingga saat layar About dibuka, gambar sudah ada di cache
+    // PRECACHE IMAGES
     WidgetsBinding.instance.addPostFrameCallback((_) {
       precacheImage(const AssetImage('assets/images/logo1.PNG'), context)
           .catchError((_) {});
       precacheImage(const AssetImage('assets/images/flutter.png'), context)
           .catchError((_) {});
       precacheImage(const AssetImage('assets/images/supabase.png'), context)
+          .catchError((_) {});
+      precacheImage(const AssetImage('assets/images/bgadmin.png'), context)
           .catchError((_) {});
     });
   }
@@ -191,7 +191,7 @@ class _AccountScreenState extends State<AccountScreen> {
         ),
         child: Row(
           children: [
-            // Placeholder Gambar
+            // IMAGE PLACEHOLDER
             const CircleAvatar(radius: 35, backgroundColor: Colors.white),
             const SizedBox(width: 15),
             Expanded(
@@ -199,13 +199,13 @@ class _AccountScreenState extends State<AccountScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Placeholder Nama
+                  // NAME PLACEHOLDER
                   Container(height: 20, width: 150, color: Colors.white),
                   const SizedBox(height: 10),
-                  // Placeholder Jabatan
+                  // ROLE PLACEHOLDER
                   Container(height: 14, width: 80, color: Colors.white),
                   const SizedBox(height: 10),
-                  // Placeholder Lokasi
+                  // SPECIFIC LOCATION PLACEHOLDER
                   Container(height: 14, width: 120, color: Colors.white),
                 ],
               ),
@@ -234,7 +234,6 @@ class _AccountScreenState extends State<AccountScreen> {
       final isVisitor = userRow['is_visitor'] as bool? ?? false;
       final idJabatan = userRow['id_jabatan'] as int?;
 
-      // Resolusi lokasi
       final idLokasi  = userRow['id_lokasi'];
       final idUnit    = userRow['id_unit'];
       final idSubunit = userRow['id_subunit'];
@@ -260,12 +259,10 @@ class _AccountScreenState extends State<AccountScreen> {
         locationLevel = 'lokasi';
       }
 
-      // ── Prioritas is_verificator SELALU menang ──
       String jabatanName;
       if (isVisitor) {
         jabatanName = getTxt('visitor');
       } else if (isVerificator) {
-        // is_verificator TRUE → paksa "Verificator", abaikan id_jabatan
         jabatanName = getTxt('verifier_role');
       } else {
         jabatanName = userRow['jabatan']?['nama_jabatan'] ?? 'Staff';
@@ -278,13 +275,13 @@ class _AccountScreenState extends State<AccountScreen> {
         setState(() {
           _userName            = userRow['nama'] ?? 'User';
           _userImage           = dbImage ?? metaImage;
-          _userJabatan         = jabatanName;          // ← sudah benar: Verificator
+          _userJabatan         = jabatanName;
           _userLokasiSpesifik  = locationName;
           _userLokasiLevel     = locationLevel;
           _isVisitor           = isVisitor;
           _userJabatanId       = idJabatan;
-          _isVerificatorUser   = isVerificator;        // ← set di sini, TIDAK early return
-          _isLoading           = false;                // ← hilangkan loading
+          _isVerificatorUser   = isVerificator;
+          _isLoading           = false;
         });
       }
     } catch (e) {
@@ -457,7 +454,6 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
       body: Stack(
         children: [
-          // Warm-up bendera emoji lokal, agar selalu instan muncul di layar ini
           const Positioned(
             top: 0,
             left: 0,
@@ -488,11 +484,9 @@ class _AccountScreenState extends State<AccountScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Column(
                 children: [
-                  // --- KARTU PROFIL UTAMA ---
                   _isLoading ? _buildSkeletonProfileCard() : _buildProfileCard(),
                   const SizedBox(height: 30),
 
-                  // --- MENU PENGATURAN ---
                   _buildMenuTile(
                     Icons.translate,
                     getTxt('change_lang'),
@@ -567,7 +561,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
                   const SizedBox(height: 40),
 
-                  // --- TOMBOL LOGOUT ---
+                  // LOGOUT BUTTON
                   ElevatedButton.icon(
                     icon: const Icon(Icons.logout, color: Colors.redAccent),
                     label: Text(
@@ -616,7 +610,7 @@ class _AccountScreenState extends State<AccountScreen> {
                                   getTxt('logout'),
                                   style: GoogleFonts.poppins(
                                     fontSize: 18,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w800,
                                     color: Color(0xFF1E293B),
                                   ),
                                   textAlign: TextAlign.center,
@@ -626,6 +620,7 @@ class _AccountScreenState extends State<AccountScreen> {
                                   getTxt('logout_desc'),
                                   style: GoogleFonts.poppins(
                                     fontSize: 13,
+                                    fontWeight: FontWeight.w700,
                                     color: Color(0xFF64748B),
                                     height: 1.5,
                                   ),
@@ -704,7 +699,6 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // Helper untuk membuat tile menu yang konsisten
   Widget _buildMenuTile(IconData icon, String title,
     {VoidCallback? onTap, Widget? trailing}) {
     return GestureDetector(
@@ -745,7 +739,7 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // Helper navigasi dengan CurvedAnimation EaseOut
+  // CURVED ANIMATION
   PageRouteBuilder _slideRoute(Widget page) {
     return PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 350),
@@ -793,6 +787,7 @@ class _AccountScreenState extends State<AccountScreen> {
               initialUserImage: _userImage,
               initialUserRole: _userJabatan,
               initialUserLocation: _userLokasiSpesifik,
+              initialUserLocationLevel: _userLokasiLevel,
               isVerificator: _isVerificatorUser,
               userJabatanId: _userJabatanId,
             ),
@@ -834,7 +829,7 @@ class _AccountScreenState extends State<AccountScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // AVATAR — ukuran dikembalikan seperti semula (radius 35)
+            // AVATAR
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -859,13 +854,12 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
             const SizedBox(width: 16),
 
-            // NAMA + BADGE JABATAN + BADGE LOKASI
+            // NAME + ROLE BADGE + SPECIFIC LOCATION BADGE
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // BARIS 1: NAMA — auto mengecil, selalu 1 baris penuh
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
@@ -881,7 +875,6 @@ class _AccountScreenState extends State<AccountScreen> {
                   ),
                   const SizedBox(height: 8),
 
-                  // BARIS 2: BADGE JABATAN — warna identik dengan user_info_card.dart
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(
@@ -926,7 +919,6 @@ class _AccountScreenState extends State<AccountScreen> {
                   ),
                   const SizedBox(height: 8),
 
-                  // BARIS 3: BADGE LOKASI SPESIFIK — disamakan dengan user_info_card.dart
                   Container(
                     constraints: const BoxConstraints(maxWidth: 165),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -982,7 +974,6 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // --- HELPER UNTUK KARTU VISITOR ---
   Widget _buildVisitorCard() {
     return GestureDetector(
       onTap: () {
@@ -1007,7 +998,7 @@ class _AccountScreenState extends State<AccountScreen> {
       },
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(   // ← HAPUS color: Colors.white, pindah ke dalam decoration
+        decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(25),
           boxShadow: [

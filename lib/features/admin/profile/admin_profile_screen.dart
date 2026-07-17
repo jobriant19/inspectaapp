@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../auth/auth_service.dart';
 import '../../auth/login_screen.dart';
+import '../../user/home/alert/required_field_alert.dart';
 import 'camera/admin_profile_camera.dart';
 
 class AdminProfileScreen extends StatefulWidget {
@@ -385,6 +386,17 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
   }
 
   Future<void> _updateProfile() async {
+    if (_nameCtrl.text.trim().isEmpty) {
+      RequiredFieldAlert.show(
+        context,
+        lang: widget.lang,
+        missingFields: [
+          MissingFieldItem(icon: Icons.person_outline, label: getTxt('name')),
+        ],
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     _showLoadingDialog();
 
@@ -732,7 +744,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 getTxt('logout'),
                 style: GoogleFonts.poppins(
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   color: const Color(0xFF1E293B),
                 ),
                 textAlign: TextAlign.center,
@@ -742,6 +754,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                 getTxt('logout_confirm'),
                 style: GoogleFonts.poppins(
                   fontSize: 13,
+                  fontWeight: FontWeight.w700,
                   color: const Color(0xFF64748B),
                   height: 1.5,
                 ),

@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:shimmer/shimmer.dart';
 import '../../../auth/auth_service.dart';
 import '../../../../core/utils/jabatan_helper.dart';
+import '../../home/alert/required_field_alert.dart';
 import 'profile_camera.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -47,7 +48,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isEditMode = false;
   bool _hasChanges = false;
 
-  static const double _kFieldHeight = 58;
   static const double _kFieldSpacing = 16;
 
   bool _showPasswordSection = false;
@@ -60,10 +60,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'EN': { 'profile_title': 'My Profile', 'edit_title': 'Edit Profile', 'name': 'Name', 'email': 'Email Address', 'role': 'Job Title', 'location': 'Location', 'save': 'Save Changes', 'success': 'Profile Updated!', 'success_body': 'Your profile has been successfully updated.', 'edit': 'Edit', 'verifier': 'Verifier', 'error_update': 'Update Failed', 'error_body': 'Failed to update profile. Please try again.', 'close': 'Close', 'saving': 'Saving your profile...', 'uploading': 'Uploading photo...', 'change_password': 'Change Password',
             'new_password': 'New Password',
             'confirm_password': 'Confirm Password',
-            'password_hint': 'Min 6 characters',
+            'password_hint': 'Min 8 characters',
             'confirm_hint': 'Re-enter new password',
             'password_mismatch': 'Passwords do not match!',
-            'password_too_short': 'Password must be at least 6 characters',
+            'password_too_short': 'Password must be at least 8 characters',
             'password_updated': 'Password updated successfully!',
             'password_error': 'Failed to update password',
             'name_required': 'Name cannot be empty',
@@ -75,10 +75,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'ID': { 'profile_title': 'Profil Saya', 'edit_title': 'Ubah Profil', 'name': 'Nama', 'email': 'Alamat Email', 'role': 'Jabatan', 'location': 'Lokasi', 'save': 'Simpan Perubahan', 'success': 'Profil Diperbarui!', 'success_body': 'Profil Anda berhasil diperbarui.', 'edit': 'Ubah', 'verifier': 'Verifier', 'error_update': 'Gagal Memperbarui', 'error_body': 'Gagal memperbarui profil. Silakan coba lagi.', 'close': 'Tutup', 'saving': 'Menyimpan profil Anda...', 'uploading': 'Mengunggah foto...', 'change_password': 'Ubah Password',
             'new_password': 'Password Baru',
             'confirm_password': 'Konfirmasi Password',
-            'password_hint': 'Min 6 karakter',
+            'password_hint': 'Min 8 karakter',
             'confirm_hint': 'Ulangi password baru',
             'password_mismatch': 'Password tidak cocok!',
-            'password_too_short': 'Password minimal 6 karakter',
+            'password_too_short': 'Password minimal 8 karakter',
             'password_updated': 'Password berhasil diperbarui!',
             'password_error': 'Gagal memperbarui password',
             'name_required': 'Nama tidak boleh kosong',
@@ -90,10 +90,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'ZH': { 'profile_title': '我的资料', 'edit_title': '编辑资料', 'name': '姓名', 'email': '电子邮件', 'role': '职位', 'location': '地点', 'save': '保存更改', 'success': '资料已更新！', 'success_body': '您的资料已成功更新。', 'edit': '编辑', 'verifier': '验证者', 'error_update': '更新失败', 'error_body': '无法更新资料，请重试。', 'close': '关闭', 'saving': '正在保存资料...', 'uploading': '正在上传照片...', 'change_password': '修改密码',
             'new_password': '新密码',
             'confirm_password': '确认密码',
-            'password_hint': '最少6个字符',
+            'password_hint': '最少8个字符',
             'confirm_hint': '再次输入新密码',
             'password_mismatch': '两次密码不一致！',
-            'password_too_short': '密码至少需要6个字符',
+            'password_too_short': '密码至少需要8个字符',
             'password_updated': '密码更新成功！',
             'password_error': '更新密码失败',
             'name_required': '姓名不能为空',
@@ -343,7 +343,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _updateProfile() async {
     if (_nameController.text.trim().isEmpty) {
-      _showResultDialog(isSuccess: false, errorDetail: getTxt('name_required'));
+      RequiredFieldAlert.show(
+        context,
+        lang: widget.lang,
+        missingFields: [
+          MissingFieldItem(icon: Icons.person_outline, label: getTxt('name')),
+        ],
+      );
       return;
     }
 
@@ -419,8 +425,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final newPass = _newPassCtrl.text.trim();
     final confirmPass = _confirmPassCtrl.text.trim();
 
-    if (newPass.length < 6) {
-      _showResultDialog(isSuccess: false, errorDetail: getTxt('password_too_short'));
+    if (newPass.length < 8) {
+      _showPasswordTooShortAlert();
       return;
     }
     if (newPass != confirmPass) {
@@ -548,6 +554,114 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showPasswordTooShortAlert() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.55),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.25),
+                blurRadius: 30,
+                spreadRadius: 2,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFFEF2F2),
+                        border: Border.all(
+                          color: const Color(0xFFFCA5A5),
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.password_rounded,
+                        color: Color(0xFFDC2626),
+                        size: 34,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      getTxt('password_too_short'),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFDC2626),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.lang == 'EN'
+                          ? 'Please enter at least 8 characters to continue.'
+                          : widget.lang == 'ZH'
+                              ? '请输入至少8个字符以继续。'
+                              : 'Mohon isi minimal 8 karakter untuk melanjutkan.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      widget.lang == 'EN'
+                          ? 'Understood'
+                          : widget.lang == 'ZH'
+                              ? '明白'
+                              : 'Mengerti',
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPasswordSection() {
     if (!_isEditMode) return const SizedBox.shrink();
 
@@ -649,7 +763,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onToggle: () =>
                 setState(() => _isNewPassVisible = !_isNewPassVisible),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
@@ -739,10 +853,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: TextField(
               controller: controller,
               obscureText: !isVisible,
-              style: const TextStyle(
+              style: GoogleFonts.poppins(
                 fontSize: 15,
-                color: Color(0xFF1E293B),
-                fontWeight: FontWeight.w500,
+                color: const Color(0xFF1E293B),
+                fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
                 hintText: hint,
@@ -831,7 +945,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case 'unit':
         return Icons.business_rounded;
       case 'subunit':
-        return Icons.layers_rounded;
+        return Icons.layers_outlined;
       case 'area':
         return Icons.place_rounded;
       case 'lokasi':
@@ -873,7 +987,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFEFF6FF),
+        backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1D72F3)),
@@ -927,7 +1041,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Container(
                         width: double.infinity,
                         height: 230,
-                        color: const Color(0xFF1D72F3),
+                        color: Colors.white,
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
@@ -1055,7 +1169,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             showFieldIcon: true,
                             fieldIcon: _locationLevelIcon,
                           ),
-                          const SizedBox(height: 24),
                           _buildPasswordSection(),
                           const SizedBox(height: 16),
                           if (_isEditMode)
@@ -1143,9 +1256,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         Container(
-          height: _kFieldHeight,
           margin: const EdgeInsets.only(bottom: _kFieldSpacing),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -1155,17 +1267,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             boxShadow: [BoxShadow(color: const Color(0xFF1D72F3).withValues(alpha:0.07), blurRadius: 12, offset: const Offset(0, 4))],
           ),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: TextField(
-              controller: controller,
-              enabled: enabled,
-              style: GoogleFonts.poppins(fontSize: 15, color: const Color(0xFF1E293B), fontWeight: FontWeight.w500),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
+          child: TextField(
+            controller: controller,
+            enabled: enabled,
+            style: GoogleFonts.poppins(fontSize: 15, color: const Color(0xFF1E293B), fontWeight: FontWeight.w600),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
             ),
           ),
         ),
@@ -1200,9 +1309,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         Container(
-          height: _kFieldHeight,
           margin: const EdgeInsets.only(bottom: _kFieldSpacing),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -1227,7 +1335,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Expanded(
                 child: Text(
                   value,
-                  style: GoogleFonts.poppins(fontSize: 15, color: const Color(0xFF1E293B), fontWeight: FontWeight.w500),
+                  style: GoogleFonts.poppins(fontSize: 15, color: const Color(0xFF1E293B), fontWeight: FontWeight.w600),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
