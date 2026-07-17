@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'admin_area_tab.dart';
-import 'admin_location_tab.dart';
+import 'location/admin_location_tab.dart';
 import 'admin_section_tab.dart';
 import 'admin_subunit_tab.dart';
 import 'admin_unit_tab.dart';
