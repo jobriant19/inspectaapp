@@ -1,7 +1,104 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../user/home/alert/required_field_alert.dart';
+
+// ============================================================
+// SHARED: Translate helper (ID / EN / ZH)
+// ============================================================
+Future<String> _translateCategoryText(String text, String langPair) async {
+  if (text.trim().isEmpty) return text;
+  try {
+    final normalizedPair = langPair
+        .replaceAll('|zh', '|zh-CN')
+        .replaceAll('zh|', 'zh-CN|');
+    final uri = Uri.parse(
+      'https://api.mymemory.translated.net/get'
+      '?q=${Uri.encodeComponent(text)}&langpair=$normalizedPair',
+    );
+    final res = await http.get(uri).timeout(const Duration(seconds: 20));
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final translated =
+          data['responseData']?['translatedText']?.toString() ?? '';
+      if (translated.isEmpty ||
+          translated.toUpperCase().startsWith('MYMEMORY WARNING') ||
+          translated.toUpperCase().startsWith('PLEASE')) {
+        return text;
+      }
+      return translated;
+    }
+    return text;
+  } catch (_) {
+    return text;
+  }
+}
+
+Future<Map<String, String>> _translateAllLangs(
+    String sourceText, String currentLang) async {
+  if (sourceText.isEmpty) return {'id': '', 'en': '', 'zh': ''};
+  switch (currentLang) {
+    case 'EN':
+      final results = await Future.wait([
+        _translateCategoryText(sourceText, 'en|id'),
+        _translateCategoryText(sourceText, 'en|zh'),
+      ]);
+      return {'id': results[0], 'en': sourceText, 'zh': results[1]};
+    case 'ZH':
+      final results = await Future.wait([
+        _translateCategoryText(sourceText, 'zh|id'),
+        _translateCategoryText(sourceText, 'zh|en'),
+      ]);
+      return {'id': results[0], 'en': results[1], 'zh': sourceText};
+    default:
+      final results = await Future.wait([
+        _translateCategoryText(sourceText, 'id|en'),
+        _translateCategoryText(sourceText, 'id|zh'),
+      ]);
+      return {'id': sourceText, 'en': results[0], 'zh': results[1]};
+  }
+}
+
+Future<void> _showTranslatingDialog(BuildContext context, String lang) {
+  return showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 42,
+              height: 42,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              lang == 'EN'
+                  ? 'Translating...'
+                  : lang == 'ZH'
+                      ? '翻译中...'
+                      : 'Menerjemahkan...',
+              style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1E3A8A)),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 // ============================================================
 // ADMIN CATEGORY SCREEN
@@ -312,8 +409,10 @@ class _KategoriListState extends State<_KategoriList>
       final res = await Supabase.instance.client
           .from('kategoritemuan')
           .select(
-            'id_kategoritemuan, nama_kategoritemuan, '
-            'deskripsi_kategoritemuan, poin_kategoritemuan, jenis_kategori, '
+            'id_kategoritemuan, nama_kategoritemuan, nama_kategoritemuan_en, '
+            'nama_kategoritemuan_zh, deskripsi_kategoritemuan, '
+            'deskripsi_kategoritemuan_en, deskripsi_kategoritemuan_zh, '
+            'poin_kategoritemuan, jenis_kategori, '
             'subkategoritemuan(id_subkategoritemuan, '
             'nama_subkategoritemuan, poin_subkategoritemuan)',
           )
@@ -338,13 +437,36 @@ class _KategoriListState extends State<_KategoriList>
     }
   }
 
+  String _localizedNama(Map<String, dynamic> item) {
+    switch (widget.lang) {
+      case 'EN':
+        return (item['nama_kategoritemuan_en'] ?? item['nama_kategoritemuan'] ?? '-').toString();
+      case 'ZH':
+        return (item['nama_kategoritemuan_zh'] ?? item['nama_kategoritemuan'] ?? '-').toString();
+      default:
+        return (item['nama_kategoritemuan'] ?? '-').toString();
+    }
+  }
+
+  String _localizedDesk(Map<String, dynamic> item) {
+    switch (widget.lang) {
+      case 'EN':
+        return (item['deskripsi_kategoritemuan_en'] ?? item['deskripsi_kategoritemuan'] ?? '').toString();
+      case 'ZH':
+        return (item['deskripsi_kategoritemuan_zh'] ?? item['deskripsi_kategoritemuan'] ?? '').toString();
+      default:
+        return (item['deskripsi_kategoritemuan'] ?? '').toString();
+    }
+  }
+
   List<Map<String, dynamic>> get _filtered {
     final q = _search.toLowerCase();
     List<Map<String, dynamic>> result = List.from(_data);
 
     if (q.isNotEmpty) {
-      result = result.where((d) => (d['nama_kategoritemuan'] ?? '')
-          .toString().toLowerCase().contains(q)).toList();
+      result = result
+          .where((d) => _localizedNama(d).toLowerCase().contains(q))
+          .toList();
     }
     // Sort by poin
     if (_sortPoin == 'asc') {
@@ -356,11 +478,9 @@ class _KategoriListState extends State<_KategoriList>
     }
     // Sort by name
     if (_sortOrder == 'asc') {
-      result.sort((a, b) => (a['nama_kategoritemuan'] ?? '')
-          .toString().compareTo((b['nama_kategoritemuan'] ?? '').toString()));
+      result.sort((a, b) => _localizedNama(a).compareTo(_localizedNama(b)));
     } else if (_sortOrder == 'desc') {
-      result.sort((a, b) => (b['nama_kategoritemuan'] ?? '')
-          .toString().compareTo((a['nama_kategoritemuan'] ?? '').toString()));
+      result.sort((a, b) => _localizedNama(b).compareTo(_localizedNama(a)));
     }
     return result;
   }
@@ -536,8 +656,8 @@ class _KategoriListState extends State<_KategoriList>
 
   void _showAddEditDialog({Map<String, dynamic>? item}) {
     final isEdit = item != null;
-    final namaCtrl = TextEditingController(text: item?['nama_kategoritemuan'] ?? '');
-    final descCtrl = TextEditingController(text: item?['deskripsi_kategoritemuan'] ?? '');
+    final namaCtrl = TextEditingController(text: item != null ? _localizedNama(item) : '');
+    final descCtrl = TextEditingController(text: item != null ? _localizedDesk(item) : '');
     final poinCtrl = TextEditingController(
         text: (item?['poin_kategoritemuan'] ?? 0).toString());
     final String jenisKategori = widget.isKts ? 'KTS' : '5R';
@@ -558,6 +678,7 @@ class _KategoriListState extends State<_KategoriList>
             label: widget.lang == 'EN' ? 'Category Name' : widget.lang == 'ZH' ? '分类名称' : 'Nama Kategori',
             ctrl: namaCtrl,
             icon: Icons.category_rounded,
+            required: true,
           ),
           _FieldConfig(
             label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
@@ -574,10 +695,35 @@ class _KategoriListState extends State<_KategoriList>
         ],
         onSave: () async {
           if (namaCtrl.text.trim().isEmpty) return;
+
+          final namaSource = namaCtrl.text.trim();
+          final descSource = descCtrl.text.trim();
+
+          if (mounted) await _showTranslatingDialog(context, widget.lang);
+
+          Map<String, String> namaAll = {'id': namaSource, 'en': namaSource, 'zh': namaSource};
+          Map<String, String> descAll = {'id': '', 'en': '', 'zh': ''};
+          try {
+            namaAll = await _translateAllLangs(namaSource, widget.lang);
+            if (descSource.isNotEmpty) {
+              descAll = await _translateAllLangs(descSource, widget.lang);
+            }
+          } catch (e) {
+            debugPrint('Error translating kategori: $e');
+          }
+
+          if (mounted) Navigator.of(context, rootNavigator: true).pop();
+
           final data = {
-            'nama_kategoritemuan': namaCtrl.text.trim(),
+            'nama_kategoritemuan': namaAll['id'],
+            'nama_kategoritemuan_en': namaAll['en'],
+            'nama_kategoritemuan_zh': namaAll['zh'],
             'deskripsi_kategoritemuan':
-                descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+                descAll['id']!.isEmpty ? null : descAll['id'],
+            'deskripsi_kategoritemuan_en':
+                descAll['en']!.isEmpty ? null : descAll['en'],
+            'deskripsi_kategoritemuan_zh':
+                descAll['zh']!.isEmpty ? null : descAll['zh'],
             'poin_kategoritemuan': int.tryParse(poinCtrl.text.trim()) ?? 0,
             'jenis_kategori': jenisKategori,
           };
@@ -876,9 +1022,24 @@ class _KategoriListState extends State<_KategoriList>
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '${data.length} ${widget.lang == 'EN' ? 'categories' : widget.lang == 'ZH' ? '个分类' : 'kategori'}',
-                style: GoogleFonts.poppins(color: Colors.black38, fontSize: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha:0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: widget.color.withValues(alpha:0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.category_rounded, size: 13, color: widget.color),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${data.length} ${widget.lang == 'EN' ? 'categories' : widget.lang == 'ZH' ? '个分类' : 'kategori'}',
+                      style: GoogleFonts.poppins(color: widget.color, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -908,8 +1069,7 @@ class _KategoriListState extends State<_KategoriList>
   Widget _buildCard(Map<String, dynamic> item) {
     final subs = List<Map<String, dynamic>>.from(item['subkategoritemuan'] as List? ?? []);
     final poin = item['poin_kategoritemuan'] ?? 0;
-    final desc = item['deskripsi_kategoritemuan'] ?? '';
-    final nama = item['nama_kategoritemuan'] ?? '-';
+    final nama = _localizedNama(item);
 
     return GestureDetector(
       onTap: () => _showDetail(item),
@@ -933,11 +1093,7 @@ class _KategoriListState extends State<_KategoriList>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(nama, style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontWeight: FontWeight.w600, fontSize: 14)),
-                  if (desc.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(desc, style: GoogleFonts.poppins(color: Colors.black45, fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  ],
+                  Text(nama, style: GoogleFonts.poppins(color: widget.color, fontWeight: FontWeight.w700, fontSize: 14)),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -1094,15 +1250,18 @@ class _SubkategoriListState extends State<_SubkategoriList>
             .from('subkategoritemuan')
             .select(
               'id_subkategoritemuan, id_kategoritemuan, '
-              'nama_subkategoritemuan, deskripsi_subkategoritemuan, '
+              'nama_subkategoritemuan, nama_subkategoritemuan_en, '
+              'nama_subkategoritemuan_zh, deskripsi_subkategoritemuan, '
+              'deskripsi_subkategoritemuan_en, deskripsi_subkategoritemuan_zh, '
               'poin_subkategoritemuan, '
               'kategoritemuan(id_kategoritemuan, nama_kategoritemuan, '
+              'nama_kategoritemuan_en, nama_kategoritemuan_zh, '
               'deskripsi_kategoritemuan, poin_kategoritemuan, jenis_kategori)',
             )
             .order('nama_subkategoritemuan'),
         Supabase.instance.client
             .from('kategoritemuan')
-            .select('id_kategoritemuan, nama_kategoritemuan, jenis_kategori')
+            .select('id_kategoritemuan, nama_kategoritemuan, nama_kategoritemuan_en, nama_kategoritemuan_zh, jenis_kategori')
             .order('nama_kategoritemuan'),
       ]);
 
@@ -1134,13 +1293,49 @@ class _SubkategoriListState extends State<_SubkategoriList>
     }
   }
 
+  String _localizedNama(Map<String, dynamic> item) {
+    switch (widget.lang) {
+      case 'EN':
+        return (item['nama_subkategoritemuan_en'] ?? item['nama_subkategoritemuan'] ?? '-').toString();
+      case 'ZH':
+        return (item['nama_subkategoritemuan_zh'] ?? item['nama_subkategoritemuan'] ?? '-').toString();
+      default:
+        return (item['nama_subkategoritemuan'] ?? '-').toString();
+    }
+  }
+
+  String _localizedDesk(Map<String, dynamic> item) {
+    switch (widget.lang) {
+      case 'EN':
+        return (item['deskripsi_subkategoritemuan_en'] ?? item['deskripsi_subkategoritemuan'] ?? '').toString();
+      case 'ZH':
+        return (item['deskripsi_subkategoritemuan_zh'] ?? item['deskripsi_subkategoritemuan'] ?? '').toString();
+      default:
+        return (item['deskripsi_subkategoritemuan'] ?? '').toString();
+    }
+  }
+
+  String _localizedParentNama(Map<String, dynamic> item) {
+    final parent = item['kategoritemuan'];
+    if (parent == null) return '-';
+    switch (widget.lang) {
+      case 'EN':
+        return (parent['nama_kategoritemuan_en'] ?? parent['nama_kategoritemuan'] ?? '-').toString();
+      case 'ZH':
+        return (parent['nama_kategoritemuan_zh'] ?? parent['nama_kategoritemuan'] ?? '-').toString();
+      default:
+        return (parent['nama_kategoritemuan'] ?? '-').toString();
+    }
+  }
+
   List<Map<String, dynamic>> get _filtered {
     final q = _search.toLowerCase();
     List<Map<String, dynamic>> result = List.from(_data);
 
     if (q.isNotEmpty) {
-      result = result.where((d) => (d['nama_subkategoritemuan'] ?? '')
-          .toString().toLowerCase().contains(q)).toList();
+      result = result
+          .where((d) => _localizedNama(d).toLowerCase().contains(q))
+          .toList();
     }
     if (_sortPoin == 'asc') {
       result.sort((a, b) => ((a['poin_subkategoritemuan'] ?? 0) as int)
@@ -1150,11 +1345,9 @@ class _SubkategoriListState extends State<_SubkategoriList>
           .compareTo((a['poin_subkategoritemuan'] ?? 0) as int));
     }
     if (_sortOrder == 'asc') {
-      result.sort((a, b) => (a['nama_subkategoritemuan'] ?? '')
-          .toString().compareTo((b['nama_subkategoritemuan'] ?? '').toString()));
+      result.sort((a, b) => _localizedNama(a).compareTo(_localizedNama(b)));
     } else if (_sortOrder == 'desc') {
-      result.sort((a, b) => (b['nama_subkategoritemuan'] ?? '')
-          .toString().compareTo((a['nama_subkategoritemuan'] ?? '').toString()));
+      result.sort((a, b) => _localizedNama(b).compareTo(_localizedNama(a)));
     }
     return result;
   }
@@ -1307,8 +1500,8 @@ class _SubkategoriListState extends State<_SubkategoriList>
 
   void _showAddEditDialog({Map<String, dynamic>? item}) {
     final isEdit = item != null;
-    final namaCtrl = TextEditingController(text: item?['nama_subkategoritemuan'] ?? '');
-    final descCtrl = TextEditingController(text: item?['deskripsi_subkategoritemuan'] ?? '');
+    final namaCtrl = TextEditingController(text: item != null ? _localizedNama(item) : '');
+    final descCtrl = TextEditingController(text: item != null ? _localizedDesk(item) : '');
     final poinCtrl = TextEditingController(text: (item?['poin_subkategoritemuan'] ?? 0).toString());
     String? selectedKatId = item?['id_kategoritemuan']?.toString();
 
@@ -1328,6 +1521,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
             _FieldConfig(
               label: widget.lang == 'EN' ? 'Sub-Category Name' : widget.lang == 'ZH' ? '子分类名称' : 'Nama Sub-Kategori',
               ctrl: namaCtrl, icon: Icons.list_alt_rounded,
+              required: true,
             ),
             _FieldConfig(
               label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
@@ -1347,10 +1541,33 @@ class _SubkategoriListState extends State<_SubkategoriList>
           ),
           onSave: () async {
             if (namaCtrl.text.trim().isEmpty || selectedKatId == null) return;
+
+            final namaSource = namaCtrl.text.trim();
+            final descSource = descCtrl.text.trim();
+
+            if (mounted) await _showTranslatingDialog(context, widget.lang);
+
+            Map<String, String> namaAll = {'id': namaSource, 'en': namaSource, 'zh': namaSource};
+            Map<String, String> descAll = {'id': '', 'en': '', 'zh': ''};
+            try {
+              namaAll = await _translateAllLangs(namaSource, widget.lang);
+              if (descSource.isNotEmpty) {
+                descAll = await _translateAllLangs(descSource, widget.lang);
+              }
+            } catch (e) {
+              debugPrint('Error translating subkategori: $e');
+            }
+
+            if (mounted) Navigator.of(context, rootNavigator: true).pop();
+
             final data = {
               'id_kategoritemuan': selectedKatId,
-              'nama_subkategoritemuan': namaCtrl.text.trim(),
-              'deskripsi_subkategoritemuan': descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+              'nama_subkategoritemuan': namaAll['id'],
+              'nama_subkategoritemuan_en': namaAll['en'],
+              'nama_subkategoritemuan_zh': namaAll['zh'],
+              'deskripsi_subkategoritemuan': descAll['id']!.isEmpty ? null : descAll['id'],
+              'deskripsi_subkategoritemuan_en': descAll['en']!.isEmpty ? null : descAll['en'],
+              'deskripsi_subkategoritemuan_zh': descAll['zh']!.isEmpty ? null : descAll['zh'],
               'poin_subkategoritemuan': int.tryParse(poinCtrl.text.trim()) ?? 0,
             };
             if (isEdit) {
@@ -1367,12 +1584,13 @@ class _SubkategoriListState extends State<_SubkategoriList>
 
   void _showDetail(Map<String, dynamic> item) {
     final parent = item['kategoritemuan'];
-    final parentNama = parent?['nama_kategoritemuan'] ?? '-';
+    final parentNama = _localizedParentNama(item);
     final parentDesc = parent?['deskripsi_kategoritemuan'] ?? '-';
     final parentPoin = parent?['poin_kategoritemuan'] ?? 0;
     final poin = item['poin_subkategoritemuan'] ?? 0;
-    final desc = item['deskripsi_subkategoritemuan'] ?? '-';
-    final nama = item['nama_subkategoritemuan'] ?? '-';
+    final descRaw = _localizedDesk(item);
+    final desc = descRaw.isEmpty ? '-' : descRaw;
+    final nama = _localizedNama(item);
 
     showDialog(
       context: context,
@@ -1629,9 +1847,24 @@ class _SubkategoriListState extends State<_SubkategoriList>
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '${data.length} sub-${widget.lang == 'EN' ? 'categories' : widget.lang == 'ZH' ? '分类' : 'kategori'}',
-                style: GoogleFonts.poppins(color: Colors.black38, fontSize: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha:0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: widget.color.withValues(alpha:0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.list_alt_rounded, size: 13, color: widget.color),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${data.length} sub-${widget.lang == 'EN' ? 'categories' : widget.lang == 'ZH' ? '分类' : 'kategori'}',
+                      style: GoogleFonts.poppins(color: widget.color, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1659,10 +1892,9 @@ class _SubkategoriListState extends State<_SubkategoriList>
   }
 
   Widget _buildCard(Map<String, dynamic> item) {
-    final parentNama = item['kategoritemuan']?['nama_kategoritemuan'] ?? '-';
+    final parentNama = _localizedParentNama(item);
     final poin = item['poin_subkategoritemuan'] ?? 0;
-    final desc = item['deskripsi_subkategoritemuan'] ?? '';
-    final nama = item['nama_subkategoritemuan'] ?? '-';
+    final nama = _localizedNama(item);
 
     return GestureDetector(
       onTap: () => _showDetail(item),
@@ -1686,7 +1918,7 @@ class _SubkategoriListState extends State<_SubkategoriList>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(nama, style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text(nama, style: GoogleFonts.poppins(color: widget.color, fontWeight: FontWeight.w700, fontSize: 13)),
                   const SizedBox(height: 2),
                   Row(children: [
                     Icon(Icons.category_rounded, size: 11, color: Colors.black38),
@@ -1694,10 +1926,6 @@ class _SubkategoriListState extends State<_SubkategoriList>
                     Expanded(child: Text(parentNama,
                         style: GoogleFonts.poppins(color: Colors.black38, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   ]),
-                  if (desc.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(desc, style: GoogleFonts.poppins(color: Colors.black26, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ],
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -1825,10 +2053,15 @@ class _KategoriDropdown extends StatelessWidget {
                     color: Colors.black38, fontSize: 13),
               ),
               items: items.map((k) {
+                final namaLokal = lang == 'EN'
+                    ? (k['nama_kategoritemuan_en'] ?? k['nama_kategoritemuan'] ?? '-')
+                    : lang == 'ZH'
+                        ? (k['nama_kategoritemuan_zh'] ?? k['nama_kategoritemuan'] ?? '-')
+                        : (k['nama_kategoritemuan'] ?? '-');
                 return DropdownMenuItem<String>(
                   value: k['id_kategoritemuan'].toString(),
                   child: Text(
-                    k['nama_kategoritemuan'] ?? '-',
+                    namaLokal,
                     style: GoogleFonts.poppins(
                       color: const Color(0xFF1E3A8A),
                       fontSize: 13,
@@ -1856,6 +2089,7 @@ class _FieldConfig {
   final IconData icon;
   final int maxLines;
   final TextInputType? keyboardType;
+  final bool required;
 
   const _FieldConfig({
     required this.label,
@@ -1863,6 +2097,7 @@ class _FieldConfig {
     required this.icon,
     this.maxLines = 1,
     this.keyboardType,
+    this.required = false,
   });
 }
 
@@ -1917,7 +2152,7 @@ class _LightFormDialog extends StatelessWidget {
                   child: Text(
                     title,
                     style: GoogleFonts.poppins(
-                      color: const Color(0xFF1E3A8A),
+                      color: color,
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
                     ),
@@ -1977,14 +2212,31 @@ class _LightFormDialog extends StatelessWidget {
             ...fields.map((f) => Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      f.label,
-                      style: GoogleFonts.poppins(
-                        color: Colors.black54,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                      ),
+                    Row(
+                      children: [
+                        Icon(f.icon, size: 14, color: color),
+                        const SizedBox(width: 6),
+                        Text(
+                          f.label,
+                          style: GoogleFonts.poppins(
+                            color: color,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        if (f.required) ...[
+                          const SizedBox(width: 3),
+                          Text(
+                            '*',
+                            style: GoogleFonts.poppins(
+                              color: const Color(0xFFEF4444),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 6),
                     Container(
@@ -1998,17 +2250,14 @@ class _LightFormDialog extends StatelessWidget {
                         maxLines: f.maxLines,
                         keyboardType: f.keyboardType,
                         style: GoogleFonts.poppins(
-                          color: const Color(0xFF1E3A8A),
+                          color: Colors.black,
                           fontSize: 14,
+                          fontWeight: FontWeight.w700,
                         ),
                         decoration: InputDecoration(
                           hintText: f.label,
                           hintStyle: GoogleFonts.poppins(
                               color: Colors.black26, fontSize: 13),
-                          prefixIcon: f.maxLines == 1
-                              ? Icon(f.icon,
-                                  color: Colors.black38, size: 18)
-                              : null,
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 14, horizontal: 16),
@@ -2045,6 +2294,21 @@ class _LightFormDialog extends StatelessWidget {
                   flex: 2,
                   child: ElevatedButton(
                     onPressed: () async {
+                      final missing = fields
+                          .where((f) =>
+                              f.required && f.ctrl.text.trim().isEmpty)
+                          .toList();
+                      if (missing.isNotEmpty) {
+                        RequiredFieldAlert.show(
+                          context,
+                          lang: lang,
+                          missingFields: missing
+                              .map((f) => MissingFieldItem(
+                                  icon: f.icon, label: f.label))
+                              .toList(),
+                        );
+                        return;
+                      }
                       Navigator.pop(context);
                       await onSave();
                     },
