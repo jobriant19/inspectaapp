@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'admin_area_tab.dart';
 import 'location/admin_location_tab.dart';
 import 'admin_section_tab.dart';
-import 'admin_subunit_tab.dart';
-import 'admin_unit_tab.dart';
+import 'subunit/admin_subunit_tab.dart';
+import 'unit/admin_unit_tab.dart';
 
 class AdminLocationScreen extends StatefulWidget {
   final String lang;

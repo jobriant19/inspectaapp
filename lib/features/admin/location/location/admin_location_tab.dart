@@ -1153,13 +1153,36 @@ Widget _buildLocationTabContent({
                 )
               : data.isEmpty
                   ? Center(
-                      child: Text(
-                        lang == 'EN'
-                            ? 'No data found'
-                            : lang == 'ZH'
-                                ? '未找到数据'
-                                : 'Tidak ada data',
-                        style: GoogleFonts.poppins(color: Colors.black38),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Image.asset(
+                              'assets/images/team_illustration.png',
+                              height: 140,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.location_city_rounded,
+                                size: 80,
+                                color: primaryColor.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              lang == 'EN'
+                                  ? 'No location data found'
+                                  : lang == 'ZH'
+                                      ? '未找到位置数据'
+                                      : 'Data lokasi tidak ditemukan',
+                              style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: primaryColor,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                     )
                   : RefreshIndicator(
@@ -1216,14 +1239,11 @@ Widget _buildLocationTabContent({
                                           nameFn(item),
                                           style: GoogleFonts.poppins(
                                             color: Colors.black,
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
                                           ),
                                         ),
                                         if (subtitleWidgetBuilder != null) ...[
-                                          const SizedBox(height: 6),
-                                          subtitleWidgetBuilder(item),
-                                        ] else if (subtitleWidgetBuilder != null) ...[
                                           const SizedBox(height: 6),
                                           subtitleWidgetBuilder(item),
                                         ] else if (subtitleFn(item) != '-') ...[
