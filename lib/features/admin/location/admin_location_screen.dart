@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'admin_area_tab.dart';
+import 'area/admin_area_tab.dart';
 import 'location/admin_location_tab.dart';
 import 'admin_section_tab.dart';
 import 'subunit/admin_subunit_tab.dart';
