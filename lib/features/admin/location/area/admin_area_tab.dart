@@ -305,28 +305,7 @@ class _AdminAreaTabState extends State<AdminAreaTab>
               showDialog(
                 context: context,
                 barrierDismissible: false,
-                builder: (ctx) => Dialog(
-                  backgroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  elevation: 0,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 42, height: 42,
-                          child: CircularProgressIndicator(strokeWidth: 3, color: _primary),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          widget.lang == 'EN' ? 'Translating...' : widget.lang == 'ZH' ? '翻译中...' : 'Menerjemahkan...',
-                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                builder: (ctx) => _TranslatingDialog(color: _primary, lang: widget.lang),
               );
             }
 
@@ -2094,6 +2073,134 @@ class _AreaFormField {
     this.maxLines = 1,
     this.required = false,
   });
+}
+
+class _TranslatingDialog extends StatefulWidget {
+  final Color color;
+  final String lang;
+  const _TranslatingDialog({required this.color, required this.lang});
+
+  @override
+  State<_TranslatingDialog> createState() => _TranslatingDialogState();
+}
+
+class _TranslatingDialogState extends State<_TranslatingDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String get _title {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Translating...';
+      case 'ZH':
+        return '翻译中...';
+      default:
+        return 'Menerjemahkan...';
+    }
+  }
+
+  String get _subtitle {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Converting to Indonesian, English & Mandarin';
+      case 'ZH':
+        return '正在转换为印尼语、英语和中文';
+      default:
+        return 'Mengubah ke Bahasa Indonesia, Inggris & Mandarin';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                final scale = 0.90 + (_controller.value * 0.12);
+                return Transform.scale(scale: scale, child: child);
+              },
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [widget.color, widget.color.withValues(alpha: 0.6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.color.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.translate_rounded, color: Colors.white, size: 30),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              _title,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1E293B),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _subtitle,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF64748B),
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 22),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: SizedBox(
+                width: 150,
+                height: 6,
+                child: LinearProgressIndicator(
+                  backgroundColor: widget.color.withValues(alpha: 0.12),
+                  valueColor: AlwaysStoppedAnimation<Color>(widget.color),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AdminAreaFormDialog extends StatelessWidget {

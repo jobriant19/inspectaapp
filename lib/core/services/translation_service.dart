@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'package:google_mlkit_language_id/google_mlkit_language_id.dart';
 import 'package:google_mlkit_translation/google_mlkit_translation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class TranslationHelper {
   TranslationHelper._();
@@ -8,6 +10,8 @@ class TranslationHelper {
   final OnDeviceTranslatorModelManager _modelManager =
       OnDeviceTranslatorModelManager();
   final Map<String, OnDeviceTranslator> _translatorCache = {};
+  final LanguageIdentifier _languageIdentifier =
+      LanguageIdentifier(confidenceThreshold: 0.4);
 
   static const List<TranslateLanguage> _supportedLanguages = [
     TranslateLanguage.indonesian,
@@ -15,11 +19,13 @@ class TranslationHelper {
     TranslateLanguage.chinese,
   ];
 
-  TranslateLanguage _sourceFromUiLang(String uiLang) {
-    switch (uiLang) {
-      case 'EN':
+  TranslateLanguage _mapBcpToTranslateLanguage(String bcp) {
+    switch (bcp) {
+      case 'en':
         return TranslateLanguage.english;
-      case 'ZH':
+      case 'zh':
+      case 'zh-Hans':
+      case 'zh-Hant':
         return TranslateLanguage.chinese;
       default:
         return TranslateLanguage.indonesian;
@@ -45,21 +51,21 @@ class TranslationHelper {
     );
   }
 
-  Future<Map<String, String>> translateDescriptionAllLangs(
-    String sourceText,
-    String uiLang,
-  ) async {
-    final trimmed = sourceText.trim();
-    if (trimmed.isEmpty) {
-      return {'id': '', 'en': '', 'zh': ''};
+  Future<Map<String, String>> _translateWithMlKit(String trimmed) async {
+    TranslateLanguage sourceLang;
+    try {
+      final detectedBcp = await _languageIdentifier.identifyLanguage(trimmed);
+      sourceLang = _mapBcpToTranslateLanguage(detectedBcp);
+      debugPrint('[TranslationHelper] Bahasa terdeteksi dari teks: $detectedBcp -> ${sourceLang.bcpCode}');
+    } catch (e) {
+      debugPrint('[TranslationHelper] Gagal deteksi bahasa, fallback ke Indonesia: $e');
+      sourceLang = TranslateLanguage.indonesian;
     }
-
-    final sourceLang = _sourceFromUiLang(uiLang);
 
     try {
       await _ensureModelsReady(_supportedLanguages);
     } catch (e, st) {
-      debugPrint('[TranslationHelper] Gagal download/siapkan model: $e');
+      debugPrint('[TranslationHelper] Gagal download/siapkan model ML Kit: $e');
       debugPrint('$st');
       return {'id': trimmed, 'en': trimmed, 'zh': trimmed};
     }
@@ -81,7 +87,7 @@ class TranslationHelper {
         final translator = _translator(sourceLang, entry.value);
         results[entry.key] = await translator.translateText(trimmed);
       } catch (e, st) {
-        debugPrint('[TranslationHelper] Gagal translate ke ${entry.key}: $e');
+        debugPrint('[TranslationHelper] Gagal translate ML Kit ke ${entry.key}: $e');
         debugPrint('$st');
         results[entry.key] = trimmed;
       }
@@ -90,10 +96,48 @@ class TranslationHelper {
     return results;
   }
 
+  Future<Map<String, String>> _translateWithEdgeFunction(String trimmed) async {
+    try {
+      final res = await Supabase.instance.client.functions.invoke(
+        'translate-text',
+        body: {'text': trimmed},
+      );
+      final data = res.data;
+      if (data is Map) {
+        return {
+          'id': (data['id'] ?? trimmed).toString(),
+          'en': (data['en'] ?? trimmed).toString(),
+          'zh': (data['zh'] ?? trimmed).toString(),
+        };
+      }
+      return {'id': trimmed, 'en': trimmed, 'zh': trimmed};
+    } catch (e, st) {
+      debugPrint('[TranslationHelper] Gagal translate via Edge Function: $e');
+      debugPrint('$st');
+      return {'id': trimmed, 'en': trimmed, 'zh': trimmed};
+    }
+  }
+
+  Future<Map<String, String>> translateDescriptionAllLangs(
+    String sourceText,
+    String uiLang,
+  ) async {
+    final trimmed = sourceText.trim();
+    if (trimmed.isEmpty) {
+      return {'id': '', 'en': '', 'zh': ''};
+    }
+
+    if (kIsWeb) {
+      return _translateWithEdgeFunction(trimmed);
+    }
+    return _translateWithMlKit(trimmed);
+  }
+
   Future<void> dispose() async {
     for (final t in _translatorCache.values) {
       await t.close();
     }
     _translatorCache.clear();
+    await _languageIdentifier.close();
   }
 }
