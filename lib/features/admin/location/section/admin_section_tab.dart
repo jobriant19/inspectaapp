@@ -1,12 +1,18 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/translation_service.dart';
-import '../../shared/admin_image_picker_widget.dart';
+import '../../../shared/code/qr_generator_screen.dart';
+import '../../../user/finding/finding_pick_pic.dart';
+import '../../../user/home/alert/required_field_alert.dart';
+import 'camera/admin_section_camera.dart';
 
 class _C {
-  static const primary   = Color(0xFF2563EB);
-  static const primaryLt = Color(0xFFDBEAFE);
+  static const primary   = Color(0xFF1D72F3);
+  static const primaryLt = Color(0xFFDCEAFE);
   static const red       = Color(0xFFEF4444);
   static const textMain  = Color(0xFF1E3A8A);
   static const textSub   = Color(0xFF64748B);
@@ -35,6 +41,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
   int _currentPage = 1;
   static const int _perPage = 10;
 
+  // Urutan (en, id, zh) -- konvensi bahasa di file ini.
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
     if (widget.lang == 'ZH') return zh;
@@ -65,6 +72,13 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
   void initState() {
     super.initState();
     _fetchAll();
+    AdminSectionCameraWarmupService.instance.warmUp();
+  }
+
+  @override
+  void dispose() {
+    AdminSectionCameraWarmupService.instance.release();
+    super.dispose();
   }
 
   Future<void> _fetchAll() async {
@@ -74,7 +88,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
         _supabase
             .from('section')
             .select(
-                '*, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area)')
+                '*, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), User!fk_section_pic(nama, gambar_user, id_jabatan, is_verificator, jabatan(nama_jabatan))')
             .order('urutan', ascending: true),
         _supabase.from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi'),
         _supabase.from('unit').select('id_unit, nama_unit, id_lokasi').order('nama_unit'),
@@ -202,6 +216,168 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     );
   }
 
+  // --------------------------------------------------------------------
+  // Foto Section: kamera instan (sama seperti pola di Location/Area/dst)
+  // --------------------------------------------------------------------
+  Widget _buildSectionPhotoPicker({
+    required String? imageUrl,
+    required Uint8List? previewBytes,
+    required VoidCallback onTap,
+  }) {
+    final bool hasPreview = previewBytes != null || (imageUrl != null && imageUrl.isNotEmpty);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: 120,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: _C.primary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _C.primary.withValues(alpha: 0.3), width: 1.3),
+        ),
+        child: hasPreview
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  previewBytes != null
+                      ? Image.memory(previewBytes, fit: BoxFit.cover)
+                      : Image.network(imageUrl!, fit: BoxFit.cover),
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _C.primary, width: 1.5),
+                      ),
+                      child: const Icon(Icons.camera_alt_rounded, size: 14, color: _C.primary),
+                    ),
+                  ),
+                ],
+              )
+            : Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _C.primary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.add_photo_alternate_rounded, color: _C.primary, size: 24),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _t('Tap to select image', 'Tap untuk pilih gambar', '点击选择图片'),
+                      style: GoogleFonts.poppins(color: _C.primary, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _t('Camera or Gallery', 'Kamera atau Galeri', '相机或图库'),
+                      style: GoogleFonts.poppins(color: Colors.black38, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+
+  // --------------------------------------------------------------------
+  // Picker Lokasi/Unit/Sub-Unit/Area: popup di tengah, bukan dropdown
+  // --------------------------------------------------------------------
+  Widget _sectionPickerField({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required String? selectedName,
+    required VoidCallback onTap,
+  }) {
+    final hasValue = selectedName != null && selectedName.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 6),
+            Text(label, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+          ],
+        ),
+        const SizedBox(height: 5),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 15, color: hasValue ? color : Colors.black26),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hasValue ? selectedName : _t('None', 'Tidak ada', '无'),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: hasValue ? _C.textMain : Colors.black38,
+                      fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(Icons.keyboard_arrow_down_rounded, color: color.withValues(alpha: 0.7), size: 18),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openSectionPicker({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<Map<String, dynamic>> items,
+    required String idKey,
+    required String nameKey,
+    required String? selectedId,
+    required ValueChanged<String?> onSelect,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _SectionPickerDialog(
+        title: title,
+        icon: icon,
+        color: color,
+        items: items,
+        idKey: idKey,
+        nameKey: nameKey,
+        selectedId: selectedId,
+        lang: widget.lang,
+        onSelect: onSelect,
+      ),
+    );
+  }
+
+  String? _nameById(List<Map<String, dynamic>> list, String idKey, String nameKey, String? id) {
+    if (id == null) return null;
+    for (final item in list) {
+      if (item[idKey]?.toString() == id) return item[nameKey]?.toString();
+    }
+    return null;
+  }
+
   // ADD / EDIT FORM
   Future<void> _showFormDialog({Map<String, dynamic>? existing}) async {
     final isEdit = existing != null;
@@ -210,6 +386,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     final descCtrl =
         TextEditingController(text: isEdit ? _localizedDesc(existing) : '');
     String? gambarUrl = isEdit ? existing['gambar_section'] as String? : null;
+    Uint8List? previewBytes;
 
     String? selLokasi = isEdit ? existing['id_lokasi']?.toString() : null;
     String? selUnit = isEdit ? existing['id_unit']?.toString() : null;
@@ -220,7 +397,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
 
     await showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) {
           final unitOptions = selLokasi == null
@@ -278,36 +455,81 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            _t('Photo', 'Foto', '图片'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub),
+                          Row(
+                            children: [
+                              const Icon(Icons.camera_alt_rounded, size: 14, color: _C.primary),
+                              const SizedBox(width: 6),
+                              Text(
+                                _t('Photo', 'Foto', '图片'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, fontWeight: FontWeight.w700, color: _C.primary),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
-                          AdminImagePickerWidget(
-                            currentImageUrl: gambarUrl,
-                            storageBucket: 'lokasi-images',
-                            storageFolder: 'section',
-                            filePrefix: existing?['id_section']?.toString() ?? 'new-section',
-                            height: 120,
-                            isCircle: false,
-                            accentColor: _C.primary,
-                            placeholder:
-                                const Icon(Icons.dashboard_customize_rounded, color: _C.primary, size: 28),
-                            hint: _t('Tap to select image', 'Tap untuk pilih gambar', '点击选择图片'),
-                            subHint: _t('Camera or Gallery', 'Kamera atau Galeri', '相机或图库'),
-                            uploadingText: _t('Uploading...', 'Mengunggah...', '上传中...'),
-                            changeText: _t('Change Image', 'Ganti Gambar', '更换图片'),
-                            sourceTitleText: _t('Select Image Source', 'Pilih Sumber Gambar', '选择图片来源'),
-                            cameraText: _t('Camera', 'Kamera', '相机'),
-                            galleryText: _t('Gallery', 'Galeri', '图库'),
-                            onUploaded: (newUrl) => setDlg(() => gambarUrl = newUrl),
+                          _buildSectionPhotoPicker(
+                            imageUrl: gambarUrl,
+                            previewBytes: previewBytes,
+                            onTap: () async {
+                              final XFile? picked = await Navigator.push<XFile?>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AdminSectionCameraScreen(lang: widget.lang),
+                                ),
+                              );
+                              if (picked == null) return;
+                              final bytes = await picked.readAsBytes();
+                              setDlg(() {
+                                previewBytes = bytes;
+                              });
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                AdminSectionCameraWarmupService.instance.warmUp();
+                              });
+                              try {
+                                final ext = picked.name.split('.').last.toLowerCase();
+                                final safeExt = ext.isEmpty ? 'jpg' : ext;
+                                final fileName =
+                                    '${existing?['id_section']?.toString() ?? 'new-section'}-${DateTime.now().millisecondsSinceEpoch}.$safeExt';
+                                final filePath = 'section/$fileName';
+                                final String contentType;
+                                if (safeExt == 'png') {
+                                  contentType = 'image/png';
+                                } else if (safeExt == 'gif') {
+                                  contentType = 'image/gif';
+                                } else if (safeExt == 'webp') {
+                                  contentType = 'image/webp';
+                                } else {
+                                  contentType = 'image/jpeg';
+                                }
+                                await _supabase.storage
+                                    .from('lokasi-images')
+                                    .uploadBinary(filePath, bytes,
+                                        fileOptions: FileOptions(contentType: contentType, upsert: true));
+                                final newUrl =
+                                    _supabase.storage.from('lokasi-images').getPublicUrl(filePath);
+                                setDlg(() {
+                                  gambarUrl = newUrl;
+                                });
+                              } catch (e) {
+                                debugPrint('Error uploading section photo: $e');
+                              }
+                            },
                           ),
                           const SizedBox(height: 18),
-                          Text(
-                            _t('Section Name (Indonesian)', 'Nama Section (Indonesia)', '部门名称（印尼语）'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub),
+                          Row(
+                            children: [
+                              const Icon(Icons.badge_rounded, size: 14, color: _C.primary),
+                              const SizedBox(width: 6),
+                              Text(
+                                _t('Section Name', 'Nama Section', '部门名称'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, fontWeight: FontWeight.w700, color: _C.primary),
+                              ),
+                              const SizedBox(width: 3),
+                              Text('*',
+                                  style: GoogleFonts.poppins(
+                                      color: _C.red, fontSize: 13, fontWeight: FontWeight.w700)),
+                            ],
                           ),
                           const SizedBox(height: 6),
                           TextField(
@@ -338,10 +560,16 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                             style: GoogleFonts.poppins(fontSize: 10, color: _C.textSub),
                           ),
                           const SizedBox(height: 16),
-                          Text(
-                            _t('Description', 'Deskripsi', '描述'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub),
+                          Row(
+                            children: [
+                              const Icon(Icons.notes_rounded, size: 14, color: _C.primary),
+                              const SizedBox(width: 6),
+                              Text(
+                                _t('Description', 'Deskripsi', '描述'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, fontWeight: FontWeight.w700, color: _C.primary),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 6),
                           TextField(
@@ -367,58 +595,107 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                             style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
                           ),
                           const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              const Icon(Icons.map_rounded, size: 14, color: _C.primary),
+                              const SizedBox(width: 6),
+                              Text(
+                                _t('Location Mapping', 'Pemetaan Lokasi', '位置映射'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, fontWeight: FontWeight.w700, color: _C.primary),
+                              ),
+                              const SizedBox(width: 3),
+                              Text('*',
+                                  style: GoogleFonts.poppins(
+                                      color: _C.red, fontSize: 13, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
                           Text(
-                            _t('Location Mapping (optional)', 'Pemetaan Lokasi (opsional)', '位置映射（可选）'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 12, fontWeight: FontWeight.w700, color: _C.textMain),
+                            _t('Choose at least one level below.',
+                                'Pilih minimal satu level di bawah ini.', '请至少选择以下一个级别。'),
+                            style: GoogleFonts.poppins(fontSize: 10, color: _C.textSub),
                           ),
-                          const SizedBox(height: 8),
-                          _sectionDropdown(
+                          const SizedBox(height: 10),
+                          _sectionPickerField(
                             label: _t('Location', 'Lokasi', '位置'),
-                            items: _lokasiList,
-                            idKey: 'id_lokasi',
-                            nameKey: 'nama_lokasi',
-                            value: selLokasi,
-                            onChanged: (v) => setDlg(() {
-                              selLokasi = v;
-                              selUnit = null;
-                              selSubunit = null;
-                              selArea = null;
-                            }),
+                            icon: Icons.location_city_rounded,
+                            color: const Color(0xFF10B981),
+                            selectedName: _nameById(_lokasiList, 'id_lokasi', 'nama_lokasi', selLokasi),
+                            onTap: () => _openSectionPicker(
+                              title: _t('Select Location', 'Pilih Lokasi', '选择位置'),
+                              icon: Icons.location_city_rounded,
+                              color: const Color(0xFF10B981),
+                              items: _lokasiList,
+                              idKey: 'id_lokasi',
+                              nameKey: 'nama_lokasi',
+                              selectedId: selLokasi,
+                              onSelect: (v) => setDlg(() {
+                                selLokasi = v;
+                                selUnit = null;
+                                selSubunit = null;
+                                selArea = null;
+                              }),
+                            ),
                           ),
-                          const SizedBox(height: 10),
-                          _sectionDropdown(
+                          const SizedBox(height: 12),
+                          _sectionPickerField(
                             label: _t('Unit', 'Unit', '单位'),
-                            items: unitOptions,
-                            idKey: 'id_unit',
-                            nameKey: 'nama_unit',
-                            value: selUnit,
-                            onChanged: (v) => setDlg(() {
-                              selUnit = v;
-                              selSubunit = null;
-                              selArea = null;
-                            }),
+                            icon: Icons.business_rounded,
+                            color: const Color(0xFF6366F1),
+                            selectedName: _nameById(unitOptions, 'id_unit', 'nama_unit', selUnit),
+                            onTap: () => _openSectionPicker(
+                              title: _t('Select Unit', 'Pilih Unit', '选择单位'),
+                              icon: Icons.business_rounded,
+                              color: const Color(0xFF6366F1),
+                              items: unitOptions,
+                              idKey: 'id_unit',
+                              nameKey: 'nama_unit',
+                              selectedId: selUnit,
+                              onSelect: (v) => setDlg(() {
+                                selUnit = v;
+                                selSubunit = null;
+                                selArea = null;
+                              }),
+                            ),
                           ),
-                          const SizedBox(height: 10),
-                          _sectionDropdown(
+                          const SizedBox(height: 12),
+                          _sectionPickerField(
                             label: _t('Sub-Unit', 'Sub-Unit', '子单位'),
-                            items: subunitOptions,
-                            idKey: 'id_subunit',
-                            nameKey: 'nama_subunit',
-                            value: selSubunit,
-                            onChanged: (v) => setDlg(() {
-                              selSubunit = v;
-                              selArea = null;
-                            }),
+                            icon: Icons.layers_rounded,
+                            color: const Color(0xFFFBBF24),
+                            selectedName:
+                                _nameById(subunitOptions, 'id_subunit', 'nama_subunit', selSubunit),
+                            onTap: () => _openSectionPicker(
+                              title: _t('Select Sub-Unit', 'Pilih Sub-Unit', '选择子单位'),
+                              icon: Icons.layers_rounded,
+                              color: const Color(0xFFFBBF24),
+                              items: subunitOptions,
+                              idKey: 'id_subunit',
+                              nameKey: 'nama_subunit',
+                              selectedId: selSubunit,
+                              onSelect: (v) => setDlg(() {
+                                selSubunit = v;
+                                selArea = null;
+                              }),
+                            ),
                           ),
-                          const SizedBox(height: 10),
-                          _sectionDropdown(
+                          const SizedBox(height: 12),
+                          _sectionPickerField(
                             label: _t('Area', 'Area', '区域'),
-                            items: areaOptions,
-                            idKey: 'id_area',
-                            nameKey: 'nama_area',
-                            value: selArea,
-                            onChanged: (v) => setDlg(() => selArea = v),
+                            icon: Icons.place_rounded,
+                            color: const Color(0xFFF472B6),
+                            selectedName: _nameById(areaOptions, 'id_area', 'nama_area', selArea),
+                            onTap: () => _openSectionPicker(
+                              title: _t('Select Area', 'Pilih Area', '选择区域'),
+                              icon: Icons.place_rounded,
+                              color: const Color(0xFFF472B6),
+                              items: areaOptions,
+                              idKey: 'id_area',
+                              nameKey: 'nama_area',
+                              selectedId: selArea,
+                              onSelect: (v) => setDlg(() => selArea = v),
+                            ),
                           ),
                           const SizedBox(height: 8),
                         ],
@@ -459,7 +736,33 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                               ? null
                               : () async {
                                   final text = namaCtrl.text.trim();
-                                  if (text.isEmpty) return;
+                                  final hasMapping = selLokasi != null ||
+                                      selUnit != null ||
+                                      selSubunit != null ||
+                                      selArea != null;
+
+                                  final missing = <MissingFieldItem>[];
+                                  if (text.isEmpty) {
+                                    missing.add(MissingFieldItem(
+                                      icon: Icons.badge_rounded,
+                                      label: _t('Section Name', 'Nama Section', '部门名称'),
+                                    ));
+                                  }
+                                  if (!hasMapping) {
+                                    missing.add(MissingFieldItem(
+                                      icon: Icons.map_rounded,
+                                      label: _t('Location Mapping', 'Pemetaan Lokasi', '位置映射'),
+                                    ));
+                                  }
+                                  if (missing.isNotEmpty) {
+                                    RequiredFieldAlert.show(
+                                      context,
+                                      lang: widget.lang,
+                                      missingFields: missing,
+                                    );
+                                    return;
+                                  }
+
                                   setDlg(() => isSaving = true);
                                   try {
                                     final isDup = _sections.any((s) =>
@@ -480,7 +783,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                                       return;
                                     }
                                     final namaTranslated = await TranslationHelper.instance
-                                      .translateDescriptionAllLangs(text, widget.lang);
+                                        .translateDescriptionAllLangs(text, widget.lang);
                                     final descSource = descCtrl.text.trim();
                                     Map<String, String> descTranslated = {'id': '', 'en': '', 'zh': ''};
                                     if (descSource.isNotEmpty) {
@@ -576,59 +879,6 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
           );
         },
       ),
-    );
-  }
-
-  Widget _sectionDropdown({
-    required String label,
-    required List<Map<String, dynamic>> items,
-    required String idKey,
-    required String nameKey,
-    required String? value,
-    required ValueChanged<String?> onChanged,
-  }) {
-    final validValue = items.any((e) => e[idKey]?.toString() == value) ? value : null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: _C.textSub)),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: _C.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _C.divider),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: validValue,
-              isExpanded: true,
-              dropdownColor: Colors.white,
-              hint: Text(_t('None', 'Tidak ada', '无'),
-                  style: GoogleFonts.poppins(fontSize: 13, color: Colors.black38)),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black45),
-              items: [
-                DropdownMenuItem<String>(
-                  value: null,
-                  child: Text(_t('None', 'Tidak ada', '无'),
-                      style: GoogleFonts.poppins(fontSize: 13, color: Colors.black38)),
-                ),
-                ...items.map((e) => DropdownMenuItem<String>(
-                      value: e[idKey]?.toString(),
-                      child: Text(
-                        e[nameKey]?.toString() ?? '-',
-                        style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    )),
-              ],
-              onChanged: onChanged,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -733,6 +983,9 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     }
   }
 
+  // Label lokasi di card hanya menampilkan level PALING SPESIFIK yang
+  // tersedia, urutan prioritas: Area > Sub-Unit > Unit > Lokasi -- masing
+  // masing dengan ikon dan warna khas levelnya sendiri.
   Map<String, dynamic>? _specificLocationInfo(Map<String, dynamic> item) {
     if (item['area']?['nama_area'] != null) {
       return {
@@ -807,6 +1060,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     final startIdx = (safePage - 1) * _perPage;
     final endIdx = (startIdx + _perPage) > allData.length ? allData.length : startIdx + _perPage;
     final data = allData.isEmpty ? <Map<String, dynamic>>[] : allData.sublist(startIdx, endIdx);
+
     return Scaffold(
       backgroundColor: _C.surface,
       appBar: AppBar(
@@ -893,12 +1147,14 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                   _search = v;
                   _currentPage = 1;
                 }),
+                textAlignVertical: TextAlignVertical.center,
                 style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
                 decoration: InputDecoration(
                   hintText: _t('Search section...', 'Cari section...', '搜索部门...'),
                   hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.black38),
                   prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 18),
                   border: InputBorder.none,
+                  isDense: true,
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
@@ -910,9 +1166,25 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '${allData.length} ${_t('sections', 'section', '个部门')}',
-                style: GoogleFonts.poppins(fontSize: 11, color: Colors.black38),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _C.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _C.primary.withValues(alpha: 0.30)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.dashboard_customize_rounded, size: 13, color: _C.primary),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${allData.length} ${_t('sections', 'section', '个部门')}',
+                      style: GoogleFonts.poppins(
+                          color: _C.primary, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -942,70 +1214,97 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                           separatorBuilder: (_, __) => const SizedBox(height: 8),
                           itemBuilder: (_, i) {
                             final item = data[i];
-                            return Container(
-                              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: _C.divider),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.03),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2)),
-                                ],
+                            final imgUrl = item['gambar_section'] as String?;
+                            return GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => _SectionDetailScreen(
+                                    item: item,
+                                    lang: widget.lang,
+                                    onEdit: (it) => _showFormDialog(existing: it),
+                                    onDelete: (it) => _confirmDelete(it),
+                                  ),
+                                ),
                               ),
-                              child: Row(children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration:
-                                      BoxDecoration(color: _C.primaryLt, borderRadius: BorderRadius.circular(10)),
-                                  child: Center(
-                                    child: Text(
-                                      '${item['urutan'] ?? i + 1}',
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 13, fontWeight: FontWeight.w800, color: _C.primary),
+                              child: Container(
+                                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: _C.divider),
+                                  boxShadow: [
+                                    BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.03),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2)),
+                                  ],
+                                ),
+                                child: Row(children: [
+                                  Container(
+                                    width: 52,
+                                    height: 52,
+                                    clipBehavior: Clip.antiAlias,
+                                    decoration: BoxDecoration(
+                                        color: _C.primaryLt, borderRadius: BorderRadius.circular(12)),
+                                    child: (imgUrl != null && imgUrl.isNotEmpty)
+                                        ? Image.network(
+                                            imgUrl,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Center(
+                                              child: Text(
+                                                '${item['urutan'] ?? i + 1}',
+                                                style: GoogleFonts.poppins(
+                                                    fontSize: 15, fontWeight: FontWeight.w800, color: _C.primary),
+                                              ),
+                                            ),
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              '${item['urutan'] ?? i + 1}',
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 15, fontWeight: FontWeight.w800, color: _C.primary),
+                                            ),
+                                          ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _nameOf(item),
+                                          style: GoogleFonts.poppins(
+                                              fontSize: 13, fontWeight: FontWeight.w700, color: _C.textMain),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        _buildLocationChip(item),
+                                      ],
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _nameOf(item),
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 13, fontWeight: FontWeight.w700, color: _C.textMain),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      _buildLocationChip(item),
-                                    ],
+                                  GestureDetector(
+                                    onTap: () => _showFormDialog(existing: item),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                          color: _C.primary.withValues(alpha: 0.09),
+                                          borderRadius: BorderRadius.circular(9)),
+                                      child: const Icon(Icons.edit_outlined, color: _C.primary, size: 15),
+                                    ),
                                   ),
-                                ),
-                                GestureDetector(
-                                  onTap: () => _showFormDialog(existing: item),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                        color: _C.primary.withValues(alpha: 0.09),
-                                        borderRadius: BorderRadius.circular(9)),
-                                    child: const Icon(Icons.edit_outlined, color: _C.primary, size: 15),
+                                  const SizedBox(width: 6),
+                                  GestureDetector(
+                                    onTap: () => _confirmDelete(item),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                          color: _C.red.withValues(alpha: 0.09),
+                                          borderRadius: BorderRadius.circular(9)),
+                                      child: const Icon(Icons.delete_outline_rounded, color: _C.red, size: 15),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                GestureDetector(
-                                  onTap: () => _confirmDelete(item),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                        color: _C.red.withValues(alpha: 0.09),
-                                        borderRadius: BorderRadius.circular(9)),
-                                    child: const Icon(Icons.delete_outline_rounded, color: _C.red, size: 15),
-                                  ),
-                                ),
-                              ]),
+                                ]),
+                              ),
                             );
                           },
                         ),
@@ -1022,6 +1321,691 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------------------------
+// Layar Detail Section: semua kolom tabel + generate/regenerate QR Code
+// --------------------------------------------------------------------
+class _SectionDetailScreen extends StatefulWidget {
+  final Map<String, dynamic> item;
+  final String lang;
+  final void Function(Map<String, dynamic>) onEdit;
+  final void Function(Map<String, dynamic>) onDelete;
+
+  const _SectionDetailScreen({
+    required this.item,
+    required this.lang,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  State<_SectionDetailScreen> createState() => _SectionDetailScreenState();
+}
+
+class _SectionDetailScreenState extends State<_SectionDetailScreen> {
+  late Map<String, dynamic> _item;
+  bool _isRefreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _item = widget.item;
+  }
+
+  String _t(String en, String id, String zh) {
+    if (widget.lang == 'EN') return en;
+    if (widget.lang == 'ZH') return zh;
+    return id;
+  }
+
+  String get _name {
+    if (widget.lang == 'EN') {
+      return _item['nama_section_en']?.toString() ?? _item['nama_section_id']?.toString() ?? '-';
+    }
+    if (widget.lang == 'ZH') {
+      return _item['nama_section_zh']?.toString() ?? _item['nama_section_id']?.toString() ?? '-';
+    }
+    return _item['nama_section_id']?.toString() ?? '-';
+  }
+
+  String get _desc {
+    if (widget.lang == 'EN') {
+      return (_item['deskripsi_section_en'] ?? _item['deskripsi_section'] ?? '').toString();
+    }
+    if (widget.lang == 'ZH') {
+      return (_item['deskripsi_section_zh'] ?? _item['deskripsi_section'] ?? '').toString();
+    }
+    return (_item['deskripsi_section'] ?? '').toString();
+  }
+
+  Future<void> _openQrGenerator() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QRGeneratorScreen(
+          lang: widget.lang,
+          levelName: 'section',
+          levelId: _item['id_section'].toString(),
+          itemName: _name,
+        ),
+      ),
+    );
+    if (result == true) {
+      setState(() => _isRefreshing = true);
+      try {
+        final refreshed = await Supabase.instance.client
+            .from('section')
+            .select(
+                '*, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), User!fk_section_pic(nama, gambar_user, id_jabatan, is_verificator, jabatan(nama_jabatan))')
+            .eq('id_section', _item['id_section'].toString())
+            .maybeSingle();
+        if (refreshed != null && mounted) {
+          setState(() => _item = {..._item, ...refreshed});
+        }
+      } catch (e) {
+        debugPrint('Refresh QR section error: $e');
+      } finally {
+        if (mounted) setState(() => _isRefreshing = false);
+      }
+    }
+  }
+
+  Widget _sectionLabel(IconData icon, String title) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: _C.primary),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: GoogleFonts.poppins(color: _C.primary, fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+
+  Widget _mappingBadge({required IconData icon, required Color color, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gambarUrl = _item['gambar_section'] as String?;
+    final isStar = (_item['is_star'] ?? 0) as int;
+    final qrcode = _item['qrcode'] as String?;
+    final lokasiName = _item['lokasi']?['nama_lokasi'] as String?;
+    final unitName = _item['unit']?['nama_unit'] as String?;
+    final subunitName = _item['subunit']?['nama_subunit'] as String?;
+    final areaName = _item['area']?['nama_area'] as String?;
+    final picData = _item['User'] as Map<String, dynamic>?;
+    final picName = picData?['nama'] as String?;
+    final picImage = picData?['gambar_user'] as String?;
+    final picJabatan = picData?['jabatan']?['nama_jabatan'] as String?;
+    final picIdJabatan = picData?['id_jabatan'] as int?;
+    final picIsVerificator = picData?['is_verificator'] as bool?;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _C.primary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          _t('Section Detail', 'Detail Section', '部门详情'),
+          style: GoogleFonts.poppins(color: _C.primary, fontWeight: FontWeight.w700, fontSize: 17),
+        ),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: _C.primary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: (gambarUrl != null && gambarUrl.isNotEmpty)
+                      ? Image.network(
+                          gambarUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.dashboard_customize_rounded, color: _C.primary, size: 28),
+                        )
+                      : const Icon(Icons.dashboard_customize_rounded, color: _C.primary, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _name,
+                        style: GoogleFonts.poppins(color: Colors.black, fontWeight: FontWeight.w700, fontSize: 18),
+                      ),
+                      if (lokasiName != null || unitName != null || subunitName != null || areaName != null) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            if (lokasiName != null && lokasiName.isNotEmpty)
+                              _mappingBadge(icon: Icons.location_city_rounded, color: const Color(0xFF10B981), label: lokasiName),
+                            if (unitName != null && unitName.isNotEmpty)
+                              _mappingBadge(icon: Icons.business_rounded, color: const Color(0xFF6366F1), label: unitName),
+                            if (subunitName != null && subunitName.isNotEmpty)
+                              _mappingBadge(icon: Icons.layers_rounded, color: const Color(0xFFFBBF24), label: subunitName),
+                            if (areaName != null && areaName.isNotEmpty)
+                              _mappingBadge(icon: Icons.place_rounded, color: const Color(0xFFF472B6), label: areaName),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isStar > 0 ? const Color(0xFFFEF3C7) : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: isStar > 0 ? const Color(0xFFFBBF24) : Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(isStar > 0 ? Icons.star_rounded : Icons.star_border_rounded,
+                                size: 12, color: isStar > 0 ? const Color(0xFFFBBF24) : Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(
+                              isStar > 0 ? _t('Starred', 'Bintang', '已加星标') : _t('No Star', 'Tanpa Bintang', '无星标'),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 10, fontWeight: FontWeight.w600, color: isStar > 0 ? const Color(0xFFF59E0B) : Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Divider(color: Colors.grey.shade100, thickness: 1.5),
+            const SizedBox(height: 16),
+
+            _sectionLabel(Icons.notes_rounded, _t('Description', 'Deskripsi', '描述')),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _C.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _C.primary.withValues(alpha: 0.20)),
+              ),
+              child: Text(
+                _desc.isEmpty ? '-' : _desc,
+                style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13, height: 1.5),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            _sectionLabel(Icons.badge_rounded, 'PIC'),
+            const SizedBox(height: 10),
+            if (picName != null && picName.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _C.primary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _C.primary.withValues(alpha: 0.20)),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 22,
+                      backgroundColor: _C.primary.withValues(alpha: 0.18),
+                      backgroundImage: (picImage != null && picImage.isNotEmpty) ? NetworkImage(picImage) : null,
+                      child: (picImage == null || picImage.isEmpty)
+                          ? const Icon(Icons.person_rounded, color: _C.primary, size: 22)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(picName, style: GoogleFonts.poppins(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 5),
+                          buildJabatanBadge(
+                            idJabatan: picIdJabatan,
+                            jabatanNama: picJabatan,
+                            isVerificator: picIsVerificator,
+                            lang: widget.lang,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFBBF24).withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: const Color(0xFFFBBF24).withValues(alpha: 0.15), shape: BoxShape.circle),
+                      child: const Icon(Icons.person_off_rounded, size: 16, color: Color(0xFFF59E0B)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _t('No PIC assigned yet', 'Belum ada PIC yang ditugaskan', '尚未分配负责人'),
+                        style: GoogleFonts.poppins(color: const Color(0xFFB45309), fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 20),
+
+            _sectionLabel(Icons.qr_code_2_rounded, 'QR Code'),
+            const SizedBox(height: 10),
+            if (_isRefreshing)
+              const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+            else if (qrcode != null && qrcode.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _C.primary.withValues(alpha: 0.25)),
+                  boxShadow: [BoxShadow(color: _C.primary.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4))],
+                ),
+                child: Column(
+                  children: [
+                    QrImageView(data: qrcode, version: QrVersions.auto, size: 220),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: _openQrGenerator,
+                      icon: const Icon(Icons.refresh_rounded, size: 16),
+                      label: Text(_t('Regenerate QR', 'Buat Ulang QR', '重新生成二维码'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _C.primary,
+                        side: const BorderSide(color: _C.primary),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
+                child: Column(
+                  children: [
+                    Icon(Icons.qr_code_scanner_rounded, size: 64, color: Colors.grey.shade300),
+                    const SizedBox(height: 12),
+                    Text(
+                      _t('QR Code has not been generated yet.', 'Kode QR belum dibuat.', '二维码尚未生成。'),
+                      style: GoogleFonts.poppins(fontSize: 13, color: Colors.black45, fontWeight: FontWeight.w500),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _openQrGenerator,
+                      icon: const Icon(Icons.add_circle_outline, size: 18),
+                      label: Text(_t('Generate QR Code', 'Buat Kode QR', '生成二维码'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _C.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
+                        shadowColor: _C.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      widget.onEdit(_item);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(color: const Color(0xFF2563EB).withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.edit_outlined, color: Color(0xFF2563EB), size: 16),
+                          const SizedBox(width: 6),
+                          Text(_t('Edit', 'Edit', '编辑'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFF2563EB))),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      widget.onDelete(_item);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 16),
+                          const SizedBox(width: 6),
+                          Text(_t('Delete', 'Hapus', '删除'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFFEF4444))),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------------------------
+// Popup picker generik untuk Lokasi/Unit/Sub-Unit/Area
+// --------------------------------------------------------------------
+class _SectionPickerDialog extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final List<Map<String, dynamic>> items;
+  final String idKey;
+  final String nameKey;
+  final String? selectedId;
+  final String lang;
+  final ValueChanged<String?> onSelect;
+
+  const _SectionPickerDialog({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.items,
+    required this.idKey,
+    required this.nameKey,
+    required this.selectedId,
+    required this.lang,
+    required this.onSelect,
+  });
+
+  @override
+  State<_SectionPickerDialog> createState() => _SectionPickerDialogState();
+}
+
+class _SectionPickerDialogState extends State<_SectionPickerDialog> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  List<Map<String, dynamic>> _filtered = [];
+
+  String _t(String en, String id, String zh) {
+    if (widget.lang == 'EN') return en;
+    if (widget.lang == 'ZH') return zh;
+    return id;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _filtered = widget.items;
+    _searchCtrl.addListener(_applyFilter);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.removeListener(_applyFilter);
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _applyFilter() {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? widget.items
+          : widget.items
+              .where((e) => (e[widget.nameKey]?.toString() ?? '').toLowerCase().contains(q))
+              .toList();
+    });
+  }
+
+  Widget _buildNoneCard(BuildContext context) {
+    final isSel = widget.selectedId == null;
+    return GestureDetector(
+      onTap: () {
+        widget.onSelect(null);
+        Navigator.pop(context);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSel ? widget.color.withValues(alpha: 0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: isSel ? widget.color : Colors.grey.shade200, width: isSel ? 1.5 : 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.block_rounded, size: 18, color: Colors.black38),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _t('None', 'Tidak ada', '无'),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black54),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemCard(BuildContext context, Map<String, dynamic> item) {
+    final id = item[widget.idKey]?.toString() ?? '';
+    final name = item[widget.nameKey]?.toString() ?? '-';
+    final isSel = id == widget.selectedId;
+    return GestureDetector(
+      onTap: () {
+        widget.onSelect(id);
+        Navigator.pop(context);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSel ? widget.color.withValues(alpha: 0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: isSel ? widget.color : Colors.grey.shade200, width: isSel ? 1.5 : 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: widget.color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
+              child: Icon(widget.icon, size: 18, color: widget.color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(name,
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: const Color(0xFF1E3A8A)),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            if (isSel) Icon(Icons.check_circle_rounded, color: widget.color, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+          maxWidth: 420,
+        ),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 10, 0),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                          color: widget.color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
+                      child: Icon(widget.icon, color: widget.color, size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: widget.color),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
+                        child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Container(height: 1, color: const Color(0xFFF1F5F9)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
+                child: Container(
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: widget.color.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: widget.color.withValues(alpha: 0.3), width: 1.2),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.search_rounded, size: 18, color: widget.color),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchCtrl,
+                          textAlignVertical: TextAlignVertical.center,
+                          style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF1E3A8A)),
+                          decoration: InputDecoration(
+                            hintText: _t('Search...', 'Cari...', '搜索...'),
+                            hintStyle: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Container(height: 1, color: const Color(0xFFF1F5F9)),
+              Flexible(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                  shrinkWrap: true,
+                  children: [
+                    _buildNoneCard(context),
+                    ..._filtered.map((item) => _buildItemCard(context, item)),
+                    if (_filtered.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(_t('No results found', 'Tidak ada hasil', '没有结果'),
+                              style: GoogleFonts.poppins(color: Colors.grey.shade500)),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
