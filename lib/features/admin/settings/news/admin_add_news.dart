@@ -595,7 +595,7 @@ class _AdminAddNewsScreenState extends State<AdminAddNewsScreen> {
 
                 // TITLE
                 _dlgLabel(
-                  Icons.title_rounded,
+                  Icons.edit_note_rounded,
                   widget.lang == 'EN' ? 'Title' : widget.lang == 'ZH' ? '标题' : 'Judul',
                   required: true,
                 ),
@@ -627,7 +627,7 @@ class _AdminAddNewsScreenState extends State<AdminAddNewsScreen> {
 
                 // CONTENT
                 _dlgLabel(
-                  Icons.notes_rounded,
+                  Icons.sticky_note_2_outlined,
                   widget.lang == 'EN' ? 'Content' : widget.lang == 'ZH' ? '内容' : 'Konten',
                   required: true,
                 ),
