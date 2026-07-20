@@ -29,6 +29,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       'sent': 'Sent',
       'viewed': 'Viewed',
       'completed': 'Completed',
+      'close': 'Close',
     },
     'ID': {
       'title': 'Pusat Bantuan',
@@ -42,6 +43,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       'sent': 'Dikirim',
       'viewed': 'Dilihat',
       'completed': 'Selesai',
+      'close': 'Tutup',
     },
     'ZH': {
       'title': '帮助中心',
@@ -55,16 +57,43 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       'sent': '已发送',
       'viewed': '已查看',
       'completed': '已完成',
+      'close': '关闭',
     },
   };
 
   String getTxt(String key) => _txt[_currentLang]?[key] ?? key;
 
+  IconData _priorityIcon(String p) =>
+      p.toLowerCase() == 'fatal' ? Icons.warning_amber_rounded : Icons.info_outline_rounded;
+
+  IconData _statusIcon(String s) {
+    switch (s) {
+      case 'Dikirim':
+        return Icons.send_rounded;
+      case 'Dilihat':
+        return Icons.visibility_rounded;
+      case 'Selesai':
+        return Icons.check_circle_rounded;
+      default:
+        return Icons.circle_outlined;
+    }
+  }
+
+  void _openImageViewer(String url) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha:0.95),
+        pageBuilder: (_, __, ___) => _FullImageViewerHC(imageUrl: url, closeLabel: getTxt('close')),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _currentLang = widget.lang;
-    // Fetch di background — UI sudah tampil
     _fetchReports();
   }
 
@@ -241,6 +270,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     final adminReply = report['admin_reply'] as String?;
     final adminReplyImage = report['admin_reply_image'] as String?;
     final repliedAt = report['replied_at'] as String?;
+    final createdAt = report['created_at'] as String?;
     final status = report['status'] as String? ?? 'Dikirim';
     final priority = report['priority'] as String? ?? 'Normal';
 
@@ -262,11 +292,17 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             ? 'viewed'
             : 'completed');
 
+    String dateStr = '';
+    if (createdAt != null) {
+      try {
+        dateStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(createdAt).toLocal());
+      } catch (_) {}
+    }
+
     String repliedStr = '';
     if (repliedAt != null) {
       try {
-        repliedStr = DateFormat('d MMM yyyy, HH:mm')
-            .format(DateTime.parse(repliedAt).toLocal());
+        repliedStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(repliedAt).toLocal());
       } catch (_) {}
     }
 
@@ -316,30 +352,35 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (signedImageUrl != null && signedImageUrl.isNotEmpty)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.network(
-                        signedImageUrl,
-                        width: 70,
-                        height: 70,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.image_not_supported, size: 70),
-                      ),
-                    )
-                  else
-                    Container(
-                      width: 70,
-                      height: 70,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        color: const Color(0xFFEFF6FF),
-                      ),
-                      child: Icon(Icons.flag_outlined,
-                          color: Colors.grey.shade400, size: 30),
-                    ),
+                  GestureDetector(
+                    onTap: (signedImageUrl != null && signedImageUrl.isNotEmpty)
+                        ? () => _openImageViewer(signedImageUrl)
+                        : null,
+                    child: (signedImageUrl != null && signedImageUrl.isNotEmpty)
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              signedImageUrl,
+                              width: 70,
+                              height: 70,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(Icons.image_not_supported, size: 70),
+                            ),
+                          )
+                        : Container(
+                            width: 70,
+                            height: 70,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: const Color(0xFFEFF6FF),
+                            ),
+                            child: Icon(Icons.flag_outlined,
+                                color: Colors.grey.shade400, size: 30),
+                          ),
+                  ),
                   const SizedBox(width: 15),
                   Expanded(
                     child: Column(
@@ -347,28 +388,50 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       children: [
                         Text(
                           report['title'] ?? '',
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF334155)),
+                          style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF334155)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 8),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
                           children: [
                             _buildTag(
-                              getTxt(priority.toLowerCase() == 'fatal'
-                                  ? 'fatal'
-                                  : 'normal'),
+                              getTxt(priority.toLowerCase() == 'fatal' ? 'fatal' : 'normal'),
                               priority.toLowerCase() == 'fatal'
                                   ? Colors.red.shade400
                                   : const Color(0xFF1D72F3),
+                              _priorityIcon(priority),
                             ),
-                            const SizedBox(width: 8),
-                            _buildTag(statusLabel, statusColor),
+                            _buildTag(statusLabel, statusColor, _statusIcon(status)),
                           ],
                         ),
+                        if (dateStr.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.calendar_today_rounded, size: 11, color: Colors.grey.shade500),
+                                const SizedBox(width: 5),
+                                Text(
+                                  dateStr,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -377,59 +440,87 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                 ],
               ),
               if (adminReply != null && adminReply.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEFF6FF),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF1D72F3).withValues(alpha:0.3)),
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha:0.3)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.support_agent_rounded,
-                              size: 14, color: Color(0xFF1D72F3)),
-                          const SizedBox(width: 5),
+                          Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha:0.15),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: const Icon(Icons.support_agent_rounded,
+                                size: 13, color: Color(0xFF10B981)),
+                          ),
+                          const SizedBox(width: 7),
                           Text(
                             _currentLang == 'EN'
                                 ? 'Admin Reply'
                                 : _currentLang == 'ZH'
                                     ? '管理员回复'
                                     : 'Balasan Admin',
-                            style: const TextStyle(
-                                fontSize: 11,
+                            style: GoogleFonts.poppins(
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF1D72F3)),
+                                color: const Color(0xFF10B981)),
                           ),
                           if (repliedStr.isNotEmpty) ...[
                             const Spacer(),
+                            Icon(Icons.access_time_rounded, size: 11, color: Colors.grey.shade500),
+                            const SizedBox(width: 3),
                             Text(repliedStr,
-                                style: TextStyle(
-                                    fontSize: 10,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 10.5,
                                     color: Colors.grey.shade500)),
                           ],
                         ],
                       ),
-                      const SizedBox(height: 5),
+                      const SizedBox(height: 8),
                       Text(adminReply,
-                          style: const TextStyle(
-                              fontSize: 13, color: Color(0xFF334155))),
+                          style: GoogleFonts.poppins(
+                              fontSize: 13, color: const Color(0xFF334155), height: 1.5)),
                       if (adminReplyImage != null &&
                           adminReplyImage.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            adminReplyImage,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(
-                                Icons.image_not_supported,
-                                size: 40),
+                        const SizedBox(height: 10),
+                        GestureDetector(
+                          onTap: () => _openImageViewer(adminReplyImage),
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.network(
+                                  adminReplyImage,
+                                  width: double.infinity,
+                                  height: 150,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.image_not_supported,
+                                      size: 40),
+                                ),
+                              ),
+                              Positioned(
+                                right: 8, bottom: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha:0.55),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.zoom_out_map_rounded, size: 14, color: Colors.white),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -444,15 +535,22 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     );
   }
 
-  Widget _buildTag(String text, Color color) {
+  Widget _buildTag(String text, Color color, IconData icon) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
       decoration: BoxDecoration(
-          color: color.withValues(alpha:0.1),
+          color: color.withValues(alpha:0.12),
           borderRadius: BorderRadius.circular(20)),
-      child: Text(text,
-          style: TextStyle(
-              color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(text,
+              style: GoogleFonts.poppins(
+                  color: color, fontSize: 11.5, fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 
@@ -505,6 +603,68 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FullImageViewerHC extends StatelessWidget {
+  final String imageUrl;
+  final String closeLabel;
+
+  const _FullImageViewerHC({required this.imageUrl, required this.closeLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(color: Colors.black.withValues(alpha:0.001)),
+            ),
+          ),
+          Center(
+            child: InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4,
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                        const SizedBox(width: 6),
+                        Text(closeLabel, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

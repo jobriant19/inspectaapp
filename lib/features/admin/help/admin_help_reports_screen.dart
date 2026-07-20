@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 
+import '../../user/finding/finding_pick_pic.dart';
+import '../../user/home/alert/required_field_alert.dart';
+
 class AdminHelpReportsScreen extends StatefulWidget {
   final String lang;
   const AdminHelpReportsScreen({super.key, required this.lang});
@@ -24,7 +27,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     final all = _t('all');
     List<Map<String, dynamic>> base = _items;
 
-    // Filter status
+    // FILTER STATUS
     if (_filterStatus != all) {
       const statusMap = {
         'Dikirim': 'Dikirim', 'Sent': 'Dikirim', '已发送': 'Dikirim',
@@ -35,7 +38,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
       base = base.where((i) => i['status'] == dbStatus).toList();
     }
 
-    // Filter search
+    // FILTER SEARCH
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       base = base.where((i) {
@@ -93,6 +96,24 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'pick_image': 'Pilih Gambar',
         'search_hint': 'Cari laporan atau pelapor...',
         'report_count': 'laporan',
+        'empty_all_title': 'Belum Ada Laporan',
+        'empty_all_desc': 'Belum ada laporan bantuan yang masuk.',
+        'empty_sent_title': 'Tidak Ada Laporan Terkirim',
+        'empty_sent_desc': 'Belum ada laporan dengan status dikirim.',
+        'empty_viewed_title': 'Tidak Ada Laporan Dilihat',
+        'empty_viewed_desc': 'Belum ada laporan yang sedang ditinjau.',
+        'empty_completed_title': 'Belum Ada Laporan Selesai',
+        'empty_completed_desc': 'Laporan yang sudah selesai akan muncul di sini.',
+        'empty_search_title': 'Laporan Tidak Ditemukan',
+        'empty_search_desc': 'Coba kata kunci pencarian lain.',
+        'close_image': 'Tutup',
+        'delete_name_confirm': 'Yakin ingin menghapus laporan',
+        'edit_reply': 'Edit Balasan',
+        'delete_reply': 'Hapus Balasan',
+        'delete_reply_confirm': 'Hapus balasan ini?',
+        'delete_reply_desc': 'User tidak akan lagi melihat balasan ini.',
+        'success_delete_reply': 'Balasan berhasil dihapus.',
+        'reply_required': 'Balasan wajib diisi',
       },
       'EN': {
         'title': 'Help Reports',
@@ -130,6 +151,24 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'pick_image': 'Pick Image',
         'search_hint': 'Search reports or reporter...',
         'report_count': 'reports',
+        'empty_all_title': 'No Reports Yet',
+        'empty_all_desc': 'No help reports have come in yet.',
+        'empty_sent_title': 'No Sent Reports',
+        'empty_sent_desc': 'There are no reports with sent status.',
+        'empty_viewed_title': 'No Viewed Reports',
+        'empty_viewed_desc': 'No reports are currently being reviewed.',
+        'empty_completed_title': 'No Completed Reports',
+        'empty_completed_desc': 'Completed reports will appear here.',
+        'empty_search_title': 'No Reports Found',
+        'empty_search_desc': 'Try a different search keyword.',
+        'close_image': 'Close',
+        'delete_name_confirm': 'Are you sure you want to delete report',
+        'edit_reply': 'Edit Reply',
+        'delete_reply': 'Delete Reply',
+        'delete_reply_confirm': 'Delete this reply?',
+        'delete_reply_desc': 'The user will no longer see this reply.',
+        'success_delete_reply': 'Reply deleted successfully.',
+        'reply_required': 'Reply is required',
       },
       'ZH': {
         'title': '帮助报告',
@@ -167,6 +206,24 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         'pick_image': '选择图片',
         'search_hint': '搜索报告或报告人...',
         'report_count': '条报告',
+        'empty_all_title': '暂无报告',
+        'empty_all_desc': '还没有收到帮助报告。',
+        'empty_sent_title': '没有已发送的报告',
+        'empty_sent_desc': '没有状态为已发送的报告。',
+        'empty_viewed_title': '没有已查看的报告',
+        'empty_viewed_desc': '目前没有正在审核的报告。',
+        'empty_completed_title': '没有已完成的报告',
+        'empty_completed_desc': '已完成的报告将显示在这里。',
+        'empty_search_title': '未找到报告',
+        'empty_search_desc': '请尝试其他关键词。',
+        'close_image': '关闭',
+        'delete_name_confirm': '确定要删除报告',
+        'edit_reply': '编辑回复',
+        'delete_reply': '删除回复',
+        'delete_reply_confirm': '删除此回复？',
+        'delete_reply_desc': '用户将不再看到此回复。',
+        'success_delete_reply': '回复删除成功。',
+        'reply_required': '回复为必填项',
       },
     };
     return txt[widget.lang]?[key] ?? txt['ID']![key] ?? key;
@@ -179,44 +236,39 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     _fetchData();
   }
 
-  // ── FIX PGRST200: fetch terpisah lalu merge manual ──
   Future<void> _fetchData() async {
     setState(() => _isLoading = true);
     try {
-      // Step 1: Ambil semua help_reports — tambahkan .limit(1000) agar tidak terpotong
       final List<dynamic> reportsRaw = await Supabase.instance.client
           .from('help_reports')
           .select('*')
           .order('created_at', ascending: false)
           .limit(1000);
 
-      debugPrint('DEBUG help_reports count: ${reportsRaw.length}'); // ← cek di console
+      debugPrint('DEBUG help_reports count: ${reportsRaw.length}');
 
       if (reportsRaw.isEmpty) {
         if (mounted) setState(() { _items = []; _isLoading = false; });
         return;
       }
 
-      // Step 2: Kumpulkan user_id unik
       final userIds = reportsRaw
           .map((r) => r['user_id']?.toString())
           .whereType<String>()
           .toSet()
           .toList();
 
-      // Step 3: Fetch data dari tabel "User" secara terpisah
       Map<String, Map<String, dynamic>> userMap = {};
       if (userIds.isNotEmpty) {
         final List<dynamic> usersRaw = await Supabase.instance.client
             .from('User')
-            .select('id_user, nama, gambar_user')
+            .select('id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan(nama_jabatan)')
             .inFilter('id_user', userIds);
         for (final u in usersRaw) {
           userMap[u['id_user'].toString()] = Map<String, dynamic>.from(u);
         }
       }
 
-      // Step 4: Merge data + generate signed URLs gambar
       final List<Map<String, dynamic>> processed = [];
       for (final item in reportsRaw) {
         final newItem = Map<String, dynamic>.from(item);
@@ -224,6 +276,10 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         final uid = newItem['user_id']?.toString() ?? '';
         newItem['_userName']   = userMap[uid]?['nama'] as String? ?? '-';
         newItem['_userAvatar'] = userMap[uid]?['gambar_user'] as String?;
+        newItem['_userIdJabatan'] = userMap[uid]?['id_jabatan'] as int?;
+        newItem['_userIsVerificator'] = userMap[uid]?['is_verificator'] as bool?;
+        newItem['_userJabatanNama'] =
+            (userMap[uid]?['jabatan'] as Map?)?['nama_jabatan'] as String?;
 
         final imageUrl = newItem['image_url'] as String?;
         if (imageUrl != null && imageUrl.isNotEmpty) {
@@ -247,7 +303,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error fetching help reports: $e'); // ← lihat error detail di console
+      debugPrint('Error fetching help reports: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         _showSnack(_t('error'), isError: true);
@@ -272,7 +328,6 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
       await Supabase.instance.client
           .from('help_reports')
           .update({'status': newStatus}).eq('id', id);
-      // Update lokal langsung tanpa refetch penuh
       if (mounted) {
         setState(() {
           final idx = _items.indexWhere((e) => e['id'] == id);
@@ -284,13 +339,12 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     }
   }
 
-  // ── Kirim balasan admin → update kolom admin_reply + replied_at + status Selesai ──
   Future<void> _sendReply(String id, String replyText, {Uint8List? imageBytes, String? imageExt}) async {
     try {
       final now = DateTime.now().toUtc().toIso8601String();
       String? replyImageUrl;
 
-      // Upload gambar balasan jika ada
+      // UPLOAD IMAGE
       if (imageBytes != null && imageExt != null) {
         final fileName = 'reply_${id}_${DateTime.now().millisecondsSinceEpoch}.$imageExt';
         final filePath = 'reply_images/$fileName';
@@ -329,7 +383,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
               _items[idx]['admin_reply_image'] = replyImageUrl;
             }
           }
-          // Reset state gambar reply
+          // REPLY IMAGE STATE RESET
           _replyImageBytes = null;
           _replyImageExt = null;
         });
@@ -340,14 +394,38 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     }
   }
 
-  Future<void> _deleteItem(String id) async {
+  Future<void> _deleteReply(String id) async {
+    try {
+      await Supabase.instance.client.from('help_reports').update({
+        'admin_reply': null,
+        'replied_at': null,
+        'admin_reply_image': null,
+        'status': 'Dilihat',
+      }).eq('id', id);
+      _showSnack(_t('success_delete_reply'));
+      if (mounted) {
+        setState(() {
+          final idx = _items.indexWhere((e) => e['id'] == id);
+          if (idx != -1) {
+            _items[idx]['admin_reply'] = null;
+            _items[idx]['replied_at'] = null;
+            _items[idx]['admin_reply_image'] = null;
+            _items[idx]['status'] = 'Dilihat';
+          }
+        });
+      }
+    } catch (e) {
+      _showSnack(_t('error'), isError: true);
+    }
+  }
+
+  Future<void> _deleteItem(String id, String title) async {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (_) => Dialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         elevation: 0,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
@@ -379,7 +457,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                _t('delete_desc'),
+                '${_t('delete_name_confirm')} "$title"?',
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   color: const Color(0xFF64748B),
@@ -406,8 +484,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                     backgroundColor: const Color(0xFFEF4444),
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                 ),
               ),
@@ -417,11 +494,9 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                 child: OutlinedButton(
                   onPressed: () => Navigator.pop(context, false),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(
-                        color: Color(0xFFE2E8F0), width: 1.5),
+                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: Text(
                     _t('cancel'),
@@ -450,257 +525,30 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   }
 
   void _showDetail(Map<String, dynamic> item) {
-    final signedUrl  = item['signed_image_url'] as String?;
-    final userName   = item['_userName'] as String? ?? '-';
-    final createdAt  = item['created_at'] as String?;
-    final repliedAt  = item['replied_at'] as String?;
-    final existReply = item['admin_reply'] as String? ?? '';
-    final existReplyImage = item['admin_reply_image'] as String?;
-    final replyCtrl  = TextEditingController(text: existReply);
-
-    // State lokal untuk gambar reply di dalam bottom sheet
-    Uint8List? localImageBytes;
-    String? localImageExt;
-
-    String dateStr = '-', repliedStr = '-';
-    if (createdAt != null) {
-      try { dateStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(createdAt).toLocal()); } catch (_) {}
-    }
-    if (repliedAt != null) {
-      try { repliedStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(repliedAt).toLocal()); } catch (_) {}
-    }
-
-    // Auto set Dilihat jika masih Dikirim
     if (item['status'] == 'Dikirim') {
       item['status'] = 'Dilihat';
       _updateStatus(item['id'] as String, 'Dilihat');
     }
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSheet) => DraggableScrollableSheet(
-          initialChildSize: 0.85,
-          maxChildSize: 0.95,
-          minChildSize: 0.5,
-          builder: (ctx2, ctrl) => Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx2).viewInsets.bottom),
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(top: 12, bottom: 8),
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(_t('view_detail'), style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx2),
-                          child: Text(_t('close'), style: const TextStyle(color: Color(0xFF0EA5E9))),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Expanded(
-                    child: ListView(
-                      controller: ctrl,
-                      padding: const EdgeInsets.all(20),
-                      children: [
-                        // Gambar laporan
-                        if (signedUrl != null && signedUrl.isNotEmpty)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(signedUrl, height: 180, width: double.infinity, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, size: 60)),
-                          ),
-                        const SizedBox(height: 16),
-                        Text(item['title'] ?? '', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
-                        const SizedBox(height: 12),
-                        _detailRow(_t('reporter'), userName),
-                        _detailRow(_t('date'), dateStr),
-                        _detailRow(_t('priority'), _localPriority(item['priority'] ?? '')),
-                        _detailRow(_t('status'), _localStatus(item['status'] ?? '')),
-                        if (existReply.isNotEmpty) _detailRow(_t('replied_at'), repliedStr),
-                        const SizedBox(height: 12),
-                        Text(_t('description'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black54)),
-                        const SizedBox(height: 4),
-                        Text(
-                          (item['description'] as String?)?.isNotEmpty == true ? item['description'] : _t('no_desc'),
-                          style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
-                        ),
-                        const SizedBox(height: 20),
-                        Container(height: 1, color: Colors.grey.shade100),
-                        const SizedBox(height: 20),
-                        // Ubah Status
-                        Text(_t('change_status'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black54)),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          children: ['Dikirim', 'Dilihat', 'Selesai'].map((s) {
-                            final isSelected = item['status'] == s;
-                            final color = _statusColor(s);
-                            return GestureDetector(
-                              onTap: () { Navigator.pop(ctx2); _updateStatus(item['id'] as String, s); },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: isSelected ? color : color.withValues(alpha:0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: color),
-                                ),
-                                child: Text(_localStatus(s), style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: isSelected ? Colors.white : color)),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 24),
-                        Container(height: 1, color: Colors.grey.shade100),
-                        const SizedBox(height: 20),
-                        // ── Balasan Admin ──
-                        Row(
-                          children: [
-                            const Icon(Icons.reply_rounded, size: 16, color: Color(0xFF0EA5E9)),
-                            const SizedBox(width: 6),
-                            Text(_t('admin_reply'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          controller: replyCtrl,
-                          maxLines: 4,
-                          style: GoogleFonts.poppins(fontSize: 13),
-                          decoration: InputDecoration(
-                            hintText: _t('reply_hint'),
-                            hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.black38),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF0EA5E9))),
-                            contentPadding: const EdgeInsets.all(14),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-
-                        // ── Pilih Gambar Reply ──
-                        GestureDetector(
-                          onTap: () async {
-                            final picked = await ImagePicker().pickImage(
-                              source: ImageSource.gallery,
-                              imageQuality: 70,
-                              maxWidth: 800,
-                            );
-                            if (picked != null) {
-                              final bytes = await picked.readAsBytes();
-                              final ext = picked.name.split('.').last.toLowerCase();
-                              setSheet(() {
-                                localImageBytes = bytes;
-                                localImageExt = ext.isEmpty ? 'jpg' : ext;
-                              });
-                            }
-                          },
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0EA5E9).withValues(alpha:0.06),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFF0EA5E9).withValues(alpha:0.3), style: BorderStyle.solid),
-                            ),
-                            child: localImageBytes != null
-                                ? Column(
-                                    children: [
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.memory(localImageBytes!, height: 120, width: double.infinity, fit: BoxFit.cover),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(_t('pick_image'), style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF0EA5E9))),
-                                    ],
-                                  )
-                                : existReplyImage != null && existReplyImage.isNotEmpty
-                                    ? Column(
-                                        children: [
-                                          ClipRRect(
-                                            borderRadius: BorderRadius.circular(8),
-                                            child: Image.network(existReplyImage, height: 120, width: double.infinity, fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported)),
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(_t('pick_image'), style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF0EA5E9))),
-                                        ],
-                                      )
-                                    : Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(Icons.image_outlined, size: 18, color: Color(0xFF0EA5E9)),
-                                          const SizedBox(width: 8),
-                                          Text(_t('reply_image'), style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF0EA5E9))),
-                                        ],
-                                      ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-
-                        // ── Tombol Kirim Balasan ──
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () async {
-                              final reply = replyCtrl.text.trim();
-                              if (reply.isEmpty) return;
-                              Navigator.pop(ctx2);
-                              await _sendReply(
-                                item['id'] as String,
-                                reply,
-                                imageBytes: localImageBytes,
-                                imageExt: localImageExt,
-                              );
-                            },
-                            icon: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
-                            label: Text(_t('send_reply'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0EA5E9),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _HelpReportDetailScreen(
+          item: item,
+          lang: widget.lang,
+          t: _t,
+          localStatus: _localStatus,
+          localPriority: _localPriority,
+          statusColor: _statusColor,
+          priorityColor: _priorityColor,
+          priorityIcon: _priorityIcon,
+          statusIcon: _statusIcon,
+          onSendReply: _sendReply,
+          onDeleteReply: _deleteReply,
         ),
       ),
     );
   }
-
-  Widget _detailRow(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(width: 90, child: Text(label, style: GoogleFonts.poppins(fontSize: 12, color: Colors.black45, fontWeight: FontWeight.w600))),
-        const Text(': ', style: TextStyle(color: Colors.black45)),
-        Expanded(child: Text(value, style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF1E3A8A), fontWeight: FontWeight.w600))),
-      ],
-    ),
-  );
 
   String _localStatus(String s) {
     switch (s) {
@@ -728,8 +576,25 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     }
   }
 
-  Color _priorityColor(String p) =>
-      p.toLowerCase() == 'fatal' ? const Color(0xFFEF4444) : const Color(0xFF0EA5E9);
+  Color _priorityColor(String p) => p.toLowerCase() == 'fatal' ? const Color(0xFFEF4444) : const Color(0xFF0EA5E9);
+
+  IconData _priorityIcon(String p) =>
+      p.toLowerCase() == 'fatal'
+          ? Icons.warning_amber_rounded
+          : Icons.info_outline_rounded;
+
+  IconData _statusIcon(String s) {
+    switch (s) {
+      case 'Dikirim':
+        return Icons.send_rounded;
+      case 'Dilihat':
+        return Icons.visibility_rounded;
+      case 'Selesai':
+        return Icons.check_circle_rounded;
+      default:
+        return Icons.circle_outlined;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -771,7 +636,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
       ),
       body: Column(
         children: [
-          // ── Search Bar ──
+          // SEARCH BAR
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -785,6 +650,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
               ),
               child: TextField(
                 onChanged: (v) => setState(() => _searchQuery = v),
+                textAlignVertical: TextAlignVertical.center,
                 style: GoogleFonts.poppins(
                     color: const Color(0xFF1E3A8A), fontSize: 14),
                 decoration: InputDecoration(
@@ -794,13 +660,13 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                   prefixIcon: const Icon(Icons.search,
                       color: Colors.black38, size: 20),
                   border: InputBorder.none,
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 12),
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
                 ),
               ),
             ),
           ),
-          // ── Filter Tabs ──
+          // FILTER TABS
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
@@ -891,20 +757,38 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
               }).toList(),
             ),
           ),
-          // ── Count info ──
+          // COUNT INFO
           Padding(
             padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '${_searchFiltered.length} ${_t('report_count')}',
-                style: GoogleFonts.poppins(
-                    color: Colors.black38, fontSize: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha:0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: primaryColor.withValues(alpha:0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.fact_check_rounded, size: 13, color: primaryColor),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${_searchFiltered.length} ${_t('report_count')}',
+                      style: GoogleFonts.poppins(
+                        color: primaryColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          // ── List ──
+          // LIST
           Expanded(
             child: _isLoading
                 ? _buildShimmer()
@@ -930,13 +814,14 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   }
 
   Widget _buildCard(Map<String, dynamic> item) {
-    final signedUrl = item['signed_image_url'] as String?;
-    final priority  = item['priority'] as String? ?? 'Normal';
-    final status    = item['status'] as String? ?? 'Dikirim';
-    final userName  = item['_userName'] as String? ?? '-';
-    final hasReply  = (item['admin_reply'] as String?)?.isNotEmpty == true;
-    final createdAt = item['created_at'] as String?;
-    String dateStr  = '';
+    const primaryColor = Color(0xFF1D72F3);
+    final signedUrl  = item['signed_image_url'] as String?;
+    final priority   = item['priority'] as String? ?? 'Normal';
+    final status     = item['status'] as String? ?? 'Dikirim';
+    final userName   = item['_userName'] as String? ?? '-';
+    final userAvatar = item['_userAvatar'] as String?;
+    final createdAt  = item['created_at'] as String?;
+    String dateStr   = '';
     if (createdAt != null) {
       try { dateStr = DateFormat('d MMM yyyy').format(DateTime.parse(createdAt).toLocal()); } catch (_) {}
     }
@@ -946,16 +831,16 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.06), blurRadius: 12, offset: const Offset(0, 4))],
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.06), blurRadius: 14, offset: const Offset(0, 4))],
           border: Border(left: BorderSide(color: _statusColor(status), width: 4)),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.all(14),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Gambar / Placeholder ──
+              // IMAGE / PLACEHOLDER
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: (signedUrl != null && signedUrl.isNotEmpty)
@@ -965,32 +850,41 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
               ),
               const SizedBox(width: 14),
 
-              // ── Konten Tengah ──
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Judul
+                    // TITLE
                     Text(
                       item['title'] ?? '',
                       style: GoogleFonts.poppins(
-                        fontSize: 14,
+                        fontSize: 14.5,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1E3A8A),
+                        color: primaryColor,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 5),
-                    // Nama user
+                    const SizedBox(height: 8),
+
+                    // REPORTER
                     Row(
                       children: [
-                        const Icon(Icons.person_outline_rounded, size: 13, color: Colors.black45),
-                        const SizedBox(width: 4),
+                        CircleAvatar(
+                          radius: 10,
+                          backgroundColor: primaryColor.withValues(alpha:0.12),
+                          backgroundImage: (userAvatar != null && userAvatar.isNotEmpty)
+                              ? NetworkImage(userAvatar)
+                              : null,
+                          child: (userAvatar == null || userAvatar.isEmpty)
+                              ? Icon(Icons.person_rounded, size: 12, color: primaryColor)
+                              : null,
+                        ),
+                        const SizedBox(width: 7),
                         Expanded(
                           child: Text(
                             userName,
-                            style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
+                            style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black87, fontWeight: FontWeight.w700),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -998,45 +892,52 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // Tags baris pertama: Priority + Status
-                    Row(
+
+                    // PRIORITY & STATUS CARD
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
                       children: [
-                        _tag(_localPriority(priority), _priorityColor(priority)),
-                        const SizedBox(width: 6),
-                        _tag(_localStatus(status), _statusColor(status)),
+                        _tagIcon(_priorityIcon(priority), _localPriority(priority), _priorityColor(priority)),
+                        _tagIcon(_statusIcon(status), _localStatus(status), _statusColor(status)),
                       ],
                     ),
-                    const SizedBox(height: 5),
-                    // Tags baris kedua: Replied + Tanggal
-                    Row(
-                      children: [
-                        if (hasReply) ...[
-                          _tag('✓ ${_t('reply_label')}', const Color(0xFF10B981)),
-                          const SizedBox(width: 6),
-                        ],
-                        Expanded(
-                          child: Text(
+                    const SizedBox(height: 8),
+
+                    // DATE
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.calendar_today_rounded, size: 11, color: Colors.grey.shade500),
+                          const SizedBox(width: 5),
+                          Text(
                             dateStr,
-                            style: GoogleFonts.poppins(fontSize: 11, color: Colors.black38),
+                            style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
 
-              // ── Tombol Hapus ──
+              // DELETE BUTTON
               GestureDetector(
-                onTap: () => _deleteItem(item['id'] as String),
+                onTap: () => _deleteItem(item['id'] as String, item['title'] ?? ''),
                 child: Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEF4444).withValues(alpha:0.10),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.delete_rounded, size: 20, color: Color(0xFFEF4444)),
+                  child: const Icon(Icons.delete_outline_rounded, size: 20, color: Color(0xFFEF4444)),
                 ),
               ),
             ],
@@ -1045,6 +946,22 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
       ),
     );
   }
+
+  Widget _tagIcon(IconData icon, String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha:0.12),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: color),
+        const SizedBox(width: 4),
+        Text(text, style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w600, color: color)),
+      ],
+    ),
+  );
 
   Widget _imgPlaceholder() => Container(
     width: 72, height: 72,
@@ -1055,43 +972,76 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     child: Icon(Icons.flag_outlined, color: Colors.grey.shade400, size: 32),
   );
 
-  Widget _tag(String text, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha:0.12),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(
-      text,
-      style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: color),
-    ),
-  );
+  Widget _buildEmpty() {
+    final isSearching = _searchQuery.isNotEmpty;
+    String titleKey;
+    String descKey;
+    IconData icon;
+    Color color;
 
-  Widget _buildEmpty() => Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0EA5E9).withValues(alpha:0.06),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(Icons.inbox_outlined,
-              size: 56,
-              color: const Color(0xFF0EA5E9).withValues(alpha:0.4)),
+    if (isSearching) {
+      titleKey = 'empty_search_title';
+      descKey = 'empty_search_desc';
+      icon = Icons.search_off_rounded;
+      color = const Color(0xFF64748B);
+    } else if (_filterStatus == _t('sent')) {
+      titleKey = 'empty_sent_title';
+      descKey = 'empty_sent_desc';
+      icon = Icons.send_rounded;
+      color = const Color(0xFF0EA5E9);
+    } else if (_filterStatus == _t('viewed')) {
+      titleKey = 'empty_viewed_title';
+      descKey = 'empty_viewed_desc';
+      icon = Icons.visibility_rounded;
+      color = const Color(0xFFF59E0B);
+    } else if (_filterStatus == _t('completed')) {
+      titleKey = 'empty_completed_title';
+      descKey = 'empty_completed_desc';
+      icon = Icons.check_circle_rounded;
+      color = const Color(0xFF10B981);
+    } else {
+      titleKey = 'empty_all_title';
+      descKey = 'empty_all_desc';
+      icon = Icons.inbox_outlined;
+      color = const Color(0xFF6366F1);
+    }
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 140,
+              errorBuilder: (_, __, ___) => Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha:0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 56, color: color.withValues(alpha:0.5)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _t(titleKey),
+              style: GoogleFonts.poppins(
+                  fontSize: 15, fontWeight: FontWeight.w700, color: color),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _t(descKey),
+              style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black45),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        Text(
-          _t('empty'),
-          style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: Colors.black38,
-              fontWeight: FontWeight.w500),
-        ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 
   Widget _buildShimmer() => ListView.separated(
     padding: const EdgeInsets.all(16),
@@ -1109,4 +1059,565 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
       ),
     ),
   );
+}
+
+class _HelpReportDetailScreen extends StatefulWidget {
+  final Map<String, dynamic> item;
+  final String lang;
+  final String Function(String) t;
+  final String Function(String) localStatus;
+  final String Function(String) localPriority;
+  final Color Function(String) statusColor;
+  final Color Function(String) priorityColor;
+  final IconData Function(String) priorityIcon;
+  final IconData Function(String) statusIcon;
+  final Future<void> Function(String id, String replyText, {Uint8List? imageBytes, String? imageExt}) onSendReply;
+  final Future<void> Function(String id) onDeleteReply;
+
+  const _HelpReportDetailScreen({
+    required this.item,
+    required this.lang,
+    required this.t,
+    required this.localStatus,
+    required this.localPriority,
+    required this.statusColor,
+    required this.priorityColor,
+    required this.priorityIcon,
+    required this.statusIcon,
+    required this.onSendReply,
+    required this.onDeleteReply,
+  });
+
+  @override
+  State<_HelpReportDetailScreen> createState() => _HelpReportDetailScreenState();
+}
+
+class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
+  static const primaryColor = Color(0xFF1D72F3);
+
+  late Map<String, dynamic> _item;
+  late TextEditingController _replyCtrl;
+  Uint8List? _localImageBytes;
+  String? _localImageExt;
+  bool _isEditingReply = false;
+  bool _isSaving = false;
+
+  bool get _hasReply => (_item['admin_reply'] as String?)?.isNotEmpty == true;
+
+  @override
+  void initState() {
+    super.initState();
+    _item = widget.item;
+    _replyCtrl = TextEditingController(text: _item['admin_reply'] as String? ?? '');
+    _isEditingReply = !_hasReply;
+  }
+
+  @override
+  void dispose() {
+    _replyCtrl.dispose();
+    super.dispose();
+  }
+
+  String _t(String key) => widget.t(key);
+
+  void _openImageViewer(String url) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha:0.95),
+        pageBuilder: (_, __, ___) => _FullImageViewer(imageUrl: url, closeLabel: _t('close_image')),
+      ),
+    );
+  }
+
+  Future<void> _handleSendReply() async {
+    final reply = _replyCtrl.text.trim();
+    if (reply.isEmpty) {
+      RequiredFieldAlert.show(
+        context,
+        lang: widget.lang,
+        missingFields: [
+          MissingFieldItem(icon: Icons.reply_rounded, label: _t('reply_required')),
+        ],
+      );
+      return;
+    }
+    setState(() => _isSaving = true);
+    await widget.onSendReply(_item['id'] as String, reply, imageBytes: _localImageBytes, imageExt: _localImageExt);
+    if (!mounted) return;
+    setState(() {
+      _item['admin_reply'] = reply;
+      _item['status'] = 'Selesai';
+      _item['replied_at'] = DateTime.now().toUtc().toIso8601String();
+      _localImageBytes = null;
+      _localImageExt = null;
+      _isEditingReply = false;
+      _isSaving = false;
+    });
+  }
+
+  Future<void> _handleDeleteReply() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80, height: 80,
+                decoration: const BoxDecoration(color: Color(0xFFFFEBEB), shape: BoxShape.circle),
+                child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFEF4444), size: 38),
+              ),
+              const SizedBox(height: 20),
+              Text(_t('delete_reply_confirm'),
+                  style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(_t('delete_reply_desc'),
+                  style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF64748B), height: 1.5),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context, true),
+                  icon: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 18),
+                  label: Text(_t('delete'), style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(_t('cancel'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF64748B))),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+    await widget.onDeleteReply(_item['id'] as String);
+    if (!mounted) return;
+    setState(() {
+      _item['admin_reply'] = null;
+      _item['replied_at'] = null;
+      _item['admin_reply_image'] = null;
+      _item['status'] = 'Dilihat';
+      _replyCtrl.clear();
+      _localImageBytes = null;
+      _localImageExt = null;
+      _isEditingReply = true;
+    });
+  }
+
+  void _startEditReply() {
+    setState(() {
+      _replyCtrl.text = _item['admin_reply'] as String? ?? '';
+      _isEditingReply = true;
+    });
+  }
+
+  Widget _infoCard({required List<Widget> children}) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.black.withValues(alpha:0.06)),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.04), blurRadius: 12, offset: const Offset(0, 4))],
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+  );
+
+  Widget _detailRow(IconData icon, String label, String value, Color color, {bool isLast = false}) => Padding(
+    padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(color: color.withValues(alpha:0.1), borderRadius: BorderRadius.circular(9)),
+          child: Icon(icon, size: 15, color: color),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(width: 80, child: Text(label, style: GoogleFonts.poppins(fontSize: 12, color: Colors.black45, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(value, style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w600))),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final item = _item;
+    final signedUrl  = item['signed_image_url'] as String?;
+    final userName   = item['_userName'] as String? ?? '-';
+    final userAvatar = item['_userAvatar'] as String?;
+    final userIdJabatan = item['_userIdJabatan'] as int?;
+    final userIsVerificator = item['_userIsVerificator'] as bool?;
+    final userJabatanNama = item['_userJabatanNama'] as String?;
+    final status     = item['status'] as String? ?? 'Dikirim';
+    final createdAt  = item['created_at'] as String?;
+    final repliedAt  = item['replied_at'] as String?;
+    final existReply = item['admin_reply'] as String? ?? '';
+    final existReplyImage = item['admin_reply_image'] as String?;
+
+    String dateStr = '-', repliedStr = '-';
+    if (createdAt != null) {
+      try { dateStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(createdAt).toLocal()); } catch (_) {}
+    }
+    if (repliedAt != null) {
+      try { repliedStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(repliedAt).toLocal()); } catch (_) {}
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded, color: primaryColor),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(_t('view_detail'), style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: primaryColor, fontSize: 16)),
+        bottom: PreferredSize(preferredSize: const Size.fromHeight(1), child: Container(height: 1, color: Colors.black.withValues(alpha:0.06))),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          if (signedUrl != null && signedUrl.isNotEmpty)
+            GestureDetector(
+              onTap: () => _openImageViewer(signedUrl),
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(signedUrl, height: 200, width: double.infinity, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(height: 200, color: Colors.grey.shade100, child: const Icon(Icons.image_not_supported, size: 48, color: Colors.black26))),
+                  ),
+                  Positioned(
+                    right: 10, bottom: 10,
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(color: Colors.black.withValues(alpha:0.55), shape: BoxShape.circle),
+                      child: const Icon(Icons.zoom_out_map_rounded, size: 16, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 18),
+          Text(item['title'] ?? '', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: primaryColor)),
+          const SizedBox(height: 16),
+
+          // REPORTER INFO CARD
+          _infoCard(children: [
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: primaryColor.withValues(alpha:0.1), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.info_outline_rounded, size: 15, color: primaryColor),
+              ),
+              const SizedBox(width: 8),
+              Text(_t('reporter'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: primaryColor)),
+            ]),
+            const SizedBox(height: 14),
+            Row(children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: primaryColor.withValues(alpha:0.1),
+                backgroundImage: (userAvatar != null && userAvatar.isNotEmpty) ? NetworkImage(userAvatar) : null,
+                child: (userAvatar == null || userAvatar.isEmpty) ? const Icon(Icons.person_rounded, color: primaryColor, size: 22) : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(userName, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black87)),
+                  if (userJabatanNama != null && userJabatanNama.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    buildJabatanBadge(idJabatan: userIdJabatan, jabatanNama: userJabatanNama, isVerificator: userIsVerificator, lang: widget.lang),
+                  ],
+                ]),
+              ),
+            ]),
+          ]),
+          const SizedBox(height: 14),
+
+          // DATE, PRIORITY, STATUS, REPLIED CARD
+          _infoCard(children: [
+            _detailRow(Icons.calendar_today_rounded, _t('date'), dateStr, primaryColor),
+            _detailRow(widget.priorityIcon(item['priority'] ?? ''), _t('priority'), widget.localPriority(item['priority'] ?? ''), widget.priorityColor(item['priority'] ?? '')),
+            _detailRow(widget.statusIcon(status), _t('status'), widget.localStatus(status), widget.statusColor(status), isLast: existReply.isEmpty),
+            if (existReply.isNotEmpty)
+              _detailRow(Icons.mark_email_read_rounded, _t('replied_at'), repliedStr, const Color(0xFF10B981), isLast: true),
+          ]),
+          const SizedBox(height: 14),
+
+          // DESCRIPTION
+          _infoCard(children: [
+            Row(children: [
+              const Icon(Icons.description_rounded, size: 15, color: primaryColor),
+              const SizedBox(width: 8),
+              Text(_t('description'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: primaryColor)),
+            ]),
+            const SizedBox(height: 10),
+            Text(
+              (item['description'] as String?)?.isNotEmpty == true ? item['description'] : _t('no_desc'),
+              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87, height: 1.5),
+            ),
+          ]),
+
+          const SizedBox(height: 20),
+          Container(height: 1, color: Colors.grey.shade200),
+          const SizedBox(height: 20),
+
+          // ADMIN REPLY
+          Row(children: [
+            const Icon(Icons.reply_rounded, size: 16, color: primaryColor),
+            const SizedBox(width: 6),
+            Text(_t('admin_reply'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: primaryColor)),
+            const SizedBox(width: 3),
+            Text('*', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFFEF4444))),
+          ]),
+          const SizedBox(height: 10),
+
+          if (_hasReply && !_isEditingReply) ...[
+            // REPLY VIEW MODE
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha:0.06),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFF10B981).withValues(alpha:0.25)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(existReply, style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87, height: 1.5)),
+                if (existReplyImage != null && existReplyImage.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: () => _openImageViewer(existReplyImage),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(existReplyImage, height: 140, width: double.infinity, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported)),
+                    ),
+                  ),
+                ],
+              ]),
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _startEditReply,
+                  icon: const Icon(Icons.edit_rounded, size: 15, color: primaryColor),
+                  label: Text(_t('edit_reply'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12.5, color: primaryColor)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: primaryColor),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _handleDeleteReply,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 15, color: Color(0xFFEF4444)),
+                  label: Text(_t('delete_reply'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12.5, color: const Color(0xFFEF4444))),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFEF4444)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ]),
+          ] else ...[
+            // EDIT MODE / NEW REPLY
+            TextField(
+              controller: _replyCtrl,
+              maxLines: 4,
+              style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
+              decoration: InputDecoration(
+                hintText: _t('reply_hint'),
+                hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.black38),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: primaryColor)),
+                contentPadding: const EdgeInsets.all(14),
+              ),
+            ),
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: () async {
+                final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 800);
+                if (picked != null) {
+                  final bytes = await picked.readAsBytes();
+                  final ext = picked.name.split('.').last.toLowerCase();
+                  setState(() {
+                    _localImageBytes = bytes;
+                    _localImageExt = ext.isEmpty ? 'jpg' : ext;
+                  });
+                }
+              },
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha:0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: primaryColor.withValues(alpha:0.3)),
+                ),
+                child: _localImageBytes != null
+                    ? Column(children: [
+                        ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory(_localImageBytes!, height: 120, width: double.infinity, fit: BoxFit.cover)),
+                        const SizedBox(height: 8),
+                        Text(_t('pick_image'), style: GoogleFonts.poppins(fontSize: 12, color: primaryColor)),
+                      ])
+                    : existReplyImage != null && existReplyImage.isNotEmpty
+                        ? Column(children: [
+                            ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(existReplyImage, height: 120, width: double.infinity, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported))),
+                            const SizedBox(height: 8),
+                            Text(_t('pick_image'), style: GoogleFonts.poppins(fontSize: 12, color: primaryColor)),
+                          ])
+                        : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            const Icon(Icons.image_outlined, size: 18, color: primaryColor),
+                            const SizedBox(width: 8),
+                            Text(_t('reply_image'), style: GoogleFonts.poppins(fontSize: 12, color: primaryColor)),
+                          ]),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(children: [
+              if (_hasReply) ...[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isSaving ? null : () => setState(() {
+                      _isEditingReply = false;
+                      _replyCtrl.text = existReply;
+                      _localImageBytes = null;
+                      _localImageExt = null;
+                    }),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(_t('cancel'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _handleSendReply,
+                  icon: _isSaving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.send_rounded, size: 16, color: Colors.white),
+                  label: Text(_hasReply ? _t('edit_reply') : _t('send_reply'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ]),
+          ],
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+}
+
+class _FullImageViewer extends StatelessWidget {
+  final String? imageUrl;
+  final Uint8List? imageBytes;
+  final String closeLabel;
+
+  // ignore: unused_element_parameter
+  const _FullImageViewer({this.imageUrl, this.imageBytes, required this.closeLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(color: Colors.black.withValues(alpha:0.001)),
+            ),
+          ),
+          Center(
+            child: InteractiveViewer(
+              minScale: 0.8,
+              maxScale: 4,
+              child: imageBytes != null
+                  ? Image.memory(imageBytes!, fit: BoxFit.contain)
+                  : Image.network(
+                      imageUrl!,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+                    ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                        const SizedBox(width: 6),
+                        Text(closeLabel, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
