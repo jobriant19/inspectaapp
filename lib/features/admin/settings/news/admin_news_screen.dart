@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../../../core/services/fcm_v1_service.dart';
 import '../../../user/account/news_detail_screen.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'admin_add_news.dart';
 
 class AdminNewsScreen extends StatefulWidget {
   final String lang;
@@ -21,11 +19,14 @@ class AdminNewsScreen extends StatefulWidget {
 class _AdminNewsScreenState extends State<AdminNewsScreen> {
   static const _bg = Color(0xFFF8FAFC);
   static const _primary = Color(0xFFF59E0B);
+  static const _addColor = Color(0xFF1D72F3);
 
   List<Map<String, dynamic>> _data = [];
   bool _isLoading = true;
   String _filterType = 'all';
   String _searchQuery = '';
+  int _currentPage = 1;
+  static const int _perPage = 10;
 
   @override
   void initState() {
@@ -108,7 +109,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       context,
       MaterialPageRoute(
         fullscreenDialog: true,
-        builder: (_) => _NewsFormPage(
+        builder: (_) => AdminAddNewsScreen(
           lang: widget.lang,
           item: item,
           onSave: ({
@@ -162,7 +163,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     String? existingImageUrl,
     required int displayDurationDays,
   }) async {
-    // Tampilkan loading dialog di tengah layar
     if (mounted) _showLoadingDialog();
 
     String? finalImageUrl = existingImageUrl;
@@ -172,7 +172,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       if (uploaded != null) {
         finalImageUrl = uploaded;
       } else {
-        if (mounted) Navigator.of(context, rootNavigator: true).pop(); // tutup loading
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
         if (mounted) {
           _showResultDialog(
             isSuccess: false,
@@ -222,10 +222,8 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         debugPrint('UPDATE result: $updateResult');
       }
 
-      // Tutup loading dialog
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
-      // Kirim push notif hanya saat INSERT
       if (existing == null) {
         _sendNewsNotification(
           type: type,
@@ -235,13 +233,10 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         );
       }
 
-      // Hapus seen record news ini agar semua user melihat popup lagi
       if (savedId != null) await _clearSeenNewsCache(newsId: savedId);
 
-      // Reload list
       _load();
 
-      // Tampilkan success dialog
       if (mounted) {
         _showSaveSuccessDialog(
           message: existing == null
@@ -258,7 +253,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         );
       }
     } catch (e) {
-      // Tutup loading dialog
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       debugPrint('SAVE ERROR: $e');
       if (mounted) {
@@ -293,7 +287,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     required String titleZh,
   }) async {
     try {
-      // Ambil SEMUA user — tanpa filter tambahan agar tidak ada yang terlewat
       final List<dynamic> users = await Supabase.instance.client
           .from('User')
           .select('id_user, fcm_token');
@@ -303,14 +296,13 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         return;
       }
 
-      // Filter manual di Dart: hanya yang punya fcm_token tidak null dan tidak kosong
       final tokens = users
           .where((u) {
             final t = u['fcm_token'];
             return t != null && t.toString().trim().isNotEmpty;
           })
           .map((u) => u['fcm_token'].toString().trim())
-          .toSet() // deduplicate
+          .toSet()
           .toList();
 
       debugPrint('📱 Users total: ${users.length}, with FCM token: ${tokens.length}');
@@ -468,8 +460,10 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       backgroundColor: _bg,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFFF59E0B),
+        foregroundColor: _addColor,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded),
@@ -480,12 +474,12 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
           style: GoogleFonts.poppins(
               fontWeight: FontWeight.w700,
               fontSize: 16,
-              color: const Color(0xFFF59E0B)),
+              color: _addColor),
         ),
       ),
       body: Column(
         children: [
-          // ── Banner Add ──
+          // ADD NEWS
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -496,14 +490,14 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [_primary, _primary.withValues(alpha:0.75)],
+                    colors: [_addColor, _addColor.withValues(alpha:0.75)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                        color: _primary.withValues(alpha:0.35),
+                        color: _addColor.withValues(alpha:0.35),
                         blurRadius: 12,
                         offset: const Offset(0, 4)),
                   ],
@@ -542,8 +536,9 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                                     ? '点击以添加新文章'
                                     : 'Ketuk untuk menambah berita baru',
                             style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                color: Colors.white.withValues(alpha:0.85)),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withValues(alpha:0.95)),
                           ),
                         ],
                       ),
@@ -555,7 +550,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
               ),
             ),
           ),
-          // ── Search ──
+          // SEARCH BAR
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -567,7 +562,11 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                 border: Border.all(color: Colors.black.withValues(alpha:0.08)),
               ),
               child: TextField(
-                onChanged: (v) => setState(() => _searchQuery = v),
+                onChanged: (v) => setState(() {
+                  _searchQuery = v;
+                  _currentPage = 1;
+                }),
+                textAlignVertical: TextAlignVertical.center,
                 style: GoogleFonts.poppins(
                     color: const Color(0xFF1E3A8A), fontSize: 14),
                 decoration: InputDecoration(
@@ -581,13 +580,14 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                   prefixIcon: const Icon(Icons.search,
                       color: Colors.black38, size: 20),
                   border: InputBorder.none,
+                  isDense: true,
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ),
           ),
-          // ── Filter ──
+          // FILTER
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
@@ -611,63 +611,143 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                 Expanded(
                     child: _filterPill(
                         'maintenance',
-                        widget.lang == 'EN' ? 'Maint.' : 'Maint.',
+                        widget.lang == 'ZH' ? '维护' : 'Maintenance',
                         const Color(0xFFF59E0B),
                         Icons.build_rounded)),
               ],
             ),
           ),
-          // ── Count ──
+          // COUNT
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '${_filteredWithSearch.length} ${widget.lang == 'EN' ? 'articles' : widget.lang == 'ZH' ? '篇文章' : 'berita'}',
-                style: GoogleFonts.poppins(
-                    color: Colors.black38, fontSize: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _addColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _addColor.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.article_rounded, size: 14, color: _addColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${_filteredWithSearch.length} ${widget.lang == 'EN' ? 'articles' : widget.lang == 'ZH' ? '篇文章' : 'berita'}',
+                      style: GoogleFonts.poppins(
+                        color: _addColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          // ── List ──
+          // LIST
           Expanded(
-            child: _isLoading
-                ? _buildShimmer()
-                : _filteredWithSearch.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.campaign_outlined,
-                                size: 56, color: Colors.black12),
-                            const SizedBox(height: 12),
-                            Text(
-                              widget.lang == 'EN'
-                                  ? 'No news yet'
-                                  : widget.lang == 'ZH'
-                                      ? '暂无新闻'
-                                      : 'Belum ada berita',
-                              style: GoogleFonts.poppins(
-                                  color: Colors.black38),
-                            ),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        color: _primary,
-                        child: ListView.separated(
-                          padding:
-                              const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                          itemCount: _filteredWithSearch.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (_, i) =>
-                              _buildNewsCard(_filteredWithSearch[i]),
-                        ),
+            child: Builder(
+              builder: (context) {
+                final filtered = _filteredWithSearch;
+                final totalPages = filtered.isEmpty
+                    ? 1
+                    : (filtered.length / _perPage).ceil();
+                final safePage = _currentPage.clamp(1, totalPages);
+                final startIdx = (safePage - 1) * _perPage;
+                final endIdx = (startIdx + _perPage) > filtered.length
+                    ? filtered.length
+                    : startIdx + _perPage;
+                final pageData = filtered.isEmpty
+                    ? <Map<String, dynamic>>[]
+                    : filtered.sublist(startIdx, endIdx);
+
+                return Column(
+                  children: [
+                    Expanded(
+                      child: _isLoading
+                          ? _buildShimmer()
+                          : filtered.isEmpty
+                              ? _buildEmptyNewsState()
+                              : RefreshIndicator(
+                                  onRefresh: _load,
+                                  color: _primary,
+                                  child: ListView.separated(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 4, 16, 16),
+                                    itemCount: pageData.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 10),
+                                    itemBuilder: (_, i) =>
+                                        _buildNewsCard(pageData[i]),
+                                  ),
+                                ),
+                    ),
+                    if (!_isLoading && totalPages > 1)
+                      _AdminNewsPageIndicator(
+                        currentPage: safePage,
+                        totalPages: totalPages,
+                        onPageChanged: (p) =>
+                            setState(() => _currentPage = p),
                       ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyNewsState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 140,
+              errorBuilder: (_, __, ___) => Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: _addColor.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.campaign_outlined,
+                    size: 56, color: _addColor.withValues(alpha: 0.5)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              widget.lang == 'EN'
+                  ? 'No News Yet'
+                  : widget.lang == 'ZH'
+                      ? '暂无新闻'
+                      : 'Belum Ada Berita',
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _addColor,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.lang == 'EN'
+                  ? 'Tap "Add New Article" above to publish your first news.'
+                  : widget.lang == 'ZH'
+                      ? '点击上方"添加新文章"发布您的第一条新闻。'
+                      : 'Ketuk "Tambah Berita Baru" di atas untuk membuat berita pertama Anda.',
+              style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black45),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -676,7 +756,10 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       String type, String label, Color color, IconData icon) {
     final isActive = _filterType == type;
     return GestureDetector(
-      onTap: () => setState(() => _filterType = type),
+      onTap: () => setState(() {
+        _filterType = type;
+        _currentPage = 1;
+      }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding:
@@ -703,14 +786,16 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
             Icon(icon, size: 13, color: isActive ? Colors.white : color),
             const SizedBox(width: 5),
             Flexible(
-              child: Text(
-                label,
-                style: GoogleFonts.poppins(
-                    color: isActive ? Colors.white : color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                      color: isActive ? Colors.white : color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                ),
               ),
             ),
           ],
@@ -733,11 +818,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         : widget.lang == 'EN'
             ? 'title_en'
             : 'title_id';
-    final String contentKey = widget.lang == 'ZH'
-        ? 'content_zh'
-        : widget.lang == 'EN'
-            ? 'content_en'
-            : 'content_id';
 
     final date = item['published_at']?.toString() ?? '';
     final String? imageUrl = item['image_url'];
@@ -752,122 +832,136 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.black.withValues(alpha:0.06)),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withValues(alpha:0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2)),
+                color: Colors.black.withValues(alpha:0.06),
+                blurRadius: 14,
+                offset: const Offset(0, 4)),
           ],
+          border: Border(left: BorderSide(color: color, width: 4)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Thumbnail gambar (jika ada) ──
-            if (imageUrl != null && imageUrl.isNotEmpty)
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // THUMBNAIL
               ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(16)),
-                child: Image.network(
-                  imageUrl,
-                  width: double.infinity,
-                  height: 130,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
+                borderRadius: BorderRadius.circular(12),
+                child: (imageUrl != null && imageUrl.isNotEmpty)
+                    ? Image.network(
+                        imageUrl,
+                        width: 72,
+                        height: 72,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _newsImgPlaceholder(color, icon),
+                      )
+                    : _newsImgPlaceholder(color, icon),
               ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                        color: color.withValues(alpha:0.10),
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Icon(icon, color: color, size: 18),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item[titleKey] ?? '-',
-                          style: GoogleFonts.poppins(
-                              color: const Color(0xFF1E3A8A),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                  color: color.withValues(alpha:0.10),
-                                  borderRadius: BorderRadius.circular(6)),
-                              child: Text(
-                                isUpdate ? 'Update' : 'Maintenance',
-                                style: GoogleFonts.poppins(
-                                    color: color,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(Icons.calendar_today_rounded,
-                                size: 11, color: Colors.black38),
-                            const SizedBox(width: 3),
-                            Text(date,
-                                style: GoogleFonts.poppins(
-                                    color: Colors.black38, fontSize: 11)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    children: [
-                      _iconBtn(Icons.edit_outlined,
-                          const Color(0xFF6366F1),
-                          () => _showFormDialog(item: item)),
-                      const SizedBox(height: 6),
-                      _iconBtn(Icons.delete_outline_rounded,
-                          const Color(0xFFEF4444),
-                          () => _deleteNews(item['id'])),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if ((item[contentKey] ?? '').isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              const SizedBox(width: 14),
+
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Divider(color: Colors.grey.shade100, height: 1),
-                    const SizedBox(height: 8),
+                    // TITLE
                     Text(
-                      item[contentKey] ?? '',
+                      item[titleKey] ?? '-',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1D72F3),
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                          color: Colors.black45, fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // TYPE & DATE TAG
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha:0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(icon, size: 11, color: color),
+                              const SizedBox(width: 4),
+                              Text(
+                                isUpdate ? 'Update' : 'Maintenance',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: color),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.calendar_today_rounded,
+                                  size: 11, color: Colors.grey.shade500),
+                              const SizedBox(width: 5),
+                              Text(date,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-          ],
+              const SizedBox(width: 8),
+
+              // EDIT & DELETE
+              Column(
+                children: [
+                  _iconBtn(Icons.edit_outlined,
+                      const Color(0xFF2563EB),
+                      () => _showFormDialog(item: item)),
+                  const SizedBox(height: 6),
+                  _iconBtn(Icons.delete_outline_rounded,
+                      const Color(0xFFEF4444),
+                      () => _deleteNews(item['id'])),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+
+  Widget _newsImgPlaceholder(Color color, IconData icon) => Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha:0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: color, size: 30),
+      );
 
   Widget _iconBtn(IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(
@@ -899,9 +993,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // POP UP LOADING — muncul saat proses simpan ke database
-  // ─────────────────────────────────────────────
   void _showLoadingDialog() {
     if (!mounted) return;
     showGeneralDialog(
@@ -973,9 +1064,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // POP UP NOTIFIKASI TENGAH LAYAR (berhasil/gagal)
-  // ─────────────────────────────────────────────
   void _showResultDialog({required bool isSuccess, required String message}) {
     if (!mounted) return;
     showGeneralDialog(
@@ -996,7 +1084,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         );
       },
       pageBuilder: (ctx, _, __) {
-        // Auto close setelah 2.5 detik
         Future.delayed(const Duration(milliseconds: 2500), () {
           if (ctx.mounted && Navigator.of(ctx).canPop()) {
             Navigator.of(ctx).pop();
@@ -1042,7 +1129,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ── Ikon lingkaran ──
                   Container(
                     width: 80,
                     height: 80,
@@ -1055,7 +1141,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     child: Icon(icon, color: primary, size: 44),
                   ),
                   const SizedBox(height: 18),
-                  // ── Judul ──
+                  // TITLE
                   Text(
                     title,
                     style: GoogleFonts.poppins(
@@ -1065,7 +1151,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  // ── Pesan ──
+                  // MESSAGE
                   Text(
                     message,
                     textAlign: TextAlign.center,
@@ -1076,7 +1162,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // ── Progress bar auto-close ──
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: TweenAnimationBuilder<double>(
@@ -1100,10 +1185,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // POP UP SUKSES SIMPAN — style seperti konfirmasi hapus
-  // Auto close 2.5 detik lalu kembali ke list
-  // ─────────────────────────────────────────────
   void _showSaveSuccessDialog({required String message}) {
     if (!mounted) return;
     showGeneralDialog(
@@ -1124,12 +1205,11 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
         );
       },
       pageBuilder: (ctx, _, __) {
-        // Auto close + reload list setelah 2.5 detik
         Future.delayed(const Duration(milliseconds: 2500), () {
           if (ctx.mounted && Navigator.of(ctx).canPop()) {
             Navigator.of(ctx).pop();
           }
-          _load(); // refresh list berita
+          _load();
         });
 
         return Center(
@@ -1153,7 +1233,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ── Ikon lingkaran hijau ──
                   Container(
                     width: 80,
                     height: 80,
@@ -1168,7 +1247,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                         color: Color(0xFF16A34A), size: 44),
                   ),
                   const SizedBox(height: 18),
-                  // ── Judul ──
+                  // SAVED
                   Text(
                     widget.lang == 'EN'
                         ? 'Saved!'
@@ -1182,7 +1261,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  // ── Pesan ──
+                  // MESSAGE
                   Text(
                     message,
                     textAlign: TextAlign.center,
@@ -1193,7 +1272,6 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // ── Progress bar auto-close ──
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: TweenAnimationBuilder<double>(
@@ -1210,7 +1288,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  // ── Tombol OK manual ──
+                  // OK BUTTON
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -1262,928 +1340,148 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
   }
 }
 
-// ============================================================
-// TYPEDEF CALLBACK SAVE
-// ============================================================
-typedef _SaveNewsCallback = Future<void> Function({
-  required Map<String, dynamic>? existing,
-  required String type,
-  required DateTime publishedAt,
-  required String titleId,
-  required String titleEn,
-  required String titleZh,
-  required String contentId,
-  required String contentEn,
-  required String contentZh,
-  Uint8List? imageBytes,
-  String? imageExt,
-  String? existingImageUrl,
-  required int displayDurationDays,
-});
+class _AdminNewsPageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final ValueChanged<int> onPageChanged;
 
-// ============================================================
-// FULL SCREEN FORM PAGE
-// ============================================================
-class _NewsFormPage extends StatefulWidget {
-  final String lang;
-  final Map<String, dynamic>? item;
-  final _SaveNewsCallback onSave;
-
-  const _NewsFormPage({
-    required this.lang,
-    required this.item,
-    required this.onSave,
+  const _AdminNewsPageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.onPageChanged,
   });
 
-  @override
-  State<_NewsFormPage> createState() => _NewsFormPageState();
-}
+  static const Color _mainColor = Color(0xFF1D72F3);
+  static const int _maxVisibleButtons = 5;
 
-class _NewsFormPageState extends State<_NewsFormPage> {
-  static const _primary = Color(0xFFF59E0B);
-
-  bool get _isEdit => widget.item != null;
-
-  final _titleCtrl   = TextEditingController();
-  final _contentCtrl = TextEditingController();
-  final _durationCtrl = TextEditingController(text: '7');
-
-  String _selectedType = 'update';
-  DateTime _selectedDate = DateTime.now();
-
-  Uint8List? _pickedImageBytes;
-  String? _pickedImageExt;
-  String? _existingImageUrl;
-
-  bool _isTranslating = false;
-  bool _isSaving = false;
-
-  // Hasil translate
-  String? _titleId, _titleEn, _titleZh;
-  String? _contentId, _contentEn, _contentZh;
-
-  @override
-  void initState() {
-    super.initState();
-    final d = widget.item;
-    if (d != null) {
-      _selectedType = (d['type'] ?? 'update').toString().toLowerCase();
-      _selectedDate = d['published_at'] != null
-          ? DateTime.tryParse(d['published_at'].toString()) ?? DateTime.now()
-          : DateTime.now();
-      _durationCtrl.text = (d['display_duration_days'] ?? 7).toString();
-      _existingImageUrl = d['image_url'];
-
-      // Isi field dengan konten bahasa Inggris sebagai default edit
-      _titleCtrl.text   = d['title_en'] ?? d['title_id'] ?? '';
-      _contentCtrl.text = d['content_en'] ?? d['content_id'] ?? '';
-
-      // Simpan terjemahan yang sudah ada
-      _titleId   = d['title_id'];
-      _titleEn   = d['title_en'];
-      _titleZh   = d['title_zh'];
-      _contentId = d['content_id'];
-      _contentEn = d['content_en'];
-      _contentZh = d['content_zh'];
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
     }
-  }
-
-  @override
-  void dispose() {
-    _titleCtrl.dispose();
-    _contentCtrl.dispose();
-    _durationCtrl.dispose();
-    super.dispose();
-  }
-
-  // ── Auto-translate via MyMemory API (free, no key, no limit) ──
-  Future<String> _translateText(String text, String langPair) async {
-    if (text.trim().isEmpty) return text;
-    try {
-      // MyMemory: gunakan zh-CN untuk Mandarin
-      final normalizedPair = langPair
-          .replaceAll('|zh', '|zh-CN')
-          .replaceAll('zh|', 'zh-CN|');
-      final uri = Uri.parse(
-        'https://api.mymemory.translated.net/get'
-        '?q=${Uri.encodeComponent(text)}&langpair=$normalizedPair',
-      );
-      final res = await http.get(uri).timeout(const Duration(seconds: 20));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final translated =
-            data['responseData']?['translatedText']?.toString() ?? '';
-        if (translated.isEmpty ||
-            translated.toUpperCase().startsWith('MYMEMORY WARNING') ||
-            translated.toUpperCase().startsWith('PLEASE')) {
-          return text; // fallback ke original
-        }
-        return translated;
-      }
-      return text;
-    } catch (_) {
-      return text;
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
     }
-  }
-
-  // Deteksi bahasa: ZH jika ada karakter CJK,
-  // ID jika ada kata-kata Indonesia umum (minimal 1 kata),
-  // EN sebagai default
-  String _detectLang(String text) {
-    if (text.trim().isEmpty) return 'id'; // default ID karena app berbahasa Indonesia
-
-    // Cek karakter CJK → Mandarin
-    if (RegExp(r'[\u4e00-\u9fff\u3400-\u4dbf]').hasMatch(text)) return 'zh';
-
-    // Cek karakter non-Latin lain (Arab, Cyrillic, dll) → fallback EN
-    if (RegExp(r'[^\x00-\x7F]').hasMatch(text) &&
-        !RegExp(r'[\u4e00-\u9fff]').hasMatch(text)) { return 'en';}
-
-    final lower = text.toLowerCase().trim();
-    final words = lower.split(RegExp(r'[\s\.,!?;:()\-]+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
-
-    // Kata-kata khas Inggris yang TIDAK ada dalam bahasa Indonesia
-    final enStrongWords = {
-      'the', 'this', 'that', 'these', 'those', 'is', 'are', 'was', 'were',
-      'have', 'has', 'had', 'will', 'would', 'could', 'should', 'may', 'might',
-      'shall', 'must', 'do', 'does', 'did', 'been', 'being', 'be',
-      'we', 'our', 'your', 'their', 'his', 'her', 'its', 'my',
-      'please', 'thank', 'thanks', 'hello', 'hi', 'dear',
-      'new', 'update', 'version', 'release', 'feature', 'fix', 'bug',
-      'maintenance', 'scheduled', 'upgrade', 'improvement', 'enhancement',
-      'system', 'server', 'service', 'access', 'user', 'password',
-      'available', 'currently', 'support', 'contact', 'information',
-      'notice', 'important', 'urgent', 'downtime', 'outage',
-      'completed', 'resolved', 'ongoing', 'planned',
-    };
-
-    // Kata-kata khas Indonesia (termasuk kata pendek dan umum)
-    final idStrongWords = {
-      // Kata pendek umum
-      'judul', 'isi', 'dan', 'yang', 'di', 'ke', 'dari', 'untuk', 'dengan',
-      'pada', 'adalah', 'ini', 'itu', 'tidak', 'ada', 'juga', 'sudah',
-      'akan', 'bisa', 'karena', 'saat', 'kami', 'anda', 'telah',
-      'dapat', 'atau', 'kita', 'mereka', 'saya', 'dia', 'nya',
-      // Kata berita/teknologi Indonesia
-      'berita', 'kabar', 'terbaru', 'pembaruan', 'pemeliharaan', 'perbaikan',
-      'fitur', 'versi', 'rilis', 'aplikasi', 'sistem', 'layanan', 'server',
-      'pengguna', 'sandi', 'akses', 'tersedia', 'sedang', 'selesai',
-      'dijadwalkan', 'gangguan', 'pemberitahuan', 'penting', 'mendesak',
-      'konten', 'tampilan', 'halaman', 'data', 'jaringan', 'koneksi',
-      // Kata umum lainnya
-      'namun', 'tetapi', 'bahwa', 'jika', 'maka', 'agar', 'supaya',
-      'oleh', 'kepada', 'tentang', 'antara', 'setiap', 'semua', 'beberapa',
-      'tersebut', 'sehingga', 'selain', 'seluruh', 'dalam', 'lain',
-      'apabila', 'setelah', 'sebelum', 'ketika', 'lebih', 'sangat',
-      'harus', 'belum', 'baru', 'lagi', 'masih', 'pula',
-      // Awalan/akhiran khas Indonesia yang berdiri sendiri sebagai kata
-      'menggunakan', 'melakukan', 'memberikan', 'meningkatkan', 'menambahkan',
-      'menghapus', 'mengubah', 'memperbarui', 'memperbaiki', 'menyelesaikan',
-      'dilakukan', 'diberikan', 'ditambahkan', 'diperbarui', 'diperbaiki',
-      'penggunaan', 'pelayanan', 'penyimpanan', 'pengiriman',
-    };
-
-    int enScore = 0;
-    int idScore = 0;
-
-    for (final word in words) {
-      if (enStrongWords.contains(word)) enScore += 2;
-      if (idStrongWords.contains(word)) idScore += 2;
-    }
-
-    // Cek awalan khas Indonesia (me-, ber-, pe-, ke-, ter-, se-)
-    for (final word in words) {
-      if (word.length > 4) {
-        if (word.startsWith('me') || word.startsWith('ber') ||
-            word.startsWith('pe') || word.startsWith('ke') ||
-            word.startsWith('ter') || word.startsWith('se') ||
-            word.startsWith('di') || word.endsWith('kan') ||
-            word.endsWith('nya') || word.endsWith('lah') ||
-            word.endsWith('pun') || word.endsWith('an')) {
-          idScore += 1;
-        }
-      }
-    }
-
-    debugPrint('🔍 Lang detect: enScore=$enScore idScore=$idScore words=$words');
-
-    if (idScore > enScore) return 'id';
-    if (enScore > idScore) return 'en';
-
-    // Jika skor sama (teks ambigu/pendek/random) → default ID
-    // karena admin menggunakan bahasa Indonesia
-    return 'id';
-  }
-
-  Future<bool> _autoTranslate() async {
-    final title   = _titleCtrl.text.trim();
-    final content = _contentCtrl.text.trim();
-
-    if (title.isEmpty) return false;
-
-    try {
-      final sourceLang = _detectLang(title.isNotEmpty ? title : content);
-      debugPrint('🌐 Detected lang: $sourceLang for title: "$title"');
-
-      // Tentukan pasangan translate berdasarkan bahasa sumber
-      // Index: [0]=ID, [1]=EN, [2]=ZH
-      String pairToId, pairToEn, pairToZh;
-      switch (sourceLang) {
-        case 'id':
-          pairToId = '';       // sudah ID — tidak perlu translate
-          pairToEn = 'id|en';
-          pairToZh = 'id|zh';
-          break;
-        case 'zh':
-          pairToId = 'zh|id';
-          pairToEn = 'zh|en';
-          pairToZh = '';       // sudah ZH — tidak perlu translate
-          break;
-        default: // 'en'
-          pairToId = 'en|id';
-          pairToEn = '';       // sudah EN — tidak perlu translate
-          pairToZh = 'en|zh';
-      }
-
-      // ── Translate TITLE ke 3 bahasa secara paralel ──
-      final titleResults = await Future.wait([
-        pairToId.isEmpty
-            ? Future.value(title)          // [0] ID
-            : _translateText(title, pairToId),
-        pairToEn.isEmpty
-            ? Future.value(title)          // [1] EN
-            : _translateText(title, pairToEn),
-        pairToZh.isEmpty
-            ? Future.value(title)          // [2] ZH
-            : _translateText(title, pairToZh),
-      ]);
-
-      // ── Translate CONTENT ke 3 bahasa secara paralel ──
-      final contentResults = await Future.wait([
-        content.isEmpty
-            ? Future.value('')
-            : pairToId.isEmpty
-                ? Future.value(content)    // [0] content ID
-                : _translateText(content, pairToId),
-        content.isEmpty
-            ? Future.value('')
-            : pairToEn.isEmpty
-                ? Future.value(content)    // [1] content EN
-                : _translateText(content, pairToEn),
-        content.isEmpty
-            ? Future.value('')
-            : pairToZh.isEmpty
-                ? Future.value(content)    // [2] content ZH
-                : _translateText(content, pairToZh),
-      ]);
-
-      if (!mounted) return false;
-
-      // Pastikan hasil tidak kosong — fallback ke teks asal jika gagal
-      final String finalTitleId = titleResults[0].isNotEmpty
-          ? titleResults[0] : title;
-      final String finalTitleEn = titleResults[1].isNotEmpty
-          ? titleResults[1] : title;
-      final String finalTitleZh = titleResults[2].isNotEmpty
-          ? titleResults[2] : title;
-      final String finalContentId = contentResults[0];
-      final String finalContentEn = contentResults[1];
-      final String finalContentZh = contentResults[2];
-
-      debugPrint(
-        '✅ Translate done:\n'
-        '  title  → ID="$finalTitleId" | EN="$finalTitleEn" | ZH="$finalTitleZh"\n'
-        '  content→ ID="$finalContentId" | EN="$finalContentEn" | ZH="$finalContentZh"',
-      );
-
-      setState(() {
-        _titleId   = finalTitleId;
-        _titleEn   = finalTitleEn;
-        _titleZh   = finalTitleZh;
-        _contentId = finalContentId;
-        _contentEn = finalContentEn;
-        _contentZh = finalContentZh;
-        _isTranslating = false;
-      });
-
-      return true;
-    } catch (e) {
-      debugPrint('❌ Translate error: $e');
-      if (mounted) setState(() => _isTranslating = false);
-      return false;
-    }
-  }
-
-  // ── Submit ──────────────────────────────────────────────
-  Future<void> _submit() async {
-    final title = _titleCtrl.text.trim();
-
-    if (title.isEmpty) {
-      _showSnack(
-        widget.lang == 'EN' ? 'Title is required.'
-            : widget.lang == 'ZH' ? '标题为必填项。'
-            : 'Judul wajib diisi.',
-        isError: true,
-      );
-      return;
-    }
-
-    // Step 1: Tampil translating state di tombol
-    if (mounted) setState(() { _isSaving = true; _isTranslating = true; });
-
-    final translateOk = await _autoTranslate();
-
-    if (!mounted) return;
-
-    if (!translateOk || _titleId == null) {
-      setState(() { _isSaving = false; _isTranslating = false; });
-      _showSnack(
-        widget.lang == 'EN'
-            ? 'Translation failed. Please check your connection.'
-            : widget.lang == 'ZH'
-                ? '翻译失败，请检查网络。'
-                : 'Terjemahan gagal. Periksa koneksi Anda.',
-        isError: true,
-      );
-      return;
-    }
-
-    // Step 2: Translate selesai → reset state tombol
-    if (mounted) setState(() { _isSaving = false; _isTranslating = false; });
-
-    // Step 3: Pop form DULU → kembali ke AdminNewsScreen
-    // Parent yang akan handle loading dialog + success dialog
-    if (mounted) Navigator.of(context).pop();
-
-    // Step 4: Panggil onSave di parent (sudah di AdminNewsScreen)
-    await widget.onSave(
-      existing: widget.item,
-      type: _selectedType,
-      publishedAt: _selectedDate,
-      titleId:   _titleId!,
-      titleEn:   _titleEn!,
-      titleZh:   _titleZh!,
-      contentId: _contentId ?? '',
-      contentEn: _contentEn ?? '',
-      contentZh: _contentZh ?? '',
-      imageBytes: _pickedImageBytes,
-      imageExt:   _pickedImageExt,
-      existingImageUrl: _existingImageUrl,
-      displayDurationDays: int.tryParse(_durationCtrl.text) ?? 7,
-    );
-  }
-
-  void _showSnack(String msg, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: GoogleFonts.poppins(color: Colors.white)),
-      backgroundColor: isError ? const Color(0xFFEF4444) : const Color(0xFF10B981),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
-    ));
-  }
-
-  Widget _dlgLabel(String label) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: Text(
-      label,
-      style: GoogleFonts.poppins(
-        color: Colors.black54,
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.3,
-      ),
-    ),
-  );
-
-  Widget _typeChip(String type, ValueChanged<String> onTap) {
-    final isActive = type == _selectedType;
-    final color = type == 'update'
-        ? const Color(0xFF6366F1)
-        : const Color(0xFFF59E0B);
-    final icon  = type == 'update'
-        ? Icons.update_rounded
-        : Icons.build_rounded;
-    final label = type == 'update' ? 'Update' : 'Maintenance';
-
-    return GestureDetector(
-      onTap: () => onTap(type),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: isActive ? color : color.withValues(alpha:0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color, width: isActive ? 0 : 1),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 14, color: isActive ? Colors.white : color),
-          const SizedBox(width: 5),
-          Text(label,
-              style: GoogleFonts.poppins(
-                  color: isActive ? Colors.white : color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600)),
-        ]),
-      ),
-    );
-  }
-
-  Widget _imagePlaceholder() {
-    return SizedBox(
-      height: 130,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.add_photo_alternate_outlined,
-              color: Colors.grey.shade400, size: 38),
-          const SizedBox(height: 8),
-          Text(
-            widget.lang == 'EN'
-                ? 'Tap to choose image from gallery'
-                : widget.lang == 'ZH'
-                    ? '点击从相册选择图片'
-                    : 'Ketuk untuk pilih gambar dari galeri',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-                color: Colors.grey.shade500, fontSize: 12),
-          ),
-        ],
-      ),
-    );
+    return List.generate(end - start + 1, (i) => start + i);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.black54),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: _primary.withValues(alpha:0.12),
-              borderRadius: BorderRadius.circular(10),
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+    final double bottomSpacing = bottomInset > 0 ? bottomInset + 10 : 16;
+
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.fromLTRB(15, 8, 15, bottomSpacing),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _mainColor.withValues(alpha: 0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: _mainColor.withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-            child: Icon(Icons.campaign_outlined, color: _primary, size: 18),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            _isEdit
-                ? (widget.lang == 'EN' ? 'Edit News' : widget.lang == 'ZH' ? '编辑新闻' : 'Edit Berita')
-                : (widget.lang == 'EN' ? 'Add News' : widget.lang == 'ZH' ? '添加新闻' : 'Tambah Berita'),
-            style: GoogleFonts.poppins(
-                color: const Color(0xFF1E3A8A),
-                fontWeight: FontWeight.w700,
-                fontSize: 16),
-          ),
-        ]),
-        centerTitle: false,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.grey.shade100),
+          ],
         ),
-      ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Tipe ──
-                _dlgLabel(widget.lang == 'EN' ? 'Type' : widget.lang == 'ZH' ? '类型' : 'Tipe'),
-                Row(children: [
-                  _typeChip('update', (v) => setState(() => _selectedType = v)),
-                  const SizedBox(width: 10),
-                  _typeChip('maintenance', (v) => setState(() => _selectedType = v)),
-                ]),
-                const SizedBox(height: 20),
-
-                // ── Tanggal publish ──
-                _dlgLabel(widget.lang == 'EN'
-                    ? 'Published Date'
-                    : widget.lang == 'ZH'
-                        ? '发布日期'
-                        : 'Tanggal Tayang'),
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _selectedDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                      builder: (c, child) => Theme(
-                        data: ThemeData.light().copyWith(
-                          colorScheme: const ColorScheme.light(primary: _primary),
-                        ),
-                        child: child!,
-                      ),
-                    );
-                    if (picked != null) setState(() => _selectedDate = picked);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 13),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Row(children: [
-                      const Icon(Icons.calendar_today_rounded,
-                          color: Colors.black38, size: 18),
-                      const SizedBox(width: 10),
-                      Text(
-                        '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                        style: GoogleFonts.poppins(
-                            color: const Color(0xFF1E3A8A), fontSize: 14),
-                      ),
-                    ]),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // ── Durasi popup ──
-                _dlgLabel(widget.lang == 'EN'
-                    ? 'Popup Display Duration (days)'
-                    : widget.lang == 'ZH'
-                        ? '弹窗显示天数'
-                        : 'Durasi Tampil Popup (hari)'),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(children: [
-                    GestureDetector(
-                      onTap: () {
-                        final c = int.tryParse(_durationCtrl.text) ?? 7;
-                        if (c > 1) setState(() => _durationCtrl.text = (c - 1).toString());
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        child: Icon(Icons.remove_rounded,
-                            color: _primary, size: 20),
-                      ),
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _durationCtrl,
-                        keyboardType: TextInputType.number,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                            color: const Color(0xFF1E3A8A),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding:
-                              EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        final c = int.tryParse(_durationCtrl.text) ?? 7;
-                        setState(() => _durationCtrl.text = (c + 1).toString());
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 12),
-                        child: Icon(Icons.add_rounded,
-                            color: _primary, size: 20),
-                      ),
-                    ),
-                  ]),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 5, left: 2),
-                  child: Text(
-                    widget.lang == 'EN'
-                        ? 'News will appear in popup for this many days after published date'
-                        : widget.lang == 'ZH'
-                            ? '新闻将在发布日期后的这些天内显示在弹窗中'
-                            : 'Berita akan muncul di popup selama ini sejak tanggal tayang',
-                    style: GoogleFonts.poppins(
-                        color: Colors.grey.shade500, fontSize: 10.5),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // ── Gambar ──
-                _dlgLabel('Image (${widget.lang == 'EN' ? 'optional' : widget.lang == 'ZH' ? '可选' : 'opsional'})'),
-                GestureDetector(
-                  onTap: () async {
-                    final picker = ImagePicker();
-                    final picked = await picker.pickImage(
-                      source: ImageSource.gallery,
-                      imageQuality: 80,
-                      maxWidth: 1200,
-                    );
-                    if (picked != null) {
-                      final bytes = await picked.readAsBytes();
-                      final ext = picked.name.split('.').last.toLowerCase();
-                      setState(() {
-                        _pickedImageBytes = bytes;
-                        _pickedImageExt   = ext == 'png' ? 'png' : 'jpg';
-                        _existingImageUrl = null;
-                      });
-                    }
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    constraints: const BoxConstraints(minHeight: 130),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: _pickedImageBytes != null ||
-                                _existingImageUrl != null
-                            ? _primary.withValues(alpha:0.5)
-                            : Colors.grey.shade200,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: _pickedImageBytes != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(13),
-                            child: Stack(children: [
-                              Image.memory(_pickedImageBytes!,
-                                  width: double.infinity,
-                                  height: 160,
-                                  fit: BoxFit.cover),
-                              Positioned(
-                                bottom: 8, right: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha:0.55),
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.edit_rounded,
-                                          color: Colors.white, size: 13),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        widget.lang == 'EN' ? 'Change' : 'Ganti',
-                                        style: GoogleFonts.poppins(
-                                            color: Colors.white,
-                                            fontSize: 11),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                top: 8, right: 8,
-                                child: GestureDetector(
-                                  onTap: () => setState(() {
-                                    _pickedImageBytes = null;
-                                    _pickedImageExt   = null;
-                                  }),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(5),
-                                    decoration: BoxDecoration(
-                                        color: Colors.red.shade400,
-                                        shape: BoxShape.circle),
-                                    child: const Icon(Icons.close,
-                                        color: Colors.white, size: 14),
-                                  ),
-                                ),
-                              ),
-                            ]),
-                          )
-                        : _existingImageUrl != null
-                            ? ClipRRect(
-                                borderRadius: BorderRadius.circular(13),
-                                child: Stack(children: [
-                                  Image.network(_existingImageUrl!,
-                                      width: double.infinity,
-                                      height: 160,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
-                                          _imagePlaceholder()),
-                                  Positioned(
-                                    bottom: 8, right: 8,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha:0.55),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.edit_rounded,
-                                              color: Colors.white, size: 13),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            widget.lang == 'EN'
-                                                ? 'Change'
-                                                : 'Ganti',
-                                            style: GoogleFonts.poppins(
-                                                color: Colors.white,
-                                                fontSize: 11),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  Positioned(
-                                    top: 8, right: 8,
-                                    child: GestureDetector(
-                                      onTap: () => setState(() {
-                                        _existingImageUrl = null;
-                                        _pickedImageBytes = null;
-                                      }),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(5),
-                                        decoration: BoxDecoration(
-                                            color: Colors.red.shade400,
-                                            shape: BoxShape.circle),
-                                        child: const Icon(Icons.close,
-                                            color: Colors.white, size: 14),
-                                      ),
-                                    ),
-                                  ),
-                                ]),
-                              )
-                            : _imagePlaceholder(),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // ── Title ──
-                _dlgLabel(widget.lang == 'EN'
-                    ? 'Title'
-                    : widget.lang == 'ZH'
-                        ? '标题'
-                        : 'Judul'),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: TextField(
-                    controller: _titleCtrl,
-                    maxLines: 1,
-                    style: GoogleFonts.poppins(
-                        color: const Color(0xFF1E3A8A), fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: widget.lang == 'EN'
-                          ? 'Enter news title...'
-                          : widget.lang == 'ZH'
-                              ? '输入新闻标题...'
-                              : 'Masukkan judul berita...',
-                      hintStyle: GoogleFonts.poppins(
-                          color: Colors.grey.shade400, fontSize: 13),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 13),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // ── Content ──
-                _dlgLabel(widget.lang == 'EN'
-                    ? 'Content'
-                    : widget.lang == 'ZH'
-                        ? '内容'
-                        : 'Konten'),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: TextField(
-                    controller: _contentCtrl,
-                    maxLines: 6,
-                    style: GoogleFonts.poppins(
-                        color: const Color(0xFF1E3A8A), fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: widget.lang == 'EN'
-                          ? 'Enter news content...'
-                          : widget.lang == 'ZH'
-                              ? '输入新闻内容...'
-                              : 'Masukkan konten berita...',
-                      hintStyle: GoogleFonts.poppins(
-                          color: Colors.grey.shade400, fontSize: 13),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.all(14),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
+        child: Row(
+          children: [
+            _buildArrowButton(
+              icon: Icons.arrow_back_ios_new_rounded,
+              enabled: canPrev,
+              onTap: () {
+                if (!canPrev) return;
+                onPageChanged(currentPage - 1);
+              },
             ),
-          ),
-
-          // ── Tombol Simpan (sticky di bawah) ──
-          Positioned(
-            bottom: 0, left: 0, right: 0,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(
-                  20,
-                  12,
-                  20,
-                  MediaQuery.of(context).padding.bottom + 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(
-                    top: BorderSide(color: Colors.grey.shade100)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha:0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -4),
-                  ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Row(
+                children: [
+                  for (final p in pageNumbers) ...[
+                    Expanded(child: _buildPageNumberButton(p)),
+                    if (p != pageNumbers.last) const SizedBox(width: 8),
+                  ],
                 ],
               ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: (_isSaving || _isTranslating) ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: (_isSaving || _isTranslating)
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(
-                            width: 18, height: 18,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            _isTranslating
-                                ? (widget.lang == 'EN'
-                                    ? 'Translating...'
-                                    : widget.lang == 'ZH'
-                                        ? '翻译中...'
-                                        : 'Menerjemahkan...')
-                                : (widget.lang == 'EN'
-                                    ? 'Saving...'
-                                    : widget.lang == 'ZH'
-                                        ? '保存中...'
-                                        : 'Menyimpan...'),
-                            style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14),
-                          ),
-                        ],
-                      )
-                      : Text(
-                        _isEdit
-                            ? (widget.lang == 'EN'
-                                ? 'Update News'
-                                : widget.lang == 'ZH'
-                                    ? '更新新闻'
-                                    : 'Perbarui Berita')
-                            : (widget.lang == 'EN'
-                                ? 'Save News'
-                                : widget.lang == 'ZH'
-                                    ? '保存新闻'
-                                    : 'Simpan Berita'),
-                        style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w700, fontSize: 15),
-                      ),
-                ),
-              ),
             ),
+            const SizedBox(width: 10),
+            _buildArrowButton(
+              icon: Icons.arrow_forward_ios_rounded,
+              enabled: canNext,
+              onTap: () {
+                if (!canNext) return;
+                onPageChanged(currentPage + 1);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageNumberButton(int page) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page == currentPage) return;
+        onPageChanged(page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? _mainColor : _mainColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive
+              ? null
+              : Border.all(color: _mainColor.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(
+            color: isActive ? Colors.white : _mainColor,
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArrowButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled
+              ? _mainColor.withValues(alpha: 0.12)
+              : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 15,
+          color: enabled ? _mainColor : Colors.grey.shade400,
+        ),
       ),
     );
   }
