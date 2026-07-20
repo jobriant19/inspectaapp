@@ -97,7 +97,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         transitionDuration: const Duration(milliseconds: 350),
         reverseTransitionDuration: const Duration(milliseconds: 300),
         pageBuilder: (_, __, ___) =>
-            ReportDetailScreen(lang: _currentLang, report: report),
+            ReportDetailScreen(lang: _currentLang, report: report, startInEditing: true),
         transitionsBuilder: (_, animation, __, child) {
           final curved = CurvedAnimation(
             parent: animation,
@@ -359,7 +359,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                 color: Colors.white.withValues(alpha:0.2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.support_agent,
+              child: const Icon(Icons.edit_note_rounded,
                   color: Colors.white, size: 32),
             ),
             const SizedBox(width: 15),
@@ -378,7 +378,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                   const SizedBox(height: 4),
                   Text(
                     getTxt('report_subtitle'),
-                    style: TextStyle(
+                    style: GoogleFonts.poppins(
                         fontSize: 13,
                         color: Colors.white.withValues(alpha:0.85)),
                   ),
@@ -530,22 +530,27 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                             borderRadius: BorderRadius.circular(10),
                             child: Image.network(
                               signedImageUrl,
-                              width: 70,
-                              height: 70,
+                              width: 92,
+                              height: 92,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.image_not_supported, size: 70),
+                                  Container(
+                                    width: 92,
+                                    height: 92,
+                                    color: const Color(0xFFEFF6FF),
+                                    child: const Icon(Icons.image_not_supported, size: 30),
+                                  ),
                             ),
                           )
                         : Container(
-                            width: 70,
-                            height: 70,
+                            width: 92,
+                            height: 92,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
                               color: const Color(0xFFEFF6FF),
                             ),
                             child: Icon(Icons.flag_outlined,
-                                color: Colors.grey.shade400, size: 30),
+                                color: Colors.grey.shade400, size: 32),
                           ),
                   ),
                   const SizedBox(width: 15),
@@ -846,20 +851,9 @@ class _FullImageViewerHC extends StatelessWidget {
                 child: GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEF4444),
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.3), blurRadius: 10, offset: const Offset(0, 4))],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.close_rounded, color: Colors.white, size: 18),
-                        const SizedBox(width: 6),
-                        Text(closeLabel, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
-                      ],
-                    ),
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
                   ),
                 ),
               ),
