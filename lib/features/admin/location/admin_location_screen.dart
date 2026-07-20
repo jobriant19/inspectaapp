@@ -19,6 +19,7 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
   late TabController _tabCtrl;
 
   static const _primary = Color(0xFF10B981);
+  static const _sectionBlue = Color(0xFF1D72F3);
   static const _bg = Color(0xFFF8FAFC);
 
   final List<IconData> _tabIcons = [
@@ -120,7 +121,7 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _primary.withValues(alpha: 0.25)),
+                  border: Border.all(color: _sectionBlue.withValues(alpha: 0.25)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -134,10 +135,10 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: _primary.withValues(alpha: 0.10),
+                        color: _sectionBlue.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.dashboard_customize_rounded, color: _primary, size: 18),
+                      child: const Icon(Icons.dashboard_customize_rounded, color: _sectionBlue, size: 18),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -148,7 +149,7 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
                           Text(
                             _lang == 'EN' ? 'Section Settings' : _lang == 'ZH' ? '部门设置' : 'Pengaturan Section',
                             style: GoogleFonts.poppins(
-                                fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A)),
+                                fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3)),
                           ),
                           Text(
                             _lang == 'EN'
@@ -156,7 +157,7 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
                                 : _lang == 'ZH'
                                     ? '管理激光、机械、组装等部门'
                                     : 'Kelola Laser, Mesin, Assy, dan section lainnya',
-                            style: GoogleFonts.poppins(fontSize: 10, color: Colors.black38),
+                            style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black),
                           ),
                         ],
                       ),

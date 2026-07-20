@@ -28,9 +28,6 @@ class _AdminAreaTabState extends State<AdminAreaTab>
   int _currentPage = 1;
   static const int _perPage = 10;
 
-  // Filter lokasi bisa berasal dari salah satu level: Lokasi / Unit / Sub-Unit.
-  // Area menyimpan ketiga kolom (id_lokasi, id_unit, id_subunit) secara
-  // langsung, jadi filter cukup mencocokkan kolom yang sesuai tanpa resolve.
   String? _filterField;
   String? _filterValue;
   String? _filterLabel;
@@ -184,11 +181,8 @@ class _AdminAreaTabState extends State<AdminAreaTab>
     final isEdit = item != null;
     final namaCtrl = TextEditingController(text: item?['nama_area'] ?? '');
     final descCtrl = TextEditingController(text: item != null ? _localizedDesc(item) : '');
-    final kategoriCtrl = TextEditingController(text: item?['kategori'] ?? '');
     String? selectedSubunitId = item?['id_subunit']?.toString();
     String? selectedSubunitName = item?['subunit']?['nama_subunit'] as String?;
-    // id_unit & id_lokasi ikut disimpan otomatis mengikuti Sub-Unit yang
-    // dipilih, supaya filter berdasarkan Unit/Lokasi tetap berfungsi.
     String? derivedUnitId = item?['id_unit']?.toString();
     String? derivedLokasiId = item?['id_lokasi']?.toString();
     String? gambarUrl = item?['gambar_area'] as String?;
@@ -217,11 +211,6 @@ class _AdminAreaTabState extends State<AdminAreaTab>
               controller: descCtrl,
               icon: Icons.notes_rounded,
               maxLines: 3,
-            ),
-            _AreaFormField(
-              label: widget.lang == 'EN' ? 'Category' : widget.lang == 'ZH' ? '类别' : 'Kategori',
-              controller: kategoriCtrl,
-              icon: Icons.category_rounded,
             ),
           ],
           imagePickerWidget: _buildAreaPhotoPicker(
@@ -327,7 +316,6 @@ class _AdminAreaTabState extends State<AdminAreaTab>
               'deskripsi_area': descAll['id']!.isEmpty ? null : descAll['id'],
               'deskripsi_area_en': descAll['en']!.isEmpty ? null : descAll['en'],
               'deskripsi_area_zh': descAll['zh']!.isEmpty ? null : descAll['zh'],
-              'kategori': kategoriCtrl.text.trim().isEmpty ? null : kategoriCtrl.text.trim(),
               'gambar_area': gambarUrl,
               'id_subunit': selectedSubunitId,
               'id_unit': derivedUnitId,
@@ -727,7 +715,6 @@ class _AreaDetailScreenState extends State<_AreaDetailScreen> {
   Widget build(BuildContext context) {
     final name = widget.nameFn(_item);
     final deskripsi = _localizedDesc;
-    final kategori = _item['kategori'] as String?;
     final isStar = (_item['is_star'] ?? 0) as int;
     final qrcode = _item['qrcode'] as String?;
     final gambarUrl = _item['gambar_area'] as String?;
@@ -860,32 +847,6 @@ class _AreaDetailScreenState extends State<_AreaDetailScreen> {
             const SizedBox(height: 20),
             Divider(color: Colors.grey.shade100, thickness: 1.5),
             const SizedBox(height: 16),
-
-            if (kategori != null && kategori.isNotEmpty) ...[
-              _sectionLabel(
-                Icons.category_rounded,
-                widget.lang == 'EN' ? 'Category' : widget.lang == 'ZH' ? '类别' : 'Kategori',
-              ),
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8B5CF6).withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.25)),
-                ),
-                child: Text(
-                  kategori,
-                  style: GoogleFonts.poppins(
-                    color: const Color(0xFF6D28D9),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
 
             _sectionLabel(
               Icons.notes_rounded,
@@ -1186,9 +1147,6 @@ Widget _buildAreaTabContent({
 }) {
   const bg = Color(0xFFF8FAFC);
   const card = Color(0xFFFFFFFF);
-  // Jarak bawah list disesuaikan: lebih kecil saat tidak ada page indicator,
-  // sedikit lebih besar saat ada, supaya item terakhir tetap terlihat jelas
-  // tanpa jarak kosong yang berlebihan.
   final bool hasPageIndicator = totalPages > 1 && onPageChanged != null;
   final double listBottomPad = hasPageIndicator ? 84.0 : 20.0;
 
@@ -2550,10 +2508,6 @@ class _AreaFilterButton extends StatelessWidget {
   }
 }
 
-/// Dialog filter dengan 3 tab: Lokasi, Unit, dan Sub-Unit.
-/// Karena tabel `area` sudah menyimpan id_lokasi, id_unit, dan id_subunit
-/// secara langsung, setiap tab tinggal mencocokkan kolom yang sesuai tanpa
-/// perlu resolve lewat tabel lain.
 class _AreaLocationFilterDialog extends StatefulWidget {
   final String lang;
   final String? initialField;
