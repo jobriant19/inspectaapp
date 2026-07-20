@@ -1,5 +1,3 @@
-// report_detail_screen.dart
-
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -9,6 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dotted_border/dotted_border.dart';
+
+import '../../home/alert/required_field_alert.dart';
 
 class ReportDetailScreen extends StatefulWidget {
   final String lang;
@@ -28,7 +28,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   final _commentController = TextEditingController();
   String? _selectedPriority;
   bool _isSaving = false;
-  bool _isEditing = false; // Untuk beralih antara mode lihat dan edit
+  bool _isEditing = false;
   bool get _isEditMode => widget.report != null;
 
   // State untuk gambar laporan
@@ -54,7 +54,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'priority': 'Priority',
       'select_priority': 'Select priority',
       'problem_desc': 'Problem Description',
-      'title': 'Title*',
+      'title': 'Title',
       'title_hint': 'e.g., The app is slow',
       'fatal': 'Fatal',
       'normal': 'Normal',
@@ -75,6 +75,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'no_comments': 'No comments yet. Be the first to comment!',
       'type_comment': 'Type a comment...',
       'comment_sent': 'Comment sent!',
+      'status': 'Status',
+      'sent': 'Sent',
+      'viewed': 'Viewed',
+      'completed': 'Completed',
     },
     'ID': {
       'new_report': 'Lapor Kendala',
@@ -86,7 +90,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'priority': 'Prioritas',
       'select_priority': 'Pilih prioritas',
       'problem_desc': 'Deskripsi Masalah',
-      'title': 'Judul*',
+      'title': 'Judul',
       'title_hint': 'cth., Aplikasi terasa lambat',
       'fatal': 'Fatal',
       'normal': 'Normal',
@@ -107,6 +111,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'no_comments': 'Belum ada komentar. Jadilah yang pertama berkomentar!',
       'type_comment': 'Ketik komentar...',
       'comment_sent': 'Komentar terkirim!',
+      'status': 'Status',
+      'sent': 'Dikirim',
+      'viewed': 'Dilihat',
+      'completed': 'Selesai',
     },
     'ZH': {
       'new_report': '报告问题',
@@ -118,7 +126,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'priority': '优先',
       'select_priority': '选择优先级',
       'problem_desc': '问题描述',
-      'title': '标题*',
+      'title': '标题',
       'title_hint': '例如, 应用很慢',
       'fatal': '致命',
       'normal': '普通',
@@ -139,10 +147,60 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'no_comments': '暂无评论。快来抢沙发吧！',
       'type_comment': '输入评论...',
       'comment_sent': '评论已发送！',
+      'status': '状态',
+      'sent': '已发送',
+      'viewed': '已查看',
+      'completed': '已完成',
     },
   };
 
   String getTxt(String key) => _txt[_currentLang]?[key] ?? key;
+
+  Color _priorityColor(String p) =>
+      p.toLowerCase() == 'fatal' ? const Color(0xFFEF4444) : const Color(0xFF0EA5E9);
+
+  IconData _priorityIcon(String p) =>
+      p.toLowerCase() == 'fatal' ? Icons.warning_amber_rounded : Icons.info_outline_rounded;
+
+  Color _statusColor(String s) {
+    switch (s) {
+      case 'Dikirim': return const Color(0xFF0EA5E9);
+      case 'Dilihat': return const Color(0xFFF59E0B);
+      case 'Selesai': return const Color(0xFF10B981);
+      default: return Colors.grey;
+    }
+  }
+
+  IconData _statusIcon(String s) {
+    switch (s) {
+      case 'Dikirim': return Icons.send_rounded;
+      case 'Dilihat': return Icons.visibility_rounded;
+      case 'Selesai': return Icons.check_circle_rounded;
+      default: return Icons.circle_outlined;
+    }
+  }
+
+  String _statusLabel(String s) {
+    switch (s) {
+      case 'Dikirim': return getTxt('sent');
+      case 'Dilihat': return getTxt('viewed');
+      case 'Selesai': return getTxt('completed');
+      default: return s;
+    }
+  }
+
+  Widget _tagIcon(IconData icon, String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 5),
+        Text(text, style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w600, color: color)),
+      ],
+    ),
+  );
 
   @override
   void initState() {
@@ -241,7 +299,20 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   // --- LOGIC UNTUK DATABASE ---
   Future<void> _saveReport() async {
-    if (!_formKey.currentState!.validate()) return;
+    final missing = <MissingFieldItem>[];
+    if (_titleController.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.title_rounded, label: getTxt('title_empty_error')));
+    }
+    if (_selectedPriority == null) {
+      missing.add(MissingFieldItem(icon: Icons.flag_rounded, label: getTxt('priority_empty_error')));
+    }
+    if (_descriptionController.text.trim().isEmpty) {
+      missing.add(MissingFieldItem(icon: Icons.description_rounded, label: getTxt('desc_empty_error')));
+    }
+    if (missing.isNotEmpty) {
+      RequiredFieldAlert.show(context, lang: _currentLang, missingFields: missing);
+      return;
+    }
 
     setState(() => _isSaving = true);
     final userId = Supabase.instance.client.auth.currentUser!.id;
@@ -291,13 +362,56 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   Future<void> _deleteReport() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(getTxt('delete')),
-        content: Text(getTxt('delete_confirm')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(getTxt('no'))),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: Text(getTxt('yes'), style: TextStyle(color: Colors.red))),
-        ],
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80, height: 80,
+                decoration: const BoxDecoration(color: Color(0xFFFFEBEB), shape: BoxShape.circle),
+                child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFEF4444), size: 38),
+              ),
+              const SizedBox(height: 20),
+              Text(getTxt('delete'), style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)), textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(getTxt('delete_confirm'), style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF64748B), height: 1.5), textAlign: TextAlign.center),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context, true),
+                  icon: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 18),
+                  label: Text(getTxt('yes'), style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(getTxt('no'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF64748B))),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
 
@@ -306,11 +420,18 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     setState(() => _isSaving = true);
     try {
       final reportId = widget.report!['id'];
-      // Cascade delete akan menghapus komentar terkait secara otomatis.
       await Supabase.instance.client.from('help_reports').delete().eq('id', reportId);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(getTxt('report_deleted')), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(getTxt('report_deleted'), style: GoogleFonts.poppins()),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
         Navigator.pop(context, true);
       }
     } catch (e) {
@@ -416,19 +537,27 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     }
   }
 
-  // --- WIDGET BUILDERS ---
-
-  Widget _buildFormLabel(String label) {
+  Widget _buildFormLabel(String label, IconData icon, {bool required = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0, top: 16),
-      child: Text(
-        label,
-        style: GoogleFonts.poppins(
-          color: const Color(0xFF1D72F3),
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.3,
-        ),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: const Color(0xFF1D72F3)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: const Color(0xFF1D72F3),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
+          ),
+          if (required) ...[
+            const SizedBox(width: 3),
+            Text('*', style: GoogleFonts.poppins(color: const Color(0xFFEF4444), fontSize: 14, fontWeight: FontWeight.w700)),
+          ],
+        ],
       ),
     );
   }
@@ -437,19 +566,140 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.grey.shade600, size: 20),
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(color: const Color(0xFF1D72F3).withOpacity(0.1), borderRadius: BorderRadius.circular(9)),
+            child: Icon(icon, color: const Color(0xFF1D72F3), size: 15),
+          ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-              const SizedBox(height: 2),
-              Text(value, style: const TextStyle(color: Color(0xFF334155), fontSize: 15, fontWeight: FontWeight.w500)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: GoogleFonts.poppins(color: Colors.black45, fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(value, style: GoogleFonts.poppins(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPriorityField() {
+    final hasValue = _selectedPriority != null;
+    final label = hasValue
+        ? (_selectedPriority!.toLowerCase() == 'fatal' ? getTxt('fatal') : getTxt('normal'))
+        : getTxt('select_priority');
+    final color = hasValue ? _priorityColor(_selectedPriority!) : Colors.grey.shade400;
+    final icon = hasValue ? _priorityIcon(_selectedPriority!) : Icons.flag_outlined;
+
+    return GestureDetector(
+      onTap: _isEditing ? _showPriorityPicker : null,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: _isEditing ? Colors.white : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: hasValue ? color.withOpacity(0.4) : Colors.grey.shade300),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, size: 16, color: color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
+                  color: hasValue ? Colors.black87 : Colors.black38,
+                ),
+              ),
+            ),
+            if (_isEditing) Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade400),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPriorityPicker() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(0xFF1D72F3).withOpacity(0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.flag_rounded, color: Color(0xFF1D72F3), size: 26),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                getTxt('select_priority'),
+                style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)),
+              ),
+              const SizedBox(height: 18),
+              _priorityOption('Fatal', getTxt('fatal'), Icons.warning_amber_rounded, const Color(0xFFEF4444)),
+              const SizedBox(height: 10),
+              _priorityOption('Normal', getTxt('normal'), Icons.info_outline_rounded, const Color(0xFF0EA5E9)),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(getTxt('no'), style: GoogleFonts.poppins(color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _priorityOption(String value, String label, IconData icon, Color color) {
+    final isSelected = _selectedPriority == value;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _selectedPriority = value);
+        Navigator.pop(context);
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: isSelected ? color : Colors.grey.shade200, width: isSelected ? 1.5 : 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+            ),
+            if (isSelected) Icon(Icons.check_circle_rounded, color: color, size: 20),
+          ],
+        ),
       ),
     );
   }
@@ -674,6 +924,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     final inputDecoration = InputDecoration(
       filled: true,
       fillColor: _isEditing ? Colors.white : Colors.grey.shade100,
+      hintStyle: GoogleFonts.poppins(color: Colors.black26, fontSize: 13),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -738,58 +989,66 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildFormLabel(getTxt('photo_attachment')),
+                      _buildFormLabel(getTxt('photo_attachment'), Icons.camera_alt_rounded),
                       _buildImagePicker(),
-                      _buildFormLabel(getTxt('title')),
+                      _buildFormLabel(getTxt('title'), Icons.title_rounded, required: true),
                       TextFormField(
                         controller: _titleController,
-                        decoration: inputDecoration.copyWith(
-                            hintText: getTxt('title_hint')),
-                        validator: (val) => val == null || val.isEmpty
-                            ? getTxt('title_empty_error')
-                            : null,
+                        style: GoogleFonts.poppins(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w500),
+                        decoration: inputDecoration.copyWith(hintText: getTxt('title_hint')),
                       ),
-                      _buildFormLabel(getTxt('priority')),
-                      DropdownButtonFormField<String>(
-                        value: _selectedPriority,
-                        onChanged: (val) =>
-                            setState(() => _selectedPriority = val),
-                        decoration: inputDecoration.copyWith(
-                          fillColor: _isEditing
-                              ? Colors.white
-                              : Colors.grey.shade100,
-                        ),
-                        items: [
-                          DropdownMenuItem(
-                              value: 'Fatal', child: Text(getTxt('fatal'))),
-                          DropdownMenuItem(
-                              value: 'Normal', child: Text(getTxt('normal'))),
-                        ],
-                        validator: (val) => val == null
-                            ? getTxt('priority_empty_error')
-                            : null,
-                      ),
-                      _buildFormLabel(getTxt('problem_desc')),
+                      _buildFormLabel(getTxt('priority'), Icons.flag_rounded, required: true),
+                      _buildPriorityField(),
+                      _buildFormLabel(getTxt('problem_desc'), Icons.description_rounded, required: true),
                       TextFormField(
                         controller: _descriptionController,
+                        style: GoogleFonts.poppins(color: Colors.black87, fontSize: 14),
                         decoration: inputDecoration,
                         maxLines: 5,
                         minLines: 3,
                       ),
                       if (_isEditMode) ...[
-                        const SizedBox(height: 24),
-                        const Divider(),
-                        _buildInfoRow(
-                            Icons.calendar_today_outlined,
-                            getTxt('created_at'),
-                            _formatDateTime(widget.report!['created_at'])),
-                        if (widget.report!['edited_at'] != null)
-                          _buildInfoRow(
-                              Icons.edit_calendar_outlined,
-                              getTxt('edited_at'),
-                              _formatDateTime(widget.report!['edited_at'])),
-                        const Divider(),
-                        _buildFormLabel(getTxt('comments')),
+                        const SizedBox(height: 20),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.black.withOpacity(0.06)),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(children: [
+                                const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF1D72F3)),
+                                const SizedBox(width: 6),
+                                Text(getTxt('status'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3))),
+                                const Spacer(),
+                                _tagIcon(
+                                  _statusIcon(widget.report!['status'] ?? 'Dikirim'),
+                                  _statusLabel(widget.report!['status'] ?? 'Dikirim'),
+                                  _statusColor(widget.report!['status'] ?? 'Dikirim'),
+                                ),
+                              ]),
+                              const SizedBox(height: 14),
+                              Container(height: 1, color: Colors.grey.shade100),
+                              const SizedBox(height: 10),
+                              _buildInfoRow(
+                                  Icons.calendar_today_outlined,
+                                  getTxt('created_at'),
+                                  _formatDateTime(widget.report!['created_at'])),
+                              if (widget.report!['edited_at'] != null)
+                                _buildInfoRow(
+                                    Icons.edit_calendar_outlined,
+                                    getTxt('edited_at'),
+                                    _formatDateTime(widget.report!['edited_at'])),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _buildFormLabel(getTxt('comments'), Icons.forum_rounded),
                         _buildCommentsList(),
                       ],
                     ],

@@ -90,6 +90,173 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     );
   }
 
+  void _editReport(Map<String, dynamic> report) async {
+    final result = await Navigator.push(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 350),
+        reverseTransitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (_, __, ___) =>
+            ReportDetailScreen(lang: _currentLang, report: report),
+        transitionsBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
+            reverseCurve: Curves.easeIn,
+          );
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          );
+        },
+      ),
+    );
+    if (result == true) _fetchReports();
+  }
+
+  Future<void> _deleteReport(String id, String title) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFEBEB),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded,
+                  color: Color(0xFFEF4444),
+                  size: 38,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                _currentLang == 'EN'
+                    ? 'Delete?'
+                    : _currentLang == 'ZH'
+                        ? '删除？'
+                        : 'Hapus?',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E293B),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${_currentLang == 'EN' ? 'Are you sure you want to delete report' : _currentLang == 'ZH' ? '确定要删除报告' : 'Yakin ingin menghapus laporan'} "$title"?',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: const Color(0xFF64748B),
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context, true),
+                  icon: const Icon(Icons.delete_forever_rounded,
+                      color: Colors.white, size: 18),
+                  label: Text(
+                    _currentLang == 'EN'
+                        ? 'Delete'
+                        : _currentLang == 'ZH'
+                            ? '删除'
+                            : 'Hapus',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape:
+                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape:
+                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(
+                    _currentLang == 'EN'
+                        ? 'Cancel'
+                        : _currentLang == 'ZH'
+                            ? '取消'
+                            : 'Batal',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+    try {
+      await Supabase.instance.client.from('help_reports').delete().eq('id', id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _currentLang == 'EN'
+                  ? 'Report deleted successfully.'
+                  : _currentLang == 'ZH'
+                      ? '报告删除成功。'
+                      : 'Laporan berhasil dihapus.',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+      _fetchReports();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -435,8 +602,42 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios,
-                      size: 16, color: Colors.grey),
+                  const SizedBox(width: 8),
+                  if (status != 'Selesai')
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        GestureDetector(
+                          onTap: () => _editReport(report),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withValues(alpha:0.10),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: const Icon(Icons.edit_outlined,
+                                color: Color(0xFF2563EB), size: 17),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: () => _deleteReport(
+                              report['id'].toString(), report['title'] ?? ''),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444).withValues(alpha:0.10),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: const Icon(Icons.delete_outline_rounded,
+                                color: Color(0xFFEF4444), size: 17),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    const Icon(Icons.arrow_forward_ios,
+                        size: 16, color: Colors.grey),
                 ],
               ),
               if (adminReply != null && adminReply.isNotEmpty) ...[
