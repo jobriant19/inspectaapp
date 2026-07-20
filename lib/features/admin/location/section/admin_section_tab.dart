@@ -1,13 +1,12 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../shared/admin_image_picker_widget.dart';
+import '../../../../core/services/translation_service.dart';
+import '../../shared/admin_image_picker_widget.dart';
 
 class _C {
-  static const primary   = Color(0xFF10B981);
-  static const primaryLt = Color(0xFFD1FAE5);
+  static const primary   = Color(0xFF2563EB);
+  static const primaryLt = Color(0xFFDBEAFE);
   static const red       = Color(0xFFEF4444);
   static const textMain  = Color(0xFF1E3A8A);
   static const textSub   = Color(0xFF64748B);
@@ -33,6 +32,8 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
   List<Map<String, dynamic>> _areaList = [];
   bool _loading = true;
   String _search = '';
+  int _currentPage = 1;
+  static const int _perPage = 10;
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -48,6 +49,16 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
       return s['nama_section_zh']?.toString() ?? s['nama_section_id']?.toString() ?? '-';
     }
     return s['nama_section_id']?.toString() ?? '-';
+  }
+
+  String _localizedDesc(Map<String, dynamic> s) {
+    if (widget.lang == 'EN') {
+      return (s['deskripsi_section_en'] ?? s['deskripsi_section'] ?? '').toString();
+    }
+    if (widget.lang == 'ZH') {
+      return (s['deskripsi_section_zh'] ?? s['deskripsi_section'] ?? '').toString();
+    }
+    return (s['deskripsi_section'] ?? '').toString();
   }
 
   @override
@@ -90,40 +101,6 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     if (_search.trim().isEmpty) return _sections;
     final q = _search.toLowerCase();
     return _sections.where((s) => _nameOf(s).toLowerCase().contains(q)).toList();
-  }
-
-  Future<String> _translateText(String text, String langPair) async {
-    if (text.trim().isEmpty) return text;
-    try {
-      final normalized =
-          langPair.replaceAll('|zh', '|zh-CN').replaceAll('zh|', 'zh-CN|');
-      final uri = Uri.parse(
-        'https://api.mymemory.translated.net/get'
-        '?q=${Uri.encodeComponent(text)}&langpair=$normalized',
-      );
-      final res = await http.get(uri).timeout(const Duration(seconds: 20));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final t = data['responseData']?['translatedText']?.toString() ?? '';
-        if (t.isEmpty ||
-            t.toUpperCase().startsWith('MYMEMORY WARNING') ||
-            t.toUpperCase().startsWith('PLEASE')) {
-          return text;
-        }
-        return t;
-      }
-      return text;
-    } catch (_) {
-      return text;
-    }
-  }
-
-  Future<Map<String, String>> _translateAll(String text) async {
-    final results = await Future.wait([
-      _translateText(text, 'id|en'),
-      _translateText(text, 'id|zh'),
-    ]);
-    return {'id': text, 'en': results[0], 'zh': results[1]};
   }
 
   void _showSuccessPopup({
@@ -231,9 +208,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     final namaCtrl =
         TextEditingController(text: isEdit ? existing['nama_section_id']?.toString() ?? '' : '');
     final descCtrl =
-        TextEditingController(text: isEdit ? existing['deskripsi_section']?.toString() ?? '' : '');
-    final kategoriCtrl =
-        TextEditingController(text: isEdit ? existing['kategori']?.toString() ?? '' : '');
+        TextEditingController(text: isEdit ? _localizedDesc(existing) : '');
     String? gambarUrl = isEdit ? existing['gambar_section'] as String? : null;
 
     String? selLokasi = isEdit ? existing['id_lokasi']?.toString() : null;
@@ -391,34 +366,6 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                             ),
                             style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
                           ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _t('Category', 'Kategori', '类别'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub),
-                          ),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: kategoriCtrl,
-                            decoration: InputDecoration(
-                              hintText: _t('Optional', 'Opsional', '可选'),
-                              hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.grey.shade400),
-                              filled: true,
-                              fillColor: _C.surface,
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: _C.divider)),
-                              enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: _C.divider)),
-                              focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: _C.primary, width: 1.5)),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                            ),
-                            style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
-                          ),
                           const SizedBox(height: 18),
                           Text(
                             _t('Location Mapping (optional)', 'Pemetaan Lokasi (opsional)', '位置映射（可选）'),
@@ -532,15 +479,24 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                                       );
                                       return;
                                     }
-                                    final t = await _translateAll(text);
+                                    final namaTranslated = await TranslationHelper.instance
+                                      .translateDescriptionAllLangs(text, widget.lang);
+                                    final descSource = descCtrl.text.trim();
+                                    Map<String, String> descTranslated = {'id': '', 'en': '', 'zh': ''};
+                                    if (descSource.isNotEmpty) {
+                                      descTranslated = await TranslationHelper.instance
+                                          .translateDescriptionAllLangs(descSource, widget.lang);
+                                    }
                                     final data = {
-                                      'nama_section_id': t['id'],
-                                      'nama_section_en': t['en'],
-                                      'nama_section_zh': t['zh'],
+                                      'nama_section_id': namaTranslated['id'],
+                                      'nama_section_en': namaTranslated['en'],
+                                      'nama_section_zh': namaTranslated['zh'],
                                       'deskripsi_section':
-                                          descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
-                                      'kategori':
-                                          kategoriCtrl.text.trim().isEmpty ? null : kategoriCtrl.text.trim(),
+                                          descTranslated['id']!.isEmpty ? null : descTranslated['id'],
+                                      'deskripsi_section_en':
+                                          descTranslated['en']!.isEmpty ? null : descTranslated['en'],
+                                      'deskripsi_section_zh':
+                                          descTranslated['zh']!.isEmpty ? null : descTranslated['zh'],
                                       'gambar_section': gambarUrl,
                                       'id_lokasi': selLokasi,
                                       'id_unit': selUnit,
@@ -777,18 +733,80 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     }
   }
 
-  String _locationBadge(Map<String, dynamic> item) {
-    final parts = <String>[];
-    if (item['lokasi']?['nama_lokasi'] != null) parts.add(item['lokasi']['nama_lokasi']);
-    if (item['unit']?['nama_unit'] != null) parts.add(item['unit']['nama_unit']);
-    if (item['subunit']?['nama_subunit'] != null) parts.add(item['subunit']['nama_subunit']);
-    if (item['area']?['nama_area'] != null) parts.add(item['area']['nama_area']);
-    return parts.isEmpty ? '' : parts.join(' • ');
+  Map<String, dynamic>? _specificLocationInfo(Map<String, dynamic> item) {
+    if (item['area']?['nama_area'] != null) {
+      return {
+        'label': item['area']['nama_area'],
+        'icon': Icons.place_rounded,
+        'color': const Color(0xFFF472B6),
+      };
+    }
+    if (item['subunit']?['nama_subunit'] != null) {
+      return {
+        'label': item['subunit']['nama_subunit'],
+        'icon': Icons.layers_rounded,
+        'color': const Color(0xFFFBBF24),
+      };
+    }
+    if (item['unit']?['nama_unit'] != null) {
+      return {
+        'label': item['unit']['nama_unit'],
+        'icon': Icons.business_rounded,
+        'color': const Color(0xFF6366F1),
+      };
+    }
+    if (item['lokasi']?['nama_lokasi'] != null) {
+      return {
+        'label': item['lokasi']['nama_lokasi'],
+        'icon': Icons.location_city_rounded,
+        'color': const Color(0xFF10B981),
+      };
+    }
+    return null;
+  }
+
+  Widget _buildLocationChip(Map<String, dynamic> item) {
+    final info = _specificLocationInfo(item);
+    if (info == null) {
+      return Text(
+        _t('No location mapped', 'Tidak ada lokasi', '未设置位置'),
+        style: GoogleFonts.poppins(fontSize: 10, color: _C.textSub),
+      );
+    }
+    final color = info['color'] as Color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(info['icon'] as IconData, size: 11, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              info['label'] as String,
+              style: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w700, color: color),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = _filtered;
+    final allData = _filtered;
+    final totalPages = allData.isEmpty ? 1 : (allData.length / _perPage).ceil();
+    final safePage = _currentPage.clamp(1, totalPages);
+    final startIdx = (safePage - 1) * _perPage;
+    final endIdx = (startIdx + _perPage) > allData.length ? allData.length : startIdx + _perPage;
+    final data = allData.isEmpty ? <Map<String, dynamic>>[] : allData.sublist(startIdx, endIdx);
     return Scaffold(
       backgroundColor: _C.surface,
       appBar: AppBar(
@@ -871,7 +889,10 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                 border: Border.all(color: _C.divider),
               ),
               child: TextField(
-                onChanged: (v) => setState(() => _search = v),
+                onChanged: (v) => setState(() {
+                  _search = v;
+                  _currentPage = 1;
+                }),
                 style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
                 decoration: InputDecoration(
                   hintText: _t('Search section...', 'Cari section...', '搜索部门...'),
@@ -890,7 +911,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '${data.length} ${_t('sections', 'section', '个部门')}',
+                '${allData.length} ${_t('sections', 'section', '个部门')}',
                 style: GoogleFonts.poppins(fontSize: 11, color: Colors.black38),
               ),
             ),
@@ -921,7 +942,6 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                           separatorBuilder: (_, __) => const SizedBox(height: 8),
                           itemBuilder: (_, i) {
                             final item = data[i];
-                            final badge = _locationBadge(item);
                             return Container(
                               padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
                               decoration: BoxDecoration(
@@ -959,15 +979,8 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                                         style: GoogleFonts.poppins(
                                             fontSize: 13, fontWeight: FontWeight.w700, color: _C.textMain),
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        badge.isEmpty
-                                            ? _t('No location mapped', 'Tidak ada lokasi', '未设置位置')
-                                            : badge,
-                                        style: GoogleFonts.poppins(fontSize: 10, color: _C.textSub),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                                      const SizedBox(height: 4),
+                                      _buildLocationChip(item),
                                     ],
                                   ),
                                 ),
@@ -998,7 +1011,155 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                         ),
                       ),
           ),
+          if (!_loading && totalPages > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
+              child: _SectionPageIndicator(
+                currentPage: safePage,
+                totalPages: totalPages,
+                onPageChanged: (p) => setState(() => _currentPage = p),
+                color: _C.primary,
+              ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _SectionPageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final ValueChanged<int> onPageChanged;
+  final Color color;
+
+  const _SectionPageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.onPageChanged,
+    required this.color,
+  });
+
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.14),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _arrowButton(
+            icon: Icons.arrow_back_ios_new_rounded,
+            enabled: canPrev,
+            onTap: () {
+              if (!canPrev) return;
+              onPageChanged(currentPage - 1);
+            },
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Row(
+              children: [
+                for (final p in pageNumbers) ...[
+                  Expanded(child: _pageButton(p)),
+                  if (p != pageNumbers.last) const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _arrowButton(
+            icon: Icons.arrow_forward_ios_rounded,
+            enabled: canNext,
+            onTap: () {
+              if (!canNext) return;
+              onPageChanged(currentPage + 1);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pageButton(int page) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page == currentPage) return;
+        onPageChanged(page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? color : color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive ? null : Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(
+            color: isActive ? Colors.white : color,
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _arrowButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? color.withValues(alpha: 0.16) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 15,
+          color: enabled ? color : Colors.grey.shade400,
+        ),
       ),
     );
   }
