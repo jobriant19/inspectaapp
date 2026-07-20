@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_about_screen.dart';
 import 'admin_legal_screen.dart';
-import 'admin_news_screen.dart';
+import 'news/admin_news_screen.dart';
 
 class AdminSettingsScreen extends StatefulWidget {
   final String lang;
