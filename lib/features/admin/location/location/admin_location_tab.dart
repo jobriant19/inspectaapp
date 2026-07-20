@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../../../../core/services/translation_service.dart';
 import '../../../shared/code/qr_generator_screen.dart';
 import '../../../user/finding/finding_pick_pic.dart';
 import '../../../user/home/alert/required_field_alert.dart';
@@ -72,58 +71,6 @@ class _AdminLocationTabState extends State<AdminLocationTab>
             .where((d) => (d['nama_lokasi'] ?? '').toLowerCase().contains(q))
             .toList();
     _currentPage = 1;
-  }
-
-  Future<String> _translateText(String text, String langPair) async {
-    if (text.trim().isEmpty) return text;
-    try {
-      final normalizedPair = langPair
-          .replaceAll('|zh', '|zh-CN')
-          .replaceAll('zh|', 'zh-CN|');
-      final uri = Uri.parse(
-        'https://api.mymemory.translated.net/get'
-        '?q=${Uri.encodeComponent(text)}&langpair=$normalizedPair',
-      );
-      final res = await http.get(uri).timeout(const Duration(seconds: 20));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final translated =
-            data['responseData']?['translatedText']?.toString() ?? '';
-        if (translated.isEmpty ||
-            translated.toUpperCase().startsWith('MYMEMORY WARNING') ||
-            translated.toUpperCase().startsWith('PLEASE')) {
-          return text;
-        }
-        return translated;
-      }
-      return text;
-    } catch (_) {
-      return text;
-    }
-  }
-
-  Future<Map<String, String>> _translateDescriptionAllLangs(String sourceText) async {
-    if (sourceText.isEmpty) return {'id': '', 'en': '', 'zh': ''};
-    switch (widget.lang) {
-      case 'EN':
-        final results = await Future.wait([
-          _translateText(sourceText, 'en|id'),
-          _translateText(sourceText, 'en|zh'),
-        ]);
-        return {'id': results[0], 'en': sourceText, 'zh': results[1]};
-      case 'ZH':
-        final results = await Future.wait([
-          _translateText(sourceText, 'zh|id'),
-          _translateText(sourceText, 'zh|en'),
-        ]);
-        return {'id': results[0], 'en': results[1], 'zh': sourceText};
-      default:
-        final results = await Future.wait([
-          _translateText(sourceText, 'id|en'),
-          _translateText(sourceText, 'id|zh'),
-        ]);
-        return {'id': sourceText, 'en': results[0], 'zh': results[1]};
-    }
   }
 
   String _localizedDesc(Map<String, dynamic> item) {
@@ -308,35 +255,15 @@ class _AdminLocationTabState extends State<AdminLocationTab>
               showDialog(
                 context: context,
                 barrierDismissible: false,
-                builder: (ctx) => Dialog(
-                  backgroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  elevation: 0,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 26),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 42, height: 42,
-                          child: CircularProgressIndicator(strokeWidth: 3, color: _primary),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          widget.lang == 'EN' ? 'Translating...' : widget.lang == 'ZH' ? '翻译中...' : 'Menerjemahkan...',
-                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                builder: (ctx) => _TranslatingDialog(color: _primary, lang: widget.lang),
               );
             }
 
             Map<String, String> descAll = {'id': '', 'en': '', 'zh': ''};
             if (descSource.isNotEmpty) {
               try {
-                descAll = await _translateDescriptionAllLangs(descSource);
+                descAll = await TranslationHelper.instance
+                    .translateDescriptionAllLangs(descSource, widget.lang);
               } catch (e) {
                 debugPrint('Error translating deskripsi lokasi: $e');
                 descAll = {'id': descSource, 'en': descSource, 'zh': descSource};
@@ -1566,6 +1493,134 @@ class _LocationFormField {
     this.maxLines = 1,
     this.required = false,
   });
+}
+
+class _TranslatingDialog extends StatefulWidget {
+  final Color color;
+  final String lang;
+  const _TranslatingDialog({required this.color, required this.lang});
+
+  @override
+  State<_TranslatingDialog> createState() => _TranslatingDialogState();
+}
+
+class _TranslatingDialogState extends State<_TranslatingDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String get _title {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Translating...';
+      case 'ZH':
+        return '翻译中...';
+      default:
+        return 'Menerjemahkan...';
+    }
+  }
+
+  String get _subtitle {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Converting to Indonesian, English & Mandarin';
+      case 'ZH':
+        return '正在转换为印尼语、英语和中文';
+      default:
+        return 'Mengubah ke Bahasa Indonesia, Inggris & Mandarin';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                final scale = 0.90 + (_controller.value * 0.12);
+                return Transform.scale(scale: scale, child: child);
+              },
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [widget.color, widget.color.withValues(alpha: 0.6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.color.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.translate_rounded, color: Colors.white, size: 30),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              _title,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF1E293B),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _subtitle,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF64748B),
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 22),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: SizedBox(
+                width: 150,
+                height: 6,
+                child: LinearProgressIndicator(
+                  backgroundColor: widget.color.withValues(alpha: 0.12),
+                  valueColor: AlwaysStoppedAnimation<Color>(widget.color),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AdminLocationFormDialog extends StatelessWidget {
