@@ -16,8 +16,6 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
   late TabController _tabController;
 
   static const _kYellow = Color(0xFFD4A50A);
-  static const _kYellowDark = Color(0xFFA6800A);
-  static const _kYellowSoft = Color(0xFFFEF3C7);
 
   String _label(String id, String en, String zh) {
     if (widget.lang == 'EN') return en;
@@ -82,11 +80,7 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
                   child: TabBar(
                     controller: _tabController,
                     indicator: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [_kYellow, _kYellowDark],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: _kYellow,
                       borderRadius: BorderRadius.circular(11),
                       boxShadow: [
                         BoxShadow(
