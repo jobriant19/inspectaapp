@@ -32,7 +32,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _commentController = TextEditingController();
   String? _selectedPriority;
   bool _isSaving = false;
   bool _isEditing = false;
@@ -42,6 +41,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   File? _pickedImageFile;
   Uint8List? _pickedImageBytes;
   String? _existingImageUrl;
+
+  // State untuk gambar balasan admin (signed URL)
+  String? _signedReplyImageUrl;
 
   final Map<String, Map<String, String>> _txt = {
     'EN': {
@@ -71,16 +73,15 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'report_deleted': 'Report deleted successfully!',
       'created_at': 'Reported on',
       'edited_at': 'Last updated on',
-      'comments': 'Comments',
-      'no_comments': 'No comments yet. Be the first to comment!',
-      'type_comment': 'Type a comment...',
-      'comment_sent': 'Comment sent!',
       'status': 'Status',
       'sent': 'Sent',
       'viewed': 'Viewed',
       'completed': 'Completed',
       'photo_empty_error': 'Photo attachment is required',
       'admin_reply': 'Admin Reply',
+      'replied_at': 'Replied at',
+      'edit': 'Edit',
+      'delete_btn': 'Delete',
     },
     'ID': {
       'new_report': 'Lapor Kendala',
@@ -109,16 +110,15 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'report_deleted': 'Laporan berhasil dihapus!',
       'created_at': 'Dilaporkan pada',
       'edited_at': 'Terakhir diperbarui',
-      'comments': 'Komentar',
-      'no_comments': 'Belum ada komentar. Jadilah yang pertama berkomentar!',
-      'type_comment': 'Ketik komentar...',
-      'comment_sent': 'Komentar terkirim!',
       'status': 'Status',
       'sent': 'Dikirim',
       'viewed': 'Dilihat',
       'completed': 'Selesai',
       'photo_empty_error': 'Lampiran foto wajib diisi',
       'admin_reply': 'Balasan Admin',
+      'replied_at': 'Dibalas pada',
+      'edit': 'Edit',
+      'delete_btn': 'Hapus',
     },
     'ZH': {
       'new_report': '报告问题',
@@ -147,16 +147,15 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'report_deleted': '报告已成功删除！',
       'created_at': '报告于',
       'edited_at': '最后更新于',
-      'comments': '评论',
-      'no_comments': '暂无评论。快来抢沙发吧！',
-      'type_comment': '输入评论...',
-      'comment_sent': '评论已发送！',
       'status': '状态',
       'sent': '已发送',
       'viewed': '已查看',
       'completed': '已完成',
       'photo_empty_error': '必须上传照片',
       'admin_reply': '管理员回复',
+      'replied_at': '回复于',
+      'edit': '编辑',
+      'delete_btn': '删除',
     },
   };
 
@@ -195,19 +194,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     }
   }
 
-  Widget _tagIcon(IconData icon, String text, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-    decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 5),
-        Text(text, style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w600, color: color)),
-      ],
-    ),
-  );
-
   @override
   void initState() {
     super.initState();
@@ -220,8 +206,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       _titleController.text = report['title'] ?? '';
       _descriptionController.text = report['description'] ?? '';
       _selectedPriority = report['priority'];
-      
+
       _loadInitialImage();
+      _loadReplyImage();
     }
   }
 
@@ -239,7 +226,22 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           });
         }
       } catch (e) {
-        print("Error creating signed URL in Detail Screen: $e");
+        debugPrint("Error creating signed URL in Detail Screen: $e");
+      }
+    }
+  }
+
+  Future<void> _loadReplyImage() async {
+    final url = widget.report?['admin_reply_image'] as String?;
+    if (url != null && url.isNotEmpty) {
+      try {
+        final path = url.split('/report_images/').last;
+        final signed = await Supabase.instance.client.storage
+            .from('report_images')
+            .createSignedUrl(path, 3600);
+        if (mounted) setState(() => _signedReplyImageUrl = signed);
+      } catch (e) {
+        debugPrint('Error signing reply image: $e');
       }
     }
   }
@@ -249,21 +251,16 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     HelpCenterCameraWarmupService.instance.release();
     _titleController.dispose();
     _descriptionController.dispose();
-    _commentController.dispose();
     super.dispose();
   }
 
   String _formatDateTime(String? dateString) {
     if (dateString == null) return '-';
     try {
-      // 1. Parse string tanggal sebagai UTC
       final dateTimeUtc = DateTime.parse(dateString);
-      // 2. Konversi ke zona waktu lokal perangkat
       final dateTimeLocal = dateTimeUtc.toLocal();
-      // 3. Format waktu lokal tersebut
       return DateFormat('d MMMM yyyy, HH:mm', _currentLang).format(dateTimeLocal);
     } catch (e) {
-      // Jika ada error parsing, kembalikan string aslinya
       return dateString;
     }
   }
@@ -322,6 +319,86 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
+  // --- POPUP HASIL AKSI (pengganti snackbar) ---
+  void _showResultPopup(String message, {bool isError = false, VoidCallback? onDismissed}) {
+    if (!mounted) return;
+    final color = isError ? const Color(0xFFEF4444) : const Color(0xFF10B981);
+    final bgLight = isError ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4);
+    final icon = isError ? Icons.error_rounded : Icons.check_circle_rounded;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'result',
+      barrierColor: Colors.black.withOpacity(0.45),
+      transitionDuration: const Duration(milliseconds: 300),
+      transitionBuilder: (_, anim, __, child) => FadeTransition(
+        opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutBack)),
+          child: child,
+        ),
+      ),
+      pageBuilder: (ctx, _, __) {
+        Future.delayed(const Duration(milliseconds: 1600), () {
+          if (ctx.mounted && Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+          onDismissed?.call();
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 50),
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: color.withOpacity(0.25), blurRadius: 30, spreadRadius: 3, offset: const Offset(0, 10))],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 70, height: 70,
+                    decoration: BoxDecoration(
+                      color: bgLight,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: color.withOpacity(0.25), width: 2),
+                    ),
+                    child: Icon(icon, color: color, size: 38),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)),
+                  ),
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 130,
+                      height: 5,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 1.0, end: 0.0),
+                        duration: const Duration(milliseconds: 1600),
+                        builder: (_, v, __) => LinearProgressIndicator(
+                          value: v,
+                          backgroundColor: color.withOpacity(0.12),
+                          valueColor: AlwaysStoppedAnimation<Color>(color),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // --- LOGIC UNTUK DATABASE ---
   Future<void> _saveReport() async {
     final missing = <MissingFieldItem>[];
@@ -352,7 +429,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     try {
       if (_pickedImageFile != null || _pickedImageBytes != null) {
         final fileName = '${DateTime.now().millisecondsSinceEpoch}';
-        final filePath = '$userId/$fileName'; 
+        final filePath = '$userId/$fileName';
         final fileOptions = FileOptions(contentType: 'image/jpeg');
 
         if (kIsWeb) {
@@ -380,13 +457,91 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(getTxt('report_saved')), backgroundColor: Colors.green));
-        Navigator.pop(context, true);
+        setState(() => _isSaving = false);
+        _showResultPopup(getTxt('report_saved'), onDismissed: () {
+          if (mounted) Navigator.pop(context, true);
+        });
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showResultPopup('Error: $e', isError: true);
+      }
+    }
+  }
+
+  Future<void> _deleteReport() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80, height: 80,
+                decoration: const BoxDecoration(color: Color(0xFFFFEBEB), shape: BoxShape.circle),
+                child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFEF4444), size: 38),
+              ),
+              const SizedBox(height: 20),
+              Text(getTxt('delete'), style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)), textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(getTxt('delete_confirm'), style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF64748B), height: 1.5), textAlign: TextAlign.center),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context, true),
+                  icon: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 18),
+                  label: Text(getTxt('yes'), style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(getTxt('no'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14, color: const Color(0xFF64748B))),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isSaving = true);
+    try {
+      await Supabase.instance.client.from('help_reports').delete().eq('id', widget.report!['id']);
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showResultPopup(getTxt('report_deleted'), onDismissed: () {
+          if (mounted) Navigator.pop(context, true);
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showResultPopup('Error: $e', isError: true);
+      }
     }
   }
 
@@ -415,32 +570,33 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(color: const Color(0xFF1D72F3).withOpacity(0.1), borderRadius: BorderRadius.circular(9)),
-            child: Icon(icon, color: const Color(0xFF1D72F3), size: 15),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: GoogleFonts.poppins(color: Colors.black45, fontSize: 11, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(value, style: GoogleFonts.poppins(color: Colors.black87, fontSize: 13, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _infoCard({required List<Widget> children}) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.black.withOpacity(0.06)),
+      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+  );
+
+  Widget _detailRow(IconData icon, String label, String value, Color color, {bool isLast = false}) => Padding(
+    padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(9)),
+          child: Icon(icon, size: 15, color: color),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(width: 90, child: Text(label, style: GoogleFonts.poppins(fontSize: 12, color: Colors.black45, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(value, style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w600))),
+      ],
+    ),
+  );
 
   Widget _buildPriorityField() {
     final hasValue = _selectedPriority != null;
@@ -451,12 +607,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     final icon = hasValue ? _priorityIcon(_selectedPriority!) : Icons.flag_outlined;
 
     return GestureDetector(
-      onTap: _isEditing ? _showPriorityPicker : null,
+      onTap: _showPriorityPicker,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: _isEditing ? Colors.white : Colors.grey.shade100,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: hasValue ? color.withOpacity(0.4) : Colors.grey.shade300),
         ),
@@ -478,7 +634,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 ),
               ),
             ),
-            if (_isEditing) Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade400),
+            Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade400),
           ],
         ),
       ),
@@ -582,13 +738,13 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
     if (!hasImage) {
       return DottedBorder(
-        color: _isEditing ? const Color(0xFF1D72F3) : Colors.grey.shade400,
+        color: const Color(0xFF1D72F3),
         strokeWidth: 1.5,
         dashPattern: const [6, 4],
         borderType: BorderType.RRect,
         radius: const Radius.circular(16),
         child: GestureDetector(
-          onTap: _isEditing ? _openCamera : null,
+          onTap: _openCamera,
           child: Container(
             width: double.infinity,
             height: 200,
@@ -626,54 +782,43 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               child: imageContent,
             ),
             Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
+              bottom: 0, left: 0, right: 0,
               child: Container(
                 height: 70,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.55),
-                      Colors.transparent,
+                    colors: [Colors.black.withOpacity(0.55), Colors.transparent],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 10, right: 10,
+              child: GestureDetector(
+                onTap: _openCamera,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 15),
+                      const SizedBox(width: 6),
+                      Text(
+                        getTxt('change_photo'),
+                        style: GoogleFonts.poppins(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
-            if (_isEditing)
-              Positioned(
-                bottom: 10,
-                right: 10,
-                child: GestureDetector(
-                  onTap: _openCamera,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 15),
-                        const SizedBox(width: 6),
-                        Text(
-                          getTxt('change_photo'),
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -693,26 +838,256 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
+  // ─────────────────────────────────────────────
+  // VIEW DETAIL (mode lihat, bergaya seperti admin)
+  // ─────────────────────────────────────────────
+  Widget _buildViewDetail() {
+    final report = widget.report!;
+    final status = report['status'] as String? ?? 'Dikirim';
+    final createdAt = report['created_at'] as String?;
+    final editedAt = report['edited_at'] as String?;
+    final repliedAt = report['replied_at'] as String?;
+    final adminReply = report['admin_reply'] as String?;
+    final canEditDelete = status == 'Dikirim';
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        if (_existingImageUrl != null && _existingImageUrl!.isNotEmpty)
+          GestureDetector(
+            onTap: _openFullImageViewer,
+            child: Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.network(
+                    _existingImageUrl!,
+                    height: 200, width: double.infinity, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 200, color: Colors.grey.shade100,
+                      child: const Icon(Icons.image_not_supported, size: 48, color: Colors.black26),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 10, bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), shape: BoxShape.circle),
+                    child: const Icon(Icons.zoom_out_map_rounded, size: 16, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 18),
+        Text(report['title'] ?? '', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3))),
+        const SizedBox(height: 16),
+
+        _infoCard(children: [
+          _detailRow(Icons.calendar_today_rounded, getTxt('created_at'), _formatDateTime(createdAt), const Color(0xFF1D72F3),
+              isLast: editedAt == null && repliedAt == null),
+          if (editedAt != null)
+            _detailRow(Icons.edit_calendar_outlined, getTxt('edited_at'), _formatDateTime(editedAt), const Color(0xFF6366F1),
+                isLast: repliedAt == null),
+          _detailRow(_priorityIcon(report['priority'] ?? ''), getTxt('priority'),
+              (report['priority'] as String? ?? '').toLowerCase() == 'fatal' ? getTxt('fatal') : getTxt('normal'),
+              _priorityColor(report['priority'] ?? '')),
+          _detailRow(_statusIcon(status), getTxt('status'), _statusLabel(status), _statusColor(status),
+              isLast: repliedAt == null),
+          if (repliedAt != null)
+            _detailRow(Icons.mark_email_read_rounded, getTxt('replied_at'), _formatDateTime(repliedAt), const Color(0xFF10B981), isLast: true),
+        ]),
+        const SizedBox(height: 14),
+
+        _infoCard(children: [
+          Row(children: [
+            const Icon(Icons.description_rounded, size: 15, color: Color(0xFF1D72F3)),
+            const SizedBox(width: 8),
+            Text(getTxt('problem_desc'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3))),
+          ]),
+          const SizedBox(height: 10),
+          Text(
+            (report['description'] as String?)?.isNotEmpty == true ? report['description'] : '-',
+            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87, height: 1.5),
+          ),
+        ]),
+
+        if (adminReply != null && adminReply.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Container(height: 1, color: Colors.grey.shade200),
+          const SizedBox(height: 20),
+          Row(children: [
+            const Icon(Icons.reply_rounded, size: 16, color: Color(0xFF1D72F3)),
+            const SizedBox(width: 6),
+            Text(getTxt('admin_reply'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3))),
+          ]),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withOpacity(0.06),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF10B981).withOpacity(0.25)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_signedReplyImageUrl != null && _signedReplyImageUrl!.isNotEmpty) ...[
+                  GestureDetector(
+                    onTap: () => _openReplyImageViewer(_signedReplyImageUrl!),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        _signedReplyImageUrl!,
+                        height: 160, width: double.infinity, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 160, color: Colors.grey.shade100,
+                          child: const Icon(Icons.image_not_supported),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Text(
+                  adminReply,
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black, height: 1.6),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        if (canEditDelete) ...[
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _isEditing = true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB).withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.edit_outlined, color: Color(0xFF2563EB), size: 16),
+                        const SizedBox(width: 6),
+                        Text(getTxt('edit'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFF2563EB))),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _isSaving ? null : _deleteReport,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 16),
+                        const SizedBox(width: 6),
+                        Text(getTxt('delete_btn'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFFEF4444))),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // EDIT / TAMBAH FORM
+  // ─────────────────────────────────────────────
+  Widget _buildEditForm(InputDecoration inputDecoration) {
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildFormLabel(getTxt('photo_attachment'), Icons.camera_alt_rounded, required: true),
+                _buildImagePicker(),
+                _buildFormLabel(getTxt('title'), Icons.title_rounded, required: true),
+                TextFormField(
+                  controller: _titleController,
+                  style: GoogleFonts.poppins(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w600),
+                  decoration: inputDecoration.copyWith(hintText: getTxt('title_hint')),
+                ),
+                _buildFormLabel(getTxt('priority'), Icons.flag_rounded, required: true),
+                _buildPriorityField(),
+                _buildFormLabel(getTxt('problem_desc'), Icons.description_rounded, required: true),
+                TextFormField(
+                  controller: _descriptionController,
+                  style: GoogleFonts.poppins(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w600),
+                  decoration: inputDecoration,
+                  maxLines: 5,
+                  minLines: 3,
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(20),
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1D72F3),
+              minimumSize: const Size(double.infinity, 52),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 4,
+              shadowColor: const Color(0xFF1D72F3).withOpacity(0.4),
+              disabledBackgroundColor: Colors.grey.shade300,
+            ),
+            onPressed: _isSaving ? null : _saveReport,
+            child: _isSaving
+                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                : Text(
+                    _isEditMode ? getTxt('update') : getTxt('submit'),
+                    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final inputDecoration = InputDecoration(
       filled: true,
-      fillColor: _isEditing ? Colors.white : Colors.grey.shade100,
+      fillColor: Colors.white,
       hintStyle: GoogleFonts.poppins(color: Colors.grey.shade400, fontSize: 14),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5)),
-      enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5)),
-      focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF00C9E4), width: 2)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200, width: 1.5)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF00C9E4), width: 2)),
     );
 
+    final bool showView = _isEditMode && !_isEditing;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: showView ? const Color(0xFFF8FAFC) : const Color(0xFFF5F7FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -727,192 +1102,17 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           _isEditMode
               ? (_isEditing ? getTxt('edit_report') : getTxt('report_detail'))
               : getTxt('new_report'),
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF1D72F3),
-            fontSize: 18,
-          ),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: const Color(0xFF1D72F3), fontSize: 18),
         ),
         centerTitle: true,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: Colors.grey.shade200, height: 1),
         ),
-        actions: [
-          if (_isEditMode && !_isEditing)
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, color: Color(0xFF1D72F3)),
-              tooltip: getTxt('edit_report'),
-              onPressed: () => setState(() => _isEditing = true),
-            ),
-        ],
       ),
-      body: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AbsorbPointer(
-                      absorbing: !_isEditing,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildFormLabel(getTxt('photo_attachment'), Icons.camera_alt_rounded, required: true),
-                          _buildImagePicker(),
-                          _buildFormLabel(getTxt('title'), Icons.title_rounded, required: true),
-                          TextFormField(
-                            controller: _titleController,
-                            style: GoogleFonts.poppins(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w600),
-                            decoration: inputDecoration.copyWith(hintText: getTxt('title_hint')),
-                          ),
-                          _buildFormLabel(getTxt('priority'), Icons.flag_rounded, required: true),
-                          _buildPriorityField(),
-                          _buildFormLabel(getTxt('problem_desc'), Icons.description_rounded, required: true),
-                          TextFormField(
-                            controller: _descriptionController,
-                            style: GoogleFonts.poppins(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w600),
-                            decoration: inputDecoration,
-                            maxLines: 5,
-                            minLines: 3,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_isEditMode) ...[
-                      const SizedBox(height: 20),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.black.withOpacity(0.06)),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
-                              const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF1D72F3)),
-                              const SizedBox(width: 6),
-                              Text(getTxt('status'), style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3))),
-                              const Spacer(),
-                              _tagIcon(
-                                _statusIcon(widget.report!['status'] ?? 'Dikirim'),
-                                _statusLabel(widget.report!['status'] ?? 'Dikirim'),
-                                _statusColor(widget.report!['status'] ?? 'Dikirim'),
-                              ),
-                            ]),
-                            const SizedBox(height: 14),
-                            Container(height: 1, color: Colors.grey.shade100),
-                            const SizedBox(height: 10),
-                            _buildInfoRow(
-                                Icons.calendar_today_outlined,
-                                getTxt('created_at'),
-                                _formatDateTime(widget.report!['created_at'])),
-                            if (widget.report!['edited_at'] != null)
-                              _buildInfoRow(
-                                  Icons.edit_calendar_outlined,
-                                  getTxt('edited_at'),
-                                  _formatDateTime(widget.report!['edited_at'])),
-                          ],
-                        ),
-                      ),
-                      if ((widget.report!['admin_reply'] as String?)?.isNotEmpty == true) ...[
-                        const SizedBox(height: 20),
-                        _buildFormLabel(getTxt('admin_reply'), Icons.reply_rounded),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withOpacity(0.06),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFF10B981).withOpacity(0.25)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if ((widget.report!['admin_reply_image'] as String?)?.isNotEmpty == true) ...[
-                                GestureDetector(
-                                  onTap: () => _openReplyImageViewer(widget.report!['admin_reply_image'] as String),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Image.network(
-                                      widget.report!['admin_reply_image'] as String,
-                                      height: 160,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Container(
-                                        height: 160,
-                                        color: Colors.grey.shade100,
-                                        child: const Icon(Icons.image_not_supported),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                              Text(
-                                widget.report!['admin_reply'] as String? ?? '',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black,
-                                  height: 1.6,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            if (_isEditing)
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1D72F3),
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    elevation: 4,
-                    shadowColor:
-                        const Color(0xFF1D72F3).withOpacity(0.4),
-                    disabledBackgroundColor: Colors.grey.shade300,
-                  ),
-                  onPressed: _isSaving ? null : _saveReport,
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 3))
-                      : Text(
-                          _isEditMode
-                              ? getTxt('update')
-                              : getTxt('submit'),
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                ),
-              ),
-          ],
-        ),
-      ),
+      body: showView
+          ? _buildViewDetail()
+          : Form(key: _formKey, child: _buildEditForm(inputDecoration)),
     );
   }
 }

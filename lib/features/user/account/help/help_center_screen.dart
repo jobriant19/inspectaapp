@@ -15,6 +15,8 @@ class HelpCenterScreen extends StatefulWidget {
 class _HelpCenterScreenState extends State<HelpCenterScreen> {
   late String _currentLang;
   List<Map<String, dynamic>> _reports = [];
+  int _currentPage = 1;
+  static const int _perPage = 6;
 
   final Map<String, Map<String, String>> _txt = {
     'EN': {
@@ -90,173 +92,6 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
     );
   }
 
-  void _editReport(Map<String, dynamic> report) async {
-    final result = await Navigator.push(
-      context,
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 350),
-        reverseTransitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (_, __, ___) =>
-            ReportDetailScreen(lang: _currentLang, report: report, startInEditing: true),
-        transitionsBuilder: (_, animation, __, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOut,
-            reverseCurve: Curves.easeIn,
-          );
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(1.0, 0.0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: child,
-          );
-        },
-      ),
-    );
-    if (result == true) _fetchReports();
-  }
-
-  Future<void> _deleteReport(String id, String title) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        elevation: 0,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFEBEB),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.delete_forever_rounded,
-                  color: Color(0xFFEF4444),
-                  size: 38,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                _currentLang == 'EN'
-                    ? 'Delete?'
-                    : _currentLang == 'ZH'
-                        ? '删除？'
-                        : 'Hapus?',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1E293B),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${_currentLang == 'EN' ? 'Are you sure you want to delete report' : _currentLang == 'ZH' ? '确定要删除报告' : 'Yakin ingin menghapus laporan'} "$title"?',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  color: const Color(0xFF64748B),
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => Navigator.pop(context, true),
-                  icon: const Icon(Icons.delete_forever_rounded,
-                      color: Colors.white, size: 18),
-                  label: Text(
-                    _currentLang == 'EN'
-                        ? 'Delete'
-                        : _currentLang == 'ZH'
-                            ? '删除'
-                            : 'Hapus',
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Colors.white,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape:
-                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape:
-                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: Text(
-                    _currentLang == 'EN'
-                        ? 'Cancel'
-                        : _currentLang == 'ZH'
-                            ? '取消'
-                            : 'Batal',
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: const Color(0xFF64748B),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (confirmed != true) return;
-    try {
-      await Supabase.instance.client.from('help_reports').delete().eq('id', id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _currentLang == 'EN'
-                  ? 'Report deleted successfully.'
-                  : _currentLang == 'ZH'
-                      ? '报告删除成功。'
-                      : 'Laporan berhasil dihapus.',
-              style: GoogleFonts.poppins(),
-            ),
-            backgroundColor: const Color(0xFF10B981),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-      }
-      _fetchReports();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -277,6 +112,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
       final reportsWithSignedUrls = <Map<String, dynamic>>[];
       for (var report in response) {
         final newReport = Map<String, dynamic>.from(report);
+
         final imageUrl = newReport['image_url'] as String?;
         if (imageUrl != null && imageUrl.isNotEmpty) {
           try {
@@ -289,12 +125,27 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
             newReport['signed_image_url'] = null;
           }
         }
+
+        final replyImageUrl = newReport['admin_reply_image'] as String?;
+        if (replyImageUrl != null && replyImageUrl.isNotEmpty) {
+          try {
+            final path = replyImageUrl.split('/report_images/').last;
+            final signedReplyUrl = await Supabase.instance.client.storage
+                .from('report_images')
+                .createSignedUrl(path, 3600);
+            newReport['signed_admin_reply_image'] = signedReplyUrl;
+          } catch (e) {
+            newReport['signed_admin_reply_image'] = null;
+          }
+        }
+
         reportsWithSignedUrls.add(newReport);
       }
 
       if (mounted) {
         setState(() {
           _reports = reportsWithSignedUrls;
+          _currentPage = 1;
         });
       }
     } catch (e) {
@@ -314,19 +165,11 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
           PageRouteBuilder(
             transitionDuration: const Duration(milliseconds: 350),
             reverseTransitionDuration: const Duration(milliseconds: 300),
-            pageBuilder: (_, __, ___) =>
-                ReportDetailScreen(lang: _currentLang),
+            pageBuilder: (_, __, ___) => ReportDetailScreen(lang: _currentLang),
             transitionsBuilder: (_, animation, __, child) {
-              final curved = CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOut,
-                reverseCurve: Curves.easeIn,
-              );
+              final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut, reverseCurve: Curves.easeIn);
               return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(1.0, 0.0),
-                  end: Offset.zero,
-                ).animate(curved),
+                position: Tween<Offset>(begin: const Offset(1.0, 0.0), end: Offset.zero).animate(curved),
                 child: child,
               );
             },
@@ -344,99 +187,63 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
           ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF1D72F3).withValues(alpha:0.35),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
+            BoxShadow(color: const Color(0xFF1D72F3).withValues(alpha:0.35), blurRadius: 15, offset: const Offset(0, 5)),
           ],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha:0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.edit_note_rounded,
-                  color: Colors.white, size: 32),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.2), borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.edit_note_rounded, color: Colors.white, size: 32),
             ),
             const SizedBox(width: 15),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    getTxt('report_issue'),
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  Text(getTxt('report_issue'),
+                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                   const SizedBox(height: 4),
-                  Text(
-                    getTxt('report_subtitle'),
-                    style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha:0.85)),
-                  ),
+                  Text(getTxt('report_subtitle'),
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha:0.85))),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios,
-                color: Colors.white, size: 18),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildReportList() {
-    if (_reports.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const SizedBox(height: 50),
-            Icon(Icons.inbox_outlined,
-                size: 80, color: Colors.grey.shade300),
-            const SizedBox(height: 20),
-            Text(
-              getTxt('empty_title'),
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1D72F3),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              getTxt('empty_subtitle'),
-              style: TextStyle(
-                  fontSize: 16, color: Colors.grey.shade600),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
-    return ListView.builder(
-      itemCount: _reports.length,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (context, index) {
-        return _buildReportCard(_reports[index]);
-      },
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 50),
+          Icon(Icons.inbox_outlined, size: 80, color: Colors.grey.shade300),
+          const SizedBox(height: 20),
+          Text(
+            getTxt('empty_title'),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1D72F3)),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            getTxt('empty_subtitle'),
+            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildReportCard(Map<String, dynamic> report) {
     final signedImageUrl = report['signed_image_url'] as String?;
     final adminReply = report['admin_reply'] as String?;
-    final adminReplyImage = report['admin_reply_image'] as String?;
+    final signedReplyImage = report['signed_admin_reply_image'] as String?;
     final repliedAt = report['replied_at'] as String?;
     final createdAt = report['created_at'] as String?;
     final status = report['status'] as String? ?? 'Dikirim';
@@ -454,24 +261,16 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         statusColor = const Color(0xFF1D72F3);
     }
 
-    final statusLabel = getTxt(status == 'Dikirim'
-        ? 'sent'
-        : status == 'Dilihat'
-            ? 'viewed'
-            : 'completed');
+    final statusLabel = getTxt(status == 'Dikirim' ? 'sent' : status == 'Dilihat' ? 'viewed' : 'completed');
 
     String dateStr = '';
     if (createdAt != null) {
-      try {
-        dateStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(createdAt).toLocal());
-      } catch (_) {}
+      try { dateStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(createdAt).toLocal()); } catch (_) {}
     }
 
     String repliedStr = '';
     if (repliedAt != null) {
-      try {
-        repliedStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(repliedAt).toLocal());
-      } catch (_) {}
+      try { repliedStr = DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(repliedAt).toLocal()); } catch (_) {}
     }
 
     return GestureDetector(
@@ -481,19 +280,11 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
           PageRouteBuilder(
             transitionDuration: const Duration(milliseconds: 350),
             reverseTransitionDuration: const Duration(milliseconds: 300),
-            pageBuilder: (_, __, ___) =>
-                ReportDetailScreen(lang: _currentLang, report: report),
+            pageBuilder: (_, __, ___) => ReportDetailScreen(lang: _currentLang, report: report),
             transitionsBuilder: (_, animation, __, child) {
-              final curved = CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOut,
-                reverseCurve: Curves.easeIn,
-              );
+              final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut, reverseCurve: Curves.easeIn);
               return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(1.0, 0.0),
-                  end: Offset.zero,
-                ).animate(curved),
+                position: Tween<Offset>(begin: const Offset(1.0, 0.0), end: Offset.zero).animate(curved),
                 child: child,
               );
             },
@@ -506,12 +297,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha:0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4))
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 10, offset: const Offset(0, 4))],
           border: Border(left: BorderSide(color: statusColor, width: 3)),
         ),
         child: Padding(
@@ -523,35 +309,23 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   GestureDetector(
-                    onTap: (signedImageUrl != null && signedImageUrl.isNotEmpty)
-                        ? () => _openImageViewer(signedImageUrl)
-                        : null,
+                    onTap: (signedImageUrl != null && signedImageUrl.isNotEmpty) ? () => _openImageViewer(signedImageUrl) : null,
                     child: (signedImageUrl != null && signedImageUrl.isNotEmpty)
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: Image.network(
                               signedImageUrl,
-                              width: 92,
-                              height: 92,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Container(
-                                    width: 92,
-                                    height: 92,
-                                    color: const Color(0xFFEFF6FF),
-                                    child: const Icon(Icons.image_not_supported, size: 30),
-                                  ),
+                              width: 88, height: 88, fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                width: 88, height: 88, color: const Color(0xFFEFF6FF),
+                                child: const Icon(Icons.image_not_supported, size: 30),
+                              ),
                             ),
                           )
                         : Container(
-                            width: 92,
-                            height: 92,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(10),
-                              color: const Color(0xFFEFF6FF),
-                            ),
-                            child: Icon(Icons.flag_outlined,
-                                color: Colors.grey.shade400, size: 32),
+                            width: 88, height: 88,
+                            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: const Color(0xFFEFF6FF)),
+                            child: Icon(Icons.flag_outlined, color: Colors.grey.shade400, size: 32),
                           ),
                   ),
                   const SizedBox(width: 15),
@@ -561,10 +335,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       children: [
                         Text(
                           report['title'] ?? '',
-                          style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF334155)),
+                          style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFF334155)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -575,9 +346,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                           children: [
                             _buildTag(
                               getTxt(priority.toLowerCase() == 'fatal' ? 'fatal' : 'normal'),
-                              priority.toLowerCase() == 'fatal'
-                                  ? Colors.red.shade400
-                                  : const Color(0xFF1D72F3),
+                              priority.toLowerCase() == 'fatal' ? Colors.red.shade400 : const Color(0xFF1D72F3),
                               _priorityIcon(priority),
                             ),
                             _buildTag(statusLabel, statusColor, _statusIcon(status)),
@@ -587,20 +356,13 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                           const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                            decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.calendar_today_rounded, size: 11, color: Colors.grey.shade500),
                                 const SizedBox(width: 5),
-                                Text(
-                                  dateStr,
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
-                                ),
+                                Text(dateStr, style: GoogleFonts.poppins(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
                               ],
                             ),
                           ),
@@ -608,42 +370,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  if (status != 'Selesai')
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GestureDetector(
-                          onTap: () => _editReport(report),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withValues(alpha:0.10),
-                              borderRadius: BorderRadius.circular(9),
-                            ),
-                            child: const Icon(Icons.edit_outlined,
-                                color: Color(0xFF2563EB), size: 17),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        GestureDetector(
-                          onTap: () => _deleteReport(
-                              report['id'].toString(), report['title'] ?? ''),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444).withValues(alpha:0.10),
-                              borderRadius: BorderRadius.circular(9),
-                            ),
-                            child: const Icon(Icons.delete_outline_rounded,
-                                color: Color(0xFFEF4444), size: 17),
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    const Icon(Icons.arrow_forward_ios,
-                        size: 16, color: Colors.grey),
+                  const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                 ],
               ),
               if (adminReply != null && adminReply.isNotEmpty) ...[
@@ -663,74 +390,53 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                         children: [
                           Container(
                             padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha:0.15),
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                            child: const Icon(Icons.support_agent_rounded,
-                                size: 13, color: Color(0xFF10B981)),
+                            decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha:0.15), borderRadius: BorderRadius.circular(7)),
+                            child: const Icon(Icons.support_agent_rounded, size: 13, color: Color(0xFF10B981)),
                           ),
                           const SizedBox(width: 7),
                           Text(
-                            _currentLang == 'EN'
-                                ? 'Admin Reply'
-                                : _currentLang == 'ZH'
-                                    ? '管理员回复'
-                                    : 'Balasan Admin',
-                            style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF10B981)),
+                            _currentLang == 'EN' ? 'Admin Reply' : _currentLang == 'ZH' ? '管理员回复' : 'Balasan Admin',
+                            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF10B981)),
                           ),
                           if (repliedStr.isNotEmpty) ...[
                             const Spacer(),
                             Icon(Icons.access_time_rounded, size: 11, color: Colors.grey.shade500),
                             const SizedBox(width: 3),
-                            Text(repliedStr,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10.5,
-                                    color: Colors.grey.shade500)),
+                            Text(repliedStr, style: GoogleFonts.poppins(fontSize: 10.5, color: Colors.grey.shade500)),
                           ],
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text(adminReply,
-                          style: GoogleFonts.poppins(
-                              fontSize: 13, color: const Color(0xFF334155), height: 1.5)),
-                      if (adminReplyImage != null &&
-                          adminReplyImage.isNotEmpty) ...[
-                        const SizedBox(height: 10),
+                      if (signedReplyImage != null && signedReplyImage.isNotEmpty) ...[
                         GestureDetector(
-                          onTap: () => _openImageViewer(adminReplyImage),
+                          onTap: () => _openImageViewer(signedReplyImage),
                           child: Stack(
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
                                 child: Image.network(
-                                  adminReplyImage,
-                                  width: double.infinity,
-                                  height: 150,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                      Icons.image_not_supported,
-                                      size: 40),
+                                  signedReplyImage,
+                                  width: double.infinity, height: 150, fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    height: 150, color: Colors.grey.shade100,
+                                    child: const Icon(Icons.image_not_supported, size: 40),
+                                  ),
                                 ),
                               ),
                               Positioned(
                                 right: 8, bottom: 8,
                                 child: Container(
                                   padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha:0.55),
-                                    shape: BoxShape.circle,
-                                  ),
+                                  decoration: BoxDecoration(color: Colors.black.withValues(alpha:0.55), shape: BoxShape.circle),
                                   child: const Icon(Icons.zoom_out_map_rounded, size: 14, color: Colors.white),
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(height: 10),
                       ],
+                      Text(adminReply, style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF334155), height: 1.5)),
                     ],
                   ),
                 ),
@@ -745,17 +451,13 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   Widget _buildTag(String text, Color color, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-          color: color.withValues(alpha:0.12),
-          borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: color.withValues(alpha:0.12), borderRadius: BorderRadius.circular(20)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 11, color: color),
           const SizedBox(width: 4),
-          Text(text,
-              style: GoogleFonts.poppins(
-                  color: color, fontSize: 11.5, fontWeight: FontWeight.w600)),
+          Text(text, style: GoogleFonts.poppins(color: color, fontSize: 11.5, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -763,54 +465,67 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final totalPages = _reports.isEmpty ? 1 : (_reports.length / _perPage).ceil();
+    final safePage = _currentPage.clamp(1, totalPages);
+    final startIdx = (safePage - 1) * _perPage;
+    final endIdx = (startIdx + _perPage) > _reports.length ? _reports.length : startIdx + _perPage;
+    final pageData = _reports.isEmpty ? <Map<String, dynamic>>[] : _reports.sublist(startIdx, endIdx);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new,
-              color: Color(0xFF1D72F3)),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1D72F3)),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           getTxt('title'),
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF1D72F3),
-            fontSize: 18,
-          ),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: const Color(0xFF1D72F3), fontSize: 18),
         ),
         backgroundColor: Colors.white,
         elevation: 1,
         surfaceTintColor: Colors.white,
+        scrolledUnderElevation: 0,
         shadowColor: Colors.black.withValues(alpha:0.08),
         iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
       ),
-      body: RefreshIndicator(
-        onRefresh: _fetchReports,
-        color: const Color(0xFF1D72F3),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildReportButton(context),
-              const SizedBox(height: 28),
-              Text(
-                getTxt('history'),
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1D72F3),
+      body: Column(
+        children: [
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _fetchReports,
+              color: const Color(0xFF1D72F3),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildReportButton(context),
+                    const SizedBox(height: 28),
+                    Text(
+                      getTxt('history'),
+                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1D72F3)),
+                    ),
+                    const SizedBox(height: 14),
+                    if (_reports.isEmpty)
+                      _buildEmptyState()
+                    else
+                      ...pageData.map((r) => _buildReportCard(r)),
+                  ],
                 ),
               ),
-              const SizedBox(height: 14),
-              _buildReportList(),
-            ],
+            ),
           ),
-        ),
+          if (_reports.isNotEmpty && totalPages > 1)
+            _HelpCenterPageIndicator(
+              currentPage: safePage,
+              totalPages: totalPages,
+              onPageChanged: (p) => setState(() => _currentPage = p),
+              color: const Color(0xFF1D72F3),
+            ),
+        ],
       ),
     );
   }
@@ -862,6 +577,123 @@ class _FullImageViewerHC extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HelpCenterPageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final ValueChanged<int> onPageChanged;
+  final Color color;
+
+  const _HelpCenterPageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.onPageChanged,
+    required this.color,
+  });
+
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+    final double bottomSpacing = bottomInset > 0 ? bottomInset + 10 : 16;
+
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.fromLTRB(15, 8, 15, bottomSpacing),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+          boxShadow: [BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 10, offset: const Offset(0, 4))],
+        ),
+        child: Row(
+          children: [
+            _arrowButton(
+              icon: Icons.arrow_back_ios_new_rounded,
+              enabled: canPrev,
+              onTap: () { if (!canPrev) return; onPageChanged(currentPage - 1); },
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Row(
+                children: [
+                  for (final p in pageNumbers) ...[
+                    Expanded(child: _pageButton(p)),
+                    if (p != pageNumbers.last) const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _arrowButton(
+              icon: Icons.arrow_forward_ios_rounded,
+              enabled: canNext,
+              onTap: () { if (!canNext) return; onPageChanged(currentPage + 1); },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pageButton(int page) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () { if (page == currentPage) return; onPageChanged(page); },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? color : color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive ? null : Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(color: isActive ? Colors.white : color, fontWeight: FontWeight.w800, fontSize: 13),
+        ),
+      ),
+    );
+  }
+
+  Widget _arrowButton({required IconData icon, required bool enabled, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 15, color: enabled ? color : Colors.grey.shade400),
       ),
     );
   }

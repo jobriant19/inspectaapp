@@ -343,6 +343,87 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     );
   }
 
+  Widget _buildPicField({
+    required bool enabled,
+    required Map<String, dynamic>? picData,
+    required VoidCallback? onTap,
+  }) {
+    final hasValue = picData != null;
+    final name = picData?['nama']?.toString() ?? '';
+    final avatarUrl = picData?['gambar_user']?.toString();
+    final idJabatan = picData?['id_jabatan'] as int?;
+    final isVerificator = picData?['is_verificator'] as bool?;
+    final jabatanRaw = picData?['jabatan'];
+    final jabatanNama = jabatanRaw is Map ? jabatanRaw['nama_jabatan']?.toString() : null;
+
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.5,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: hasValue ? _C.primary.withValues(alpha: 0.06) : _C.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: hasValue ? _C.primary.withValues(alpha: 0.3) : _C.divider),
+          ),
+          child: hasValue
+              ? Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 18,
+                      backgroundColor: _C.primaryLt,
+                      backgroundImage:
+                          (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+                      child: (avatarUrl == null || avatarUrl.isEmpty)
+                          ? const Icon(Icons.person_rounded, color: _C.primary, size: 18)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            name,
+                            style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _C.textMain),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          buildJabatanBadge(
+                            idJabatan: idJabatan,
+                            jabatanNama: jabatanNama,
+                            isVerificator: isVerificator,
+                            lang: widget.lang,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.keyboard_arrow_down_rounded, color: _C.primary.withValues(alpha: 0.7), size: 18),
+                  ],
+                )
+              : Row(
+                  children: [
+                    const Icon(Icons.person_off_rounded, size: 16, color: Colors.black26),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        enabled
+                            ? _t('Select PIC', 'Pilih PIC', '选择负责人')
+                            : _t('Select Location Mapping first', 'Pilih Pemetaan Lokasi dahulu', '请先选择位置映射'),
+                        style: GoogleFonts.poppins(fontSize: 13, color: Colors.black38),
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black26, size: 18),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
   void _openSectionPicker({
     required String title,
     required IconData icon,
@@ -392,6 +473,8 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     String? selUnit = isEdit ? existing['id_unit']?.toString() : null;
     String? selSubunit = isEdit ? existing['id_subunit']?.toString() : null;
     String? selArea = isEdit ? existing['id_area']?.toString() : null;
+    String? selPicId = isEdit ? existing['id_pic']?.toString() : null;
+    Map<String, dynamic>? selPicData = isEdit ? existing['User'] as Map<String, dynamic>? : null;
 
     bool isSaving = false;
 
@@ -409,6 +492,17 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
           final areaOptions = selSubunit == null
               ? _areaList
               : _areaList.where((a) => a['id_subunit']?.toString() == selSubunit).toList();
+          final hasMapping =
+              selLokasi != null || selUnit != null || selSubunit != null || selArea != null;
+          final currentLocFilter = selArea != null
+              ? {'idCol': 'id_area', 'id': selArea!}
+              : selSubunit != null
+                  ? {'idCol': 'id_subunit', 'id': selSubunit!}
+                  : selUnit != null
+                      ? {'idCol': 'id_unit', 'id': selUnit!}
+                      : selLokasi != null
+                          ? {'idCol': 'id_lokasi', 'id': selLokasi!}
+                          : null;
 
           return Dialog(
             backgroundColor: Colors.white,
@@ -635,6 +729,8 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                                 selUnit = null;
                                 selSubunit = null;
                                 selArea = null;
+                                selPicId = null;
+                                selPicData = null;
                               }),
                             ),
                           ),
@@ -656,6 +752,8 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                                 selUnit = v;
                                 selSubunit = null;
                                 selArea = null;
+                                selPicId = null;
+                                selPicData = null;
                               }),
                             ),
                           ),
@@ -677,6 +775,8 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                               onSelect: (v) => setDlg(() {
                                 selSubunit = v;
                                 selArea = null;
+                                selPicId = null;
+                                selPicData = null;
                               }),
                             ),
                           ),
@@ -694,8 +794,64 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                               idKey: 'id_area',
                               nameKey: 'nama_area',
                               selectedId: selArea,
-                              onSelect: (v) => setDlg(() => selArea = v),
+                              onSelect: (v) => setDlg(() {
+                                selArea = v;
+                                selPicId = null;
+                                selPicData = null;
+                              }),
                             ),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              const Icon(Icons.badge_rounded, size: 14, color: _C.primary),
+                              const SizedBox(width: 6),
+                              Text(
+                                _t('Person in Charge', 'Penanggung Jawab', '负责人'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, fontWeight: FontWeight.w700, color: _C.primary),
+                              ),
+                              const SizedBox(width: 3),
+                              Text('*',
+                                  style: GoogleFonts.poppins(
+                                      color: _C.red, fontSize: 13, fontWeight: FontWeight.w700)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            hasMapping
+                                ? _t('Only users at the selected location can be assigned.',
+                                    'Hanya pengguna pada lokasi terpilih yang bisa ditugaskan.', '只能指派所选位置的用户。')
+                                : _t('Select a Location Mapping level above first.',
+                                    'Pilih salah satu level Pemetaan Lokasi di atas terlebih dahulu.', '请先选择上方的位置映射级别。'),
+                            style: GoogleFonts.poppins(fontSize: 10, color: _C.textSub),
+                          ),
+                          const SizedBox(height: 6),
+                          _buildPicField(
+                            enabled: hasMapping,
+                            picData: selPicData,
+                            onTap: !hasMapping
+                                ? null
+                                : () async {
+                                    final loc = currentLocFilter!;
+                                    final result = await showDialog<Map<String, dynamic>>(
+                                      context: context,
+                                      barrierDismissible: true,
+                                      builder: (dCtx) => _SectionPicPickerDialog(
+                                        lang: widget.lang,
+                                        idCol: loc['idCol']!,
+                                        locId: loc['id']!,
+                                        excludeSectionId: existing?['id_section']?.toString(),
+                                        selectedUserId: selPicId,
+                                      ),
+                                    );
+                                    if (result != null) {
+                                      setDlg(() {
+                                        selPicId = result['id_user']?.toString();
+                                        selPicData = result;
+                                      });
+                                    }
+                                  },
                           ),
                           const SizedBox(height: 8),
                         ],
@@ -754,6 +910,12 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                                       label: _t('Location Mapping', 'Pemetaan Lokasi', '位置映射'),
                                     ));
                                   }
+                                  if (selPicId == null) {
+                                    missing.add(MissingFieldItem(
+                                      icon: Icons.badge_rounded,
+                                      label: _t('Person in Charge', 'Penanggung Jawab', '负责人'),
+                                    ));
+                                  }
                                   if (missing.isNotEmpty) {
                                     RequiredFieldAlert.show(
                                       context,
@@ -805,6 +967,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                                       'id_unit': selUnit,
                                       'id_subunit': selSubunit,
                                       'id_area': selArea,
+                                      'id_pic': selPicId,
                                     };
                                     if (isEdit) {
                                       await _supabase
@@ -2144,6 +2307,540 @@ class _SectionPageIndicator extends StatelessWidget {
           size: 15,
           color: enabled ? color : Colors.grey.shade400,
         ),
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------------------------
+// Popup pilih PIC Section: difilter berdasarkan level lokasi paling
+// spesifik yang sudah dipilih di form (Area > Sub-Unit > Unit > Lokasi),
+// mengecualikan user yang sudah jadi PIC di lokasi/unit/subunit/area/
+// section lain.
+// --------------------------------------------------------------------
+class _SectionPicPickerDialog extends StatefulWidget {
+  final String lang;
+  final String idCol;
+  final String locId;
+  final String? excludeSectionId;
+  final String? selectedUserId;
+
+  const _SectionPicPickerDialog({
+    required this.lang,
+    required this.idCol,
+    required this.locId,
+    required this.excludeSectionId,
+    required this.selectedUserId,
+  });
+
+  @override
+  State<_SectionPicPickerDialog> createState() => _SectionPicPickerDialogState();
+}
+
+class _SectionPicPickerDialogState extends State<_SectionPicPickerDialog> {
+  final _supabase = Supabase.instance.client;
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  List<Map<String, dynamic>> _items = [];
+  List<Map<String, dynamic>> _filtered = [];
+  bool _loading = true;
+  int? _roleFilterId;
+  String? _roleFilterName;
+
+  String _t(String en, String id, String zh) {
+    if (widget.lang == 'EN') return en;
+    if (widget.lang == 'ZH') return zh;
+    return id;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<Set<String>> _fetchExcludedPicIds() async {
+    final excluded = <String>{};
+    for (final t in ['lokasi', 'unit', 'subunit', 'area']) {
+      try {
+        final res = await _supabase.from(t).select('id_pic').not('id_pic', 'is', null);
+        for (final row in (res as List)) {
+          final id = row['id_pic']?.toString();
+          if (id != null) excluded.add(id);
+        }
+      } catch (e) {
+        debugPrint('Error fetch excluded pic ($t): $e');
+      }
+    }
+    try {
+      final res = await _supabase.from('section').select('id_section, id_pic').not('id_pic', 'is', null);
+      for (final row in (res as List)) {
+        if (widget.excludeSectionId != null && row['id_section']?.toString() == widget.excludeSectionId) {
+          continue;
+        }
+        final id = row['id_pic']?.toString();
+        if (id != null) excluded.add(id);
+      }
+    } catch (e) {
+      debugPrint('Error fetch excluded pic (section): $e');
+    }
+    return excluded;
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final excluded = await _fetchExcludedPicIds();
+      final res = await _supabase
+          .from('User')
+          .select('id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
+          .eq(widget.idCol, widget.locId)
+          .order('nama');
+      final list = List<Map<String, dynamic>>.from(res)
+          .where((u) =>
+              !excluded.contains(u['id_user']?.toString()) ||
+              u['id_user']?.toString() == widget.selectedUserId)
+          .toList();
+      if (mounted) {
+        setState(() {
+          _items = list;
+          _loading = false;
+        });
+        _applyFilter();
+      }
+    } catch (e) {
+      debugPrint('Error load section PIC users: $e');
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _applyFilter() {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    setState(() {
+      _filtered = _items.where((u) {
+        final matchesSearch = q.isEmpty || (u['nama'] ?? '').toString().toLowerCase().contains(q);
+        final matchesRole = _roleFilterId == null || u['id_jabatan'] == _roleFilterId;
+        return matchesSearch && matchesRole;
+      }).toList();
+    });
+  }
+
+  Future<void> _openRoleFilter() async {
+    final result = await showDialog<Map<String, dynamic>?>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _SectionRoleFilterDialog(lang: widget.lang, selectedId: _roleFilterId),
+    );
+    if (result != null) {
+      setState(() {
+        if (result.isEmpty) {
+          _roleFilterId = null;
+          _roleFilterName = null;
+        } else {
+          _roleFilterId = result['id_jabatan'] as int?;
+          _roleFilterName = result['nama_jabatan']?.toString();
+        }
+      });
+      _applyFilter();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        width: 340,
+        height: screenHeight * 0.72,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _C.primaryLt, width: 1.5),
+        ),
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: _C.primaryLt, borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.person_search_rounded, color: _C.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _t('Select Person in Charge', 'Pilih Penanggung Jawab', '选择负责人'),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _C.primary),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
+                  child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+            child: Row(children: [
+              Expanded(
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _C.primary.withValues(alpha: 0.35), width: 1.3),
+                  ),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (_) => _applyFilter(),
+                    textAlignVertical: TextAlignVertical.center,
+                    style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain, fontWeight: FontWeight.w500),
+                    decoration: InputDecoration(
+                      hintText: _t('Search user...', 'Cari pengguna...', '搜索用户...'),
+                      hintStyle: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black38),
+                      prefixIcon: const Icon(Icons.search_rounded, color: _C.primary, size: 19),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _openRoleFilter,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _roleFilterId != null ? _C.primary : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _roleFilterId != null ? _C.primary : _C.primary.withValues(alpha: 0.35),
+                      width: 1.3,
+                    ),
+                  ),
+                  child: Icon(Icons.filter_list_rounded,
+                      color: _roleFilterId != null ? Colors.white : _C.primary, size: 20),
+                ),
+              ),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 14, right: 14, bottom: 4),
+            child: Row(children: [
+              Text('${_filtered.length} ${_t('users', 'pengguna', '位用户')}',
+                  style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub)),
+              if (_roleFilterName != null) ...[
+                const Spacer(),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: _C.primaryLt, borderRadius: BorderRadius.circular(20)),
+                    child: Text(_roleFilterName!,
+                        style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: _C.primary),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+              ],
+            ]),
+          ),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: _C.primary, strokeWidth: 2))
+                : _filtered.isEmpty
+                    ? Center(
+                        child: Text(_t('No users found', 'Pengguna tidak ditemukan', '未找到用户'),
+                            style: GoogleFonts.poppins(fontSize: 12.5, color: _C.textSub)),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(top: 6, bottom: 12),
+                        itemCount: _filtered.length,
+                        itemBuilder: (_, i) {
+                          final item = _filtered[i];
+                          final name = (item['nama'] ?? '').toString();
+                          final id = item['id_user']?.toString();
+                          final avatarUrl = item['gambar_user'] as String?;
+                          final idJabatan = item['id_jabatan'] as int?;
+                          final isVerificator = item['is_verificator'] as bool?;
+                          final jabatanRaw = item['jabatan'];
+                          final jabatanNama = jabatanRaw is Map ? jabatanRaw['nama_jabatan']?.toString() : null;
+                          final isSelected = id != null && id == widget.selectedUserId;
+
+                          return InkWell(
+                            onTap: () => Navigator.pop(context, item),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSelected ? _C.primaryLt : Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: isSelected ? _C.primary : _C.divider, width: isSelected ? 1.5 : 1),
+                              ),
+                              child: Row(children: [
+                                if (avatarUrl != null && avatarUrl.isNotEmpty)
+                                  CircleAvatar(radius: 20, backgroundImage: NetworkImage(avatarUrl), backgroundColor: _C.primaryLt)
+                                else
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: isSelected ? _C.primary : _C.primaryLt,
+                                    child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                        style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                            color: isSelected ? Colors.white : _C.primary)),
+                                  ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(name,
+                                          style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                              color: isSelected ? _C.primary : _C.textMain)),
+                                      const SizedBox(height: 4),
+                                      buildJabatanBadge(
+                                          idJabatan: idJabatan,
+                                          jabatanNama: jabatanNama,
+                                          isVerificator: isVerificator,
+                                          lang: widget.lang),
+                                    ],
+                                  ),
+                                ),
+                                if (isSelected) const Icon(Icons.check_circle_rounded, color: _C.primary, size: 18),
+                              ]),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// --------------------------------------------------------------------
+// Popup filter Jabatan (role) untuk picker PIC di atas
+// --------------------------------------------------------------------
+class _SectionRoleFilterDialog extends StatefulWidget {
+  final String lang;
+  final int? selectedId;
+  const _SectionRoleFilterDialog({required this.lang, required this.selectedId});
+
+  @override
+  State<_SectionRoleFilterDialog> createState() => _SectionRoleFilterDialogState();
+}
+
+class _SectionRoleFilterDialogState extends State<_SectionRoleFilterDialog> {
+  final _supabase = Supabase.instance.client;
+  final TextEditingController _searchCtrl = TextEditingController();
+  List<Map<String, dynamic>> _jabatanList = [];
+  List<Map<String, dynamic>> _filtered = [];
+  bool _loading = true;
+
+  static const List<Color> _palette = [
+    Color(0xFF6366F1), Color(0xFF10B981), Color(0xFFF59E0B),
+    Color(0xFFEC4899), Color(0xFF06B6D4), Color(0xFFEF4444),
+    Color(0xFF8B5CF6), Color(0xFF14B8A6),
+  ];
+
+  String _t(String en, String id, String zh) {
+    if (widget.lang == 'EN') return en;
+    if (widget.lang == 'ZH') return zh;
+    return id;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _searchCtrl.addListener(_applyFilter);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.removeListener(_applyFilter);
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await _supabase.from('jabatan').select('id_jabatan, nama_jabatan').order('id_jabatan');
+      _jabatanList = List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      debugPrint('Error load jabatan: $e');
+      _jabatanList = [];
+    }
+    _filtered = List.from(_jabatanList);
+    if (mounted) setState(() => _loading = false);
+  }
+
+  void _applyFilter() {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? List.from(_jabatanList)
+          : _jabatanList.where((e) => (e['nama_jabatan'] ?? '').toString().toLowerCase().contains(q)).toList();
+    });
+  }
+
+  Color _colorFor(int? id) => _palette[(id ?? 0) % _palette.length];
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        width: 340,
+        height: screenHeight * 0.72,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _C.primaryLt, width: 1.5),
+        ),
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: _C.primaryLt, borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.badge_rounded, color: _C.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(_t('Select Role', 'Pilih Role', '选择角色'),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _C.primary)),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
+                  child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _C.primary.withValues(alpha: 0.35), width: 1.3),
+              ),
+              child: TextField(
+                controller: _searchCtrl,
+                textAlignVertical: TextAlignVertical.center,
+                style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain, fontWeight: FontWeight.w500),
+                decoration: InputDecoration(
+                  hintText: _t('Search role...', 'Cari role...', '搜索角色...'),
+                  hintStyle: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black38),
+                  prefixIcon: const Icon(Icons.search_rounded, color: _C.primary, size: 19),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: _C.primary, strokeWidth: 2))
+                : ListView(
+                    padding: const EdgeInsets.only(top: 6, bottom: 12),
+                    children: [
+                      InkWell(
+                        onTap: () => Navigator.pop(context, <String, dynamic>{}),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: widget.selectedId == null ? _C.primaryLt : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: widget.selectedId == null ? _C.primary : _C.divider,
+                                width: widget.selectedId == null ? 1.5 : 1),
+                          ),
+                          child: Row(children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+                              child: const Icon(Icons.apps_rounded, size: 18, color: Colors.black38),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(_t('All Roles', 'Semua Role', '所有角色'),
+                                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.black54)),
+                          ]),
+                        ),
+                      ),
+                      ..._filtered.map((item) {
+                        final id = item['id_jabatan'] as int?;
+                        final nama = item['nama_jabatan']?.toString() ?? '-';
+                        final isSelected = id != null && id == widget.selectedId;
+                        final color = _colorFor(id);
+                        return InkWell(
+                          onTap: () => Navigator.pop(context, item),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isSelected ? color.withValues(alpha: 0.08) : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: isSelected ? color : _C.divider, width: isSelected ? 1.5 : 1),
+                            ),
+                            child: Row(children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
+                                child: Icon(Icons.badge_rounded, size: 17, color: color),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(nama,
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                        color: isSelected ? color : _C.textMain)),
+                              ),
+                              if (isSelected) Icon(Icons.check_circle_rounded, color: color, size: 18),
+                            ]),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+          ),
+        ]),
       ),
     );
   }

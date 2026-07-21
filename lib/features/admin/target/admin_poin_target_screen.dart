@@ -15,8 +15,9 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  static const _kYellow = Color.fromARGB(255, 245, 233, 11);
-  static const _kYellowDark = Color.fromARGB(255, 200, 180, 5);
+  static const _kYellow = Color(0xFFD4A50A);
+  static const _kYellowDark = Color(0xFFA6800A);
+  static const _kYellowSoft = Color(0xFFFEF3C7);
 
   String _label(String id, String en, String zh) {
     if (widget.lang == 'EN') return en;
@@ -42,7 +43,7 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _kYellow),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -52,29 +53,32 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
             '积分与5R目标',
           ),
           style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            fontSize: 18,
             color: _kYellow,
           ),
         ),
         backgroundColor: Colors.white,
         elevation: 0,
-        iconTheme: const IconThemeData(color: _kYellow),
+        shadowColor: Colors.black12,
+        surfaceTintColor: Colors.white,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(49),
+          preferredSize: const Size.fromHeight(66),
           child: Column(
             children: [
-              Container(height: 1, color: Colors.black.withValues(alpha:0.06)),
+              Container(color: Colors.grey.shade200, height: 1),
               Container(
                 color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                 child: Container(
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  padding: const EdgeInsets.all(3),
+                  padding: const EdgeInsets.all(4),
                   child: TabBar(
                     controller: _tabController,
                     indicator: BoxDecoration(
@@ -83,43 +87,46 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(11),
                       boxShadow: [
                         BoxShadow(
-                          color: _kYellow.withValues(alpha:0.4),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                          color: _kYellow.withValues(alpha:0.35),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
                     indicatorSize: TabBarIndicatorSize.tab,
+                    indicatorPadding: EdgeInsets.zero,
                     labelColor: Colors.white,
-                    unselectedLabelColor: Colors.grey.shade600,
+                    unselectedLabelColor: const Color(0xFF64748B),
                     labelStyle: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700, fontSize: 12),
+                        fontWeight: FontWeight.w800, fontSize: 13),
                     unselectedLabelStyle: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w500, fontSize: 12),
+                        fontWeight: FontWeight.w600, fontSize: 13),
                     dividerColor: Colors.transparent,
                     overlayColor:
                         WidgetStateProperty.all(Colors.transparent),
                     tabs: [
                       Tab(
+                        height: 40,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.stars_rounded, size: 14),
-                            const SizedBox(width: 5),
+                            const Icon(Icons.stars_rounded, size: 16),
+                            const SizedBox(width: 7),
                             Text(_label('Poin', 'Points', '积分')),
                           ],
                         ),
                       ),
                       Tab(
+                        height: 40,
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(Icons.track_changes_rounded,
-                                size: 14),
-                            const SizedBox(width: 5),
+                                size: 16),
+                            const SizedBox(width: 7),
                             Text(_label(
                                 'Target 5R', '5R Target', '5R目标')),
                           ],
