@@ -380,6 +380,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                     getTxt('report_subtitle'),
                     style: GoogleFonts.poppins(
                         fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         color: Colors.white.withValues(alpha:0.85)),
                   ),
                 ],
@@ -763,7 +764,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEFF6FF),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new,
@@ -780,6 +781,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
         ),
         backgroundColor: Colors.white,
         elevation: 1,
+        surfaceTintColor: Colors.white,
         shadowColor: Colors.black.withValues(alpha:0.08),
         iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
