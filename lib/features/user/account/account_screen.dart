@@ -8,7 +8,7 @@ import 'profile/profile_screen.dart';
 import 'about_inspecta_screen.dart';
 import 'help/help_center_screen.dart';
 import 'privacy_security_screen.dart';
-import 'news_screen.dart';
+import 'news/news_screen.dart';
 import 'package:shimmer/shimmer.dart';
 
 class AccountScreen extends StatefulWidget {

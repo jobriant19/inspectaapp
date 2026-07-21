@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/fcm_v1_service.dart';
-import '../../../user/account/news_detail_screen.dart';
+import '../../../user/account/news/news_detail_screen.dart';
 import 'admin_add_news.dart';
 
 class AdminNewsScreen extends StatefulWidget {
