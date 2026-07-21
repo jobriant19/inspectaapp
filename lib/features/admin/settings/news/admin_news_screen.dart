@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/fcm_v1_service.dart';
@@ -804,6 +805,17 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
     );
   }
 
+  String _formatCardDate(String? raw) {
+    if (raw == null || raw.isEmpty) return '-';
+    try {
+      final dateStr = raw.split('T').first;
+      final date = DateTime.parse(dateStr);
+      return DateFormat('d MMM yyyy').format(date);
+    } catch (_) {
+      return raw;
+    }
+  }
+
   Widget _buildNewsCard(Map<String, dynamic> item) {
     final type = (item['type'] ?? '').toString().toLowerCase();
     final isUpdate = type == 'update';
@@ -819,7 +831,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
             ? 'title_en'
             : 'title_id';
 
-    final date = item['published_at']?.toString() ?? '';
+    final dateLabel = _formatCardDate(item['published_at']?.toString());
     final String? imageUrl = item['image_url'];
 
     return GestureDetector(
@@ -846,25 +858,30 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // THUMBNAIL
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: (imageUrl != null && imageUrl.isNotEmpty)
-                    ? Image.network(
-                        imageUrl,
-                        width: 72,
-                        height: 72,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _newsImgPlaceholder(color, icon),
-                      )
-                    : _newsImgPlaceholder(color, icon),
+              // THUMBNAIL — persegi, ukuran tetap
+              SizedBox(
+                width: 96,
+                height: 96,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: (imageUrl != null && imageUrl.isNotEmpty)
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          width: 96,
+                          height: 96,
+                          errorBuilder: (_, __, ___) =>
+                              _newsImgPlaceholder(color, icon),
+                        )
+                      : _newsImgPlaceholder(color, icon),
+                ),
               ),
               const SizedBox(width: 14),
 
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     // TITLE
                     Text(
@@ -879,55 +896,52 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     ),
                     const SizedBox(height: 8),
 
-                    // TYPE & DATE TAG
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 9, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha:0.12),
-                            borderRadius: BorderRadius.circular(20),
+                    // TYPE TAG
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha:0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(icon, size: 11, color: color),
+                          const SizedBox(width: 4),
+                          Text(
+                            isUpdate ? 'Update' : 'Maintenance',
+                            style: GoogleFonts.poppins(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: color),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(icon, size: 11, color: color),
-                              const SizedBox(width: 4),
-                              Text(
-                                isUpdate ? 'Update' : 'Maintenance',
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: color),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.calendar_today_rounded,
-                                  size: 11, color: Colors.grey.shade500),
-                              const SizedBox(width: 5),
-                              Text(date,
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 11,
-                                      color: Colors.grey.shade600,
-                                      fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // DATE — di bawah type
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.calendar_today_rounded,
+                              size: 11, color: Colors.grey.shade500),
+                          const SizedBox(width: 5),
+                          Text(dateLabel,
+                              style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w500)),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -936,6 +950,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
 
               // EDIT & DELETE
               Column(
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   _iconBtn(Icons.edit_outlined,
                       const Color(0xFF2563EB),
@@ -954,13 +969,11 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
   }
 
   Widget _newsImgPlaceholder(Color color, IconData icon) => Container(
-        width: 72,
-        height: 72,
         decoration: BoxDecoration(
           color: color.withValues(alpha:0.10),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: color, size: 30),
+        child: Center(child: Icon(icon, color: color, size: 30)),
       );
 
   Widget _iconBtn(IconData icon, Color color, VoidCallback onTap) {

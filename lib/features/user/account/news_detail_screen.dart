@@ -105,12 +105,6 @@ class NewsDetailScreen extends StatelessWidget {
     return 'Konten';
   }
 
-  String get _typeInfoLabel {
-    if (lang == 'EN') return 'Type';
-    if (lang == 'ZH') return '类型';
-    return 'Tipe';
-  }
-
   String get _dateInfoLabel {
     if (lang == 'EN') return 'Published Date';
     if (lang == 'ZH') return '发布日期';
@@ -206,10 +200,13 @@ class NewsDetailScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: _bgLight,
+      // ── APP BAR — tidak berubah warna saat scroll ──
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: _primary,
         elevation: 1,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         centerTitle: true,
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
@@ -250,71 +247,158 @@ class NewsDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── GAMBAR — tetap persegi panjang, tap untuk lihat ukuran asli ──
             if (imageUrl != null && imageUrl.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 child: GestureDetector(
                   onTap: () => _openFullImage(context, imageUrl),
-                  child: Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.network(
-                          imageUrl,
-                          width: double.infinity,
-                          fit: BoxFit.contain,
-                          gaplessPlayback: true,
-                          errorBuilder: (_, __, ___) => Container(
-                            height: 200,
-                            decoration: BoxDecoration(
+                  child: Container(
+                    height: 200,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _primary, width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.10),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            errorBuilder: (_, __, ___) => Container(
                               color: _primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                _typeIcon,
-                                color: _primary.withValues(alpha: 0.3),
-                                size: 60,
-                              ),
-                            ),
-                          ),
-                          loadingBuilder: (_, child, prog) {
-                            if (prog == null) return child;
-                            return Container(
-                              height: 200,
-                              decoration: BoxDecoration(
-                                color: _primary.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
                               child: Center(
-                                child: CircularProgressIndicator(
-                                    color: _primary, strokeWidth: 2),
+                                child: Icon(
+                                  _typeIcon,
+                                  color: _primary.withValues(alpha: 0.3),
+                                  size: 60,
+                                ),
                               ),
-                            );
-                          },
-                        ),
-                      ),
-                      Positioned(
-                        right: 10,
-                        bottom: 10,
-                        child: Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.55),
-                            shape: BoxShape.circle,
+                            ),
+                            loadingBuilder: (_, child, prog) {
+                              if (prog == null) return child;
+                              return Container(
+                                color: _primary.withValues(alpha: 0.08),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                      color: _primary, strokeWidth: 2),
+                                ),
+                              );
+                            },
                           ),
-                          child: const Icon(Icons.zoom_out_map_rounded,
-                              size: 16, color: Colors.white),
-                        ),
+                          Positioned(
+                            right: 10,
+                            bottom: 10,
+                            child: Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.55),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.zoom_out_map_rounded,
+                                  size: 16, color: Colors.white),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
 
-            // TYPE, DATE, DURATION CARD
+            // ── KARTU JUDUL & KONTEN — tepat di bawah gambar ──
             Container(
-              margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              margin: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: _primary.withValues(alpha: 0.14), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                      color: _primary.withValues(alpha: 0.09),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6)),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Strip warna atas
+                  Container(
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: _primary,
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(19)),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── Label Judul ──
+                        _sectionLabel(Icons.edit_note_rounded, _titleLabel),
+                        const SizedBox(height: 8),
+                        Text(
+                          _title,
+                          style: GoogleFonts.poppins(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF1E3A8A),
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ── Divider ──
+                        Container(
+                          height: 1,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                _primary.withValues(alpha: 0.3),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ── Label Konten ──
+                        _sectionLabel(Icons.sticky_note_2_outlined, _contentLabel),
+                        const SizedBox(height: 8),
+                        Text(
+                          _content,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: const Color(0xFF374151),
+                            height: 1.75,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── KARTU INFORMASI — di bawah Judul & Konten, tanpa baris Type ──
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -362,86 +446,8 @@ class NewsDetailScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   Container(height: 1, color: Colors.grey.shade100),
                   const SizedBox(height: 6),
-                  _infoRow(_typeIcon, _typeInfoLabel, _typeLabel),
                   _infoRow(Icons.calendar_today_rounded, _dateInfoLabel, _formattedDate),
                   _infoRow(Icons.timer_rounded, _durationInfoLabel, _durationLabel),
-                ],
-              ),
-            ),
-
-            // TITLE & CONTENT
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: _primary.withValues(alpha: 0.14), width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                      color: _primary.withValues(alpha: 0.09),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6)),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: _primary,
-                      borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(19)),
-                    ),
-                  ),
-
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // TITLE LABEL
-                        _sectionLabel(Icons.title_rounded, _titleLabel),
-                        const SizedBox(height: 8),
-                        Text(
-                          _title,
-                          style: GoogleFonts.poppins(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF1E3A8A),
-                            height: 1.35,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        Container(
-                          height: 1,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                _primary.withValues(alpha: 0.3),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // CONTENT LABEL
-                        _sectionLabel(Icons.notes_rounded, _contentLabel),
-                        const SizedBox(height: 8),
-                        Text(
-                          _content,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: const Color(0xFF374151),
-                            height: 1.75,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),

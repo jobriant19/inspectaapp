@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/services/translation_service.dart';
 import '../../../../core/utils/image_picker_helper.dart';
 import '../../../user/home/alert/required_field_alert.dart';
@@ -268,23 +269,45 @@ class _AdminAddNewsScreenState extends State<AdminAddNewsScreen> {
   }
 
   Widget _imagePlaceholder() {
-    return SizedBox(
-      height: 130,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.add_photo_alternate_outlined, color: Colors.grey.shade400, size: 38),
-          const SizedBox(height: 8),
-          Text(
-            widget.lang == 'EN'
-                ? 'Tap to choose image from gallery'
-                : widget.lang == 'ZH'
-                    ? '点击从相册选择图片'
-                    : 'Ketuk untuk pilih gambar dari galeri',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(color: Colors.grey.shade500, fontSize: 12),
-          ),
-        ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 26),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _primary.withValues(alpha: 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.add_photo_alternate_rounded, color: _primary, size: 30),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              widget.lang == 'EN'
+                  ? 'Add Image'
+                  : widget.lang == 'ZH'
+                      ? '添加图片'
+                      : 'Tambahkan Gambar',
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF1E293B),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.lang == 'EN'
+                  ? 'Tap to choose image from gallery'
+                  : widget.lang == 'ZH'
+                      ? '点击从相册选择图片'
+                      : 'Ketuk untuk pilih gambar dari galeri',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(color: Colors.grey.shade500, fontSize: 11.5),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -342,16 +365,13 @@ class _AdminAddNewsScreenState extends State<AdminAddNewsScreen> {
                 ),
                 GestureDetector(
                   onTap: () async {
-                    final picked = await showDatePicker(
+                    final picked = await showDialog<DateTime>(
                       context: context,
-                      initialDate: _selectedDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                      builder: (c, child) => Theme(
-                        data: ThemeData.light().copyWith(
-                          colorScheme: const ColorScheme.light(primary: _primary),
-                        ),
-                        child: child!,
+                      barrierDismissible: true,
+                      barrierColor: Colors.black.withValues(alpha: 0.45),
+                      builder: (ctx) => _NewsDateCalendarDialog(
+                        lang: widget.lang,
+                        initialDate: _selectedDate,
                       ),
                     );
                     if (picked != null) setState(() => _selectedDate = picked);
@@ -515,7 +535,10 @@ class _AdminAddNewsScreenState extends State<AdminAddNewsScreen> {
                                       const SizedBox(width: 4),
                                       Text(
                                         widget.lang == 'EN' ? 'Change' : 'Ganti',
-                                        style: GoogleFonts.poppins(color: Colors.white, fontSize: 11),
+                                        style: GoogleFonts.poppins(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600),
                                       ),
                                     ],
                                   ),
@@ -840,6 +863,274 @@ class _TranslatingDialogState extends State<_TranslatingDialog>
                   valueColor: AlwaysStoppedAnimation<Color>(widget.color),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// DATE PICKER DIALOG — style sama seperti accident_pick_date.dart
+// ============================================================
+class _NewsDateCalendarDialog extends StatefulWidget {
+  final String lang;
+  final DateTime? initialDate;
+
+  const _NewsDateCalendarDialog({
+    required this.lang,
+    required this.initialDate,
+  });
+
+  @override
+  State<_NewsDateCalendarDialog> createState() =>
+      _NewsDateCalendarDialogState();
+}
+
+class _NewsDateCalendarDialogState extends State<_NewsDateCalendarDialog> {
+  static const Color _brandColor = Color(0xFF1D72F3);
+
+  late DateTime _visibleMonth;
+  late DateTime _selected;
+
+  static const List<String> _monthLabelsId = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+  ];
+
+  String _t(String id, String en, String zh) {
+    if (widget.lang == 'EN') return en;
+    if (widget.lang == 'ZH') return zh;
+    return id;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Selalu mulai dari hari ini jika belum ada tanggal terpilih
+    _selected = widget.initialDate ?? DateTime.now();
+    _visibleMonth = DateTime(_selected.year, _selected.month);
+  }
+
+  void _changeMonth(int delta) {
+    setState(() {
+      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + delta);
+    });
+  }
+
+  List<String> get _weekdayLabels {
+    if (widget.lang == 'EN') return const ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    if (widget.lang == 'ZH') return const ['日', '一', '二', '三', '四', '五', '六'];
+    return const ['M', 'S', 'S', 'R', 'K', 'J', 'S'];
+  }
+
+  String _monthTitle(DateTime d) {
+    if (widget.lang == 'EN') return DateFormat('MMMM yyyy').format(d);
+    if (widget.lang == 'ZH') return '${d.year}年 ${d.month}月';
+    return '${_monthLabelsId[d.month - 1]} ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final minSelectable = DateTime(2020, 1, 1);
+    final maxSelectable = DateTime(2030, 12, 31);
+
+    final firstDayOfMonth = DateTime(_visibleMonth.year, _visibleMonth.month, 1);
+    final daysInMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1, 0).day;
+    final leadingEmptyDays = firstDayOfMonth.weekday % 7;
+    final today = DateTime.now();
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: _brandColor.withValues(alpha: 0.25),
+              blurRadius: 30,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _brandColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.event_available_rounded,
+                      color: _brandColor, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _t('PILIH TANGGAL TAYANG', 'SELECT PUBLISHED DATE', '选择发布日期'),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _brandColor,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(Icons.close_rounded,
+                        size: 16, color: Color(0xFF64748B)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              DateFormat('EEE, d MMM yyyy').format(_selected),
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _monthTitle(_visibleMonth),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1E3A8A),
+                  ),
+                ),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _changeMonth(-1),
+                      child: const Icon(Icons.chevron_left_rounded,
+                          color: _brandColor),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => _changeMonth(1),
+                      child: const Icon(Icons.chevron_right_rounded,
+                          color: _brandColor),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: _weekdayLabels
+                  .map((w) => Expanded(
+                        child: Center(
+                          child: Text(
+                            w,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+            const SizedBox(height: 4),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: daysInMonth + leadingEmptyDays,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                mainAxisSpacing: 4,
+                crossAxisSpacing: 4,
+              ),
+              itemBuilder: (context, index) {
+                if (index < leadingEmptyDays) return const SizedBox.shrink();
+                final day = index - leadingEmptyDays + 1;
+                final date = DateTime(_visibleMonth.year, _visibleMonth.month, day);
+                final isSelected = date.year == _selected.year &&
+                    date.month == _selected.month &&
+                    date.day == _selected.day;
+                final isToday = date.year == today.year &&
+                    date.month == today.month &&
+                    date.day == today.day;
+                final isDisabled =
+                    date.isBefore(minSelectable) || date.isAfter(maxSelectable);
+
+                return GestureDetector(
+                  onTap: isDisabled ? null : () => setState(() => _selected = date),
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? _brandColor
+                          : (isToday
+                              ? _brandColor.withValues(alpha: 0.1)
+                              : Colors.transparent),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '$day',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isDisabled
+                            ? Colors.grey.shade300
+                            : isSelected
+                                ? Colors.white
+                                : (isToday ? _brandColor : const Color(0xFF334155)),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    _t('Batal', 'Cancel', '取消'),
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, _selected),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _brandColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text('OK', style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                ),
+              ],
             ),
           ],
         ),
