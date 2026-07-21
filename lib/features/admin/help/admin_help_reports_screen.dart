@@ -22,6 +22,8 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   bool _isLoading = true;
   String _filterStatus = 'Semua';
   String _searchQuery = '';
+  int _currentPage = 1;
+  static const int _perPage = 8;
 
   List<Map<String, dynamic>> get _searchFiltered {
     final all = _t('all');
@@ -293,6 +295,19 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
             newItem['signed_image_url'] = null;
           }
         }
+
+        final replyImageUrl = newItem['admin_reply_image'] as String?;
+        if (replyImageUrl != null && replyImageUrl.isNotEmpty) {
+          try {
+            final path = replyImageUrl.split('/report_images/').last;
+            final signedReplyUrl = await Supabase.instance.client.storage
+                .from('report_images')
+                .createSignedUrl(path, 3600);
+            newItem['signed_admin_reply_image'] = signedReplyUrl;
+          } catch (_) {
+            newItem['signed_admin_reply_image'] = null;
+          }
+        }
         processed.add(newItem);
       }
 
@@ -339,9 +354,8 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     }
   }
 
-  Future<void> _sendReply(String id, String replyText, {Uint8List? imageBytes, String? imageExt}) async {
+  Future<Map<String, dynamic>?> _sendReply(String id, String replyText, {Uint8List? imageBytes, String? imageExt}) async {
     try {
-      final now = DateTime.now().toUtc().toIso8601String();
       String? replyImageUrl;
 
       // UPLOAD IMAGE
@@ -363,59 +377,72 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
             .getPublicUrl(filePath);
       }
 
-      await Supabase.instance.client.from('help_reports').update({
+      // UPDATE & AMBIL ULANG ROW ASLI DARI DATABASE (sumber kebenaran waktu)
+      final updated = await Supabase.instance.client.from('help_reports').update({
         'admin_reply': replyText,
-        'replied_at': now,
+        'replied_at': DateTime.now().toUtc().toIso8601String(),
         'status': 'Selesai',
         if (replyImageUrl != null) 'admin_reply_image': replyImageUrl,
-      }).eq('id', id);
+      }).eq('id', id).select().single();
 
-      _showSnack(_t('success_reply'));
+      final newItem = Map<String, dynamic>.from(updated);
+
+      // GENERATE SIGNED URL UNTUK GAMBAR BALASAN
+      final riu = newItem['admin_reply_image'] as String?;
+      if (riu != null && riu.isNotEmpty) {
+        try {
+          final path = riu.split('/report_images/').last;
+          final signed = await Supabase.instance.client.storage
+              .from('report_images')
+              .createSignedUrl(path, 3600);
+          newItem['signed_admin_reply_image'] = signed;
+        } catch (_) {
+          newItem['signed_admin_reply_image'] = null;
+        }
+      } else {
+        newItem['signed_admin_reply_image'] = null;
+      }
 
       if (mounted) {
         setState(() {
           final idx = _items.indexWhere((e) => e['id'] == id);
           if (idx != -1) {
-            _items[idx]['admin_reply'] = replyText;
-            _items[idx]['replied_at'] = now;
-            _items[idx]['status'] = 'Selesai';
-            if (replyImageUrl != null) {
-              _items[idx]['admin_reply_image'] = replyImageUrl;
-            }
+            _items[idx] = {..._items[idx], ...newItem};
           }
-          // REPLY IMAGE STATE RESET
-          _replyImageBytes = null;
-          _replyImageExt = null;
         });
       }
+      return newItem;
     } catch (e) {
       debugPrint('Error send reply: $e');
       _showSnack(_t('error'), isError: true);
+      return null;
     }
   }
 
-  Future<void> _deleteReply(String id) async {
+  Future<Map<String, dynamic>?> _deleteReply(String id) async {
     try {
-      await Supabase.instance.client.from('help_reports').update({
+      final updated = await Supabase.instance.client.from('help_reports').update({
         'admin_reply': null,
         'replied_at': null,
         'admin_reply_image': null,
         'status': 'Dilihat',
-      }).eq('id', id);
-      _showSnack(_t('success_delete_reply'));
+      }).eq('id', id).select().single();
+
+      final newItem = Map<String, dynamic>.from(updated);
+      newItem['signed_admin_reply_image'] = null;
+
       if (mounted) {
         setState(() {
           final idx = _items.indexWhere((e) => e['id'] == id);
           if (idx != -1) {
-            _items[idx]['admin_reply'] = null;
-            _items[idx]['replied_at'] = null;
-            _items[idx]['admin_reply_image'] = null;
-            _items[idx]['status'] = 'Dilihat';
+            _items[idx] = {..._items[idx], ...newItem};
           }
         });
       }
+      return newItem;
     } catch (e) {
       _showSnack(_t('error'), isError: true);
+      return null;
     }
   }
 
@@ -649,7 +676,10 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                     color: Colors.black.withValues(alpha:0.08)),
               ),
               child: TextField(
-                onChanged: (v) => setState(() => _searchQuery = v),
+                onChanged: (v) => setState(() {
+                  _searchQuery = v;
+                  _currentPage = 1;
+                }),
                 textAlignVertical: TextAlignVertical.center,
                 style: GoogleFonts.poppins(
                     color: const Color(0xFF1E3A8A), fontSize: 14),
@@ -696,8 +726,10 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
 
                 return Expanded(
                   child: GestureDetector(
-                    onTap: () =>
-                        setState(() => _filterStatus = tab),
+                    onTap: () => setState(() {
+                      _filterStatus = tab;
+                      _currentPage = 1;
+                    }),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       margin:
@@ -790,23 +822,52 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
           ),
           // LIST
           Expanded(
-            child: _isLoading
-                ? _buildShimmer()
-                : RefreshIndicator(
-                    onRefresh: _fetchData,
-                    color: primaryColor,
-                    child: _searchFiltered.isEmpty
-                        ? _buildEmpty()
-                        : ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(
-                                16, 4, 16, 32),
-                            itemCount: _searchFiltered.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (_, i) =>
-                                _buildCard(_searchFiltered[i]),
-                          ),
-                  ),
+            child: Builder(
+              builder: (context) {
+                final filtered = _searchFiltered;
+                final totalPages =
+                    filtered.isEmpty ? 1 : (filtered.length / _perPage).ceil();
+                final safePage = _currentPage.clamp(1, totalPages);
+                final startIdx = (safePage - 1) * _perPage;
+                final endIdx = (startIdx + _perPage) > filtered.length
+                    ? filtered.length
+                    : startIdx + _perPage;
+                final pageData = filtered.isEmpty
+                    ? <Map<String, dynamic>>[]
+                    : filtered.sublist(startIdx, endIdx);
+
+                return Column(
+                  children: [
+                    Expanded(
+                      child: _isLoading
+                          ? _buildShimmer()
+                          : RefreshIndicator(
+                              onRefresh: _fetchData,
+                              color: primaryColor,
+                              child: filtered.isEmpty
+                                  ? _buildEmpty()
+                                  : ListView.separated(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          16, 4, 16, 16),
+                                      itemCount: pageData.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 10),
+                                      itemBuilder: (_, i) =>
+                                          _buildCard(pageData[i]),
+                                    ),
+                            ),
+                    ),
+                    if (!_isLoading && totalPages > 1)
+                      _HelpReportsPageIndicator(
+                        currentPage: safePage,
+                        totalPages: totalPages,
+                        onPageChanged: (p) => setState(() => _currentPage = p),
+                        color: primaryColor,
+                      ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -818,8 +879,6 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
     final signedUrl  = item['signed_image_url'] as String?;
     final priority   = item['priority'] as String? ?? 'Normal';
     final status     = item['status'] as String? ?? 'Dikirim';
-    final userName   = item['_userName'] as String? ?? '-';
-    final userAvatar = item['_userAvatar'] as String?;
     final createdAt  = item['created_at'] as String?;
     String dateStr   = '';
     if (createdAt != null) {
@@ -840,12 +899,17 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // IMAGE / PLACEHOLDER
+              // IMAGE / PLACEHOLDER — persegi ukuran tetap
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: (signedUrl != null && signedUrl.isNotEmpty)
-                    ? Image.network(signedUrl, width: 72, height: 72, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _imgPlaceholder())
+                    ? Image.network(
+                        signedUrl,
+                        width: 88,
+                        height: 88,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _imgPlaceholder(),
+                      )
                     : _imgPlaceholder(),
               ),
               const SizedBox(width: 14),
@@ -865,35 +929,9 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
 
-                    // REPORTER
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 10,
-                          backgroundColor: primaryColor.withValues(alpha:0.12),
-                          backgroundImage: (userAvatar != null && userAvatar.isNotEmpty)
-                              ? NetworkImage(userAvatar)
-                              : null,
-                          child: (userAvatar == null || userAvatar.isEmpty)
-                              ? Icon(Icons.person_rounded, size: 12, color: primaryColor)
-                              : null,
-                        ),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: Text(
-                            userName,
-                            style: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black87, fontWeight: FontWeight.w700),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // PRIORITY & STATUS CARD
+                    // PRIORITY & STATUS
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -902,7 +940,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
                         _tagIcon(_statusIcon(status), _localStatus(status), _statusColor(status)),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
 
                     // DATE
                     Container(
@@ -964,7 +1002,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
   );
 
   Widget _imgPlaceholder() => Container(
-    width: 72, height: 72,
+    width: 88, height: 88,
     decoration: BoxDecoration(
       color: Colors.grey.shade100,
       borderRadius: BorderRadius.circular(12),
@@ -1071,8 +1109,8 @@ class _HelpReportDetailScreen extends StatefulWidget {
   final Color Function(String) priorityColor;
   final IconData Function(String) priorityIcon;
   final IconData Function(String) statusIcon;
-  final Future<void> Function(String id, String replyText, {Uint8List? imageBytes, String? imageExt}) onSendReply;
-  final Future<void> Function(String id) onDeleteReply;
+  final Future<Map<String, dynamic>?> Function(String id, String replyText, {Uint8List? imageBytes, String? imageExt}) onSendReply;
+  final Future<Map<String, dynamic>?> Function(String id) onDeleteReply;
 
   const _HelpReportDetailScreen({
     required this.item,
@@ -1097,10 +1135,6 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
 
   late Map<String, dynamic> _item;
   late TextEditingController _replyCtrl;
-  Uint8List? _localImageBytes;
-  String? _localImageExt;
-  bool _isEditingReply = false;
-  bool _isSaving = false;
 
   bool get _hasReply => (_item['admin_reply'] as String?)?.isNotEmpty == true;
 
@@ -1109,7 +1143,6 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
     super.initState();
     _item = widget.item;
     _replyCtrl = TextEditingController(text: _item['admin_reply'] as String? ?? '');
-    _isEditingReply = !_hasReply;
   }
 
   @override
@@ -1131,30 +1164,13 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
     );
   }
 
-  Future<void> _handleSendReply() async {
-    final reply = _replyCtrl.text.trim();
-    if (reply.isEmpty) {
-      RequiredFieldAlert.show(
-        context,
-        lang: widget.lang,
-        missingFields: [
-          MissingFieldItem(icon: Icons.reply_rounded, label: _t('reply_required')),
-        ],
-      );
-      return;
-    }
-    setState(() => _isSaving = true);
-    await widget.onSendReply(_item['id'] as String, reply, imageBytes: _localImageBytes, imageExt: _localImageExt);
-    if (!mounted) return;
+  Future<void> _handleSendReply(String replyText, Uint8List? imgBytes, String? imgExt) async {
+    final result = await widget.onSendReply(_item['id'] as String, replyText, imageBytes: imgBytes, imageExt: imgExt);
+    if (!mounted || result == null) return;
     setState(() {
-      _item['admin_reply'] = reply;
-      _item['status'] = 'Selesai';
-      _item['replied_at'] = DateTime.now().toUtc().toIso8601String();
-      _localImageBytes = null;
-      _localImageExt = null;
-      _isEditingReply = false;
-      _isSaving = false;
+      _item = {..._item, ...result};
     });
+    _showSuccessPopup(_t('success_reply'));
   }
 
   Future<void> _handleDeleteReply() async {
@@ -1217,25 +1233,288 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
       ),
     );
     if (confirmed != true) return;
-    await widget.onDeleteReply(_item['id'] as String);
-    if (!mounted) return;
+    final result = await widget.onDeleteReply(_item['id'] as String);
+    if (!mounted || result == null) return;
     setState(() {
-      _item['admin_reply'] = null;
-      _item['replied_at'] = null;
-      _item['admin_reply_image'] = null;
-      _item['status'] = 'Dilihat';
+      _item = {..._item, ...result};
       _replyCtrl.clear();
-      _localImageBytes = null;
-      _localImageExt = null;
-      _isEditingReply = true;
     });
+    _showSuccessPopup(_t('success_delete_reply'));
   }
 
-  void _startEditReply() {
-    setState(() {
-      _replyCtrl.text = _item['admin_reply'] as String? ?? '';
-      _isEditingReply = true;
-    });
+  void _showSuccessPopup(String message) {
+    if (!mounted) return;
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'success',
+      barrierColor: Colors.black.withValues(alpha:0.45),
+      transitionDuration: const Duration(milliseconds: 300),
+      transitionBuilder: (_, anim, __, child) => FadeTransition(
+        opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutBack)),
+          child: child,
+        ),
+      ),
+      pageBuilder: (ctx, _, __) {
+        Future.delayed(const Duration(milliseconds: 1800), () {
+          if (ctx.mounted && Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 50),
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [BoxShadow(color: const Color(0xFF10B981).withValues(alpha:0.25), blurRadius: 30, spreadRadius: 3, offset: const Offset(0, 10))],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 70, height: 70,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha:0.25), width: 2),
+                    ),
+                    child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 38),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)),
+                  ),
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 130,
+                      height: 5,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 1.0, end: 0.0),
+                        duration: const Duration(milliseconds: 1800),
+                        builder: (_, v, __) => LinearProgressIndicator(
+                          value: v,
+                          backgroundColor: const Color(0xFF10B981).withValues(alpha:0.12),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showReplyDialog({required bool isEdit}) {
+    final replyCtrl = TextEditingController(text: isEdit ? (_item['admin_reply'] as String? ?? '') : '');
+    Uint8List? dialogImageBytes;
+    String? dialogImageExt;
+    final existingImage = _item['signed_admin_reply_image'] as String?;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // HEADER
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 20, 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.04), blurRadius: 4, offset: const Offset(0, 2))],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: primaryColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(12)),
+                        child: const Icon(Icons.reply_rounded, color: primaryColor, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          isEdit ? _t('edit_reply') : _t('send_reply'),
+                          style: GoogleFonts.poppins(color: primaryColor, fontWeight: FontWeight.w700, fontSize: 16),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
+                          child: Icon(Icons.close, size: 18, color: Colors.grey.shade500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // BODY
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.image_rounded, size: 14, color: primaryColor),
+                          const SizedBox(width: 6),
+                          Text(_t('reply_image'), style: GoogleFonts.poppins(color: primaryColor, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+                        ]),
+                        const SizedBox(height: 10),
+                        GestureDetector(
+                          onTap: () async {
+                            final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 800);
+                            if (picked != null) {
+                              final bytes = await picked.readAsBytes();
+                              final ext = picked.name.split('.').last.toLowerCase();
+                              setDlg(() {
+                                dialogImageBytes = bytes;
+                                dialogImageExt = ext.isEmpty ? 'jpg' : ext;
+                              });
+                            }
+                          },
+                          child: Container(
+                            width: double.infinity,
+                            height: 140,
+                            clipBehavior: Clip.antiAlias,
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha:0.05),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: primaryColor.withValues(alpha:0.3), width: 1.3),
+                            ),
+                            child: dialogImageBytes != null
+                                ? Image.memory(dialogImageBytes!, fit: BoxFit.cover)
+                                : (existingImage != null && existingImage.isNotEmpty)
+                                    ? Image.network(existingImage, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported))
+                                    : Center(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(10),
+                                              decoration: BoxDecoration(color: primaryColor.withValues(alpha:0.12), shape: BoxShape.circle),
+                                              child: const Icon(Icons.add_photo_alternate_rounded, color: primaryColor, size: 24),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(_t('pick_image'), style: GoogleFonts.poppins(color: primaryColor, fontSize: 13, fontWeight: FontWeight.w600)),
+                                          ],
+                                        ),
+                                      ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(children: [
+                          const Icon(Icons.reply_rounded, size: 14, color: primaryColor),
+                          const SizedBox(width: 6),
+                          Text(_t('admin_reply'), style: GoogleFonts.poppins(color: primaryColor, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+                          const SizedBox(width: 3),
+                          Text('*', style: GoogleFonts.poppins(color: const Color(0xFFEF4444), fontSize: 13, fontWeight: FontWeight.w700)),
+                        ]),
+                        const SizedBox(height: 6),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: TextField(
+                            controller: replyCtrl,
+                            maxLines: 4,
+                            style: GoogleFonts.poppins(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w600),
+                            decoration: InputDecoration(
+                              hintText: _t('reply_hint'),
+                              hintStyle: GoogleFonts.poppins(color: Colors.black26, fontSize: 13),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.all(14),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ),
+                // FOOTER
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.05), blurRadius: 6, offset: const Offset(0, -2))],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.grey.shade300),
+                            foregroundColor: Colors.grey.shade600,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text(_t('cancel'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final text = replyCtrl.text.trim();
+                            if (text.isEmpty) {
+                              RequiredFieldAlert.show(
+                                context,
+                                lang: widget.lang,
+                                missingFields: [MissingFieldItem(icon: Icons.reply_rounded, label: _t('reply_required'))],
+                              );
+                              return;
+                            }
+                            Navigator.pop(ctx);
+                            _handleSendReply(text, dialogImageBytes, dialogImageExt);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 2,
+                            shadowColor: primaryColor.withValues(alpha:0.3),
+                          ),
+                          child: Text(
+                            isEdit ? _t('edit_reply') : _t('send_reply'),
+                            style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _infoCard({required List<Widget> children}) => Container(
@@ -1279,7 +1558,7 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
     final createdAt  = item['created_at'] as String?;
     final repliedAt  = item['replied_at'] as String?;
     final existReply = item['admin_reply'] as String? ?? '';
-    final existReplyImage = item['admin_reply_image'] as String?;
+    final existReplyImage = item['signed_admin_reply_image'] as String?;
 
     String dateStr = '-', repliedStr = '-';
     if (createdAt != null) {
@@ -1294,6 +1573,8 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        surfaceTintColor: Colors.white,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded, color: primaryColor),
@@ -1401,8 +1682,8 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
           ]),
           const SizedBox(height: 10),
 
-          if (_hasReply && !_isEditingReply) ...[
-            // REPLY VIEW MODE
+          if (_hasReply) ...[
+            // REPLY VIEW MODE — gambar di atas, teks di bawah
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
@@ -1411,26 +1692,41 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0xFF10B981).withValues(alpha:0.25)),
               ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(existReply, style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87, height: 1.5)),
-                if (existReplyImage != null && existReplyImage.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  GestureDetector(
-                    onTap: () => _openImageViewer(existReplyImage),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.network(existReplyImage, height: 140, width: double.infinity, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (existReplyImage != null && existReplyImage.isNotEmpty) ...[
+                    GestureDetector(
+                      onTap: () => _openImageViewer(existReplyImage),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          existReplyImage,
+                          height: 160,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            height: 160,
+                            color: Colors.grey.shade100,
+                            child: const Icon(Icons.image_not_supported),
+                          ),
+                        ),
+                      ),
                     ),
+                    const SizedBox(height: 12),
+                  ],
+                  Text(
+                    existReply,
+                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black, height: 1.6),
                   ),
                 ],
-              ]),
+              ),
             ),
             const SizedBox(height: 12),
             Row(children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _startEditReply,
+                  onPressed: () => _showReplyDialog(isEdit: true),
                   icon: const Icon(Icons.edit_rounded, size: 15, color: primaryColor),
                   label: Text(_t('edit_reply'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 12.5, color: primaryColor)),
                   style: OutlinedButton.styleFrom(
@@ -1455,99 +1751,20 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
               ),
             ]),
           ] else ...[
-            // EDIT MODE / NEW REPLY
-            TextField(
-              controller: _replyCtrl,
-              maxLines: 4,
-              style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
-              decoration: InputDecoration(
-                hintText: _t('reply_hint'),
-                hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.black38),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: primaryColor)),
-                contentPadding: const EdgeInsets.all(14),
+            // BELUM ADA BALASAN — tombol buka popup kirim balasan
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _showReplyDialog(isEdit: false),
+                icon: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
+                label: Text(_t('send_reply'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: () async {
-                final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 800);
-                if (picked != null) {
-                  final bytes = await picked.readAsBytes();
-                  final ext = picked.name.split('.').last.toLowerCase();
-                  setState(() {
-                    _localImageBytes = bytes;
-                    _localImageExt = ext.isEmpty ? 'jpg' : ext;
-                  });
-                }
-              },
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-                decoration: BoxDecoration(
-                  color: primaryColor.withValues(alpha:0.06),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: primaryColor.withValues(alpha:0.3)),
-                ),
-                child: _localImageBytes != null
-                    ? Column(children: [
-                        ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.memory(_localImageBytes!, height: 120, width: double.infinity, fit: BoxFit.cover)),
-                        const SizedBox(height: 8),
-                        Text(_t('pick_image'), style: GoogleFonts.poppins(fontSize: 12, color: primaryColor)),
-                      ])
-                    : existReplyImage != null && existReplyImage.isNotEmpty
-                        ? Column(children: [
-                            ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.network(existReplyImage, height: 120, width: double.infinity, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported))),
-                            const SizedBox(height: 8),
-                            Text(_t('pick_image'), style: GoogleFonts.poppins(fontSize: 12, color: primaryColor)),
-                          ])
-                        : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            const Icon(Icons.image_outlined, size: 18, color: primaryColor),
-                            const SizedBox(width: 8),
-                            Text(_t('reply_image'), style: GoogleFonts.poppins(fontSize: 12, color: primaryColor)),
-                          ]),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(children: [
-              if (_hasReply) ...[
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _isSaving ? null : () => setState(() {
-                      _isEditingReply = false;
-                      _replyCtrl.text = existReply;
-                      _localImageBytes = null;
-                      _localImageExt = null;
-                    }),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.grey.shade300),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text(_t('cancel'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
-                  ),
-                ),
-                const SizedBox(width: 10),
-              ],
-              Expanded(
-                flex: 2,
-                child: ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _handleSendReply,
-                  icon: _isSaving
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.send_rounded, size: 16, color: Colors.white),
-                  label: Text(_hasReply ? _t('edit_reply') : _t('send_reply'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-            ]),
           ],
           const SizedBox(height: 20),
         ],
@@ -1610,6 +1827,153 @@ class _FullImageViewer extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HelpReportsPageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final ValueChanged<int> onPageChanged;
+  final Color color;
+
+  const _HelpReportsPageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.onPageChanged,
+    required this.color,
+  });
+
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+    final double bottomSpacing = bottomInset > 0 ? bottomInset + 10 : 16;
+
+    return Container(
+      // Menutupi seluruh area bawah (termasuk celah safe-area) agar
+      // selalu terlihat penuh di semua HP Android, baik yang punya
+      // gesture bar maupun yang tidak.
+      color: Colors.white,
+      padding: EdgeInsets.fromLTRB(15, 8, 15, bottomSpacing),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            _arrowButton(
+              icon: Icons.arrow_back_ios_new_rounded,
+              enabled: canPrev,
+              onTap: () {
+                if (!canPrev) return;
+                onPageChanged(currentPage - 1);
+              },
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Row(
+                children: [
+                  for (final p in pageNumbers) ...[
+                    Expanded(child: _pageButton(p)),
+                    if (p != pageNumbers.last) const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _arrowButton(
+              icon: Icons.arrow_forward_ios_rounded,
+              enabled: canNext,
+              onTap: () {
+                if (!canNext) return;
+                onPageChanged(currentPage + 1);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pageButton(int page) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page == currentPage) return;
+        onPageChanged(page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? color : color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive ? null : Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(
+            color: isActive ? Colors.white : color,
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _arrowButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 15,
+          color: enabled ? color : Colors.grey.shade400,
+        ),
       ),
     );
   }

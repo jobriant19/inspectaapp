@@ -80,6 +80,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'viewed': 'Viewed',
       'completed': 'Completed',
       'photo_empty_error': 'Photo attachment is required',
+      'admin_reply': 'Admin Reply',
     },
     'ID': {
       'new_report': 'Lapor Kendala',
@@ -117,6 +118,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'viewed': 'Dilihat',
       'completed': 'Selesai',
       'photo_empty_error': 'Lampiran foto wajib diisi',
+      'admin_reply': 'Balasan Admin',
     },
     'ZH': {
       'new_report': '报告问题',
@@ -154,6 +156,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       'viewed': '已查看',
       'completed': '已完成',
       'photo_empty_error': '必须上传照片',
+      'admin_reply': '管理员回复',
     },
   };
 
@@ -304,6 +307,17 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           imageFile: _pickedImageFile,
           imageUrl: (_pickedImageBytes == null && _pickedImageFile == null) ? _existingImageUrl : null,
         ),
+      ),
+    );
+  }
+
+  void _openReplyImageViewer(String url) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withOpacity(0.95),
+        pageBuilder: (_, __, ___) => _ReportImageViewer(imageUrl: url),
       ),
     );
   }
@@ -810,6 +824,53 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                           ],
                         ),
                       ),
+                      if ((widget.report!['admin_reply'] as String?)?.isNotEmpty == true) ...[
+                        const SizedBox(height: 20),
+                        _buildFormLabel(getTxt('admin_reply'), Icons.reply_rounded),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFF10B981).withOpacity(0.25)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if ((widget.report!['admin_reply_image'] as String?)?.isNotEmpty == true) ...[
+                                GestureDetector(
+                                  onTap: () => _openReplyImageViewer(widget.report!['admin_reply_image'] as String),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.network(
+                                      widget.report!['admin_reply_image'] as String,
+                                      height: 160,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        height: 160,
+                                        color: Colors.grey.shade100,
+                                        child: const Icon(Icons.image_not_supported),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                              Text(
+                                widget.report!['admin_reply'] as String? ?? '',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black,
+                                  height: 1.6,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                     ],
                   ],
