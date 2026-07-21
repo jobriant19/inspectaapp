@@ -858,7 +858,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // THUMBNAIL — persegi, ukuran tetap
+              // THUMBNAIL
               SizedBox(
                 width: 96,
                 height: 96,
@@ -921,7 +921,7 @@ class _AdminNewsScreenState extends State<AdminNewsScreen> {
                     ),
                     const SizedBox(height: 6),
 
-                    // DATE — di bawah type
+                    // DATE
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),

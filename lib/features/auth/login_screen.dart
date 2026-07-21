@@ -13,8 +13,21 @@ import '../../core/utils/font_warmup.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? initialLang;
+  final String? initialAppName;
+  final String? initialAppLogoUrl;
+  final String? initialTaglineId;
+  final String? initialTaglineEn;
+  final String? initialTaglineZh;
 
-  const LoginScreen({super.key, this.initialLang});
+  const LoginScreen({
+    super.key,
+    this.initialLang,
+    this.initialAppName,
+    this.initialAppLogoUrl,
+    this.initialTaglineId,
+    this.initialTaglineEn,
+    this.initialTaglineZh,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -33,6 +46,39 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isPasswordVisible  = false;
 
   String selectedLanguage = 'EN';
+
+  String? _dbAppName;
+  String? _dbTaglineId;
+  String? _dbTaglineEn;
+  String? _dbTaglineZh;
+  String? _dbLogoUrl;
+
+  static const Map<String, String> _defaultTaglineOnly = {
+    'EN': 'Make Your Discipline day!',
+    'ID': 'Jadikan Harimu Disiplin!',
+    'ZH': '让您的纪律日!',
+  };
+
+  String get _brandAppName =>
+      (_dbAppName != null && _dbAppName!.trim().isNotEmpty) ? _dbAppName!.trim() : 'Inspecta';
+
+  String get _brandTagline {
+    String? dbVal;
+    switch (selectedLanguage) {
+      case 'EN':
+        dbVal = _dbTaglineEn;
+        break;
+      case 'ZH':
+        dbVal = _dbTaglineZh;
+        break;
+      default:
+        dbVal = _dbTaglineId;
+    }
+    if (dbVal != null && dbVal.trim().isNotEmpty) return dbVal.trim();
+    return _defaultTaglineOnly[selectedLanguage] ?? _defaultTaglineOnly['EN']!;
+  }
+
+  String get _brandTaglineFull => '$_brandAppName: $_brandTagline';
 
   static const Map<String, Map<String, String>> _translations = {
     'EN': {
@@ -117,10 +163,43 @@ class _LoginScreenState extends State<LoginScreen> {
     if (widget.initialLang != null && _translations.containsKey(widget.initialLang)) {
       selectedLanguage = widget.initialLang!;
     }
+    _dbAppName   = widget.initialAppName;
+    _dbLogoUrl   = widget.initialAppLogoUrl;
+    _dbTaglineId = widget.initialTaglineId;
+    _dbTaglineEn = widget.initialTaglineEn;
+    _dbTaglineZh = widget.initialTaglineZh;
+
     _loadSavedCredentials();
+    _fetchAppBranding();
     _emailController.addListener(() => setState(() {}));
     _passwordController.addListener(() => setState(() {}));
     _setupAuthListener();
+  }
+
+  Future<void> _fetchAppBranding() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('app_info')
+          .select('app_name, tagline, tagline_en, tagline_zh, logo_url')
+          .order('id')
+          .limit(1)
+          .maybeSingle();
+      if (mounted && res != null) {
+        setState(() {
+          _dbAppName   = res['app_name'] as String?;
+          _dbTaglineId = res['tagline'] as String?;
+          _dbTaglineEn = res['tagline_en'] as String?;
+          _dbTaglineZh = res['tagline_zh'] as String?;
+          _dbLogoUrl   = res['logo_url'] as String?;
+        });
+        if (_dbLogoUrl != null && _dbLogoUrl!.isNotEmpty && mounted) {
+          precacheImage(CachedNetworkImageProvider(_dbLogoUrl!), context)
+              .catchError((_) {});
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching app branding for login: $e');
+    }
   }
 
   @override
@@ -179,7 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final int? jabatanGoogle = userData['id_jabatan'] as int?;
 
         if (jabatanGoogle == 6) {
-          // Admin via Google
+          // ADMIN VIA GOOGLE
           int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
           int sTotalTemuan = 0;
           try {
@@ -224,7 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
         } else {
-          // User via Google
+          // USER VIA GOOGLE
           if (!mounted) return;
           await warmupPointPopupFonts();
           if (!mounted) return;
@@ -239,7 +318,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
   }
 
-  // Remember Me
+  // REMEMBER ME
   void _onRememberMeChanged(bool? value) async {
     final newVal = value ?? false;
     setState(() => isRememberMe = newVal);
@@ -283,13 +362,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Dialog error
-  // Error dialog, restyled to match the logout confirmation dialog style
-  // used on Account Screen: white flat card (elevation 0, rounded 28),
-  // flat-colored icon circle (not gradient), bold title, gray-toned
-  // description area, and a primary full-width action button.
   void _showCustomDialog(String message) {
-    const Color primaryColor = Color(0xFFEF4444); // Red tone for error state
+    const Color primaryColor = Color(0xFFEF4444);
     const Color iconBackground = Color(0xFFFFEBEB);
 
     showDialog(
@@ -304,7 +378,6 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Flat-colored icon circle.
               Container(
                 width: 80,
                 height: 80,
@@ -315,7 +388,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Icon(Icons.error_outline_rounded, color: primaryColor, size: 38),
               ),
               const SizedBox(height: 20),
-              // Error message shown as the title.
               Text(
                 message,
                 textAlign: TextAlign.center,
@@ -327,7 +399,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 28),
-              // Primary action button.
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -464,7 +535,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final userId = res.user!.id;
 
-      // Fetch user + log poin secara paralel
       final results = await Future.wait([
         Supabase.instance.client
             .from('User')
@@ -496,7 +566,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // Precache logo + gambar user secara paralel
       final String? imageToPreload = userData['gambar_user'];
       await Future.wait([
         precacheImage(const AssetImage('assets/images/logo1.png'), context)
@@ -645,7 +714,6 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: const Color(0xFFE3F2FD),
       body: Stack(
         children: [
-          // Blob biru latar
           Positioned(
             top: -80, left: -60,
             child: Container(
@@ -677,7 +745,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          // Konten utama
           SafeArea(
             bottom: false,
             child: CustomScrollView(
@@ -687,7 +754,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   hasScrollBody: false,
                   child: Column(
                     children: [
-                      // Language picker
+                      // LANG PICKER
                       Padding(
                         padding: const EdgeInsets.only(right: 16.0, top: 8.0),
                         child: Align(
@@ -699,7 +766,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
 
-                      // Logo
+                      // LOGO
                       SizedBox(
                         height: size.height * 0.22,
                         width: double.infinity,
@@ -712,34 +779,49 @@ class _LoginScreenState extends State<LoginScreen> {
                               scale: v.clamp(0.0, 1.0),
                               child: Opacity(opacity: v.clamp(0.0, 1.0), child: child),
                             ),
-                            child: Image.asset(
-                              'assets/images/logo1.png',
-                              height: size.height * 0.13,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => Container(
-                                width: 80, height: 80,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF1976D2), Color(0xFF42A5F5)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF1976D2).withValues(alpha:0.3),
-                                      blurRadius: 16,
+                            child: (_dbLogoUrl != null && _dbLogoUrl!.isNotEmpty)
+                                ? CachedNetworkImage(
+                                    imageUrl: _dbLogoUrl!,
+                                    height: size.height * 0.13,
+                                    fit: BoxFit.contain,
+                                    placeholder: (_, __) => Image.asset(
+                                      'assets/images/logo1.png',
+                                      height: size.height * 0.13,
+                                      fit: BoxFit.contain,
                                     ),
-                                  ],
-                                ),
-                                child: const Icon(Icons.shield, color: Colors.white, size: 42),
-                              ),
-                            ),
+                                    errorWidget: (_, __, ___) => Image.asset(
+                                      'assets/images/logo1.png',
+                                      height: size.height * 0.13,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  )
+                                : Image.asset(
+                                    'assets/images/logo1.png',
+                                    height: size.height * 0.13,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 80, height: 80,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFF1976D2), Color(0xFF42A5F5)],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFF1976D2).withValues(alpha:0.3),
+                                            blurRadius: 16,
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(Icons.shield, color: Colors.white, size: 42),
+                                    ),
+                                  ),
                           ),
                         ),
                       ),
 
-                      // Glass card form
                       Expanded(
                         child: ClipRRect(
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
@@ -774,7 +856,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   const SizedBox(height: 4),
                                   Center(
                                     child: Text(
-                                      getTxt('tagline_login'),
+                                      _brandTaglineFull,
+                                      textAlign: TextAlign.center,
                                       style: GoogleFonts.poppins(
                                         fontSize: 12, fontWeight: FontWeight.w700,
                                         color: const Color(0xFF1565C0).withValues(alpha:0.75),
@@ -800,33 +883,41 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   const SizedBox(height: 10),
 
-                                  // Remember Me + Forgot Password
+                                  // REMEMBER ME + FORGOT PASSWORD
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Row(
-                                        children: [
-                                          SizedBox(
-                                            width: 22, height: 22,
-                                            child: Checkbox(
-                                              value: isRememberMe,
-                                              activeColor: const Color(0xFF1976D2),
-                                              side: const BorderSide(color: Color(0xFF90CAF9), width: 1.5),
-                                              shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(4)),
-                                              onChanged: _onRememberMeChanged,
+                                      Flexible(
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            SizedBox(
+                                              width: 22, height: 22,
+                                              child: Checkbox(
+                                                value: isRememberMe,
+                                                activeColor: const Color(0xFF1976D2),
+                                                side: const BorderSide(color: Color(0xFF90CAF9), width: 1.5),
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(4)),
+                                                onChanged: _onRememberMeChanged,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            getTxt('remember_me'),
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 12, fontWeight: FontWeight.w600,
-                                              color: const Color(0xFF1D72F3),
+                                            const SizedBox(width: 6),
+                                            Flexible(
+                                              child: Text(
+                                                getTxt('remember_me'),
+                                                overflow: TextOverflow.ellipsis,
+                                                maxLines: 1,
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 12, fontWeight: FontWeight.w600,
+                                                  color: const Color(0xFF1D72F3),
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
+                                      const SizedBox(width: 10),
                                       GestureDetector(
                                         onTap: () {
                                           if (_emailController.text.isNotEmpty) {
@@ -841,6 +932,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                         },
                                         child: Text(
                                           getTxt('forgot_pass'),
+                                          overflow: TextOverflow.ellipsis,
+                                          maxLines: 1,
                                           style: GoogleFonts.poppins(
                                             fontSize: 12, fontWeight: FontWeight.w700,
                                             color: const Color(0xFF1D72F3),
@@ -852,7 +945,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                   const SizedBox(height: 24),
 
-                                  // Tombol Sign In
+                                  // SIGN IN BUTTON
                                   SizedBox(
                                     width: double.infinity, height: 52,
                                     child: ElevatedButton(
@@ -951,7 +1044,7 @@ class _LoginScreenState extends State<LoginScreen> {
     ];
     showDialog(
       context: context,
-      barrierDismissible: true, // klik di luar area popup akan menutup
+      barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.45),
       builder: (ctx) => Dialog(
         backgroundColor: Colors.transparent,
@@ -972,7 +1065,6 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header with title and close button (original layout)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 12, 4),
                 child: Row(

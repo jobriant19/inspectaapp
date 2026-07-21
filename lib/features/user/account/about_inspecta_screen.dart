@@ -8,6 +8,8 @@ class AboutInspectaScreen extends StatefulWidget {
   final String? initialAppName;
   final String? initialAppVersion;
   final String? initialAppWebsite;
+  final String? initialAppTagline;
+  final String? initialAppLogoUrl;
 
   const AboutInspectaScreen({
     super.key,
@@ -15,6 +17,8 @@ class AboutInspectaScreen extends StatefulWidget {
     this.initialAppName,
     this.initialAppVersion,
     this.initialAppWebsite,
+    this.initialAppTagline,
+    this.initialAppLogoUrl,
   });
 
   @override
@@ -60,8 +64,8 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
     _appName    = widget.initialAppName    ?? 'Inspecta';
     _appVersion = widget.initialAppVersion ?? '-';
     _appWebsite = widget.initialAppWebsite ?? '';
-    _appTagline = 'Make Your Discipline day!'; // default
-    _appLogoUrl = null;
+    _appTagline = widget.initialAppTagline ?? 'Make Your Discipline day!';
+    _appLogoUrl = widget.initialAppLogoUrl;
 
     if (widget.initialAppVersion == null) {
       _fetchAppInfo();
@@ -88,12 +92,23 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
           _appName    = response['app_name'] ?? 'Inspecta';
           _appVersion = response['version']  ?? '-';
           _appWebsite = response['website']  ?? '';
-          _appTagline = response['tagline']  ?? 'Make Your Discipline day!';
+          _appTagline = _localizedTagline(response);
           _appLogoUrl = response['logo_url'] as String?;
         });
       }
     } catch (e) {
       debugPrint('Error fetching app info: $e');
+    }
+  }
+
+  String _localizedTagline(Map<String, dynamic> row) {
+    switch (widget.lang) {
+      case 'EN':
+        return (row['tagline_en'] ?? row['tagline'] ?? 'Make Your Discipline day!').toString();
+      case 'ZH':
+        return (row['tagline_zh'] ?? row['tagline'] ?? 'Make Your Discipline day!').toString();
+      default:
+        return (row['tagline'] ?? 'Make Your Discipline day!').toString();
     }
   }
 
@@ -127,7 +142,7 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
         ),
         backgroundColor: Colors.white,
         elevation: 1,
-        shadowColor: Colors.black.withValues(alpha:0.08),
+        surfaceTintColor: Colors.white,
         iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
       ),
@@ -140,7 +155,6 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
       child: Column(
         children: [
-          // ── Logo ──
           Container(
             width: double.infinity,
             height: 120,
@@ -199,6 +213,7 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
             '© ${DateTime.now().year} $_appName',
             style: GoogleFonts.poppins(
               fontSize: 13,
+              fontWeight: FontWeight.w600,
               color: const Color.fromARGB(255, 114, 114, 114),
             ),
           ),
@@ -245,7 +260,7 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -302,7 +317,7 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: Colors.grey.shade500,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -362,7 +377,7 @@ class _AboutInspectaScreenState extends State<AboutInspectaScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   color: Colors.grey.shade500,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

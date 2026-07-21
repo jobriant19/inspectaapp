@@ -197,7 +197,6 @@ class NewsDetailScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: _bgLight,
-      // ── APP BAR — tidak berubah warna saat scroll ──
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: _primary,
@@ -244,7 +243,6 @@ class NewsDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── GAMBAR — tetap persegi panjang, tap untuk lihat ukuran asli ──
             if (imageUrl != null && imageUrl.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -314,7 +312,6 @@ class NewsDetailScreen extends StatelessWidget {
                 ),
               ),
 
-            // ── KARTU JUDUL & KONTEN — tepat di bawah gambar ──
             Container(
               margin: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               decoration: BoxDecoration(
@@ -337,7 +334,6 @@ class NewsDetailScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // ── Label Judul ──
                         _sectionLabel(Icons.edit_note_rounded, _titleLabel),
                         const SizedBox(height: 8),
                         Text(
@@ -351,7 +347,6 @@ class NewsDetailScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
 
-                        // ── Divider ──
                         Container(
                           height: 1,
                           decoration: BoxDecoration(
@@ -365,7 +360,6 @@ class NewsDetailScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
 
-                        // ── Label Konten ──
                         _sectionLabel(Icons.sticky_note_2_outlined, _contentLabel),
                         const SizedBox(height: 8),
                         Text(
@@ -384,7 +378,6 @@ class NewsDetailScreen extends StatelessWidget {
               ),
             ),
 
-            // ── KARTU INFORMASI — di bawah Judul & Konten, tanpa baris Type ──
             Container(
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               padding: const EdgeInsets.all(16),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '5R/admin_5r_body.dart';
 import 'accident/admin_accident_body.dart';
@@ -42,6 +43,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   String _adminName = 'Admin';
   String? _adminImage;
   bool _fromRight = true;
+  String? _appLogoUrl;
 
   static const _accentByIndex = <int, Color>{
     0: Color.fromARGB(255, 29, 199, 97), // home
@@ -59,6 +61,25 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     _adminName = widget.initialUserName ?? 'Admin';
     _adminImage = widget.initialUserImage;
     if (widget.initialLang == null) _loadLanguage();
+    _fetchAppLogo();
+  }
+
+  Future<void> _fetchAppLogo() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('app_info')
+          .select('logo_url')
+          .order('id')
+          .limit(1)
+          .maybeSingle();
+      final url = res?['logo_url'] as String?;
+      if (mounted && url != null && url.isNotEmpty) {
+        setState(() => _appLogoUrl = url);
+        precacheImage(CachedNetworkImageProvider(url), context).catchError((_) {});
+      }
+    } catch (e) {
+      debugPrint('Error fetching app logo (admin): $e');
+    }
   }
 
   Future<void> _loadLanguage() async {
@@ -207,24 +228,40 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       ),
       child: Row(
         children: [
-          Image(
-            image: const AssetImage('assets/images/logo1.png'),
-            height: 36,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF059669), Color(0xFF34D399)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+          (_appLogoUrl != null && _appLogoUrl!.isNotEmpty)
+              ? CachedNetworkImage(
+                  imageUrl: _appLogoUrl!,
+                  height: 36,
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) => const Image(
+                    image: AssetImage('assets/images/logo1.png'),
+                    height: 36,
+                    gaplessPlayback: true,
+                  ),
+                  errorWidget: (_, __, ___) => const Image(
+                    image: AssetImage('assets/images/logo1.png'),
+                    height: 36,
+                    gaplessPlayback: true,
+                  ),
+                )
+              : Image(
+                  image: const AssetImage('assets/images/logo1.png'),
+                  height: 36,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF059669), Color(0xFF34D399)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.admin_panel_settings_rounded,
+                        color: Colors.white, size: 20),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.admin_panel_settings_rounded,
-                  color: Colors.white, size: 20),
-            ),
-          ),
           const SizedBox(width: 10),
           Text(
             'Admin Panel',

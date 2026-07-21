@@ -6,7 +6,20 @@ import '../auth/login_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final String? initialAppName;
+  final String? initialAppLogoUrl;
+  final String? initialTaglineId;
+  final String? initialTaglineEn;
+  final String? initialTaglineZh;
+
+  const OnboardingScreen({
+    super.key,
+    this.initialAppName,
+    this.initialAppLogoUrl,
+    this.initialTaglineId,
+    this.initialTaglineEn,
+    this.initialTaglineZh,
+  });
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -18,7 +31,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String _selectedLanguage = 'EN';
   Timer? _timer;
 
-  // Prevents the language dialog from opening twice or colliding with auto-slide.
   bool _isDialogOpen = false;
 
   @override
@@ -37,18 +49,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ]);
   }
 
-  // Starts the periodic auto-slide timer for the onboarding pages.
   void _startAutoSlideTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
-      // Skip the tick if the widget is gone, the controller is not ready yet,
-      // or a dialog is currently open (avoids race conditions/conflicts).
       if (!mounted || !_pageController.hasClients || _isDialogOpen) {
         return;
       }
       try {
-        // Read the actual page from the controller instead of a manual
-        // counter, so it can never desync from the real PageView state.
         final int actualPage = _pageController.page?.round() ?? _currentPage;
         final int nextPage = actualPage < 3 ? actualPage + 1 : 0;
         _pageController.animateToPage(
@@ -57,7 +64,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           curve: Curves.easeIn,
         );
       } catch (_) {
-        // Ignore transient exceptions (e.g. widget rebuilding mid-animation).
       }
     });
   }
@@ -69,7 +75,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
-  // Onboarding slide text for all supported languages.
   final Map<String, Map<String, String>> _onboardingText = {
     'EN': {
       'title1': 'Welcome to Inspecta',
@@ -115,7 +120,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     },
   };
 
-  // Text used by the permission rationale dialogs, for all supported languages.
   static const Map<String, Map<String, String>> _permissionText = {
     'EN': {
       'location_title': 'Allow Location Access',
@@ -150,8 +154,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String _permTxt(String key) =>
       _permissionText[_selectedLanguage]?[key] ?? _permissionText['EN']![key]!;
 
-  // Returns the correct font family per language so Mandarin glyphs render
-  // instantly instead of showing tofu boxes while the font loads.
   TextStyle _localizedStyle({
     required double fontSize,
     required FontWeight fontWeight,
@@ -176,7 +178,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   String getTxt(String key) => _onboardingText[_selectedLanguage]![key] ?? key;
 
-  // Builds the list of onboarding pages using the currently selected language.
   List<Widget> _buildPages() {
     return [
       _buildPage(
@@ -202,8 +203,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ];
   }
 
-  // Saves onboarding completion, then runs the permission flow before
-  // navigating to the login screen. Triggered by both Skip and Get Started.
   void _navigateToLogin() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_complete', true);
@@ -211,25 +210,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     if (!mounted) return;
 
-    // Step 1: location rationale dialog, then the system location prompt.
     await _requestLocationWithRationale();
 
     if (!mounted) return;
 
-    // Step 2: camera rationale dialog, then the system camera prompt.
     await _requestCameraWithRationale();
 
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        MaterialPageRoute(
+          builder: (context) => LoginScreen(
+            initialLang: _selectedLanguage,
+            initialAppName: widget.initialAppName,
+            initialAppLogoUrl: widget.initialAppLogoUrl,
+            initialTaglineId: widget.initialTaglineId,
+            initialTaglineEn: widget.initialTaglineEn,
+            initialTaglineZh: widget.initialTaglineZh,
+          ),
+        ),
       );
     }
   }
 
-  // Shows the styled location rationale dialog and fires the system
-  // permission prompt directly from the button tap, so the browser treats it
-  // as a fresh user gesture (this removes the delay seen on Flutter Web).
   Future<void> _requestLocationWithRationale() async {
     final Completer<void> completer = Completer<void>();
 
@@ -262,8 +265,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return completer.future;
   }
 
-  // Shows the styled camera rationale dialog and fires the system permission
-  // prompt directly from the button tap, right after the location step.
   Future<void> _requestCameraWithRationale() async {
     final Completer<void> completer = Completer<void>();
 
@@ -296,11 +297,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return completer.future;
   }
 
-  // Visual style for the permission rationale dialogs, matching the logout
-  // confirmation dialog on Account Screen: white flat card (elevation 0,
-  // rounded 28), a flat-colored icon circle (not gradient), bold title,
-  // gray description, then a primary full-width button stacked above an
-  // outlined secondary button (used to skip this permission step).
   Widget _buildPermissionDialog({
     required BuildContext ctx,
     required IconData icon,
@@ -322,7 +318,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Flat-colored icon circle.
             Container(
               width: 80,
               height: 80,
@@ -333,7 +328,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Icon(icon, color: iconColor, size: 38),
             ),
             const SizedBox(height: 20),
-            // Title, localized per selected language.
             Text(
               title,
               textAlign: TextAlign.center,
@@ -344,7 +338,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            // Description, localized per selected language.
             Text(
               description,
               textAlign: TextAlign.center,
@@ -356,8 +349,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            // Primary action button, triggers the real system prompt
-            // directly from this tap so the gesture stays fresh on web.
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -376,7 +367,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            // Secondary outlined button, skips this permission step.
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
@@ -404,9 +394,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       backgroundColor: const Color(0xFFF5F7FA),
       body: Stack(
         children: [
-          // Redundant flag-emoji warm-up local to this screen, so the
-          // language button's flag renders instantly even in edge cases
-          // where SplashScreen's own warm-up did not run first.
           Positioned(
             top: 0,
             left: 0,
@@ -436,7 +423,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           SafeArea(
             child: Column(
               children: [
-            // Top row: language button and Skip button.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               child: Row(
@@ -482,7 +468,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Dot indicator.
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: List.generate(
@@ -491,7 +476,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           ),
                         ),
                         const Spacer(),
-                        // Next / Get Started button.
                         Container(
                           width: double.infinity,
                           height: 55,
@@ -549,7 +533,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // Builds a single onboarding page (image, title, description).
   Widget _buildPage({required String imagePath, required String title, required String description}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -595,8 +578,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // Shows the language picker dialog. Pauses auto-slide while open and
-  // resumes it after closing. Guarded to prevent opening more than once.
   void _showLanguagePicker() async {
     if (_isDialogOpen) return;
     _isDialogOpen = true;
@@ -731,7 +712,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (mounted) _startAutoSlideTimer();
   }
 
-  // Builds the language selector button shown at the top of the screen.
   Widget _buildLangButton() {
     const flagMap = {'EN': '🇺🇸', 'ID': '🇮🇩', 'ZH': '🇨🇳'};
     return Container(

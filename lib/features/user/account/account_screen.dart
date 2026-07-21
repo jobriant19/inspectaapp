@@ -55,6 +55,8 @@ class _AccountScreenState extends State<AccountScreen> {
   String? _cachedAppName;
   String? _cachedAppVersion;
   String? _cachedAppWebsite;
+  String? _cachedAppLogoUrl;
+  Map<String, dynamic>? _cachedAppInfoRow;
 
   final Map<String, Map<String, String>> _txt = {
     'EN': {
@@ -298,13 +300,27 @@ class _AccountScreenState extends State<AccountScreen> {
           .single();
       if (mounted) {
         setState(() {
+          _cachedAppInfoRow = response;
           _cachedAppName    = response['app_name'] ?? 'Inspecta';
           _cachedAppVersion = response['version']  ?? '-';
           _cachedAppWebsite = response['website']  ?? '';
+          _cachedAppLogoUrl = response['logo_url'] as String?;
         });
       }
     } catch (e) {
       debugPrint('Error prefetching app info: $e');
+    }
+  }
+
+  String _localizedTagline(Map<String, dynamic>? row) {
+    if (row == null) return 'Make Your Discipline day!';
+    switch (_currentLang) {
+      case 'EN':
+        return (row['tagline_en'] ?? row['tagline'] ?? 'Make Your Discipline day!').toString();
+      case 'ZH':
+        return (row['tagline_zh'] ?? row['tagline'] ?? 'Make Your Discipline day!').toString();
+      default:
+        return (row['tagline'] ?? 'Make Your Discipline day!').toString();
     }
   }
 
@@ -448,6 +464,7 @@ class _AccountScreenState extends State<AccountScreen> {
         title: Text(getTxt('title'), style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: Color(0xFF1D72F3))),
         backgroundColor: Colors.white,
         elevation: 1,
+        surfaceTintColor: Colors.white,
         shadowColor: Colors.black.withValues(alpha:0.08),
         iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,
@@ -521,6 +538,8 @@ class _AccountScreenState extends State<AccountScreen> {
                           initialAppName:    _cachedAppName,
                           initialAppVersion: _cachedAppVersion,
                           initialAppWebsite: _cachedAppWebsite,
+                          initialAppTagline: _localizedTagline(_cachedAppInfoRow),
+                          initialAppLogoUrl: _cachedAppLogoUrl,
                         )),
                       );
                     },

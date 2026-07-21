@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/services/translation_service.dart';
+
 class AdminAboutScreen extends StatefulWidget {
   final String lang;
   final Map<String, dynamic>? initialData;
@@ -47,7 +49,17 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
   final _websiteFocus = FocusNode();
   final _taglineFocus = FocusNode();
 
-  String _t(String en, String id) => widget.lang == 'EN' ? en : id;
+  String _t(String en, String id, [String? zh]) {
+    if (widget.lang == 'EN') return en;
+    if (widget.lang == 'ZH') return zh ?? id;
+    return id;
+  }
+
+  String get _screenTitle => widget.lang == 'EN'
+      ? 'About Inspecta'
+      : widget.lang == 'ZH'
+          ? '关于 Inspecta'
+          : 'Tentang Inspecta';
 
   @override
   void initState() {
@@ -56,7 +68,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
     _appName    = widget.initialData?['app_name'] ?? 'Inspecta';
     _appVersion = widget.initialData?['version']  ?? '-';
     _appWebsite = widget.initialData?['website']  ?? '';
-    _appTagline = widget.initialData?['tagline']  ?? 'Make Your Discipline day!';
+    _appTagline = _localizedTagline(widget.initialData);
     _logoUrl    = widget.initialData?['logo_url'] as String?;
 
     _nameCtrl.text    = _appName;
@@ -94,7 +106,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
         _appName    = res['app_name'] ?? 'Inspecta';
         _appVersion = res['version']  ?? '-';
         _appWebsite = res['website']  ?? '';
-        _appTagline = res['tagline']  ?? 'Make Your Discipline day!';
+        _appTagline = _localizedTagline(res);
         _logoUrl    = res['logo_url'] as String?;
         _nameCtrl.text    = _appName;
         _versionCtrl.text = _appVersion;
@@ -103,6 +115,68 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
       });
     } catch (e) {
       debugPrint('AdminAboutScreen background load error: $e');
+    }
+  }
+
+  String _localizedTagline(Map<String, dynamic>? row) {
+    if (row == null) return 'Make Your Discipline day!';
+    switch (widget.lang) {
+      case 'EN':
+        return (row['tagline_en'] ?? row['tagline'] ?? 'Make Your Discipline day!').toString();
+      case 'ZH':
+        return (row['tagline_zh'] ?? row['tagline'] ?? 'Make Your Discipline day!').toString();
+      default:
+        return (row['tagline'] ?? 'Make Your Discipline day!').toString();
+    }
+  }
+
+  Future<void> _saveTagline(String value) async {
+    final source = value.trim().isEmpty ? 'Make Your Discipline day!' : value.trim();
+    setState(() => _isSaving = true);
+    try {
+      Map<String, String> taglineAll;
+      try {
+        taglineAll = await TranslationHelper.instance
+            .translateDescriptionAllLangs(source, widget.lang);
+      } catch (e) {
+        debugPrint('Error translating tagline: $e');
+        taglineAll = {'id': source, 'en': source, 'zh': source};
+      }
+
+      final payload = {
+        'tagline'    : taglineAll['id']!.isEmpty ? source : taglineAll['id'],
+        'tagline_en' : taglineAll['en']!.isEmpty ? source : taglineAll['en'],
+        'tagline_zh' : taglineAll['zh']!.isEmpty ? source : taglineAll['zh'],
+      };
+
+      if (_data == null) {
+        final inserted = await Supabase.instance.client
+            .from('app_info')
+            .insert({
+              'app_name': _appName,
+              'version' : _appVersion,
+              ...payload,
+            })
+            .select()
+            .single();
+        setState(() => _data = inserted);
+      } else {
+        await Supabase.instance.client
+            .from('app_info')
+            .update(payload)
+            .eq('id', _data!['id']);
+        setState(() => _data = {..._data!, ...payload});
+      }
+
+      setState(() {
+        _appTagline     = _localizedTagline(_data);
+        _editingTagline = false;
+      });
+      _showSnack(_t('Saved!', 'Tersimpan!', '已保存！'));
+    } catch (e) {
+      _showSnack('Error: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -132,7 +206,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
             .eq('id', _data!['id']);
       }
       onDone();
-      _showSnack(_t('Saved!', 'Tersimpan!'));
+      _showSnack(_t('Saved!', 'Tersimpan!', '已保存！'));
     } catch (e) {
       _showSnack('Error: $e', isError: true);
     } finally {
@@ -184,7 +258,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
       }
 
       setState(() => _logoUrl = publicUrl);
-      _showSnack(_t('Logo updated!', 'Logo diperbarui!'));
+      _showSnack(_t('Logo updated!', 'Logo diperbarui!', '徽标已更新！'));
     } catch (e) {
       _showSnack('Upload error: $e', isError: true);
     } finally {
@@ -201,7 +275,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
           .update({'logo_url': null})
           .eq('id', _data!['id']);
       setState(() => _logoUrl = null);
-      _showSnack(_t('Logo removed.', 'Logo dihapus.'));
+      _showSnack(_t('Logo removed.', 'Logo dihapus.', '徽标已删除。'));
     } catch (e) {
       _showSnack('Error: $e', isError: true);
     } finally {
@@ -230,7 +304,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          widget.lang == 'EN' ? 'About Inspecta' : 'Tentang Inspecta',
+          _screenTitle,
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             color: _primary,
@@ -238,9 +312,15 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
           ),
         ),
         backgroundColor: Colors.white,
-        elevation: 1,
-        shadowColor: Colors.black.withValues(alpha:0.08),
+        elevation: 0,
+        shadowColor: Colors.black12,
+        surfaceTintColor: Colors.white,
+        scrolledUnderElevation: 0,
         centerTitle: true,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: Colors.grey.shade200, height: 1),
+        ),
         actions: [
           if (_isSaving || _isUploadingLogo)
             const Padding(
@@ -332,16 +412,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                 );
               }),
               onSave: () {
-                _saveField(
-                  field: 'tagline',
-                  value: _taglineCtrl.text,
-                  onDone: () => setState(() {
-                    _appTagline    = _taglineCtrl.text.trim().isEmpty
-                        ? 'Make Your Discipline day!'
-                        : _taglineCtrl.text.trim();
-                    _editingTagline = false;
-                  }),
-                );
+                _saveTagline(_taglineCtrl.text);
               },
               onCancel: () => setState(() {
                 _editingTagline   = false;
@@ -352,7 +423,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
 
             _buildEditableCard(
               icon: Icons.info_outline_rounded,
-              label: _t('App Version', 'Versi Aplikasi'),
+              label: _t('App Version', 'Versi Aplikasi', '应用版本'),
               value: _appVersion,
               ctrl: _versionCtrl,
               focusNode: _versionFocus,
@@ -394,6 +465,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
               '© ${DateTime.now().year} $_appName',
               style: GoogleFonts.poppins(
                 fontSize: 13,
+                fontWeight: FontWeight.w600,
                 color: const Color(0xFF727272),
               ),
             ),
@@ -545,7 +617,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
           children: [
             TextButton(
               onPressed: onCancel,
-              child: Text(_t('Cancel', 'Batal'),
+              child: Text(_t('Cancel', 'Batal', '取消'),
                   style: GoogleFonts.poppins(color: Colors.black45)),
             ),
             const SizedBox(width: 8),
@@ -559,7 +631,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                     borderRadius: BorderRadius.circular(10)),
                 elevation: 0,
               ),
-              child: Text(_t('Save', 'Simpan'),
+              child: Text(_t('Save', 'Simpan', '保存'),
                   style: GoogleFonts.poppins(
                       color: Colors.white, fontWeight: FontWeight.w600)),
             ),
@@ -614,7 +686,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                         style: GoogleFonts.poppins(
                             fontSize: 12,
                             color: Colors.grey.shade500,
-                            fontWeight: FontWeight.w500)),
+                            fontWeight: FontWeight.w600)),
                     const SizedBox(height: 2),
                     if (!isEditing)
                       Text(value,
@@ -724,11 +796,11 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _t('Official Website', 'Website Resmi'),
+                      _t('Official Website', 'Website Resmi', '官方网站'),
                       style: GoogleFonts.poppins(
                           fontSize: 12,
                           color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w500),
+                          fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 2),
                     if (!_editingWebsite)
@@ -739,7 +811,7 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
                         child: Text(
                           _appWebsite.isNotEmpty
                               ? _appWebsite
-                              : _t('Not set', 'Belum diatur'),
+                              : _t('Not set', 'Belum diatur', '未设置'),
                           style: GoogleFonts.poppins(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -877,11 +949,11 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
               ),
               const SizedBox(width: 12),
               Text(
-                _t('Built with', 'Dibangun dengan'),
+                _t('Built with', 'Dibangun dengan', '构建技术'),
                 style: GoogleFonts.poppins(
                     fontSize: 13,
                     color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w500),
+                    fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -1022,24 +1094,76 @@ class _AdminAboutScreenState extends State<AdminAboutScreen> {
 
   void _showSnack(String msg, {bool isError = false}) {
     if (!mounted) return;
-    if (!isError) {
+    if (isError) {
+      _showErrorPopup(msg);
+    } else {
       _showSuccessPopup(msg);
-      return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Row(
-        children: [
-          const Icon(Icons.error_outline, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Text(msg,
-                  style: GoogleFonts.poppins(color: Colors.white))),
-        ],
+  }
+
+  void _showErrorPopup(String msg) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha:0.35),
+      builder: (_) => Center(
+        child: Material(
+          color: Colors.transparent,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.7, end: 1.0),
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.elasticOut,
+            builder: (_, scale, child) =>
+                Transform.scale(scale: scale, child: child),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFEF4444).withValues(alpha:0.2),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha:0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.error_outline_rounded,
+                      color: Color(0xFFEF4444),
+                      size: 42,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    msg,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-      backgroundColor: const Color(0xFFEF4444),
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(16),
-    ));
+    );
+    Future.delayed(const Duration(milliseconds: 2000), () {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    });
   }
 }

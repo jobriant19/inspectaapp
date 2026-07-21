@@ -73,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isVisitorMode = false;
   String _userLocationName = '...';
   String? _userLocationLevel;
+  String? _appLogoUrl;
   int? _userJabatanId;
   // ignore: unused_field
   bool _isLoadingVisitorStatus = true;
@@ -182,6 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addObserver(_lifecycleObserver!);
 
     _applyInitialData();
+    _fetchAppLogo();
 
     _checkVerificationStatus().then((_) async {
       if (!mounted) return;
@@ -191,6 +193,24 @@ class _HomeScreenState extends State<HomeScreen> {
       ]);
       if (mounted) _handleLoginAndFetchData();
     });
+  }
+
+  Future<void> _fetchAppLogo() async {
+    try {
+      final res = await _sb
+          .from('app_info')
+          .select('logo_url')
+          .order('id')
+          .limit(1)
+          .maybeSingle();
+      final url = res?['logo_url'] as String?;
+      if (mounted && url != null && url.isNotEmpty) {
+        setState(() => _appLogoUrl = url);
+        precacheImage(CachedNetworkImageProvider(url), context).catchError((_) {});
+      }
+    } catch (e) {
+      debugPrint('Error fetching app logo: $e');
+    }
   }
 
   // ── Pisahkan logika initState agar lebih bersih ──
@@ -1215,19 +1235,35 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Image(
-            image: const AssetImage('assets/images/logo1.png'),
-            height: 38,
-            gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00C9E4).withValues(alpha:0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.shield, color: Color(0xFF00C9E4), size: 26),
-            ),
-          ),
+          (_appLogoUrl != null && _appLogoUrl!.isNotEmpty)
+              ? CachedNetworkImage(
+                  imageUrl: _appLogoUrl!,
+                  height: 38,
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) => const Image(
+                    image: AssetImage('assets/images/logo1.png'),
+                    height: 38,
+                    gaplessPlayback: true,
+                  ),
+                  errorWidget: (_, __, ___) => const Image(
+                    image: AssetImage('assets/images/logo1.png'),
+                    height: 38,
+                    gaplessPlayback: true,
+                  ),
+                )
+              : Image(
+                  image: const AssetImage('assets/images/logo1.png'),
+                  height: 38,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00C9E4).withValues(alpha:0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.shield, color: Color(0xFF00C9E4), size: 26),
+                  ),
+                ),
           Row(
             children: [
               _buildNotifButton(),

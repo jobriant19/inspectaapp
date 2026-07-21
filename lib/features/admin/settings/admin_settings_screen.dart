@@ -109,13 +109,16 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                 : 'Nama aplikasi, versi, website',
         icon: Icons.info_outline_rounded,
         color: const Color(0xFF1D72F3),
-        onTap: () => Navigator.push(
-          context,
-          slideRoute(AdminAboutScreen(
-            lang: widget.lang,
-            initialData: _cachedAppInfo,
-          )),
-        ),
+        onTap: () async {
+          await Navigator.push(
+            context,
+            slideRoute(AdminAboutScreen(
+              lang: widget.lang,
+              initialData: _cachedAppInfo,
+            )),
+          );
+          _prefetchAppInfo();
+        },
       ),
       _SettingMenu(
         title: widget.lang == 'EN'
@@ -279,6 +282,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                                   : 'Kelola konten & informasi aplikasi',
                           style: GoogleFonts.poppins(
                             color: Colors.white.withValues(alpha:0.8),
+                            fontWeight: FontWeight.w600,
                             fontSize: 12,
                           ),
                         ),
@@ -299,7 +303,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: Colors.black45,
+                color: Colors.black,
                 letterSpacing: 0.5,
               ),
             ),
@@ -349,7 +353,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   Text(
                     menu.title,
                     style: GoogleFonts.poppins(
-                      color: const Color(0xFF1E3A8A),
+                      color: const Color(0xFF1D72F3),
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                     ),
@@ -358,7 +362,7 @@ class _AdminSettingsScreenState extends State<AdminSettingsScreen> {
                   Text(
                     menu.subtitle,
                     style:
-                        GoogleFonts.poppins(color: Colors.black38, fontSize: 12),
+                        GoogleFonts.poppins(color: Colors.black38, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),

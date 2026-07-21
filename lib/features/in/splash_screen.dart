@@ -29,7 +29,6 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigateWhenReady();
   }
 
-  // ── Navigasi: jalankan resolusi + splash timer secara paralel ────────────────
   Future<void> _navigateWhenReady() async {
     final stopwatch = Stopwatch()..start();
     final destination = await _resolveDestination();
@@ -42,7 +41,6 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted || _navigating) return;
     _navigating = true;
 
-    // Tunggu 2 frame agar Flutter engine flush semua resource
     await WidgetsBinding.instance.endOfFrame;
     await WidgetsBinding.instance.endOfFrame;
 
@@ -50,7 +48,21 @@ class _SplashScreenState extends State<SplashScreen> {
     destination();
   }
 
-  /// Mengembalikan closure navigasi tanpa langsung mengeksekusinya.
+  Future<Map<String, dynamic>?> _fetchAppBranding() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('app_info')
+          .select('app_name, tagline, tagline_en, tagline_zh, logo_url')
+          .order('id')
+          .limit(1)
+          .maybeSingle();
+      return res;
+    } catch (e) {
+      debugPrint('Splash fetch app branding error: $e');
+      return null;
+    }
+  }
+
   Future<VoidCallback> _resolveDestination() async {
     try {
       final session = Supabase.instance.client.auth.currentSession;
@@ -63,10 +75,33 @@ class _SplashScreenState extends State<SplashScreen> {
       final onboardingDone = prefs.getBool('onboarding_complete') ?? false;
       final savedLang = prefs.getString('lang') ?? 'EN';
 
+      final branding = await _fetchAppBranding();
+      final String? brandLogoUrl = branding?['logo_url'] as String?;
+      if (brandLogoUrl != null && brandLogoUrl.isNotEmpty && mounted) {
+        await precacheImage(CachedNetworkImageProvider(brandLogoUrl), context)
+            .catchError((_) {});
+      }
+
       return onboardingDone
           ? () => Navigator.pushReplacement(
-              context, _slideRoute(LoginScreen(initialLang: savedLang)))
-          : () => Navigator.pushReplacement(context, _slideRoute(const OnboardingScreen()));
+              context,
+              _slideRoute(LoginScreen(
+                initialLang: savedLang,
+                initialAppName: branding?['app_name'] as String?,
+                initialAppLogoUrl: brandLogoUrl,
+                initialTaglineId: branding?['tagline'] as String?,
+                initialTaglineEn: branding?['tagline_en'] as String?,
+                initialTaglineZh: branding?['tagline_zh'] as String?,
+              )))
+          : () => Navigator.pushReplacement(
+              context,
+              _slideRoute(OnboardingScreen(
+                initialAppName: branding?['app_name'] as String?,
+                initialAppLogoUrl: brandLogoUrl,
+                initialTaglineId: branding?['tagline'] as String?,
+                initialTaglineEn: branding?['tagline_en'] as String?,
+                initialTaglineZh: branding?['tagline_zh'] as String?,
+              )));
     } catch (e) {
       debugPrint('SplashScreen resolve error: $e');
       await Supabase.instance.client.auth.signOut().catchError((_) {});
@@ -80,7 +115,6 @@ class _SplashScreenState extends State<SplashScreen> {
       final prefs = await SharedPreferences.getInstance();
       final String lang = prefs.getString('lang') ?? 'EN';
 
-      // Ambil data user + log poin secara paralel
       final results = await Future.wait([
         Supabase.instance.client
             .from('User')
@@ -107,10 +141,8 @@ class _SplashScreenState extends State<SplashScreen> {
       final bool isVerificator = isVerifFlag || idJabatan == 1 || idJabatan == 2 || idJabatan == 5;
       final bool isAdmin       = idJabatan == 6;
 
-      // Resolusi nama lokasi (level paling spesifik)
       final locationData = await _resolveLocationName(userData);
 
-      // Gambar: DB lebih prioritas, fallback ke OAuth meta
       final metaName  = session.user.userMetadata?['full_name']
                      ?? session.user.userMetadata?['name'];
       final metaImage = session.user.userMetadata?['avatar_url']
@@ -121,7 +153,6 @@ class _SplashScreenState extends State<SplashScreen> {
               : null;
       final String? imageToUse = dbImage ?? metaImage;
 
-      // Precache aset + gambar user secara paralel
       if (mounted) {
         await Future.wait([
           precacheImage(const AssetImage('assets/images/logo1.png'), context)
@@ -174,7 +205,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
       if (!mounted) return () {};
 
-      // ── Alur Admin ────────────────────────────────────────────────────────
       if (isAdmin) {
         int sTotalUsers = 0, sTotalLokasi = 0, sTotalKategori = 0;
         int sTotalTemuan = 0;
@@ -209,7 +239,6 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
 
-      // ── Alur User biasa ───────────────────────────────────────────────────
       await warmupPointPopupFonts();
 
       return () => Navigator.pushReplacement(
@@ -327,7 +356,6 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  // ── Route helpers ────────────────────────────────────────────────────────────
   PageRouteBuilder<T> _slideRoute<T>(Widget screen) => PageRouteBuilder<T>(
         pageBuilder: (_, animation, __) => screen,
         transitionsBuilder: (_, animation, __, child) => FadeTransition(
@@ -344,7 +372,6 @@ class _SplashScreenState extends State<SplashScreen> {
         reverseTransitionDuration: Duration.zero,
       );
 
-  // ── Build ────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -378,31 +405,25 @@ class _SplashScreenState extends State<SplashScreen> {
                       alignment: Alignment.topLeft,
                       child: Wrap(
                         children: [
-                          // Flag emoji — ukuran 22 (dialog) & 18 (tombol bahasa)
                           const Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 22)),
                           const Text('🇺🇸🇮🇩🇨🇳', style: TextStyle(fontSize: 18)),
-                          // Title: fontSize 24, w800
                           Text(
                             '欢迎来到Inspecta实时分析攀登排行榜庆祝成就',
                             style: GoogleFonts.notoSansSc(fontSize: 24, fontWeight: FontWeight.w800),
                           ),
-                          // Deskripsi & tombol Skip: fontSize 14, w700
                           Text(
                             '有纪律高效率地监控报告解决问题通过我们先进的分析仪表板即时获取洞察'
                             '每项任务都能获得积分并在排行榜上看到您的名字解锁奖励与团队一起庆祝里程碑跳过',
                             style: GoogleFonts.notoSansSc(fontSize: 14, fontWeight: FontWeight.w700),
                           ),
-                          // Tombol Next/Get Started: fontSize 18, bold(w700)
                           Text(
                             '开始使用下一步',
                             style: GoogleFonts.notoSansSc(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
-                          // Judul dialog pilih bahasa: fontSize 17, w700
                           Text(
                             '选择语言',
                             style: GoogleFonts.notoSansSc(fontSize: 17, fontWeight: FontWeight.w700),
                           ),
-                          // Label pilihan bahasa: fontSize 15, w700 & w600
                           Text('中文', style: GoogleFonts.notoSansSc(fontSize: 15, fontWeight: FontWeight.w700)),
                           Text('中文', style: GoogleFonts.notoSansSc(fontSize: 15, fontWeight: FontWeight.w600)),
                         ],
@@ -431,26 +452,22 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
 
-            // Item kiri atas: Clean
             _buildAnimatedItem(
               imagePath: 'assets/images/clean.png',
               width: 120,
               targetOffset: Offset(-size.width * 0.35, -size.height * 0.18),
             ),
-            // Item tengah atas: Winner
             _buildAnimatedItem(
               imagePath: 'assets/images/winner.png',
               width: 130,
               targetOffset: Offset(0, -size.height * 0.22),
             ),
-            // Item kanan atas: Regular
             _buildAnimatedItem(
               imagePath: 'assets/images/regular.png',
               width: 120,
               targetOffset: Offset(size.width * 0.35, -size.height * 0.18),
             ),
 
-            // Karakter 3D meluncur dari bawah
             Positioned(
               bottom: 0,
               left: 0,
@@ -472,7 +489,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
 
-            // Logo
             Align(
               alignment: Alignment.center,
               child: TweenAnimationBuilder<double>(
