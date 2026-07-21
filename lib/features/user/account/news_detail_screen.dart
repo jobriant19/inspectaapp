@@ -19,10 +19,7 @@ class NewsDetailScreen extends StatelessWidget {
   Color get _primary =>
       (item['type'] ?? '') == 'update' ? _updatePrimary : _maintPrimary;
 
-  Color get _bgLight =>
-      (item['type'] ?? '') == 'update'
-          ? const Color(0xFFEFF6FF)
-          : const Color(0xFFFFFBEB);
+  Color get _bgLight => const Color(0xFFF8FAFC);
 
   Color get _badgeBg =>
       (item['type'] ?? '') == 'update'
@@ -335,16 +332,6 @@ class NewsDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Strip warna atas
-                  Container(
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: _primary,
-                      borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(19)),
-                    ),
-                  ),
-
                   Padding(
                     padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
                     child: Column(
@@ -385,6 +372,7 @@ class NewsDetailScreen extends StatelessWidget {
                           _content,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
+                            fontWeight: FontWeight.w600,
                             color: const Color(0xFF374151),
                             height: 1.75,
                           ),
