@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'point/admin_poin_screen.dart';
-import 'admin_target_5r_screen.dart';
+import 'target/admin_target_5r_screen.dart';
 
 class AdminPoinTargetScreen extends StatefulWidget {
   final String lang;
