@@ -3,7 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 
+import 'admin_detail_point.dart';
 import 'admin_edit_point.dart';
+import 'admin_point_indicator.dart';
 
 class AdminPoinScreen extends StatefulWidget {
   final String lang;
@@ -16,6 +18,10 @@ class AdminPoinScreen extends StatefulWidget {
 class _AdminPoinScreenState extends State<AdminPoinScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
+  List<Map<String, dynamic>> _filtered = [];
+  String _search = '';
+  int _currentPage = 1;
+  static const int _perPage = 10;
 
   String _t(String key) {
     const txt = {
@@ -108,6 +114,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
       if (mounted) {
         setState(() {
           _items = List<Map<String, dynamic>>.from(data);
+          _applyFilter();
           _isLoading = false;
         });
       }
@@ -131,28 +138,150 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
     );
   }
 
+  void _showSuccessPopup(String message) {
+    if (!mounted) return;
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'success',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      transitionDuration: const Duration(milliseconds: 300),
+      transitionBuilder: (_, anim, __, child) => FadeTransition(
+        opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutBack)),
+          child: child,
+        ),
+      ),
+      pageBuilder: (ctx, _, __) {
+        Future.delayed(const Duration(milliseconds: 1800), () {
+          if (ctx.mounted && Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+        });
+        return Center(
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 50),
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(color: const Color(0xFF10B981).withValues(alpha: 0.25), blurRadius: 30, spreadRadius: 3, offset: const Offset(0, 10)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.25), width: 2),
+                    ),
+                    child: const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 38),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)),
+                  ),
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 130,
+                      height: 5,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 1.0, end: 0.0),
+                        duration: const Duration(milliseconds: 1800),
+                        builder: (_, v, __) => LinearProgressIndicator(
+                          value: v,
+                          backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.12),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF10B981)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final totalPages = _filtered.isEmpty ? 1 : (_filtered.length / _perPage).ceil();
+    final safePage = _currentPage.clamp(1, totalPages);
+    final startIdx = (safePage - 1) * _perPage;
+    final endIdx = (startIdx + _perPage) > _filtered.length ? _filtered.length : startIdx + _perPage;
+    final pageData = _filtered.isEmpty ? <Map<String, dynamic>>[] : _filtered.sublist(startIdx, endIdx);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: _isLoading
-          ? _buildShimmer()
-          : RefreshIndicator(
-              onRefresh: _fetchData,
-              color: const Color.fromARGB(255, 245, 244, 1),
-              child: _items.isEmpty
-                  ? _buildEmpty()
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                      itemCount: _items.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (_, i) => _buildCard(_items[i]),
-                    ),
+      body: Column(
+        children: [
+          _buildSearchBar(),
+          Expanded(
+            child: _isLoading
+                ? _buildShimmer()
+                : RefreshIndicator(
+                    onRefresh: _fetchData,
+                    color: const Color(0xFF1D72F3),
+                    child: pageData.isEmpty
+                        ? _buildEmpty()
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                            itemCount: pageData.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            itemBuilder: (_, i) => _buildCard(pageData[i]),
+                          ),
+                  ),
+          ),
+          if (!_isLoading && totalPages > 1)
+            AdminPointIndicator(
+              currentPage: safePage,
+              totalPages: totalPages,
+              onPageChanged: (p) => setState(() => _currentPage = p),
             ),
+        ],
+      ),
     );
   }
 
   Widget _buildCard(Map<String, dynamic> item) {
+  return GestureDetector(
+    onTap: () => Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminDetailPointScreen(
+          item: item,
+          lang: widget.lang,
+          namaFn: _localizedNama,
+          deskripsiFn: _localizedDeskripsi,
+          onEdit: (it) => AdminEditPointDialog.show(
+            context,
+            lang: widget.lang,
+            item: it,
+            onSaved: () {
+              _fetchData();
+              _showSuccessPopup(_t('success_edit'));
+            },
+          ),
+        ),
+      ),
+    ),
+    child: _buildCardContent(item),
+  );
+}
+
+Widget _buildCardContent(Map<String, dynamic> item) {
     final isAktif = item['is_aktif'] as bool? ?? true;
     final poin = (item['poin'] as int?) ?? 0;
     final isBonus = poin >= 0;
@@ -175,7 +304,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // POINT BADGE — hijau (bonus) / merah (penalti)
+            // POINT BADGE 
             Container(
               width: 60,
               height: 60,
@@ -242,7 +371,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  // KODE — code chip
+                  // CODE
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(7)),
@@ -259,7 +388,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  // DESKRIPSI — aksen kutip di kiri
+                  // DESCRIPTION
                   if (deskripsi.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.all(10),
@@ -270,7 +399,7 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                       ),
                       child: Text(
                         deskripsi,
-                        style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54, fontStyle: FontStyle.italic, height: 1.4),
+                        style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w600, height: 1.4),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -284,7 +413,10 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
                           context,
                           lang: widget.lang,
                           item: item,
-                          onSaved: _fetchData,
+                          onSaved: () {
+                            _fetchData();
+                            _showSuccessPopup(_t('success_edit'));
+                          },
                         ),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
@@ -337,6 +469,46 @@ class _AdminPoinScreenState extends State<AdminPoinScreen> {
       default:
         return (item['deskripsi_template'] ?? '').toString();
     }
+  }
+
+  void _applyFilter() {
+    final q = _search.toLowerCase();
+    _filtered = q.isEmpty
+        ? List.from(_items)
+        : _items.where((d) {
+            final nama = _localizedNama(d).toLowerCase();
+            final kode = (d['kode'] ?? '').toString().toLowerCase();
+            return nama.contains(q) || kode.contains(q);
+          }).toList();
+    _currentPage = 1;
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      height: 44,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
+      ),
+      child: TextField(
+        onChanged: (v) => setState(() {
+          _search = v;
+          _applyFilter();
+        }),
+        textAlignVertical: TextAlignVertical.center,
+        style: GoogleFonts.poppins(color: const Color(0xFF1D72F3), fontSize: 14, fontWeight: FontWeight.w600),
+        decoration: InputDecoration(
+          hintText: widget.lang == 'EN' ? 'Search...' : widget.lang == 'ZH' ? '搜索...' : 'Cari...',
+          hintStyle: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
+          prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 20),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
   }
 
   Widget _buildEmpty() {

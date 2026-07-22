@@ -46,6 +46,7 @@ Future<void> main() async {
         GoogleFonts.notoSansSc(fontWeight: FontWeight.w600),
         GoogleFonts.notoSansSc(fontWeight: FontWeight.w700),
         GoogleFonts.notoSansSc(fontWeight: FontWeight.w800),
+        GoogleFonts.robotoMono(fontWeight: FontWeight.w600)
       ]),
     ]).timeout(const Duration(seconds: 5));
   } catch (_) {}

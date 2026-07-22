@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'admin_poin_screen.dart';
+import 'point/admin_poin_screen.dart';
 import 'admin_target_5r_screen.dart';
 
 class AdminPoinTargetScreen extends StatefulWidget {
@@ -137,9 +137,7 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Tab 1: Poin — embed AdminPoinScreen tanpa AppBar-nya
           _PoinTab(lang: widget.lang),
-          // Tab 2: Target 5R — embed AdminTarget5rScreen tanpa AppBar-nya
           _Target5rTab(lang: widget.lang),
         ],
       ),
@@ -147,7 +145,6 @@ class _AdminPoinTargetScreenState extends State<AdminPoinTargetScreen>
   }
 }
 
-// ── Wrapper Tab Poin ──────────────────────────────────────────────────────────
 class _PoinTab extends StatelessWidget {
   final String lang;
   const _PoinTab({required this.lang});
@@ -158,14 +155,12 @@ class _PoinTab extends StatelessWidget {
   }
 }
 
-// ── Wrapper Tab 5R Target ─────────────────────────────────────────────────────
 class _Target5rTab extends StatelessWidget {
   final String lang;
   const _Target5rTab({required this.lang});
 
   @override
   Widget build(BuildContext context) {
-    // AdminTarget5rScreen sudah tidak punya AppBar setelah dimodifikasi.
     return AdminTarget5rScreen(lang: lang);
   }
 }
