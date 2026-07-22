@@ -3,20 +3,27 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
+import 'admin_add_target.dart';
 
 const _kGreen = Color(0xFF059669);
+const _kBlue = Color(0xFF1D72F3);
+const _kSky = Color(0xFF0EA5E9);
+const _kPurple = Color(0xFF7C3AED);
+const _kPink = Color(0xFFDB2777);
 
-enum _T { monthly, daily, offDay }
+enum TargetType { monthly, daily, offDay }
 
-extension _TE on _T {
+extension TargetTypeX on TargetType {
   String get db => ['monthly', 'daily_specific', 'off_day'][index];
 
-  static _T from(String s) => s == 'daily_specific'
-      ? _T.daily
+  static TargetType from(String s) => s == 'daily_specific'
+      ? TargetType.daily
       : s == 'off_day'
-          ? _T.offDay
-          : _T.monthly;
+          ? TargetType.offDay
+          : TargetType.monthly;
 }
+
+enum _TargetStatus { active, inactive, upcoming, superseded }
 
 class AdminTarget5rScreen extends StatefulWidget {
   final String lang;
@@ -29,10 +36,12 @@ class AdminTarget5rScreen extends StatefulWidget {
 class _State extends State<AdminTarget5rScreen> {
   List<Map<String, dynamic>> _all = [], _view = [];
   bool _loading = true;
-  _T? _fType;
-  bool? _fAktif;
+  TargetType? _fType;
+  _TargetStatus? _fStatus;
   String _q = '';
   int? _activeMonthlyId;
+  int _currentPage = 1;
+  static const int _perPage = 10;
 
   static const _txt = <String, Map<String, String>>{
     'ID': {
@@ -49,6 +58,8 @@ class _State extends State<AdminTarget5rScreen> {
       'label': 'Label Hari Libur',
       'a': 'Target Anggota',
       'i': 'Target Inspeksi',
+      'a_selesai': 'Anggota Selesai',
+      'i_selesai': 'Inspeksi Selesai',
       'l': 'Target Lokasi',
       'u': 'Target Unit',
       's': 'Target Subunit',
@@ -89,6 +100,8 @@ class _State extends State<AdminTarget5rScreen> {
       'label': 'Holiday Label',
       'a': 'Member Target',
       'i': 'Inspection Target',
+      'a_selesai': 'Member Completion',
+      'i_selesai': 'Inspection Completion',
       'l': 'Location Target',
       'u': 'Unit Target',
       's': 'Sub-unit Target',
@@ -129,6 +142,8 @@ class _State extends State<AdminTarget5rScreen> {
       'label': '节假日标签',
       'a': '成员目标',
       'i': '检查目标',
+      'a_selesai': '成员完成',
+      'i_selesai': '检查完成',
       'l': '位置目标',
       'u': '单元目标',
       's': '子单元目标',
@@ -207,8 +222,108 @@ class _State extends State<AdminTarget5rScreen> {
     _activeMonthlyId = activeId;
   }
 
+  _TargetStatus _statusOf(Map<String, dynamic> item) {
+    final type = TargetTypeX.from(item['type'] as String? ?? 'monthly');
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+
+    if (type == TargetType.monthly) {
+      if (item['id'] == _activeMonthlyId) return _TargetStatus.active;
+      final eff = DateTime.tryParse(item['effective_date']?.toString() ?? '');
+      if (eff != null && eff.isAfter(todayOnly)) return _TargetStatus.upcoming;
+      return _TargetStatus.superseded;
+    }
+
+    final specific = DateTime.tryParse(item['specific_date']?.toString() ?? '');
+    final aktifFlag = item['is_aktif'] as bool? ?? true;
+    if (specific != null && specific.isBefore(todayOnly)) {
+      return _TargetStatus.inactive;
+    }
+    if (!aktifFlag) return _TargetStatus.inactive;
+    if (specific != null && specific.isAfter(todayOnly)) {
+      return _TargetStatus.upcoming;
+    }
+    return _TargetStatus.active;
+  }
+
+  String _statusLabel(_TargetStatus st) {
+    switch (st) {
+      case _TargetStatus.active:
+        return widget.lang == 'EN' ? 'Active' : widget.lang == 'ZH' ? '启用' : 'Aktif';
+      case _TargetStatus.inactive:
+        return widget.lang == 'EN' ? 'Inactive' : widget.lang == 'ZH' ? '禁用' : 'Nonaktif';
+      case _TargetStatus.upcoming:
+        return widget.lang == 'EN' ? 'Upcoming' : widget.lang == 'ZH' ? '即将生效' : 'Akan Datang';
+      case _TargetStatus.superseded:
+        return widget.lang == 'EN' ? 'Superseded' : widget.lang == 'ZH' ? '已被取代' : 'Sudah Digantikan';
+    }
+  }
+
+  (Color, Color, Color) _statusColors(_TargetStatus st) {
+    switch (st) {
+      case _TargetStatus.active:
+        return (const Color(0xFF22C55E).withValues(alpha: 0.12), const Color(0xFF22C55E).withValues(alpha: 0.5), const Color(0xFF16A34A));
+      case _TargetStatus.upcoming:
+        return (_kBlue.withValues(alpha: 0.12), _kBlue.withValues(alpha: 0.5), _kBlue);
+      case _TargetStatus.superseded:
+        return (Colors.grey.withValues(alpha: 0.1), Colors.grey.withValues(alpha: 0.3), Colors.grey.shade600);
+      case _TargetStatus.inactive:
+        return (Colors.red.withValues(alpha: 0.08), Colors.red.withValues(alpha: 0.3), Colors.red.shade400);
+    }
+  }
+
+  IconData _statusIcon(_TargetStatus st) {
+    switch (st) {
+      case _TargetStatus.active:
+        return Icons.check_circle_rounded;
+      case _TargetStatus.inactive:
+        return Icons.pause_circle_rounded;
+      case _TargetStatus.upcoming:
+        return Icons.schedule_rounded;
+      case _TargetStatus.superseded:
+        return Icons.history_rounded;
+    }
+  }
+
+  String _searchableText(Map<String, dynamic> r) {
+    final type = TargetTypeX.from(r['type'] as String? ?? 'monthly');
+    final typeLabel = type == TargetType.monthly
+        ? _t('monthly')
+        : type == TargetType.daily
+            ? _t('daily')
+            : _t('offDay');
+
+    String dateText = '';
+    if (type == TargetType.monthly) {
+      final eff = DateTime.tryParse(r['effective_date']?.toString() ?? '');
+      dateText = eff != null ? DateFormat('MMMM yyyy', _locale).format(eff) : '';
+    } else {
+      final d = DateTime.tryParse(r['specific_date']?.toString() ?? '');
+      dateText = d != null ? DateFormat('d MMMM yyyy', _locale).format(d) : '';
+    }
+
+    final statusText = _statusLabel(_statusOf(r));
+
+    final parts = <dynamic>[
+      typeLabel,
+      dateText,
+      statusText,
+      r['off_day_label'],
+      r['keterangan'],
+      r['target_anggota'],
+      r['target_inspeksi'],
+      r['target_anggota_selesai'],
+      r['target_inspeksi_selesai'],
+      r['target_lokasi'],
+      r['target_unit'],
+      r['target_subunit'],
+      r['target_area'],
+    ];
+    return parts.map((e) => (e ?? '').toString().toLowerCase()).join(' ');
+  }
+
   Map<String, dynamic>? _findDuplicate({
-    required _T type,
+    required TargetType type,
     DateTime? date,
     int? excludeId,
   }) {
@@ -217,7 +332,7 @@ class _State extends State<AdminTarget5rScreen> {
     for (final r in _all) {
       if (excludeId != null && r['id'] == excludeId) continue;
       if (r['type'] != type.db) continue;
-      final compareField = type == _T.monthly ? r['effective_date'] : r['specific_date'];
+      final compareField = type == TargetType.monthly ? r['effective_date'] : r['specific_date'];
       if ((compareField?.toString()) == dateStr) return r;
     }
     return null;
@@ -266,27 +381,27 @@ class _State extends State<AdminTarget5rScreen> {
 
   Future<void> _showDuplicateWarningDialog(
       BuildContext ctx, Map<String, dynamic> existing) {
-    final dupType = _TE.from(existing['type'] as String? ?? 'daily_specific');
-    final rawDateStr = dupType == _T.monthly
+    final dupType = TargetTypeX.from(existing['type'] as String? ?? 'daily_specific');
+    final rawDateStr = dupType == TargetType.monthly
         ? (existing['effective_date'] ?? '-').toString()
         : (existing['specific_date'] ?? '-').toString();
     final parsedDate = DateTime.tryParse(rawDateStr);
     final dateStr = parsedDate != null
-        ? (dupType == _T.monthly
+        ? (dupType == TargetType.monthly
             ? DateFormat('MMMM yyyy', _locale).format(parsedDate)
             : DateFormat('d MMMM yyyy', _locale).format(parsedDate))
         : rawDateStr;
 
-    final label = dupType == _T.offDay
+    final label = dupType == TargetType.offDay
         ? existing['off_day_label'] as String?
         : null;
-    final typeLabel = dupType == _T.offDay
+    final typeLabel = dupType == TargetType.offDay
         ? _t('offDay')
-        : dupType == _T.monthly
+        : dupType == TargetType.monthly
             ? _t('monthly')
             : _t('daily');
 
-    final String messageText = dupType == _T.monthly
+    final String messageText = dupType == TargetType.monthly
         ? (widget.lang == 'ID'
             ? 'Sudah ada target $typeLabel pada bulan ini. Silakan edit target yang sudah ada.'
             : widget.lang == 'ZH'
@@ -386,27 +501,21 @@ class _State extends State<AdminTarget5rScreen> {
   void _filter() {
     var l = List<Map<String, dynamic>>.from(_all);
     if (_fType != null) l = l.where((r) => r['type'] == _fType!.db).toList();
-    if (_fAktif != null) {
-      l = l.where((r) => (r['is_aktif'] as bool? ?? true) == _fAktif).toList();
+    if (_fStatus != null) {
+      l = l.where((r) => _statusOf(r) == _fStatus).toList();
     }
     if (_q.isNotEmpty) {
       final q = _q.toLowerCase();
-      l = l
-          .where((r) => [
-                r['off_day_label'],
-                r['keterangan'],
-                r['specific_date'],
-                r['effective_date'],
-              ].any((v) => (v ?? '').toString().toLowerCase().contains(q)))
-          .toList();
+      l = l.where((r) => _searchableText(r).contains(q)).toList();
     }
     _view = l;
+    _currentPage = 1;
   }
 
   Future<void> _save({
     required bool isEdit,
     int? id,
-    required _T type,
+    required TargetType type,
     DateTime? effectiveDate,
     DateTime? date,
     int a = 0,
@@ -424,12 +533,12 @@ class _State extends State<AdminTarget5rScreen> {
     try {
       final Map<String, dynamic> payload = {
         'type'                    : type.db,
-        'is_aktif'                : type == _T.monthly ? true : aktif,
+        'is_aktif'                : type == TargetType.monthly ? true : aktif,
         'keterangan'              : ket?.isEmpty == true ? null : ket,
         'updated_at'              : DateTime.now().toIso8601String(),
       };
 
-      if (type == _T.monthly) {
+      if (type == TargetType.monthly) {
         payload['effective_date']           = effectiveDate?.toIso8601String().split('T').first;
         payload['specific_date']            = null;
         payload['off_day_label']            = null;
@@ -441,7 +550,7 @@ class _State extends State<AdminTarget5rScreen> {
         payload['target_area']              = ar;
         payload['target_anggota_selesai']   = aSelesai;
         payload['target_inspeksi_selesai']  = iSelesai;
-      } else if (type == _T.daily) {
+      } else if (type == TargetType.daily) {
         payload['effective_date']           = null;
         payload['specific_date']            = date?.toIso8601String().split('T').first;
         payload['off_day_label']            = null;
@@ -473,7 +582,7 @@ class _State extends State<AdminTarget5rScreen> {
             .update(payload)
             .eq('id', id);
         _showSuccessDialog(_t('ok_edit'));
-      } else if (type == _T.monthly) {
+      } else if (type == TargetType.monthly) {
         await Supabase.instance.client
             .from('target_5r_findings')
             .upsert(payload, onConflict: 'type,effective_date');
@@ -495,7 +604,7 @@ class _State extends State<AdminTarget5rScreen> {
   Future<bool?> _confirmAddDialog(
     BuildContext ctx, {
     required bool isEdit, 
-    required _T type,
+    required TargetType type,
     DateTime? monthlyEffectiveDate,
     DateTime? dateValue,
     String? offDayLabel,
@@ -509,27 +618,27 @@ class _State extends State<AdminTarget5rScreen> {
     int iSelesai = 0,
   }) {
     final (String typeLabel, IconData typeIcon, Color typeColor) = switch (type) {
-      _T.monthly => (_t('monthly'), Icons.calendar_month_rounded, _kGreen),
-      _T.daily => (_t('daily'), Icons.event_rounded, const Color(0xFF2563EB)),
-      _T.offDay => (_t('offDay'), Icons.beach_access_rounded, const Color(0xFFD97706)),
+      TargetType.monthly => (_t('monthly'), Icons.calendar_month_rounded, _kGreen),
+      TargetType.daily => (_t('daily'), Icons.event_rounded, _kBlue),
+      TargetType.offDay => (_t('offDay'), Icons.beach_access_rounded, const Color(0xFFD97706)),
     };
 
     String detail;
-    if (type == _T.monthly) {
+    if (type == TargetType.monthly) {
       final effStr = DateFormat('d MMMM yyyy', _locale).format(monthlyEffectiveDate!);
       detail = widget.lang == 'ID'
           ? 'Akan otomatis aktif pada $effStr dan menggantikan target bulanan yang sedang berjalan.'
           : widget.lang == 'ZH'
               ? '将于 $effStr 自动生效，并取代当前的每月目标。'
               : 'Will automatically activate on $effStr, replacing the current monthly target.';
-    } else if (type == _T.daily) {
+    } else if (type == TargetType.daily) {
       detail = DateFormat('d MMMM yyyy', _locale).format(dateValue ?? DateTime.now());
     } else {
       final lbl = (offDayLabel ?? '').isEmpty ? '-' : offDayLabel!;
       detail =
           '${DateFormat('d MMMM yyyy', _locale).format(dateValue ?? DateTime.now())} • $lbl';
     }
-    final List<(IconData, String, int, Color)> targetRows = type == _T.offDay
+    final List<(IconData, String, int, Color)> targetRows = type == TargetType.offDay
         ? []
         : [
             (Icons.people_rounded, _t('a'), a, _kGreen),
@@ -540,8 +649,8 @@ class _State extends State<AdminTarget5rScreen> {
             (Icons.check_circle_outline_rounded, widget.lang == 'ID'
                 ? 'Target Inspeksi Selesai'
                 : widget.lang == 'ZH' ? '检查完成目标' : 'Inspection Completion Target', iSelesai, _kGreen),
-            (Icons.location_city_rounded, _t('l'), l, const Color(0xFF2563EB)),
-            (Icons.apartment_rounded, _t('u'), u, const Color(0xFF2563EB)),
+            (Icons.location_city_rounded, _t('l'), l, _kBlue),
+            (Icons.apartment_rounded, _t('u'), u, _kBlue),
             (Icons.domain_rounded, _t('s'), s, const Color(0xFF7C3AED)),
             (Icons.place_rounded, _t('ar'), ar, const Color(0xFF7C3AED)),
           ];
@@ -678,7 +787,7 @@ class _State extends State<AdminTarget5rScreen> {
                 ),
               ],
 
-              if (type == _T.offDay && (offDayLabel ?? '').isNotEmpty) ...[
+              if (type == TargetType.offDay && (offDayLabel ?? '').isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Container(
                   width: double.infinity,
@@ -728,30 +837,98 @@ class _State extends State<AdminTarget5rScreen> {
 
   Future<void> _delete(int id) async {
     final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(_t('del_q'),
-            style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-        content: Text(_t('del_d'), style: GoogleFonts.poppins()),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(_t('cancel'),
-                  style: const TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10))),
-            child: Text(_t('delete'),
-                style: const TextStyle(color: Colors.white)),
+          context: context,
+          barrierDismissible: true,
+          builder: (_) => Dialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFEBEB),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.delete_forever_rounded,
+                      color: Color(0xFFEF4444),
+                      size: 38,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    widget.lang == 'EN' ? 'Delete?' : widget.lang == 'ZH' ? '删除？' : 'Hapus?',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF1E293B),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _t('del_d'),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: const Color(0xFF64748B),
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(context, true),
+                      icon: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 18),
+                      label: Text(
+                        _t('delete'),
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text(
+                        _t('cancel'),
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
-    );
+        ) ??
+        false;
     if (ok != true) return;
     try {
       await Supabase.instance.client
@@ -775,28 +952,154 @@ class _State extends State<AdminTarget5rScreen> {
         margin: const EdgeInsets.all(16),
       ));
 
+  void _openAddTargetDialog({Map<String, dynamic>? item}) {
+    AdminAddTargetDialog.show(
+      context,
+      lang: widget.lang,
+      item: item,
+      findDuplicate: _findDuplicate,
+      showDuplicateWarning: _showDuplicateWarningDialog,
+      confirmDialog: _confirmAddDialog,
+      onSave: _save,
+    );
+  }
+
   @override
-  Widget build(BuildContext ctx) => Scaffold(
-    backgroundColor: const Color(0xFFF8FAFC),
-    body: Column(children: [
-      _filterBar(),
-      Expanded(
-        child: _loading
-            ? _shimmer()
-            : RefreshIndicator(
-                onRefresh: _fetch,
-                color: _kGreen,
-                child: _view.isEmpty
-                    ? _empty()
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                        itemCount: _view.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => _card(_view[i]),
-                      )),
+  Widget build(BuildContext ctx) {
+    final totalPages = _view.isEmpty ? 1 : (_view.length / _perPage).ceil();
+    final safePage = _currentPage.clamp(1, totalPages);
+    final startIdx = (safePage - 1) * _perPage;
+    final endIdx = (startIdx + _perPage) > _view.length ? _view.length : startIdx + _perPage;
+    final pageData = _view.isEmpty ? <Map<String, dynamic>>[] : _view.sublist(startIdx, endIdx);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: Column(children: [
+        _filterBar(),
+        Expanded(
+          child: _loading
+              ? _shimmer()
+              : RefreshIndicator(
+                  onRefresh: _fetch,
+                  color: _kGreen,
+                  child: _view.isEmpty
+                      ? _empty()
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          itemCount: pageData.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (_, i) => _card(pageData[i]),
+                        )),
+        ),
+        if (!_loading && totalPages > 1) _pageIndicator(safePage, totalPages),
+      ]),
+    );
+  }
+
+  // BOTTOM PAGE INDICATOR
+  Widget _pageIndicator(int currentPage, int totalPages) {
+    const int maxVisible = 5;
+    List<int> visible() {
+      if (totalPages <= maxVisible) return List.generate(totalPages, (i) => i + 1);
+      int start = currentPage - 2;
+      int end = currentPage + 2;
+      if (start < 1) {
+        start = 1;
+        end = maxVisible;
+      } else if (end > totalPages) {
+        end = totalPages;
+        start = totalPages - (maxVisible - 1);
+      }
+      return List.generate(end - start + 1, (i) => start + i);
+    }
+
+    final pageNumbers = visible();
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+    final double bottomSpacing = bottomInset > 0 ? bottomInset + 10 : 16;
+
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.fromLTRB(15, 8, 15, bottomSpacing),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _kGreen.withValues(alpha: 0.2)),
+          boxShadow: [
+            BoxShadow(color: _kGreen.withValues(alpha: 0.12), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Row(
+          children: [
+            _pageArrow(
+              icon: Icons.arrow_back_ios_new_rounded,
+              enabled: canPrev,
+              onTap: () {
+                if (canPrev) setState(() => _currentPage = currentPage - 1);
+              },
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Row(
+                children: [
+                  for (final p in pageNumbers) ...[
+                    Expanded(child: _pageNum(p, currentPage)),
+                    if (p != pageNumbers.last) const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _pageArrow(
+              icon: Icons.arrow_forward_ios_rounded,
+              enabled: canNext,
+              onTap: () {
+                if (canNext) setState(() => _currentPage = currentPage + 1);
+              },
+            ),
+          ],
+        ),
       ),
-    ]),
-  );
+    );
+  }
+
+  Widget _pageNum(int page, int currentPage) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page != currentPage) setState(() => _currentPage = page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? _kGreen : _kGreen.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive ? null : Border.all(color: _kGreen.withValues(alpha: 0.25)),
+        ),
+        child: Text('$page',
+            style: GoogleFonts.poppins(color: isActive ? Colors.white : _kGreen, fontWeight: FontWeight.w800, fontSize: 13)),
+      ),
+    );
+  }
+
+  Widget _pageArrow({required IconData icon, required bool enabled, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? _kGreen.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 15, color: enabled ? _kGreen : Colors.grey.shade400),
+      ),
+    );
+  }
 
   // FILTER BAR
   Widget _filterBar() => Container(
@@ -804,9 +1107,9 @@ class _State extends State<AdminTarget5rScreen> {
     child: Column(children: [
       // ADD TARGET BUTTON
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: GestureDetector(
-          onTap: () => _showForm(),
+          onTap: () => _openAddTargetDialog(),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -855,6 +1158,7 @@ class _State extends State<AdminTarget5rScreen> {
                               : 'Add monthly, daily, or holiday target',
                       style: GoogleFonts.poppins(
                           fontSize: 10,
+                          fontWeight: FontWeight.w600,
                           color: Colors.white.withValues(alpha:0.85)),
                     ),
                   ],
@@ -867,123 +1171,78 @@ class _State extends State<AdminTarget5rScreen> {
         ),
       ),
 
-      // SEARCH BAR + ACTIVE FILTER
+      // SEARCH BAR + STATUS FILTER
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Row(children: [
           // SEARCH BAR
           Expanded(
             flex: 3,
-            child: TextField(
-              onChanged: (v) => setState(() { _q = v; _filter(); }),
-              style: GoogleFonts.poppins(fontSize: 13),
-              decoration: InputDecoration(
-                hintText: _t('search'),
-                hintStyle: GoogleFonts.poppins(
-                    fontSize: 13, color: Colors.grey.shade400),
-                prefixIcon: const Icon(Icons.search, color: _kGreen, size: 18),
-                filled: true,
-                fillColor: const Color(0xFFF0FDF4),
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide(color: _kGreen.withValues(alpha:0.3))),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide(color: _kGreen.withValues(alpha:0.3))),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: const BorderSide(color: _kGreen, width: 1.5)),
+            child: Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
+              ),
+              child: TextField(
+                onChanged: (v) => setState(() { _q = v; _filter(); }),
+                textAlignVertical: TextAlignVertical.center,
+                style: GoogleFonts.poppins(fontSize: 13, color: _kBlue, fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  hintText: _t('search'),
+                  hintStyle: GoogleFonts.poppins(fontSize: 13, color: Colors.black38),
+                  prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 20),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          // ACTIVE FILTER
+          // STATUS FILTER 
           Expanded(
             flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-              decoration: BoxDecoration(
-                color: _fAktif == null
-                    ? Colors.grey.shade100
-                    : _fAktif == true
-                        ? const Color(0xFFF0FDF4)
-                        : const Color(0xFFFFF1F2),
-                borderRadius: BorderRadius.circular(30),
-                border: Border.all(
-                  color: _fAktif == null
-                      ? Colors.grey.shade300
-                      : _fAktif == true
-                          ? _kGreen.withValues(alpha:0.5)
-                          : Colors.red.shade200,
-                  width: 1.2,
-                ),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<bool?>(
-                  value: _fAktif,
-                  isDense: true,
-                  isExpanded: true,
-                  icon: Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: 18,
-                    color: _fAktif == null
-                        ? Colors.grey.shade500
-                        : _fAktif == true
-                            ? _kGreen
-                            : Colors.red.shade400,
+            child: GestureDetector(
+              onTap: _showStatusFilterDialog,
+              child: Builder(builder: (_) {
+                final Color fg = _fStatus == null ? Colors.grey.shade600 : _statusColors(_fStatus!).$3;
+                final Color bg = _fStatus == null ? const Color(0xFFF1F5F9) : _statusColors(_fStatus!).$1;
+                final Color bd = _fStatus == null ? Colors.black.withValues(alpha: 0.08) : _statusColors(_fStatus!).$2;
+                final IconData ic = _fStatus == null ? Icons.apps_rounded : _statusIcon(_fStatus!);
+                final String label = _fStatus == null
+                    ? (widget.lang == 'ID' ? 'Semua' : widget.lang == 'ZH' ? '全部' : 'All')
+                    : _statusLabel(_fStatus!);
+                return Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: bg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: bd),
                   ),
-                  dropdownColor: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  style: GoogleFonts.poppins(fontSize: 12),
-                  items: [
-                    DropdownMenuItem<bool?>(
-                      value: null,
-                      child: Text(
-                        widget.lang == 'ID'
-                            ? 'Semua'
-                            : widget.lang == 'ZH'
-                                ? '全部'
-                                : 'All',
-                        style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w600),
-                      ),
+                  child: Row(children: [
+                    Icon(ic, size: 16, color: fg),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(label,
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: fg),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                     ),
-                    DropdownMenuItem<bool?>(
-                      value: true,
-                      child: Text(
-                        _t('active'),
-                        style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: _kGreen,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    DropdownMenuItem<bool?>(
-                      value: false,
-                      child: Text(
-                        _t('inactive'),
-                        style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: Colors.red.shade400,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                  onChanged: (v) => setState(() { _fAktif = v; _filter(); }),
-                ),
-              ),
+                    Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Colors.grey.shade400),
+                  ]),
+                );
+              }),
             ),
           ),
         ]),
       ),
 
-      // TYPE FILTER CHIP
+      // TYPE FILTER CHIP (TAB BAR)
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Row(children: [
           // ALL
           Expanded(child: _typeChip(
@@ -997,34 +1256,34 @@ class _State extends State<AdminTarget5rScreen> {
           // MONTHLY
           Expanded(child: _typeChip(
             _t('monthly'),
-            _fType == _T.monthly,
+            _fType == TargetType.monthly,
             Icons.calendar_month_rounded,
             _kGreen,
-            () => setState(() { _fType = _T.monthly; _filter(); }),
+            () => setState(() { _fType = TargetType.monthly; _filter(); }),
           )),
           const SizedBox(width: 6),
           // DAILY
           Expanded(child: _typeChip(
             _t('daily'),
-            _fType == _T.daily,
+            _fType == TargetType.daily,
             Icons.event_rounded,
-            const Color(0xFF2563EB),
-            () => setState(() { _fType = _T.daily; _filter(); }),
+            _kBlue,
+            () => setState(() { _fType = TargetType.daily; _filter(); }),
           )),
           const SizedBox(width: 6),
           // OFF DAY
           Expanded(child: _typeChip(
             _t('offDay'),
-            _fType == _T.offDay,
+            _fType == TargetType.offDay,
             Icons.beach_access_rounded,
             const Color(0xFFD97706),
-            () => setState(() { _fType = _T.offDay; _filter(); }),
+            () => setState(() { _fType = TargetType.offDay; _filter(); }),
           )),
         ]),
       ),
 
       // OFF DAY FILTER ACTIVE INFO BANNER
-      if (_fType == _T.offDay)
+      if (_fType == TargetType.offDay)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
           child: Container(
@@ -1056,6 +1315,109 @@ class _State extends State<AdminTarget5rScreen> {
     ]),
   );
 
+  Future<void> _showStatusFilterDialog() {
+    return showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dCtx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.lang == 'ID' ? 'Filter Status' : widget.lang == 'ZH' ? '筛选状态' : 'Filter Status',
+                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black87),
+              ),
+              const SizedBox(height: 16),
+              _statusOptionTile(
+                dCtx,
+                icon: Icons.apps_rounded,
+                color: Colors.grey.shade600,
+                label: widget.lang == 'ID' ? 'Semua' : widget.lang == 'ZH' ? '全部' : 'All',
+                value: null,
+              ),
+              const SizedBox(height: 10),
+              _statusOptionTile(
+                dCtx,
+                icon: _statusIcon(_TargetStatus.active),
+                color: _statusColors(_TargetStatus.active).$3,
+                label: _statusLabel(_TargetStatus.active),
+                value: _TargetStatus.active,
+              ),
+              const SizedBox(height: 10),
+              _statusOptionTile(
+                dCtx,
+                icon: _statusIcon(_TargetStatus.upcoming),
+                color: _statusColors(_TargetStatus.upcoming).$3,
+                label: _statusLabel(_TargetStatus.upcoming),
+                value: _TargetStatus.upcoming,
+              ),
+              const SizedBox(height: 10),
+              _statusOptionTile(
+                dCtx,
+                icon: _statusIcon(_TargetStatus.inactive),
+                color: _statusColors(_TargetStatus.inactive).$3,
+                label: _statusLabel(_TargetStatus.inactive),
+                value: _TargetStatus.inactive,
+              ),
+              const SizedBox(height: 10),
+              _statusOptionTile(
+                dCtx,
+                icon: _statusIcon(_TargetStatus.superseded),
+                color: _statusColors(_TargetStatus.superseded).$3,
+                label: _statusLabel(_TargetStatus.superseded),
+                value: _TargetStatus.superseded,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statusOptionTile(
+    BuildContext dCtx, {
+    required IconData icon,
+    required Color color,
+    required String label,
+    required _TargetStatus? value,
+  }) {
+    final bool selected = _fStatus == value;
+    return GestureDetector(
+      onTap: () {
+        setState(() { _fStatus = value; _filter(); });
+        Navigator.pop(dCtx);
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.10) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: selected ? color.withValues(alpha: 0.5) : Colors.grey.shade200,
+              width: selected ? 1.4 : 1),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(label,
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, fontWeight: FontWeight.w600, color: selected ? color : Colors.black87)),
+            ),
+            if (selected) Icon(Icons.check_rounded, size: 18, color: color),
+          ],
+        ),
+      ),
+    );
+  }
+
   // CHIP FILTER TYPE
   Widget _typeChip(
     String label,
@@ -1070,7 +1432,7 @@ class _State extends State<AdminTarget5rScreen> {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 7),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           color: sel ? selBg : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(10),
@@ -1109,31 +1471,34 @@ class _State extends State<AdminTarget5rScreen> {
 
   // TARGET CARD
   Widget _card(Map<String, dynamic> item) {
-    final type = _TE.from(item['type'] as String? ?? 'monthly');
-    final aktif = item['is_aktif'] as bool? ?? true;
-    final bool displayActive =
-        type == _T.monthly ? (item['id'] == _activeMonthlyId) : aktif;
+    final type = TargetTypeX.from(item['type'] as String? ?? 'monthly');
+    final bool displayActive = _statusOf(item) == _TargetStatus.active;
     final (Color tc, IconData ti, String tl) = switch (type) {
-      _T.monthly => (_kGreen, Icons.calendar_month_rounded, _t('monthly')),
-      _T.daily => (
-          const Color(0xFF2563EB),
+      TargetType.monthly => (_kGreen, Icons.calendar_month_rounded, _t('monthly')),
+      TargetType.daily => (
+          _kBlue,
           Icons.event_rounded,
           _t('daily')
         ),
-      _T.offDay => (
+      TargetType.offDay => (
           const Color(0xFFD97706),
           Icons.beach_access_rounded,
           _t('offDay')
         ),
     };
-    final monthlyEff = type == _T.monthly
+    final monthlyEff = type == TargetType.monthly
         ? DateTime.tryParse(item['effective_date']?.toString() ?? '')
         : null;
-    final subtitle = type == _T.monthly
+    final specificDate = type != TargetType.monthly
+        ? DateTime.tryParse(item['specific_date']?.toString() ?? '')
+        : null;
+    final subtitle = type == TargetType.monthly
         ? (monthlyEff != null
             ? DateFormat('MMMM yyyy', _locale).format(monthlyEff)
             : '-')
-        : (item['specific_date'] ?? '-').toString();
+        : (specificDate != null
+            ? DateFormat('d MMMM yyyy', _locale).format(specificDate)
+            : (item['specific_date'] ?? '-').toString());
 
     return Container(
       decoration: BoxDecoration(
@@ -1175,15 +1540,15 @@ class _State extends State<AdminTarget5rScreen> {
                         fontWeight: FontWeight.w600)),
                 Text(subtitle,
                     style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1E3A8A))),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: _kBlue)),
               ])),
-              type == _T.monthly ? _monthlyStatusBadge(item) : _statusBadge(aktif),
+              _statusBadgeGeneric(item),
             ]),
 
-            // MONTHLY: INFO JADWAL 
-            if (type == _T.monthly && item['id'] != _activeMonthlyId) ...[
+            // MONTHLY: SCHEDULE INFO
+            if (type == TargetType.monthly && item['id'] != _activeMonthlyId) ...[
               const SizedBox(height: 6),
               Text(
                 (monthlyEff != null && monthlyEff.isAfter(DateTime.now()))
@@ -1199,13 +1564,14 @@ class _State extends State<AdminTarget5rScreen> {
                             : 'This target has been superseded by a newer monthly target'),
                 style: GoogleFonts.poppins(
                     fontSize: 10,
+                    fontWeight: FontWeight.w600,
                     color: Colors.black45,
                     fontStyle: FontStyle.italic),
               ),
             ],
 
             // OFF DAY: LABEL + INFO
-            if (type == _T.offDay) ...[
+            if (type == TargetType.offDay) ...[
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -1249,32 +1615,24 @@ class _State extends State<AdminTarget5rScreen> {
             ],
 
             // NON-HOLIDAY: TARGET GRID
-            if (type != _T.offDay) ...[
-              const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 6, children: [
-                _badge(Icons.people_rounded,
-                    item['target_anggota'] as int? ?? 0, tc),
-                _badge(Icons.search_rounded,
-                    item['target_inspeksi'] as int? ?? 0, tc),
-                _badge(Icons.check_circle_rounded,
-                    item['target_anggota_selesai'] as int? ?? 0, _kGreen),
-                _badge(Icons.check_circle_outline_rounded,
-                    item['target_inspeksi_selesai'] as int? ?? 0, _kGreen),
-                _badge(Icons.location_city_rounded,
-                    item['target_lokasi'] as int? ?? 0, tc),
-                _badge(Icons.apartment_rounded,
-                    item['target_unit'] as int? ?? 0, tc),
-                _badge(Icons.domain_rounded,
-                    item['target_subunit'] as int? ?? 0, tc),
-                _badge(Icons.place_rounded,
-                    item['target_area'] as int? ?? 0, tc),
+            if (type != TargetType.offDay) ...[
+              const SizedBox(height: 12),
+              _targetGrid([
+                _targetStatChip(Icons.people_rounded, _t('a'), item['target_anggota'] as int? ?? 0, _kBlue),
+                _targetStatChip(Icons.check_circle_rounded, _t('a_selesai'), item['target_anggota_selesai'] as int? ?? 0, _kGreen),
+                _targetStatChip(Icons.search_rounded, _t('i'), item['target_inspeksi'] as int? ?? 0, _kPurple),
+                _targetStatChip(Icons.check_circle_rounded, _t('i_selesai'), item['target_inspeksi_selesai'] as int? ?? 0, _kGreen),
+                _targetStatChip(Icons.location_city_rounded, _t('l'), item['target_lokasi'] as int? ?? 0, _kBlue),
+                _targetStatChip(Icons.apartment_rounded, _t('u'), item['target_unit'] as int? ?? 0, _kSky),
+                _targetStatChip(Icons.domain_rounded, _t('s'), item['target_subunit'] as int? ?? 0, _kPurple),
+                _targetStatChip(Icons.place_rounded, _t('ar'), item['target_area'] as int? ?? 0, _kPink),
               ]),
-              if (type == _T.daily) ...[
-                const SizedBox(height: 4),
+              if (type == TargetType.daily) ...[
+                const SizedBox(height: 6),
                 Text(_t('override'),
                     style: GoogleFonts.poppins(
                         fontSize: 10,
-                        color: const Color(0xFF2563EB),
+                        color: _kBlue,
                         fontStyle: FontStyle.italic)),
               ],
             ],
@@ -1292,8 +1650,8 @@ class _State extends State<AdminTarget5rScreen> {
             // ACTIONS
             const SizedBox(height: 10),
             Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              _iconBtn(Icons.edit_rounded, const Color(0xFF2563EB),
-                  () => _showForm(item: item)),
+              _iconBtn(Icons.edit_rounded, _kBlue,
+                  () => _openAddTargetDialog(item: item)),
               const SizedBox(width: 8),
               _iconBtn(Icons.delete_outline_rounded, Colors.red,
                   () => _delete(item['id'] as int)),
@@ -1302,76 +1660,9 @@ class _State extends State<AdminTarget5rScreen> {
     );
   }
 
-  Widget _statusBadge(bool aktif) => Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: aktif
-              ? const Color(0xFF22C55E).withValues(alpha:0.12)
-              : Colors.grey.withValues(alpha:0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-              color: aktif
-                  ? const Color(0xFF22C55E).withValues(alpha:0.5)
-                  : Colors.grey.withValues(alpha:0.3)),
-        ),
-        child: Text(
-          aktif
-              ? (widget.lang == 'EN'
-                  ? 'Active'
-                  : widget.lang == 'ZH'
-                      ? '启用'
-                      : 'Aktif')
-              : (widget.lang == 'EN'
-                  ? 'Inactive'
-                  : widget.lang == 'ZH'
-                      ? '禁用'
-                      : 'Nonaktif'),
-          style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: aktif ? const Color(0xFF16A34A) : Colors.grey),
-        ),
-      );
-
-  Widget _monthlyStatusBadge(Map<String, dynamic> item) {
-    final eff = DateTime.tryParse(item['effective_date']?.toString() ?? '');
-    final isCurrent = item['id'] == _activeMonthlyId;
-    final today = DateTime.now();
-    final todayOnly = DateTime(today.year, today.month, today.day);
-    final isUpcoming = eff != null && eff.isAfter(todayOnly);
-
-    late Color bg, border, fg;
-    late String label;
-    if (isCurrent) {
-      bg = const Color(0xFF22C55E).withValues(alpha:0.12);
-      border = const Color(0xFF22C55E).withValues(alpha:0.5);
-      fg = const Color(0xFF16A34A);
-      label = widget.lang == 'EN'
-          ? 'Active Now'
-          : widget.lang == 'ZH'
-              ? '当前生效'
-              : 'Aktif Sekarang';
-    } else if (isUpcoming) {
-      bg = const Color(0xFF2563EB).withValues(alpha:0.12);
-      border = const Color(0xFF2563EB).withValues(alpha:0.5);
-      fg = const Color(0xFF2563EB);
-      label = widget.lang == 'EN'
-          ? 'Upcoming'
-          : widget.lang == 'ZH'
-              ? '即将生效'
-              : 'Akan Datang';
-    } else {
-      bg = Colors.grey.withValues(alpha:0.1);
-      border = Colors.grey.withValues(alpha:0.3);
-      fg = Colors.grey.shade600;
-      label = widget.lang == 'EN'
-          ? 'Superseded'
-          : widget.lang == 'ZH'
-              ? '已被取代'
-              : 'Sudah Digantikan';
-    }
-
+  Widget _statusBadgeGeneric(Map<String, dynamic> item) {
+    final st = _statusOf(item);
+    final (bg, border, fg) = _statusColors(st);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -1379,26 +1670,58 @@ class _State extends State<AdminTarget5rScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: border),
       ),
-      child: Text(label,
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_statusIcon(st), size: 10, color: fg),
+          const SizedBox(width: 3),
+          Text(_statusLabel(st), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: fg)),
+        ],
+      ),
     );
   }
 
-  Widget _badge(IconData icon, int val, Color c) => Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-            color: c.withValues(alpha:0.08),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: c.withValues(alpha:0.25))),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 12, color: c),
-          const SizedBox(width: 4),
-          Text('$val',
-              style: GoogleFonts.poppins(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: c)),
-        ]),
+  Widget _targetGrid(List<Widget> chips) {
+    return LayoutBuilder(builder: (ctx, constraints) {
+      const spacing = 8.0;
+      final w = (constraints.maxWidth - spacing * 3) / 4;
+      return Wrap(
+        spacing: spacing,
+        runSpacing: spacing,
+        children: chips.map((c) => SizedBox(width: w, child: c)).toList(),
       );
+    });
+  }
+
+  Widget _targetStatChip(IconData icon, String label, int value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(label,
+                  style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w600, color: color),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ]),
+          const SizedBox(height: 4),
+          Text('$value',
+              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: color)),
+        ],
+      ),
+    );
+  }
 
   Widget _iconBtn(IconData icon, Color c, VoidCallback onTap) =>
       GestureDetector(
@@ -1412,619 +1735,6 @@ class _State extends State<AdminTarget5rScreen> {
                 border: Border.all(color: c.withValues(alpha:0.3))),
             child: Icon(icon, size: 16, color: c),
           ));
-
-  // FORM
-  void _showForm({Map<String, dynamic>? item}) {
-    final isEdit = item != null;
-    _T selType = isEdit
-        ? _TE.from(item['type'] as String? ?? 'monthly')
-        : _T.monthly;
-    final DateTime monthlyEffectiveDate = (isEdit &&
-            item['effective_date'] != null &&
-            DateTime.tryParse(item['effective_date'] as String) != null)
-        ? DateTime.tryParse(item['effective_date'] as String)!
-        : DateTime(DateTime.now().year, DateTime.now().month + 1, 1);
-    DateTime selDate = item?['specific_date'] != null
-        ? (DateTime.tryParse(item!['specific_date'] as String) ??
-            DateTime.now())
-        : DateTime.now();
-
-    final cA = TextEditingController(
-        text: '${item?['target_anggota'] ?? 2}');
-    final cI = TextEditingController(
-        text: '${item?['target_inspeksi'] ?? 2}');
-    final cL = TextEditingController(
-        text: '${item?['target_lokasi'] ?? 5}');
-    final cU = TextEditingController(
-        text: '${item?['target_unit'] ?? 5}');
-    final cS = TextEditingController(
-        text: '${item?['target_subunit'] ?? 5}');
-    final cAr = TextEditingController(
-        text: '${item?['target_area'] ?? 5}');
-    final cASelesai = TextEditingController(
-        text: '${item?['target_anggota_selesai'] ?? 2}');
-    final cISelesai = TextEditingController(
-        text: '${item?['target_inspeksi_selesai'] ?? 2}');
-    final cLbl = TextEditingController(
-        text: item?['off_day_label'] as String? ?? '');
-    final cKet = TextEditingController(
-        text: item?['keterangan'] as String? ?? '');
-    final fk = GlobalKey<FormState>();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-          builder: (ctx, setM) => Padding(
-                padding: EdgeInsets.only(
-                    bottom: MediaQuery.of(ctx).viewInsets.bottom),
-                child: Container(
-                  constraints: BoxConstraints(
-                      maxHeight:
-                          MediaQuery.of(ctx).size.height * 0.92),
-                  decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(24))),
-                  child: SingleChildScrollView(
-                    padding:
-                        const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                    child: Form(
-                        key: fk,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Center(
-                                child: Container(
-                                    width: 40,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                        color: Colors.grey.shade300,
-                                        borderRadius:
-                                            BorderRadius.circular(
-                                                2)))),
-                            const SizedBox(height: 14),
-                            // TITLE
-                            Row(children: [
-                              Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                      color:
-                                          _kGreen.withValues(alpha:0.1),
-                                      borderRadius:
-                                          BorderRadius.circular(10)),
-                                  child: Icon(
-                                      isEdit
-                                          ? Icons.edit_rounded
-                                          : Icons.add_rounded,
-                                      color: _kGreen,
-                                      size: 20)),
-                              const SizedBox(width: 10),
-                              Text(
-                                  isEdit ? _t('edit') : _t('add'),
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w700,
-                                      color: _kGreen)),
-                            ]),
-                            const SizedBox(height: 18),
-
-                            // TYPE SELECTOR
-                            Text(_t('type'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _kGreen)),
-                            const SizedBox(height: 8),
-                            _buildTypeSelector(
-                                selType, setM, (t) {
-                              selType = t;
-                              if (t != _T.monthly) {
-                                selDate = DateTime.now();
-                              }
-                            }),
-                            const SizedBox(height: 18),
-
-                            // MONTHLY: INFO TANGGAL EFEKTIF (READ-ONLY)
-                            if (selType == _T.monthly) ...[
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: _kGreen.withValues(alpha:0.06),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: _kGreen.withValues(alpha:0.3)),
-                                ),
-                                child: Row(children: [
-                                  const Icon(Icons.event_available_rounded,
-                                      size: 16, color: _kGreen),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                      Text(
-                                          widget.lang == 'ID'
-                                              ? 'Mulai Berlaku'
-                                              : widget.lang == 'ZH'
-                                                  ? '生效日期'
-                                                  : 'Effective From',
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 10,
-                                              color: Colors.black45)),
-                                      Text(
-                                          DateFormat('d MMMM yyyy', _locale)
-                                              .format(monthlyEffectiveDate),
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w700,
-                                              color: const Color(0xFF1E3A8A))),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                          isEdit
-                                              ? (widget.lang == 'ID'
-                                                  ? 'Tanggal berlaku tidak dapat diubah, hanya nilai target.'
-                                                  : widget.lang == 'ZH'
-                                                      ? '生效日期无法更改，只能修改目标值。'
-                                                      : 'Effective date cannot be changed, only the target values.')
-                                              : (widget.lang == 'ID'
-                                                  ? 'Target ini otomatis aktif tanggal 1 bulan depan dan menggantikan target bulanan sebelumnya.'
-                                                  : widget.lang == 'ZH'
-                                                      ? '此目标将于下月1日自动生效，并取代之前的每月目标。'
-                                                      : 'This target activates automatically on the 1st of next month, replacing the previous monthly target.'),
-                                          style: GoogleFonts.poppins(
-                                              fontSize: 10,
-                                              color: Colors.black45,
-                                              fontStyle: FontStyle.italic)),
-                                    ]),
-                                  ),
-                                ]),
-                              ),
-                              const SizedBox(height: 16),
-                              _sectionLabel(
-                                  Icons.track_changes_rounded,
-                                  widget.lang == 'ID'
-                                      ? 'Target Bulanan'
-                                      : 'Monthly Targets'),
-                              const SizedBox(height: 10),
-                              _targetGrid(cA, cI, cL, cU, cS, cAr,
-                                cASelesai: cASelesai, cISelesai: cISelesai),
-                            ],
-
-                            // DAILY / OFF DAY: DATE PICKER
-                            if (selType != _T.monthly) ...[
-                              _styledDatePicker(selDate, ctx,
-                                  (p) => setM(() => selDate = p)),
-                              const SizedBox(height: 16),
-                              if (selType == _T.offDay) ...[
-                                _sectionLabel(
-                                    Icons.beach_access_rounded,
-                                    _t('label')),
-                                const SizedBox(height: 8),
-                                _formFieldStyled(cLbl, _t('label'),
-                                    required: false),
-                                const SizedBox(height: 12),
-                                // INFO: OFFDAY NO TARGET
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color:
-                                        const Color(0xFFFFF7ED),
-                                    borderRadius:
-                                        BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: const Color(0xFFFBBF24)
-                                            .withValues(alpha:0.5)),
-                                  ),
-                                  child: Row(children: [
-                                    const Icon(
-                                        Icons.info_outline_rounded,
-                                        size: 16,
-                                        color: Color(0xFFD97706)),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                        child: Text(
-                                            _t('holiday_info'),
-                                            style: GoogleFonts.poppins(
-                                                fontSize: 12,
-                                                color: const Color(
-                                                    0xFFD97706)))),
-                                  ]),
-                                ),
-                              ],
-                              if (selType == _T.daily) ...[
-                                _sectionLabel(
-                                    Icons.track_changes_rounded,
-                                    widget.lang == 'ID'
-                                        ? 'Target Harian'
-                                        : 'Daily Targets'),
-                                const SizedBox(height: 10),
-                                _targetGrid(cA, cI, cL, cU, cS, cAr,
-                                  cASelesai: cASelesai, cISelesai: cISelesai),
-                              ],
-                            ],
-
-                            const SizedBox(height: 14),
-                            _formFieldStyled(
-                                cKet, _t('ket'),
-                                required: false,
-                                maxLines: 2),
-                            const SizedBox(height: 12),
-
-                            // SAVE BUTTON
-                            SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  icon: const Icon(
-                                      Icons.save_rounded,
-                                      size: 18,
-                                      color: Colors.white),
-                                  label: Text(_t('save'),
-                                      style: GoogleFonts.poppins(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15)),
-                                  onPressed: () async {
-                                    if (!fk.currentState!
-                                        .validate()) { return; }
-
-                                    final dup = _findDuplicate(
-                                      type: selType,
-                                      date: selType == _T.monthly
-                                          ? monthlyEffectiveDate
-                                          : selDate,
-                                      excludeId: isEdit ? item['id'] as int? : null,
-                                    );
-                                    if (dup != null) {
-                                      await _showDuplicateWarningDialog(ctx, dup);
-                                      return;
-                                    }
-
-                                    final confirmed = await _confirmAddDialog(
-                                      ctx,
-                                      isEdit: isEdit,
-                                      type: selType,
-                                      monthlyEffectiveDate:
-                                          monthlyEffectiveDate,
-                                      dateValue: selType != _T.monthly
-                                          ? selDate
-                                          : null,
-                                      offDayLabel: cLbl.text.trim(),
-                                      a: int.tryParse(cA.text) ?? 0,
-                                      i: int.tryParse(cI.text) ?? 0,
-                                      l: int.tryParse(cL.text) ?? 0,
-                                      u: int.tryParse(cU.text) ?? 0,
-                                      s: int.tryParse(cS.text) ?? 0,
-                                      ar: int.tryParse(cAr.text) ?? 0,
-                                      aSelesai: int.tryParse(cASelesai.text) ?? 0,
-                                      iSelesai: int.tryParse(cISelesai.text) ?? 0,
-                                    );
-                                    if (confirmed != true) return;
-
-                                    Navigator.pop(ctx);
-                                    await _save(
-                                      isEdit: isEdit,
-                                      id: item?['id'] as int?,
-                                      type: selType,
-                                      effectiveDate: selType == _T.monthly
-                                          ? monthlyEffectiveDate
-                                          : null,
-                                      date: selType != _T.monthly
-                                          ? selDate
-                                          : null,
-                                      a: int.tryParse(cA.text) ?? 0,
-                                      i: int.tryParse(cI.text) ?? 0,
-                                      l: int.tryParse(cL.text) ?? 0,
-                                      u: int.tryParse(cU.text) ?? 0,
-                                      s: int.tryParse(cS.text) ?? 0,
-                                      ar: int.tryParse(cAr.text) ??
-                                          0,
-                                      aSelesai: int.tryParse(cASelesai.text) ?? 0,
-                                      iSelesai: int.tryParse(cISelesai.text) ?? 0,
-                                      label: cLbl.text.trim().isEmpty
-                                          ? null
-                                          : cLbl.text.trim(),
-                                      ket: cKet.text.trim().isEmpty
-                                          ? null
-                                          : cKet.text.trim(),
-                                      aktif: true,
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: _kGreen,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16),
-                                    elevation: 3,
-                                    shadowColor:
-                                        _kGreen.withValues(alpha:0.4),
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(14)),
-                                  ),
-                                )),
-                          ],
-                        )),
-                  ),
-                ),
-              )),
-    );
-  }
-
-  // FORM HELPERS
-  Widget _buildTypeSelector(
-      _T current, StateSetter setM, void Function(_T) onChange) {
-    final types = [
-      (
-        _T.monthly,
-        _t('monthly'),
-        Icons.calendar_month_rounded,
-        _kGreen
-      ),
-      (
-        _T.daily,
-        _t('daily'),
-        Icons.event_rounded,
-        const Color(0xFF2563EB)
-      ),
-      (
-        _T.offDay,
-        _t('offDay'),
-        Icons.beach_access_rounded,
-        const Color(0xFFD97706)
-      ),
-    ];
-    return Row(
-      children: types.map((t) {
-        final sel = current == t.$1;
-        return Expanded(
-            child: Padding(
-          padding: EdgeInsets.only(right: t.$1 != _T.offDay ? 8 : 0),
-          child: GestureDetector(
-            onTap: () => setM(() => onChange(t.$1)),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: sel ? t.$4 : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: sel ? t.$4 : Colors.grey.shade200,
-                    width: sel ? 1.5 : 1),
-                boxShadow: sel
-                    ? [
-                        BoxShadow(
-                            color: t.$4.withValues(alpha:0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3))
-                      ]
-                    : [],
-              ),
-              child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(t.$3,
-                        size: 18,
-                        color: sel ? Colors.white : t.$4),
-                    const SizedBox(height: 4),
-                    Text(t.$2,
-                        style: GoogleFonts.poppins(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: sel
-                                ? Colors.white
-                                : Colors.grey.shade600),
-                        textAlign: TextAlign.center),
-                  ]),
-            ),
-          ),
-        ));
-      }).toList(),
-    );
-  }
-
-  Widget _sectionLabel(IconData icon, String label) => Row(children: [
-        Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-              color: _kGreen.withValues(alpha:0.1),
-              borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, size: 14, color: _kGreen),
-        ),
-        const SizedBox(width: 8),
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: _kGreen)),
-      ]);
-
-  Widget _styledDatePicker(
-      DateTime date, BuildContext ctx, ValueChanged<DateTime> onPick) {
-    return GestureDetector(
-      onTap: () async {
-        final p = await showDatePicker(
-            context: ctx,
-            initialDate: date,
-            firstDate: DateTime(2020),
-            lastDate: DateTime(2030),
-            builder: (context, child) => Theme(
-                  data: Theme.of(context).copyWith(
-                    colorScheme: const ColorScheme.light(
-                      primary: _kGreen,
-                      onPrimary: Colors.white,
-                    ),
-                  ),
-                  child: child!,
-                ));
-        if (p != null) onPick(p);
-      },
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _kGreen.withValues(alpha:0.4), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-                color: _kGreen.withValues(alpha:0.08),
-                blurRadius: 6,
-                offset: const Offset(0, 2))
-          ],
-        ),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-                color: _kGreen.withValues(alpha:0.1),
-                borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.calendar_today_rounded,
-                size: 16, color: _kGreen),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-              Text(_t('date'),
-                  style: GoogleFonts.poppins(
-                      fontSize: 10, color: Colors.black45)),
-              Text(
-                  DateFormat('d MMMM yyyy', _locale).format(date),
-                  style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1E3A8A))),
-            ]),
-          ),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: _kGreen,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.edit_calendar_rounded,
-                  size: 13, color: Colors.white),
-              const SizedBox(width: 4),
-              Text(
-                  widget.lang == 'EN'
-                      ? 'Change'
-                      : widget.lang == 'ZH'
-                          ? '更改'
-                          : 'Ubah',
-                  style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600)),
-            ]),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _formFieldStyled(TextEditingController ctrl, String label,
-      {bool required = true, int maxLines = 1}) {
-    return TextFormField(
-      controller: ctrl,
-      maxLines: maxLines,
-      style: GoogleFonts.poppins(fontSize: 13),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle:
-            GoogleFonts.poppins(fontSize: 13, color: Colors.black54),
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300)),
-        focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide:
-                const BorderSide(color: _kGreen, width: 1.5)),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      ),
-      validator: (v) {
-        if (required && (v == null || v.trim().isEmpty)) {
-          return _t('req');
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _targetGrid(
-    TextEditingController cA,
-    TextEditingController cI,
-    TextEditingController cL,
-    TextEditingController cU,
-    TextEditingController cS,
-    TextEditingController cAr, {
-    TextEditingController? cASelesai,
-    TextEditingController? cISelesai,
-  }) {
-    final pairs = [
-      (cA, _t('a'), Icons.people_rounded, _kGreen),
-      if (cASelesai != null)
-        (cASelesai, widget.lang == 'ID' ? 'Target Anggota Selesai'
-            : widget.lang == 'ZH' ? '成员完成目标' : 'Member Completion Target',
-        Icons.check_circle_rounded, _kGreen),
-      (cI, _t('i'), Icons.search_rounded, _kGreen),
-      if (cISelesai != null)
-        (cISelesai, widget.lang == 'ID' ? 'Target Inspeksi Selesai'
-            : widget.lang == 'ZH' ? '检查完成目标' : 'Inspection Completion Target',
-        Icons.check_circle_outline_rounded, _kGreen),
-      (cL, _t('l'), Icons.location_city_rounded, const Color(0xFF2563EB)),
-      (cU, _t('u'), Icons.apartment_rounded, const Color(0xFF2563EB)),
-      (cS, _t('s'), Icons.domain_rounded, const Color(0xFF7C3AED)),
-      (cAr, _t('ar'), Icons.place_rounded, const Color(0xFF7C3AED)),
-    ];
-    final w = (MediaQuery.of(context).size.width - 60) / 2;
-    return Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: pairs.map((p) {
-          return SizedBox(
-            width: w,
-            child: TextFormField(
-              controller: p.$1,
-              keyboardType: TextInputType.number,
-              style: GoogleFonts.poppins(fontSize: 13),
-              decoration: InputDecoration(
-                labelText: p.$2,
-                labelStyle: GoogleFonts.poppins(fontSize: 11, color: Colors.black54),
-                prefixIcon: Icon(p.$3, size: 16, color: p.$4),
-                filled: true,
-                fillColor: p.$4.withValues(alpha:0.04),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: p.$4.withValues(alpha:0.3))),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: p.$4.withValues(alpha:0.3))),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: p.$4, width: 1.5)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              ),
-              validator: (v) {
-                final n = int.tryParse(v?.trim() ?? '');
-                return (n == null || n < 0) ? _t('num') : null;
-              },
-            ),
-          );
-        }).toList());
-  }
 
   Widget _shimmer() => ListView.separated(
         padding: const EdgeInsets.all(16),
@@ -2042,21 +1752,37 @@ class _State extends State<AdminTarget5rScreen> {
       );
 
   Widget _empty() => Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
           child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-            Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                    color: _kGreen.withValues(alpha:0.08),
-                    shape: BoxShape.circle),
-                child: Icon(Icons.track_changes_rounded,
-                    size: 48, color: _kGreen.withValues(alpha:0.5))),
-            const SizedBox(height: 12),
-            Text(_t('empty'),
-                style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.black38,
-                    fontWeight: FontWeight.w500)),
-          ]));
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset(
+                'assets/images/team_illustration.png',
+                height: 160,
+                errorBuilder: (_, __, ___) => Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: _kGreen.withValues(alpha: 0.08), shape: BoxShape.circle),
+                  child: Icon(Icons.track_changes_rounded, size: 48, color: _kGreen.withValues(alpha: 0.5)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(_t('empty'),
+                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: _kGreen),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 6),
+              Text(
+                widget.lang == 'ID'
+                    ? 'Coba ubah kata kunci atau filter pencarian kamu.'
+                    : widget.lang == 'ZH'
+                        ? '请尝试更改搜索关键词或筛选条件。'
+                        : 'Try changing your search keyword or filter.',
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.black38),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
 }

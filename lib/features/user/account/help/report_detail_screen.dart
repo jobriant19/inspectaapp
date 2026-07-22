@@ -37,12 +37,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   bool _isEditing = false;
   bool get _isEditMode => widget.report != null;
 
-  // State untuk gambar laporan
   File? _pickedImageFile;
   Uint8List? _pickedImageBytes;
   String? _existingImageUrl;
 
-  // State untuk gambar balasan admin (signed URL)
   String? _signedReplyImageUrl;
 
   final Map<String, Map<String, String>> _txt = {
@@ -207,12 +205,25 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       _descriptionController.text = report['description'] ?? '';
       _selectedPriority = report['priority'];
 
-      _loadInitialImage();
-      _loadReplyImage();
+      _existingImageUrl = report['signed_image_url'] as String?;
+      _signedReplyImageUrl = report['signed_admin_reply_image'] as String?;
+
+      if (_existingImageUrl == null || _existingImageUrl!.isEmpty) {
+        _loadInitialImage();
+      }
+      if (_signedReplyImageUrl == null || _signedReplyImageUrl!.isEmpty) {
+        _loadReplyImage();
+      }
     }
   }
 
   Future<void> _loadInitialImage() async {
+    final alreadySigned = widget.report?['signed_image_url'] as String?;
+    if (alreadySigned != null && alreadySigned.isNotEmpty) {
+      _existingImageUrl = alreadySigned;
+      return;
+    }
+
     final imageUrl = widget.report?['image_url'] as String?;
     if (imageUrl != null && imageUrl.isNotEmpty) {
       try {
@@ -232,6 +243,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   }
 
   Future<void> _loadReplyImage() async {
+    final alreadySigned = widget.report?['signed_admin_reply_image'] as String?;
+    if (alreadySigned != null && alreadySigned.isNotEmpty) {
+      _signedReplyImageUrl = alreadySigned;
+      return;
+    }
+
     final url = widget.report?['admin_reply_image'] as String?;
     if (url != null && url.isNotEmpty) {
       try {
@@ -265,7 +282,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     }
   }
 
-  // --- LOGIC UNTUK GAMBAR LAPORAN: langsung ke kamera ---
   Future<void> _openCamera() async {
     final XFile? picked = await Navigator.push<XFile?>(
       context,
@@ -319,7 +335,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
-  // --- POPUP HASIL AKSI (pengganti snackbar) ---
   void _showResultPopup(String message, {bool isError = false, VoidCallback? onDismissed}) {
     if (!mounted) return;
     final color = isError ? const Color(0xFFEF4444) : const Color(0xFF10B981);
@@ -399,7 +414,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
-  // --- LOGIC UNTUK DATABASE ---
   Future<void> _saveReport() async {
     final missing = <MissingFieldItem>[];
     final hasPhoto = _pickedImageFile != null ||
@@ -838,9 +852,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // VIEW DETAIL (mode lihat, bergaya seperti admin)
-  // ─────────────────────────────────────────────
   Widget _buildViewDetail() {
     final report = widget.report!;
     final status = report['status'] as String? ?? 'Dikirim';
@@ -1013,9 +1024,6 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // EDIT / TAMBAH FORM
-  // ─────────────────────────────────────────────
   Widget _buildEditForm(InputDecoration inputDecoration) {
     return Column(
       children: [
