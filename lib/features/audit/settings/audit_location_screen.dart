@@ -33,6 +33,8 @@ class _LocationItem {
   String? latestAuditDate;
   String? picName;
   String? picImage;
+  bool latestIsFinalized;
+  double? latestFinalScore;
 
   _LocationItem({
     required this.id,
@@ -49,6 +51,8 @@ class _LocationItem {
     this.latestAuditDate,
     this.picName,
     this.picImage,
+    this.latestIsFinalized = false,
+    this.latestFinalScore,
   });
 
   String? descriptionFor(String lang) {
@@ -91,6 +95,8 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
   String _search = '';
   _LocationHierarchyFilter? _filter;
   bool _hasSchedule = false;
+  int _currentPage = 1;
+  static const int _itemsPerPage = 5;
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -123,7 +129,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
         ids.isNotEmpty
             ? _supabase
                 .from('audit_result')
-                .select('id_ref, nilai_audit, tanggal_audit')
+                .select('id_ref, nilai_audit, nilai_final, is_finalized, tanggal_audit')
                 .eq('level_type', 'lokasi')
                 .inFilter('id_ref', ids)
                 .order('tanggal_audit', ascending: false)
@@ -212,6 +218,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
           latestAuditDate: audit?['tanggal_audit']?.toString(),
           picName: r['id_pic'] != null ? picMap[r['id_pic'].toString()] : null,
           picImage: r['id_pic'] != null ? picImageMap[r['id_pic'].toString()] : null,
+          latestIsFinalized: audit?['is_finalized'] == true,
+          latestFinalScore: audit != null
+              ? double.tryParse(audit['nilai_final']?.toString() ?? '')
+              : null,
           schedulePeriode: schedulePeriode,
           scheduleAuditorName: scheduleAuditorName,
           scheduleAuditorImage: scheduleAuditorImage,
@@ -319,7 +329,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                           ),
                           TextButton(
                             onPressed: () {
-                              setState(() => _filter = null);
+                              setState(() {
+                                _filter = null;
+                                _currentPage = 1;
+                              });
                               Navigator.pop(ctx);
                             },
                             child: Text(_t('Reset', 'Reset', '重置'),
@@ -456,6 +469,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                                       maxScore:    selectedMaxScore,
                                     )
                                   : null;
+                              _currentPage = 1;
                             });
                             Navigator.pop(ctx);
                           },
@@ -490,21 +504,20 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
   }
 
   Widget _buildInitial(String name) {
-    final initials = name.trim().split(' ').take(2)
-        .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').join();
     return Container(
       color: _C.green.withValues(alpha: 0.12),
       child: Center(
-        child: Text(initials,
-            style: GoogleFonts.poppins(
-                fontSize: 18, fontWeight: FontWeight.w700, color: _C.green)),
+        child: Icon(Icons.location_city_rounded, color: _C.green, size: 28),
       ),
     );
   }
 
   Widget _buildCard(_LocationItem item) {
-    final score = item.latestScore;
-    final scoreColor = _scoreColor(score);
+    final rawScore = item.latestScore;
+    final isFinalized = item.latestIsFinalized;
+    final needsFix = rawScore != null && !isFinalized && rawScore < 100;
+    final displayScore = isFinalized ? (item.latestFinalScore ?? rawScore) : rawScore;
+    final scoreColor = isFinalized ? _C.amber : _scoreColor(rawScore);
     return GestureDetector(
       onTap: () => _showDetail(item),
       child: Container(
@@ -599,19 +612,39 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                         const SizedBox(width: 8),
                         Align(
                           alignment: Alignment.center,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: scoreColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: scoreColor.withValues(alpha: 0.4), width: 1),
-                            ),
-                            child: Text(
-                              score != null ? '${score.toStringAsFixed(0)}%' : '-',
-                              style: GoogleFonts.poppins(
-                                  fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor),
-                            ),
-                          ),
+                          child: needsFix
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: _C.amber.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: _C.amber.withValues(alpha: 0.4), width: 1),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.build_rounded, size: 14, color: _C.amber),
+                                      const SizedBox(height: 2),
+                                      Text(_t('Needs Fix', 'Perlu Perbaikan', '需要修复'),
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.poppins(
+                                              fontSize: 8, fontWeight: FontWeight.w700, color: _C.amber)),
+                                    ],
+                                  ),
+                                )
+                              : Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: scoreColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: scoreColor.withValues(alpha: 0.4), width: 1),
+                                  ),
+                                  child: Text(
+                                    displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor),
+                                  ),
+                                ),
                         ),
                       ],
                     ),
@@ -786,6 +819,13 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
       if (parts.isNotEmpty) filterLabel = parts.join(' · ');
     }
 
+    final totalPages = items.isEmpty ? 1 : (items.length / _itemsPerPage).ceil();
+    if (_currentPage > totalPages) _currentPage = totalPages;
+    if (_currentPage < 1) _currentPage = 1;
+    final pageStart = (_currentPage - 1) * _itemsPerPage;
+    final pageEnd = (pageStart + _itemsPerPage).clamp(0, items.length);
+    final pageItems = items.isEmpty ? <_LocationItem>[] : items.sublist(pageStart, pageEnd);
+
     return Material(
       type: MaterialType.transparency,
       child: Column(
@@ -796,7 +836,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
               children: [
                 Expanded(
                   child: TextField(
-                    onChanged: (v) => setState(() => _search = v),
+                    onChanged: (v) => setState(() {
+                      _search = v;
+                      _currentPage = 1;
+                    }),
                     style: GoogleFonts.poppins(fontSize: 14, color: _C.textMain),
                     decoration: InputDecoration(
                       hintText: _t('Search…', 'Cari…', '搜索…'),
@@ -860,7 +903,10 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                     GestureDetector(
-                      onTap: () => setState(() => _filter = null),
+                      onTap: () => setState(() {
+                        _filter = null;
+                        _currentPage = 1;
+                      }),
                       child: const Icon(Icons.close_rounded, size: 14, color: _C.green),
                     ),
                   ],
@@ -883,13 +929,164 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                         onRefresh: _fetchLokasi,
                         color: _C.primary,
                         child: ListView.builder(
-                          padding: const EdgeInsets.only(bottom: 100, top: 4),
-                          itemCount: items.length,
-                          itemBuilder: (_, i) => _buildCard(items[i]),
+                          padding: const EdgeInsets.only(bottom: 12, top: 4),
+                          itemCount: pageItems.length,
+                          itemBuilder: (_, i) => _buildCard(pageItems[i]),
                         ),
                       ),
           ),
+          if (!_loading && totalPages > 1)
+            _PageIndicator(
+              currentPage: _currentPage,
+              totalPages: totalPages,
+              color: _C.green,
+              onPageChanged: (p) => setState(() => _currentPage = p),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _PageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final Color color;
+  final ValueChanged<int> onPageChanged;
+
+  const _PageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.color,
+    required this.onPageChanged,
+  });
+
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+    final double bottomSpacing = bottomInset > 0 ? bottomInset + 10 : 16;
+
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.fromLTRB(16, 8, 16, bottomSpacing),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            _arrowButton(
+              icon: Icons.arrow_back_ios_new_rounded,
+              enabled: canPrev,
+              onTap: () {
+                if (!canPrev) return;
+                onPageChanged(currentPage - 1);
+              },
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Row(
+                children: [
+                  for (final p in pageNumbers) ...[
+                    Expanded(child: _pageButton(p)),
+                    if (p != pageNumbers.last) const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _arrowButton(
+              icon: Icons.arrow_forward_ios_rounded,
+              enabled: canNext,
+              onTap: () {
+                if (!canNext) return;
+                onPageChanged(currentPage + 1);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pageButton(int page) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page == currentPage) return;
+        onPageChanged(page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? color : color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive ? null : Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(
+            color: isActive ? Colors.white : color,
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _arrowButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 15,
+          color: enabled ? color : Colors.grey.shade400,
+        ),
       ),
     );
   }
@@ -1262,14 +1459,15 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
                 final score = double.tryParse(row['nilai_audit']?.toString() ?? '');
                 final scoreFinal = double.tryParse(row['nilai_final']?.toString() ?? '');
                 final isFinalized = row['is_finalized'] == true;
-                final displayScore = isFinalized ? scoreFinal : score;
+                final needsFix = score != null && !isFinalized && score < 100;
+                final displayScore = isFinalized ? (scoreFinal ?? score) : score;
                 final auditorData = row['Auditor'] as Map<String, dynamic>?;
                 final auditor = auditorData?['nama']?.toString() ?? '-';
                 // ignore: unused_local_variable
                 final auditorImage = auditorData?['gambar_user']?.toString();
                 final date = row['tanggal_audit']?.toString() ?? '';
                 final formattedDate = date.isNotEmpty ? _formatDate(date) : '-';
-                final color = _scoreColor(displayScore);
+                final color = isFinalized ? _C.amber : _scoreColor(score);
                 final idResult = row['id_result']?.toString() ?? '';
 
                 return GestureDetector(
@@ -1312,22 +1510,30 @@ class _LocationDetailSheetState extends State<_LocationDetailSheet> {
                                 shape: BoxShape.circle,
                               ),
                               child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 13, fontWeight: FontWeight.w800, color: color),
-                                    ),
-                                    if (isFinalized) ...[
-                                      const SizedBox(height: 2),
-                                      Text(_t('Final', 'Final', '最终'),
-                                          style: GoogleFonts.poppins(fontSize: 8.5, color: color)),
-                                    ],
-                                  ],
-                                ),
+                                child: needsFix
+                                    ? Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.build_rounded, size: 16, color: _C.amber),
+                                          const SizedBox(height: 2),
+                                          Text(_t('Needs\nFix', 'Perlu\nPerbaikan', '需要\n修复'),
+                                              textAlign: TextAlign.center,
+                                              style: GoogleFonts.poppins(
+                                                  fontSize: 7.5, fontWeight: FontWeight.w700, color: _C.amber)),
+                                        ],
+                                      )
+                                    : Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 13, fontWeight: FontWeight.w800, color: color),
+                                          ),
+                                        ],
+                                      ),
                               ),
                             ),
                           ),
