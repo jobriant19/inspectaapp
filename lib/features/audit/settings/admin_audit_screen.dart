@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import '../schedule/audit_schedule_screen.dart';
 import '../question/audit_question_manager_screen.dart';
 import 'audit_area_screen.dart';
@@ -35,8 +34,22 @@ class _AdminAuditScreenState extends State<AdminAuditScreen>
   List<String> get _tabLabels => [
     _t('Location', 'Lokasi', '位置'),
     _t('Unit', 'Unit', '单元'),
-    _t('Sub-Unit', 'Sub-Unit', '子单元'),
+    _t('Subunit', 'Subunit', '子单元'),
     _t('Area', 'Area', '区域'),
+  ];
+
+  static const _tabIcons = [
+    Icons.location_city_rounded,
+    Icons.business_rounded,
+    Icons.layers_outlined,
+    Icons.place_rounded,
+  ];
+
+  static const List<Color> _tabColors = [
+    Color(0xFF10B981),
+    Color(0xFF6366F1),
+    Color(0xFFFBBF24),
+    Color(0xFFF472B6),
   ];
 
   @override
@@ -88,7 +101,7 @@ class _AdminAuditScreenState extends State<AdminAuditScreen>
               fontSize: 16, fontWeight: FontWeight.w700, color: _AC.primary),
         ),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(112),
+          preferredSize: const Size.fromHeight(129),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -119,32 +132,74 @@ class _AdminAuditScreenState extends State<AdminAuditScreen>
                   ],
                 ),
               ),
+              Container(color: Colors.grey.shade200, height: 1),
               // TAB BAR
               Container(
                 color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                 child: Container(
+                  height: 48,
                   decoration: BoxDecoration(
                     color: _AC.surface,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  padding: const EdgeInsets.all(3),
-                  child: TabBar(
-                    controller: _tabCtrl,
-                    indicator: BoxDecoration(
-                      color: _AC.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: _AC.primary,
-                    labelStyle: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700, fontSize: 11.5),
-                    unselectedLabelStyle: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600, fontSize: 11.5),
-                    dividerColor: Colors.transparent,
-                    overlayColor: WidgetStateProperty.all(Colors.transparent),
-                    tabs: _tabLabels.map((l) => Tab(child: Text(l))).toList(),
+                  padding: const EdgeInsets.all(4),
+                  child: AnimatedBuilder(
+                    animation: _tabCtrl,
+                    builder: (context, _) {
+                      final activeColor = _tabColors[_tabCtrl.index];
+                      return TabBar(
+                        controller: _tabCtrl,
+                        indicator: BoxDecoration(
+                          color: activeColor,
+                          borderRadius: BorderRadius.circular(11),
+                          boxShadow: [
+                            BoxShadow(
+                              color: activeColor.withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        indicatorPadding: EdgeInsets.zero,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: const Color(0xFF64748B),
+                        labelStyle: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w700, fontSize: 11.5),
+                        unselectedLabelStyle: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600, fontSize: 11.5),
+                        dividerColor: Colors.transparent,
+                        overlayColor: WidgetStateProperty.all(Colors.transparent),
+                        tabs: List.generate(_tabLabels.length, (i) {
+                          final isActive = _tabCtrl.index == i;
+                          return Tab(
+                            height: 40,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  _tabIcons[i],
+                                  size: 14,
+                                  color: isActive ? Colors.white : _tabColors[i],
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      _tabLabels[i],
+                                      softWrap: false,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -218,7 +273,7 @@ class _ActionButton extends StatelessWidget {
                           fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                   Text(subtitle,
                       style: GoogleFonts.poppins(
-                          fontSize: 9, color: Colors.white.withValues(alpha: 0.82)),
+                          fontSize: 9, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.82)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis),
                 ],
