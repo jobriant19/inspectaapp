@@ -103,8 +103,12 @@ class AuditSubunitScreen extends StatefulWidget {
   State<AuditSubunitScreen> createState() => _AuditSubunitScreenState();
 }
 
-class _AuditSubunitScreenState extends State<AuditSubunitScreen> {
+class _AuditSubunitScreenState extends State<AuditSubunitScreen>
+    with AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
+
+  @override
+  bool get wantKeepAlive => true;
 
   List<_SubunitItem> _data = [];
   bool _loading = true;
@@ -1453,6 +1457,7 @@ class _AuditSubunitScreenState extends State<AuditSubunitScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final query = _search.toLowerCase();
     final filtered = _applyFilter(_data);
     final items = query.isEmpty
