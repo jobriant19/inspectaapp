@@ -6,7 +6,8 @@ import 'package:intl/intl.dart';
 import '../audit_result_detail_screen.dart';
 
 class _UC {
-  static const primary    = Color(0xFF6366F1);
+  static const primary       = Color(0xFF6366F1);
+  static const filterAccent  = Color(0xFF1D72F3);
   static const green      = Color(0xFF10B981);
   static const amber      = Color(0xFFF59E0B);
   static const red        = Color(0xFFEF4444);
@@ -93,8 +94,12 @@ class AuditUnitScreen extends StatefulWidget {
   State<AuditUnitScreen> createState() => _AuditUnitScreenState();
 }
 
-class _AuditUnitScreenState extends State<AuditUnitScreen> {
+class _AuditUnitScreenState extends State<AuditUnitScreen>
+    with AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
+
+  @override
+  bool get wantKeepAlive => true;
 
   List<_UnitItem> _data = [];
   bool _loading = true;
@@ -333,7 +338,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
             backgroundColor: Colors.transparent,
             insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+              constraints: BoxConstraints(minHeight: MediaQuery.of(ctx).size.height * 0.60, maxHeight: MediaQuery.of(ctx).size.height * 0.85),
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -358,7 +363,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                           Expanded(
                             child: Text(
                               _t('Select Location', 'Pilih Lokasi', '选择位置'),
-                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _UC.textMain),
+                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _UC.green),
                             ),
                           ),
                           GestureDetector(
@@ -379,7 +384,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: TextField(
                         onChanged: (v) => setPickerState(() => searchQuery = v),
-                        style: GoogleFonts.poppins(fontSize: 13, color: _UC.textMain),
+                        style: GoogleFonts.poppins(fontSize: 13, color: _UC.green),
                         decoration: InputDecoration(
                           hintText: _t('Search location…', 'Cari lokasi…', '搜索位置…'),
                           hintStyle: GoogleFonts.poppins(fontSize: 12, color: _UC.textSub),
@@ -433,11 +438,41 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                           }),
                           if (filteredLokasi.isEmpty)
                             Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 24),
-                              child: Center(
-                                child: Text(
-                                    _t('No location found', 'Lokasi tidak ditemukan', '未找到位置'),
-                                    style: GoogleFonts.poppins(fontSize: 12, color: _UC.textSub)),
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Column(
+                                children: [
+                                  Image.asset(
+                                    'assets/images/team_illustration.png',
+                                    height: 120,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 96,
+                                      height: 96,
+                                      decoration: BoxDecoration(
+                                        color: _UC.filterAccent.withValues(alpha: 0.08),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(Icons.location_off_rounded,
+                                          size: 42, color: _UC.filterAccent.withValues(alpha: 0.4)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    _t('No Location Found', 'Lokasi Tidak Ditemukan', '未找到位置'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _UC.filterAccent),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _t(
+                                        'Try a different keyword to find the location you\'re looking for.',
+                                        'Coba kata kunci lain untuk menemukan lokasi yang Anda cari.',
+                                        '尝试使用其他关键词查找您需要的位置。'),
+                                    style: GoogleFonts.poppins(fontSize: 11.5, color: _UC.textSub, height: 1.4),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
                               ),
                             ),
                         ],
@@ -497,10 +532,10 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                           Container(
                             padding: const EdgeInsets.all(9),
                             decoration: BoxDecoration(
-                              color: _UC.primary.withValues(alpha: 0.12),
+                              color: _UC.filterAccent.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(Icons.filter_alt_rounded, color: _UC.primary, size: 20),
+                            child: const Icon(Icons.filter_alt_rounded, color: _UC.filterAccent, size: 20),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -544,7 +579,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                               final min = range['min'] as double?;
                               final max = range['max'] as double?;
                               final isSelected = selectedMinScore == min && selectedMaxScore == max;
-                              Color chipColor = _UC.primary;
+                              Color chipColor = _UC.filterAccent;
                               if (min == 80.0) { chipColor = _UC.green; }
                               else if (min == 60.0) { chipColor = _UC.amber; }
                               else if (max == 59.9) { chipColor = _UC.red; }
@@ -582,17 +617,17 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                                     width: double.infinity,
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                     decoration: BoxDecoration(
-                                      color: selectedLokasiId != null ? _UC.primary.withValues(alpha: 0.08) : Colors.white,
+                                      color: selectedLokasiId != null ? _UC.filterAccent.withValues(alpha: 0.08) : Colors.white,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: selectedLokasiId != null ? _UC.primary : Colors.grey.shade300,
+                                        color: selectedLokasiId != null ? _UC.filterAccent : Colors.grey.shade300,
                                         width: selectedLokasiId != null ? 1.5 : 1,
                                       ),
                                     ),
                                     child: Row(
                                       children: [
                                         Icon(Icons.apartment_rounded, size: 16,
-                                            color: selectedLokasiId != null ? _UC.primary : _UC.textSub),
+                                            color: selectedLokasiId != null ? _UC.filterAccent : _UC.textSub),
                                         const SizedBox(width: 10),
                                         Expanded(
                                           child: Text(
@@ -600,12 +635,12 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                                             style: GoogleFonts.poppins(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w600,
-                                                color: selectedLokasiId != null ? _UC.primary : _UC.textMain),
+                                                color: selectedLokasiId != null ? _UC.filterAccent : _UC.textMain),
                                             maxLines: 1, overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                         Icon(Icons.chevron_right_rounded, size: 18,
-                                            color: selectedLokasiId != null ? _UC.primary : _UC.textSub),
+                                            color: selectedLokasiId != null ? _UC.filterAccent : _UC.textSub),
                                       ],
                                     ),
                                   ),
@@ -630,7 +665,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                                         child: _FilterChipItem(
                                           label: _t('All', 'Semua', '全部'),
                                           isSelected: selectedAuditStatus == null,
-                                          color: _UC.primary,
+                                          color: _UC.filterAccent,
                                           onTap: () => setInner(() => selectedAuditStatus = null),
                                         ),
                                       ),
@@ -1124,6 +1159,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final query = _search.toLowerCase();
     final filtered = _applyFilter(_data);
     final items = query.isEmpty
@@ -1172,7 +1208,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                   decoration: InputDecoration(
                     hintText: _t('Search…', 'Cari…', '搜索…'),
                     hintStyle: GoogleFonts.poppins(fontSize: 13, color: _UC.textSub),
-                    prefixIcon: const Icon(Icons.search_rounded, color: _UC.primary, size: 20),
+                    prefixIcon: const Icon(Icons.search_rounded, color: _UC.filterAccent, size: 20),
                     filled: true,
                     fillColor: _UC.surface,
                     contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
@@ -1184,7 +1220,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                         borderSide: const BorderSide(color: _UC.divider)),
                     focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(30),
-                        borderSide: const BorderSide(color: _UC.primary, width: 1.5)),
+                        borderSide: const BorderSide(color: _UC.filterAccent, width: 1.5)),
                   ),
                 ),
               ),
@@ -1194,13 +1230,13 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: _filter != null ? _UC.primary : _UC.surface,
+                    color: _filter != null ? _UC.filterAccent : _UC.surface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _filter != null ? _UC.primary : _UC.divider),
+                    border: Border.all(color: _filter != null ? _UC.filterAccent : _UC.divider),
                   ),
                   child: Icon(
                     Icons.filter_list_rounded,
-                    color: _filter != null ? Colors.white : _UC.primary,
+                    color: _filter != null ? Colors.white : _UC.filterAccent,
                     size: 20,
                   ),
                 ),
@@ -1216,18 +1252,18 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                color: _UC.primary.withValues(alpha: 0.08),
+                color: _UC.filterAccent.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _UC.primary.withValues(alpha: 0.3)),
+                border: Border.all(color: _UC.filterAccent.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.filter_alt_rounded, size: 14, color: _UC.primary),
+                  const Icon(Icons.filter_alt_rounded, size: 14, color: _UC.filterAccent),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(filterLabel,
                         style: GoogleFonts.poppins(
-                            fontSize: 11, color: _UC.primary, fontWeight: FontWeight.w600),
+                            fontSize: 11, color: _UC.filterAccent, fontWeight: FontWeight.w600),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                   GestureDetector(
@@ -1235,7 +1271,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen> {
                       _filter = null;
                       _currentPage = 1;
                     }),
-                    child: const Icon(Icons.close_rounded, size: 14, color: _UC.primary),
+                    child: const Icon(Icons.close_rounded, size: 14, color: _UC.filterAccent),
                   ),
                 ],
               ),

@@ -87,8 +87,12 @@ class AuditLocationScreen extends StatefulWidget {
   State<AuditLocationScreen> createState() => _AuditLocationScreenState();
 }
 
-class _AuditLocationScreenState extends State<AuditLocationScreen> {
+class _AuditLocationScreenState extends State<AuditLocationScreen>
+    with AutomaticKeepAliveClientMixin {
   final _supabase = Supabase.instance.client;
+
+  @override
+  bool get wantKeepAlive => true;
 
   List<_LocationItem> _data = [];
   bool _loading = true;
@@ -474,7 +478,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                             Navigator.pop(ctx);
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _C.green,
+                            backgroundColor: _C.textMain,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -784,21 +788,85 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
   }
 
   Widget _buildEmpty() {
+    final bool isFiltering = _search.isNotEmpty || _filter != null;
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.location_off_rounded, size: 56, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          Text(_t('No data found', 'Tidak ada data', '没有数据'),
-              style: GoogleFonts.poppins(fontSize: 14, color: _C.textSub)),
-        ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 170,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: _C.green.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.location_off_rounded, size: 56, color: _C.green.withValues(alpha: 0.4)),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              isFiltering
+                  ? _t('No matching locations', 'Lokasi Tidak Ditemukan', '未找到匹配位置')
+                  : _t('No locations yet', 'Belum Ada Lokasi', '暂无位置'),
+              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _C.green),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isFiltering
+                  ? _t(
+                      'Try adjusting your search keyword or filter to find what you\'re looking for.',
+                      'Coba ubah kata kunci pencarian atau filter untuk menemukan yang Anda cari.',
+                      '尝试调整搜索关键词或筛选条件以查找您需要的内容。')
+                  : _t(
+                      'Locations will show up here as soon as they\'re added to the system.',
+                      'Lokasi akan muncul di sini setelah ditambahkan ke sistem.',
+                      '添加位置后将显示在此处。'),
+              style: GoogleFonts.poppins(fontSize: 12.5, color: _C.textSub, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            if (isFiltering) ...[
+              const SizedBox(height: 18),
+              GestureDetector(
+                onTap: () => setState(() {
+                  _search = '';
+                  _filter = null;
+                  _currentPage = 1;
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _C.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: _C.green.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 15, color: _C.green),
+                      const SizedBox(width: 6),
+                      Text(_t('Clear search & filter', 'Hapus pencarian & filter', '清除搜索与筛选'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _C.green)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final query = _search.toLowerCase();
     final filtered = _applyFilter(_data);
     final items = query.isEmpty
@@ -844,7 +912,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                     decoration: InputDecoration(
                       hintText: _t('Search…', 'Cari…', '搜索…'),
                       hintStyle: GoogleFonts.poppins(fontSize: 13, color: _C.textSub),
-                      prefixIcon: const Icon(Icons.search_rounded, color: _C.green, size: 20),
+                      prefixIcon: const Icon(Icons.search_rounded, color: _C.textMain, size: 20),
                       filled: true,
                       fillColor: _C.surface,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
@@ -856,7 +924,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                           borderSide: const BorderSide(color: _C.divider)),
                       focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _C.green, width: 1.5)),
+                          borderSide: const BorderSide(color: _C.textMain, width: 1.5)),
                     ),
                   ),
                 ),
@@ -866,13 +934,13 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: _filter != null ? _C.green : _C.surface,
+                      color: _filter != null ? _C.textMain : _C.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _filter != null ? _C.green : _C.divider),
+                      border: Border.all(color: _filter != null ? _C.textMain : _C.divider),
                     ),
                     child: Icon(
                       Icons.filter_list_rounded,
-                      color: _filter != null ? Colors.white : _C.green,
+                      color: _filter != null ? Colors.white : _C.textMain,
                       size: 20,
                     ),
                   ),
@@ -888,18 +956,18 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: _C.green.withValues(alpha:0.08),
+                  color: _C.textMain.withValues(alpha:0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _C.green.withValues(alpha:0.3)),
+                  border: Border.all(color: _C.textMain.withValues(alpha:0.3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.filter_alt_rounded, size: 14, color: _C.green),
+                    const Icon(Icons.filter_alt_rounded, size: 14, color: _C.textMain),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(filterLabel,
                           style: GoogleFonts.poppins(
-                              fontSize: 11, color: _C.green, fontWeight: FontWeight.w600),
+                              fontSize: 11, color: _C.textMain, fontWeight: FontWeight.w600),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                     GestureDetector(
@@ -907,17 +975,11 @@ class _AuditLocationScreenState extends State<AuditLocationScreen> {
                         _filter = null;
                         _currentPage = 1;
                       }),
-                      child: const Icon(Icons.close_rounded, size: 14, color: _C.green),
+                      child: const Icon(Icons.close_rounded, size: 14, color: _C.textMain),
                     ),
                   ],
                 ),
               ),
-            ),
-
-          if (!_loading)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: _StatsRow(items: _data, lang: widget.lang),
             ),
 
           Expanded(
@@ -1087,90 +1149,6 @@ class _PageIndicator extends StatelessWidget {
           size: 15,
           color: enabled ? color : Colors.grey.shade400,
         ),
-      ),
-    );
-  }
-}
-
-class _StatsRow extends StatelessWidget {
-  final List<_LocationItem> items;
-  final String lang;
-  const _StatsRow({required this.items, required this.lang});
-
-  String _t(String en, String id, String zh) {
-    if (lang == 'EN') return en;
-    if (lang == 'ZH') return zh;
-    return id;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final audited = items.where((i) => i.latestScore != null).length;
-    final avgScore = audited > 0
-        ? items
-                .where((i) => i.latestScore != null)
-                .map((i) => i.latestScore!)
-                .reduce((a, b) => a + b) /
-            audited
-        : 0.0;
-
-    return Row(
-      children: [
-        Expanded(
-          child: _StatChip(
-              label: _t('Total', 'Total', '总计'),
-              value: '${items.length}',
-              color: _C.primary),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _StatChip(
-              label: _t('Audited', 'Diaudit', '已审计'),
-              value: '$audited',
-              color: _C.green),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _StatChip(
-              label: _t('Avg Score', 'Rata-rata', '平均分'),
-              value: audited > 0 ? '${avgScore.toStringAsFixed(0)}%' : '-',
-              color: _C.amber),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  const _StatChip(
-      {required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha:0.09),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha:0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(value,
-              style: GoogleFonts.poppins(
-                  fontSize: 18, fontWeight: FontWeight.w800, color: color)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: GoogleFonts.poppins(
-                  fontSize: 10, color: color.withValues(alpha:0.8)),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-        ],
       ),
     );
   }
