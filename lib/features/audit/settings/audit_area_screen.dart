@@ -5,9 +5,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../audit_result_detail_screen.dart';
 
-class _ARC {
+class _AC {
+  static const filterAccent   = Color(0xFF1D72F3);
+  static const locationAccent = Color(0xFF10B981);
+  static const unitAccent     = Color(0xFF6366F1);
+  static const subunitAccent  = Color(0xFFFBBF24);
+  static const areaAccent     = Color(0xFFF472B6);
+
   static const primary    = Color(0xFF8B5CF6);
-  static const primaryLt  = Color(0xFFEDE9FE);
   static const green      = Color(0xFF10B981);
   static const amber      = Color(0xFFF59E0B);
   static const red        = Color(0xFFEF4444);
@@ -25,11 +30,17 @@ class _AreaItem {
   final String? imageUrl;
   String? schedulePeriode;
   String? scheduleAuditorName;
+  String? scheduleAuditorImage;
   String? scheduleJenisAuditName;
   double? latestScore;
   String? latestAuditDate;
   String? picName;
+  String? picImage;
   final String? idSubunit;
+  final String? idUnit;
+  final String? idLokasi;
+  bool latestIsFinalized;
+  double? latestFinalScore;
 
   _AreaItem({
     required this.id,
@@ -38,11 +49,17 @@ class _AreaItem {
     this.imageUrl,
     this.schedulePeriode,
     this.scheduleAuditorName,
+    this.scheduleAuditorImage,
     this.scheduleJenisAuditName,
     this.latestScore,
     this.latestAuditDate,
     this.picName,
+    this.picImage,
     this.idSubunit,
+    this.idUnit,
+    this.idLokasi,
+    this.latestIsFinalized = false,
+    this.latestFinalScore,
   });
 }
 
@@ -87,6 +104,13 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
   String _search = '';
   _AreaHierarchyFilter? _filter;
   bool _hasSchedule = false;
+  bool _isFilterSheetOpen = false;
+  bool _isLocationPickerOpen = false;
+  bool _isUnitPickerOpen = false;
+  bool _isSubunitPickerOpen = false;
+
+  int _currentPage = 1;
+  static const int _itemsPerPage = 5;
 
   List<Map<String, dynamic>> _allLokasi  = [];
   List<Map<String, dynamic>> _allUnit    = [];
@@ -110,7 +134,10 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
     try {
       final rows = await _supabase
           .from('area')
-          .select('id_area, nama_area, gambar_area, deskripsi_area, id_pic, id_subunit')
+          .select(
+              'id_area, nama_area, gambar_area, deskripsi_area, '
+              'deskripsi_area_en, deskripsi_area_zh, '
+              'id_pic, id_subunit, id_unit, id_lokasi')
           .order('nama_area');
 
       final ids = rows.map((r) => r['id_area'].toString()).toList();
@@ -124,7 +151,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
         ids.isNotEmpty
             ? _supabase
                 .from('audit_result')
-                .select('id_ref, nilai_audit, tanggal_audit')
+                .select('id_ref, nilai_audit, nilai_final, is_finalized, tanggal_audit')
                 .eq('level_type', 'area')
                 .inFilter('id_ref', ids)
                 .order('tanggal_audit', ascending: false)
@@ -132,7 +159,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
         picIds.isNotEmpty
             ? _supabase
                 .from('User')
-                .select('id_user, nama')
+                .select('id_user, nama, gambar_user')
                 .inFilter('id_user', picIds)
             : Future.value(<dynamic>[]),
       ]);
@@ -144,8 +171,10 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
       }
 
       final Map<String, String> picMap = {};
+      final Map<String, String?> picImageMap = {};
       for (final p in futures[1]) {
         picMap[p['id_user'].toString()] = p['nama'] ?? '-';
+        picImageMap[p['id_user'].toString()] = p['gambar_user']?.toString();
       }
 
       final scheduleRows = ids.isNotEmpty
@@ -153,7 +182,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
               .from('audit_schedule')
               .select(
                   'id_ref, periode_mulai, periode_selesai, id_jenis_audit, '
-                  'User_Auditor:User!fk_audit_schedule_auditor(nama), '
+                  'User_Auditor:User!fk_audit_schedule_auditor(nama, gambar_user), '
                   'JenisAudit:jenis_audit(nama_id, nama_en, nama_zh)')
               .eq('level_type', 'area')
               .inFilter('id_ref', ids)
@@ -175,6 +204,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
 
         String? schedulePeriode;
         String? scheduleAuditorName;
+        String? scheduleAuditorImage;
         String? scheduleJenisAuditName;
         if (schedule != null) {
           final mulai   = DateTime.tryParse(schedule['periode_mulai']?.toString() ?? '');
@@ -185,6 +215,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
           }
           final auditorData = schedule['User_Auditor'] as Map<String, dynamic>?;
           scheduleAuditorName = auditorData?['nama']?.toString();
+          scheduleAuditorImage = auditorData?['gambar_user']?.toString();
 
           final jenisData = schedule['JenisAudit'] as Map<String, dynamic>?;
           if (jenisData != null) {
@@ -199,16 +230,28 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
         return _AreaItem(
           id: id,
           name: r['nama_area']?.toString() ?? '-',
-          description: r['deskripsi_area']?.toString(),
+          description: widget.lang == 'EN'
+              ? (r['deskripsi_area_en']?.toString() ?? r['deskripsi_area']?.toString())
+              : widget.lang == 'ZH'
+                  ? (r['deskripsi_area_zh']?.toString() ?? r['deskripsi_area']?.toString())
+                  : r['deskripsi_area']?.toString(),
           imageUrl: r['gambar_area']?.toString(),
           latestScore: audit != null
               ? double.tryParse(audit['nilai_audit']?.toString() ?? '')
               : null,
           latestAuditDate: audit?['tanggal_audit']?.toString(),
           picName: r['id_pic'] != null ? picMap[r['id_pic'].toString()] : null,
+          picImage: r['id_pic'] != null ? picImageMap[r['id_pic'].toString()] : null,
           idSubunit: r['id_subunit']?.toString(),
+          idUnit: r['id_unit']?.toString(),
+          idLokasi: r['id_lokasi']?.toString(),
+          latestIsFinalized: audit?['is_finalized'] == true,
+          latestFinalScore: audit != null
+              ? double.tryParse(audit['nilai_final']?.toString() ?? '')
+              : null,
           schedulePeriode: schedulePeriode,
           scheduleAuditorName: scheduleAuditorName,
+          scheduleAuditorImage: scheduleAuditorImage,
           scheduleJenisAuditName: scheduleJenisAuditName,
         );
       }).toList();
@@ -247,17 +290,10 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
   }
 
   Color _scoreColor(double? score) {
-    if (score == null) return _ARC.textSub;
-    if (score >= 80) return _ARC.green;
-    if (score >= 60) return _ARC.amber;
-    return _ARC.red;
-  }
-
-  String _scoreLabel(double? score) {
-    if (score == null) return _t('No audit', 'Belum diaudit', '未审计');
-    if (score >= 80) return _t('Good', 'Baik', '良好');
-    if (score >= 60) return _t('Fair', 'Cukup', '一般');
-    return _t('Poor', 'Kurang', '较差');
+    if (score == null) return _AC.textSub;
+    if (score >= 80) return _AC.green;
+    if (score >= 60) return _AC.amber;
+    return _AC.red;
   }
 
   String _formatDate(String raw) {
@@ -274,21 +310,9 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
     if (filter.idSubunit != null) {
       result = result.where((i) => i.idSubunit == filter.idSubunit).toList();
     } else if (filter.idUnit != null) {
-      final validSubIds = _allSubunit
-          .where((s) => s['id_unit']?.toString() == filter.idUnit)
-          .map((s) => s['id_subunit']?.toString() ?? '')
-          .toSet();
-      result = result.where((i) => validSubIds.contains(i.idSubunit)).toList();
+      result = result.where((i) => i.idUnit == filter.idUnit).toList();
     } else if (filter.idLokasi != null) {
-      final validUnitIds = _allUnit
-          .where((u) => u['id_lokasi']?.toString() == filter.idLokasi)
-          .map((u) => u['id_unit']?.toString() ?? '')
-          .toSet();
-      final validSubIds = _allSubunit
-          .where((s) => validUnitIds.contains(s['id_unit']?.toString()))
-          .map((s) => s['id_subunit']?.toString() ?? '')
-          .toSet();
-      result = result.where((i) => validSubIds.contains(i.idSubunit)).toList();
+      result = result.where((i) => i.idLokasi == filter.idLokasi).toList();
     }
 
     if (filter.auditStatus == 'audited') {
@@ -308,25 +332,581 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
     return result;
   }
 
+  Future<void> _showLocationPickerDialog(
+    BuildContext parentCtx,
+    String? currentId,
+    void Function(String? id, String? name) onSelected,
+  ) async {
+    if (_isLocationPickerOpen) return;
+    _isLocationPickerOpen = true;
+    String searchQuery = '';
+    await showDialog(
+      context: parentCtx,
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setPickerState) {
+          final filteredLokasi = searchQuery.isEmpty
+              ? _allLokasi
+              : _allLokasi
+                  .where((l) => (l['nama_lokasi']?.toString() ?? '')
+                      .toLowerCase()
+                      .contains(searchQuery.toLowerCase()))
+                  .toList();
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(ctx).size.height * 0.60,
+                maxHeight: MediaQuery.of(ctx).size.height * 0.60,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: _AC.locationAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.location_city_rounded, color: _AC.locationAccent, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _t('Select Location', 'Pilih Lokasi', '选择位置'),
+                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.locationAccent),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(ctx),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        onChanged: (v) => setPickerState(() => searchQuery = v),
+                        style: GoogleFonts.poppins(fontSize: 13, color: _AC.textMain),
+                        decoration: InputDecoration(
+                          hintText: _t('Search location…', 'Cari lokasi…', '搜索位置…'),
+                          hintStyle: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub),
+                          prefixIcon: const Icon(Icons.search_rounded, color: _AC.locationAccent, size: 18),
+                          filled: true,
+                          fillColor: _AC.surface,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.divider)),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.divider)),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.locationAccent, width: 1.5)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        children: [
+                          _PickerTile(
+                            name: _t('All Locations', 'Semua Lokasi', '所有位置'),
+                            icon: Icons.apps_rounded,
+                            color: _AC.locationAccent,
+                            isSelected: currentId == null,
+                            onTap: () {
+                              onSelected(null, null);
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          ...filteredLokasi.map((l) {
+                            final id   = l['id_lokasi']?.toString() ?? '';
+                            final name = l['nama_lokasi']?.toString() ?? '-';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _PickerTile(
+                                name: name,
+                                icon: Icons.location_city_rounded,
+                                color: _AC.locationAccent,
+                                isSelected: currentId == id,
+                                onTap: () {
+                                  onSelected(id, name);
+                                  Navigator.pop(ctx);
+                                },
+                              ),
+                            );
+                          }),
+                          if (filteredLokasi.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Column(
+                                children: [
+                                  Image.asset(
+                                    'assets/images/team_illustration.png',
+                                    height: 120,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 96,
+                                      height: 96,
+                                      decoration: BoxDecoration(
+                                        color: _AC.locationAccent.withValues(alpha: 0.08),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(Icons.location_off_rounded,
+                                          size: 42, color: _AC.locationAccent.withValues(alpha: 0.4)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    _t('No Location Found', 'Lokasi Tidak Ditemukan', '未找到位置'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _AC.locationAccent),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _t(
+                                        'Try a different keyword to find the location you\'re looking for.',
+                                        'Coba kata kunci lain untuk menemukan lokasi yang Anda cari.',
+                                        '尝试使用其他关键词查找您需要的位置。'),
+                                    style: GoogleFonts.poppins(fontSize: 11.5, color: _AC.textSub, height: 1.4),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    _isLocationPickerOpen = false;
+  }
+
+  Future<void> _showUnitPickerDialog(
+    BuildContext parentCtx,
+    List<Map<String, dynamic>> unitList,
+    String? currentId,
+    void Function(String? id, String? name) onSelected,
+  ) async {
+    if (_isUnitPickerOpen) return;
+    _isUnitPickerOpen = true;
+    String searchQuery = '';
+    await showDialog(
+      context: parentCtx,
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setPickerState) {
+          final filteredUnit = searchQuery.isEmpty
+              ? unitList
+              : unitList
+                  .where((u) => (u['nama_unit']?.toString() ?? '')
+                      .toLowerCase()
+                      .contains(searchQuery.toLowerCase()))
+                  .toList();
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(ctx).size.height * 0.60,
+                maxHeight: MediaQuery.of(ctx).size.height * 0.60,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: _AC.unitAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.business_rounded, color: _AC.unitAccent, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _t('Select Unit', 'Pilih Unit', '选择单元'),
+                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.unitAccent),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(ctx),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        onChanged: (v) => setPickerState(() => searchQuery = v),
+                        style: GoogleFonts.poppins(fontSize: 13, color: _AC.textMain),
+                        decoration: InputDecoration(
+                          hintText: _t('Search unit…', 'Cari unit…', '搜索单元…'),
+                          hintStyle: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub),
+                          prefixIcon: const Icon(Icons.search_rounded, color: _AC.unitAccent, size: 18),
+                          filled: true,
+                          fillColor: _AC.surface,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.divider)),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.divider)),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.unitAccent, width: 1.5)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        children: [
+                          _PickerTile(
+                            name: _t('All Units', 'Semua Unit', '所有单元'),
+                            icon: Icons.apps_rounded,
+                            color: _AC.unitAccent,
+                            isSelected: currentId == null,
+                            onTap: () {
+                              onSelected(null, null);
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          ...filteredUnit.map((u) {
+                            final id   = u['id_unit']?.toString() ?? '';
+                            final name = u['nama_unit']?.toString() ?? '-';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _PickerTile(
+                                name: name,
+                                icon: Icons.business_rounded,
+                                color: _AC.unitAccent,
+                                isSelected: currentId == id,
+                                onTap: () {
+                                  onSelected(id, name);
+                                  Navigator.pop(ctx);
+                                },
+                              ),
+                            );
+                          }),
+                          if (filteredUnit.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Column(
+                                children: [
+                                  Image.asset(
+                                    'assets/images/team_illustration.png',
+                                    height: 120,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 96,
+                                      height: 96,
+                                      decoration: BoxDecoration(
+                                        color: _AC.unitAccent.withValues(alpha: 0.08),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(Icons.business_rounded,
+                                          size: 42, color: _AC.unitAccent.withValues(alpha: 0.4)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    _t('No Unit Found', 'Unit Tidak Ditemukan', '未找到单元'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _AC.unitAccent),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _t(
+                                        'Try a different keyword to find the unit you\'re looking for.',
+                                        'Coba kata kunci lain untuk menemukan unit yang Anda cari.',
+                                        '尝试使用其他关键词查找您需要的单元。'),
+                                    style: GoogleFonts.poppins(fontSize: 11.5, color: _AC.textSub, height: 1.4),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    _isUnitPickerOpen = false;
+  }
+
+  Future<void> _showSubunitPickerDialog(
+    BuildContext parentCtx,
+    List<Map<String, dynamic>> subunitList,
+    String? currentId,
+    void Function(String? id, String? name) onSelected,
+  ) async {
+    if (_isSubunitPickerOpen) return;
+    _isSubunitPickerOpen = true;
+    String searchQuery = '';
+    await showDialog(
+      context: parentCtx,
+      barrierDismissible: true,
+      barrierColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setPickerState) {
+          final filteredSubunit = searchQuery.isEmpty
+              ? subunitList
+              : subunitList
+                  .where((s) => (s['nama_subunit']?.toString() ?? '')
+                      .toLowerCase()
+                      .contains(searchQuery.toLowerCase()))
+                  .toList();
+
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(ctx).size.height * 0.60,
+                maxHeight: MediaQuery.of(ctx).size.height * 0.60,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: _AC.subunitAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.layers_rounded, color: _AC.subunitAccent, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _t('Select Sub-Unit', 'Pilih Sub-Unit', '选择子单元'),
+                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.subunitAccent),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(ctx),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        onChanged: (v) => setPickerState(() => searchQuery = v),
+                        style: GoogleFonts.poppins(fontSize: 13, color: _AC.textMain),
+                        decoration: InputDecoration(
+                          hintText: _t('Search sub-unit…', 'Cari sub-unit…', '搜索子单元…'),
+                          hintStyle: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub),
+                          prefixIcon: const Icon(Icons.search_rounded, color: _AC.subunitAccent, size: 18),
+                          filled: true,
+                          fillColor: _AC.surface,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.divider)),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.divider)),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: const BorderSide(color: _AC.subunitAccent, width: 1.5)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        children: [
+                          _PickerTile(
+                            name: _t('All Sub-Units', 'Semua Sub-Unit', '所有子单元'),
+                            icon: Icons.apps_rounded,
+                            color: _AC.subunitAccent,
+                            isSelected: currentId == null,
+                            onTap: () {
+                              onSelected(null, null);
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          ...filteredSubunit.map((s) {
+                            final id   = s['id_subunit']?.toString() ?? '';
+                            final name = s['nama_subunit']?.toString() ?? '-';
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _PickerTile(
+                                name: name,
+                                icon: Icons.layers_rounded,
+                                color: _AC.subunitAccent,
+                                isSelected: currentId == id,
+                                onTap: () {
+                                  onSelected(id, name);
+                                  Navigator.pop(ctx);
+                                },
+                              ),
+                            );
+                          }),
+                          if (filteredSubunit.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Column(
+                                children: [
+                                  Image.asset(
+                                    'assets/images/team_illustration.png',
+                                    height: 120,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 96,
+                                      height: 96,
+                                      decoration: BoxDecoration(
+                                        color: _AC.subunitAccent.withValues(alpha: 0.08),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(Icons.layers_rounded,
+                                          size: 42, color: _AC.subunitAccent.withValues(alpha: 0.4)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    _t('No Sub-Unit Found', 'Sub-Unit Tidak Ditemukan', '未找到子单元'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 13.5, fontWeight: FontWeight.w700, color: _AC.subunitAccent),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _t(
+                                        'Try a different keyword to find the sub-unit you\'re looking for.',
+                                        'Coba kata kunci lain untuk menemukan sub-unit yang Anda cari.',
+                                        '尝试使用其他关键词查找您需要的子单元。'),
+                                    style: GoogleFonts.poppins(fontSize: 11.5, color: _AC.textSub, height: 1.4),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    _isSubunitPickerOpen = false;
+  }
+
   Future<void> _showFilterSheet() async {
+    if (_isFilterSheetOpen) return;
+    _isFilterSheetOpen = true;
     await _loadFilterData();
-    if (!mounted) return;
+    if (!mounted) {
+      _isFilterSheetOpen = false;
+      return;
+    }
 
     final current = _filter;
 
-    await showModalBottomSheet(
+    String? selectedLokasiId = current?.idLokasi;
+    String? selectedLokasiName = current?.namaLokasi;
+    String? selectedUnitId = current?.idUnit;
+    String? selectedUnitName = current?.namaUnit;
+    String? selectedSubunitId = current?.idSubunit;
+    String? selectedSubunitName = current?.namaSubunit;
+    String? selectedAuditStatus = current?.auditStatus;
+    double? selectedMinScore = current?.minScore;
+    double? selectedMaxScore = current?.maxScore;
+
+    await showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.4),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          String? selectedLokasiId  = current?.idLokasi;
-          String? selectedUnitId    = current?.idUnit;
-          String? selectedSubunitId = current?.idSubunit;
-          String? selectedAuditStatus = current?.auditStatus;
-          double? selectedMinScore    = current?.minScore;
-          double? selectedMaxScore    = current?.maxScore;
-
           final scoreRanges = [
             {'label': _t('All Scores', 'Semua Nilai', '所有分数'), 'min': null, 'max': null},
             {'label': '≥ 80% (${_t('Good', 'Baik', '良好')})', 'min': 80.0, 'max': null},
@@ -334,178 +914,91 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
             {'label': '< 60% (${_t('Poor', 'Kurang', '较差')})', 'min': null, 'max': 59.9},
           ];
 
-          return Container(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 10),
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+          return Dialog(
+            backgroundColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _t('Filter', 'Filter', '筛选'),
-                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _ARC.textMain),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(
+                              color: _AC.filterAccent.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.filter_alt_rounded, color: _AC.filterAccent, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _t('Filter', 'Filter', '筛选'),
+                              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.filterAccent),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setSheetState(() {
+                                selectedLokasiId = null;
+                                selectedLokasiName = null;
+                                selectedUnitId = null;
+                                selectedUnitName = null;
+                                selectedSubunitId = null;
+                                selectedSubunitName = null;
+                                selectedAuditStatus = null;
+                                selectedMinScore = null;
+                                selectedMaxScore = null;
+                              });
+                            },
+                            child: Text(_t('Reset', 'Reset', '重置'),
+                                style: GoogleFonts.poppins(color: _AC.red, fontWeight: FontWeight.w600, fontSize: 12.5)),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.pop(ctx),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
+                            ),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: () {
-                          setState(() => _filter = null);
-                          Navigator.pop(ctx);
-                        },
-                        child: Text(_t('Reset', 'Reset', '重置'),
-                            style: GoogleFonts.poppins(color: _ARC.red, fontWeight: FontWeight.w600)),
-                      ),
-                    ],
-                  ),
-                ),
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: StatefulBuilder(
-                      builder: (ctx2, setInner) {
-                        final filteredUnit = selectedLokasiId == null
-                            ? _allUnit
-                            : _allUnit.where((u) => u['id_lokasi']?.toString() == selectedLokasiId).toList();
-                        final filteredSubunit = selectedUnitId == null
-                            ? _allSubunit
-                            : _allSubunit.where((s) => s['id_unit']?.toString() == selectedUnitId).toList();
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                        child: StatefulBuilder(
+                          builder: (ctx2, setInner) {
+                            final filteredUnitForPicker = selectedLokasiId == null
+                                ? _allUnit
+                                : _allUnit.where((u) => u['id_lokasi']?.toString() == selectedLokasiId).toList();
+                            final filteredSubunitForPicker = selectedUnitId == null
+                                ? _allSubunit
+                                : _allSubunit.where((s) => s['id_unit']?.toString() == selectedUnitId).toList();
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(_t('Location', 'Lokasi', '位置'),
-                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
-                            const SizedBox(height: 8),
-                            Wrap(spacing: 8, runSpacing: 8, children: [
-                              _FilterChipItem(
-                                label: _t('All', 'Semua', '全部'),
-                                isSelected: selectedLokasiId == null,
-                                color: _ARC.primary,
-                                onTap: () => setInner(() {
-                                  selectedLokasiId  = null;
-                                  selectedUnitId    = null;
-                                  selectedSubunitId = null;
-                                }),
-                              ),
-                              ..._allLokasi.map((lok) {
-                                final id   = lok['id_lokasi']?.toString() ?? '';
-                                final nama = lok['nama_lokasi']?.toString() ?? '';
-                                return _FilterChipItem(
-                                  label: nama,
-                                  isSelected: selectedLokasiId == id,
-                                  color: _ARC.primary,
-                                  onTap: () => setInner(() {
-                                    selectedLokasiId  = id;
-                                    selectedUnitId    = null;
-                                    selectedSubunitId = null;
-                                  }),
-                                );
-                              }),
-                            ]),
-                            const SizedBox(height: 16),
-
-                            Text(_t('Unit', 'Unit', '单元'),
-                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
-                            const SizedBox(height: 8),
-                            Wrap(spacing: 8, runSpacing: 8, children: [
-                              _FilterChipItem(
-                                label: _t('All', 'Semua', '全部'),
-                                isSelected: selectedUnitId == null,
-                                color: _ARC.blue,
-                                onTap: () => setInner(() {
-                                  selectedUnitId    = null;
-                                  selectedSubunitId = null;
-                                }),
-                              ),
-                              ...filteredUnit.map((unit) {
-                                final id   = unit['id_unit']?.toString() ?? '';
-                                final nama = unit['nama_unit']?.toString() ?? '';
-                                return _FilterChipItem(
-                                  label: nama,
-                                  isSelected: selectedUnitId == id,
-                                  color: _ARC.blue,
-                                  onTap: () => setInner(() {
-                                    selectedUnitId    = id;
-                                    selectedSubunitId = null;
-                                  }),
-                                );
-                              }),
-                            ]),
-                            const SizedBox(height: 16),
-
-                            Text(_t('Sub-Unit', 'Sub-Unit', '子单元'),
-                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
-                            const SizedBox(height: 8),
-                            Wrap(spacing: 8, runSpacing: 8, children: [
-                              _FilterChipItem(
-                                label: _t('All', 'Semua', '全部'),
-                                isSelected: selectedSubunitId == null,
-                                color: _ARC.green,
-                                onTap: () => setInner(() => selectedSubunitId = null),
-                              ),
-                              ...filteredSubunit.map((sub) {
-                                final id   = sub['id_subunit']?.toString() ?? '';
-                                final nama = sub['nama_subunit']?.toString() ?? '';
-                                return _FilterChipItem(
-                                  label: nama,
-                                  isSelected: selectedSubunitId == id,
-                                  color: _ARC.green,
-                                  onTap: () => setInner(() => selectedSubunitId = id),
-                                );
-                              }),
-                            ]),
-                            const SizedBox(height: 16),
-                            const Divider(),
-                            const SizedBox(height: 8),
-
-                            if (_hasSchedule) ...[
-                              Text(_t('Audit Status', 'Status Audit', '审计状态'),
-                                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
-                              const SizedBox(height: 8),
-                              Wrap(spacing: 8, runSpacing: 8, children: [
-                                _FilterChipItem(
-                                  label: _t('All', 'Semua', '全部'),
-                                  isSelected: selectedAuditStatus == null,
-                                  color: _ARC.primary,
-                                  onTap: () => setInner(() => selectedAuditStatus = null),
-                                ),
-                                _FilterChipItem(
-                                  label: _t('Audited', 'Sudah Diaudit', '已审计'),
-                                  isSelected: selectedAuditStatus == 'audited',
-                                  color: _ARC.green,
-                                  onTap: () => setInner(() => selectedAuditStatus = 'audited'),
-                                ),
-                                _FilterChipItem(
-                                  label: _t('Not Audited', 'Belum Diaudit', '未审计'),
-                                  isSelected: selectedAuditStatus == 'not_audited',
-                                  color: _ARC.amber,
-                                  onTap: () => setInner(() => selectedAuditStatus = 'not_audited'),
-                                ),
-                              ]),
-                              const SizedBox(height: 16),
-                            ],
-
-                            Text(_t('Score Range', 'Rentang Nilai', '分数范围'),
-                                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _ARC.textSub)),
-                            const SizedBox(height: 8),
-                            Wrap(spacing: 8, runSpacing: 8, children: scoreRanges.map((range) {
+                            Widget scoreChip(Map<String, dynamic> range) {
                               final min = range['min'] as double?;
                               final max = range['max'] as double?;
                               final isSelected = selectedMinScore == min && selectedMaxScore == max;
-                              Color chipColor = _ARC.primary;
-                              if (min == 80.0) { chipColor = _ARC.green; }
-                              else if (min == 60.0) { chipColor = _ARC.amber; }
-                              else if (max == 59.9) { chipColor = _ARC.red; }
+                              Color chipColor = _AC.filterAccent;
+                              if (min == 80.0) { chipColor = _AC.green; }
+                              else if (min == 60.0) { chipColor = _AC.amber; }
+                              else if (max == 59.9) { chipColor = _AC.red; }
                               return _FilterChipItem(
                                 label: range['label'] as String,
                                 isSelected: isSelected,
@@ -515,94 +1008,337 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
                                   selectedMaxScore = max;
                                 }),
                               );
-                            }).toList()),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final lokasiNama = _allLokasi
-                            .firstWhere((l) => l['id_lokasi']?.toString() == selectedLokasiId, orElse: () => {})['nama_lokasi']?.toString();
-                        final unitNama = _allUnit
-                            .firstWhere((u) => u['id_unit']?.toString() == selectedUnitId, orElse: () => {})['nama_unit']?.toString();
-                        final subunitNama = _allSubunit
-                            .firstWhere((s) => s['id_subunit']?.toString() == selectedSubunitId, orElse: () => {})['nama_subunit']?.toString();
+                            }
 
-                        setState(() {
-                          final hasFilter = selectedLokasiId != null ||
-                              selectedUnitId != null ||
-                              selectedSubunitId != null ||
-                              selectedAuditStatus != null ||
-                              selectedMinScore != null ||
-                              selectedMaxScore != null;
-                          _filter = hasFilter
-                              ? _AreaHierarchyFilter(
-                                  idLokasi:    selectedLokasiId,
-                                  namaLokasi:  lokasiNama,
-                                  idUnit:      selectedUnitId,
-                                  namaUnit:    unitNama,
-                                  idSubunit:   selectedSubunitId,
-                                  namaSubunit: subunitNama,
-                                  auditStatus: selectedAuditStatus,
-                                  minScore:    selectedMinScore,
-                                  maxScore:    selectedMaxScore,
-                                )
-                              : null;
-                        });
-                        Navigator.pop(ctx);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _ARC.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // LOCATION SELECT
+                                Row(
+                                  children: [
+                                    Icon(Icons.location_city_rounded, size: 14, color: _AC.locationAccent),
+                                    const SizedBox(width: 6),
+                                    Text(_t('Location', 'Lokasi', '位置'),
+                                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.locationAccent)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: () => _showLocationPickerDialog(ctx2, selectedLokasiId, (id, name) {
+                                    setInner(() {
+                                      selectedLokasiId = id;
+                                      selectedLokasiName = name;
+                                      if (selectedUnitId != null) {
+                                        final stillValid = _allUnit.any((u) =>
+                                            u['id_unit']?.toString() == selectedUnitId &&
+                                            (id == null || u['id_lokasi']?.toString() == id));
+                                        if (!stillValid) {
+                                          selectedUnitId = null;
+                                          selectedUnitName = null;
+                                          selectedSubunitId = null;
+                                          selectedSubunitName = null;
+                                        }
+                                      }
+                                    });
+                                  }),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: selectedLokasiId != null ? _AC.locationAccent.withValues(alpha: 0.08) : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: selectedLokasiId != null ? _AC.locationAccent : Colors.grey.shade300,
+                                        width: selectedLokasiId != null ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.apartment_rounded, size: 16,
+                                            color: selectedLokasiId != null ? _AC.locationAccent : _AC.textSub),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            selectedLokasiName ?? _t('All Locations', 'Semua Lokasi', '所有位置'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: selectedLokasiId != null ? _AC.locationAccent : _AC.textMain),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Icon(Icons.chevron_right_rounded, size: 18,
+                                            color: selectedLokasiId != null ? _AC.locationAccent : _AC.textSub),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                // UNIT SELECT
+                                Row(
+                                  children: [
+                                    Icon(Icons.business_rounded, size: 14, color: _AC.unitAccent),
+                                    const SizedBox(width: 6),
+                                    Text(_t('Unit', 'Unit', '单元'),
+                                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.unitAccent)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: () => _showUnitPickerDialog(ctx2, filteredUnitForPicker, selectedUnitId, (id, name) {
+                                    setInner(() {
+                                      selectedUnitId = id;
+                                      selectedUnitName = name;
+                                      if (selectedSubunitId != null) {
+                                        final stillValid = _allSubunit.any((s) =>
+                                            s['id_subunit']?.toString() == selectedSubunitId &&
+                                            (id == null || s['id_unit']?.toString() == id));
+                                        if (!stillValid) {
+                                          selectedSubunitId = null;
+                                          selectedSubunitName = null;
+                                        }
+                                      }
+                                    });
+                                  }),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: selectedUnitId != null ? _AC.unitAccent.withValues(alpha: 0.08) : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: selectedUnitId != null ? _AC.unitAccent : Colors.grey.shade300,
+                                        width: selectedUnitId != null ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.business_rounded, size: 16,
+                                            color: selectedUnitId != null ? _AC.unitAccent : _AC.textSub),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            selectedUnitName ?? _t('All Units', 'Semua Unit', '所有单元'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: selectedUnitId != null ? _AC.unitAccent : _AC.textMain),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Icon(Icons.chevron_right_rounded, size: 18,
+                                            color: selectedUnitId != null ? _AC.unitAccent : _AC.textSub),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                // SUBUNIT SELECT
+                                Row(
+                                  children: [
+                                    Icon(Icons.layers_rounded, size: 14, color: _AC.subunitAccent),
+                                    const SizedBox(width: 6),
+                                    Text(_t('Sub-Unit', 'Sub-Unit', '子单元'),
+                                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.subunitAccent)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                GestureDetector(
+                                  onTap: () => _showSubunitPickerDialog(ctx2, filteredSubunitForPicker, selectedSubunitId, (id, name) {
+                                    setInner(() {
+                                      selectedSubunitId = id;
+                                      selectedSubunitName = name;
+                                    });
+                                  }),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: selectedSubunitId != null ? _AC.subunitAccent.withValues(alpha: 0.08) : Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: selectedSubunitId != null ? _AC.subunitAccent : Colors.grey.shade300,
+                                        width: selectedSubunitId != null ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.layers_rounded, size: 16,
+                                            color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textSub),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            selectedSubunitName ?? _t('All Sub-Units', 'Semua Sub-Unit', '所有子单元'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textMain),
+                                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        Icon(Icons.chevron_right_rounded, size: 18,
+                                            color: selectedSubunitId != null ? _AC.subunitAccent : _AC.textSub),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const Divider(),
+                                const SizedBox(height: 8),
+
+                                if (_hasSchedule) ...[
+                                  Row(
+                                    children: [
+                                      Icon(Icons.fact_check_rounded, size: 14, color: _AC.textSub),
+                                      const SizedBox(width: 6),
+                                      Text(_t('Audit Status', 'Status Audit', '审计状态'),
+                                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.textSub)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _FilterChipItem(
+                                          label: _t('All', 'Semua', '全部'),
+                                          isSelected: selectedAuditStatus == null,
+                                          color: _AC.filterAccent,
+                                          onTap: () => setInner(() => selectedAuditStatus = null),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _FilterChipItem(
+                                          label: _t('Audited', 'Sudah Diaudit', '已审计'),
+                                          isSelected: selectedAuditStatus == 'audited',
+                                          color: _AC.green,
+                                          onTap: () => setInner(() => selectedAuditStatus = 'audited'),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _FilterChipItem(
+                                          label: _t('Not Audited', 'Belum Diaudit', '未审计'),
+                                          isSelected: selectedAuditStatus == 'not_audited',
+                                          color: _AC.amber,
+                                          onTap: () => setInner(() => selectedAuditStatus = 'not_audited'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+
+                                Row(
+                                  children: [
+                                    Icon(Icons.leaderboard_rounded, size: 14, color: _AC.textSub),
+                                    const SizedBox(width: 6),
+                                    Text(_t('Score Range', 'Rentang Nilai', '分数范围'),
+                                        style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _AC.textSub)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(child: scoreChip(scoreRanges[0])),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: scoreChip(scoreRanges[1])),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(child: scoreChip(scoreRanges[2])),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: scoreChip(scoreRanges[3])),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                       ),
-                      child: Text(_t('Apply Filter', 'Terapkan Filter', '应用筛选'),
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
                     ),
-                  ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              final hasFilter = selectedLokasiId != null ||
+                                  selectedUnitId != null ||
+                                  selectedSubunitId != null ||
+                                  selectedAuditStatus != null ||
+                                  selectedMinScore != null ||
+                                  selectedMaxScore != null;
+                              _filter = hasFilter
+                                  ? _AreaHierarchyFilter(
+                                      idLokasi:    selectedLokasiId,
+                                      namaLokasi:  selectedLokasiName,
+                                      idUnit:      selectedUnitId,
+                                      namaUnit:    selectedUnitName,
+                                      idSubunit:   selectedSubunitId,
+                                      namaSubunit: selectedSubunitName,
+                                      auditStatus: selectedAuditStatus,
+                                      minScore:    selectedMinScore,
+                                      maxScore:    selectedMaxScore,
+                                    )
+                                  : null;
+                              _currentPage = 1;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _AC.filterAccent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: Text(_t('Apply Filter', 'Terapkan Filter', '应用筛选'),
+                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           );
         },
       ),
     );
+    _isFilterSheetOpen = false;
   }
 
   void _showDetail(_AreaItem item) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AreaDetailSheet(lang: widget.lang, item: item),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _AreaDetailSheet(lang: widget.lang, item: item),
+      ),
     );
   }
 
   Widget _buildInitial(String name) {
-    final initials = name.trim().split(' ').take(2)
-        .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').join();
     return Container(
-      width: 56, height: 56,
-      color: _ARC.primaryLt,
+      color: _AC.areaAccent.withValues(alpha: 0.12),
       child: Center(
-        child: Text(initials,
-            style: GoogleFonts.poppins(
-                fontSize: 18, fontWeight: FontWeight.w700, color: _ARC.primary)),
+        child: Icon(Icons.place_rounded, color: _AC.areaAccent, size: 28),
       ),
     );
   }
 
   Widget _buildCard(_AreaItem item) {
-    final score = item.latestScore;
-    final scoreColor = _scoreColor(score);
+    final rawScore = item.latestScore;
+    final isFinalized = item.latestIsFinalized;
+    final needsFix = rawScore != null && !isFinalized && rawScore < 100;
+    final displayScore = isFinalized ? (item.latestFinalScore ?? rawScore) : rawScore;
+    final scoreColor = isFinalized ? _AC.amber : _scoreColor(rawScore);
+    final hasPic = item.picName != null && item.picName!.isNotEmpty;
+    final hasSchedulePeriode = item.schedulePeriode != null && item.schedulePeriode!.isNotEmpty;
     return GestureDetector(
       onTap: () => _showDetail(item),
       child: Container(
@@ -610,7 +1346,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _ARC.divider, width: 1.2),
+          border: Border.all(color: _AC.divider, width: 1.2),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -619,158 +1355,252 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
             ),
           ],
         ),
-        child: Column(
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: item.imageUrl != null && item.imageUrl!.isNotEmpty
-                        ? Image.network(item.imageUrl!,
-                            width: 56, height: 56, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _buildInitial(item.name))
-                        : _buildInitial(item.name),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.name,
-                            style: GoogleFonts.poppins(
-                                fontSize: 14, fontWeight: FontWeight.w700, color: _ARC.textMain),
-                            maxLines: 2, overflow: TextOverflow.ellipsis),
-                        if (item.picName != null) ...[
-                          const SizedBox(height: 3),
-                          Row(children: [
-                            const Icon(Icons.person_outline_rounded, size: 12, color: _ARC.textSub),
-                            const SizedBox(width: 4),
-                            Expanded(
-                                child: Text(item.picName!,
-                                    style: GoogleFonts.poppins(fontSize: 11, color: _ARC.textSub),
-                                    maxLines: 1, overflow: TextOverflow.ellipsis)),
-                          ]),
-                        ],
-                        if (item.scheduleJenisAuditName != null) ...[
-                          const SizedBox(height: 5),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: _ARC.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _ARC.primary.withValues(alpha: 0.35)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.fact_check_rounded, size: 11, color: _ARC.primary),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(item.scheduleJenisAuditName!,
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 10, fontWeight: FontWeight.w600, color: _ARC.primary),
-                                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        if (item.schedulePeriode != null) ...[
-                          const SizedBox(height: 5),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: _ARC.blue.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: _ARC.blue.withValues(alpha: 0.35)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.event_rounded, size: 11, color: _ARC.blue),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: Text(item.schedulePeriode!,
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 10, fontWeight: FontWeight.w600, color: _ARC.blue),
-                                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+            Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        width: 72,
+                        height: 72,
+                        clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
-                          color: scoreColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: scoreColor.withValues(alpha: 0.4), width: 1),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
-                          score != null ? '${score.toStringAsFixed(0)}%' : '-',
-                          style: GoogleFonts.poppins(
-                              fontSize: 16, fontWeight: FontWeight.w800, color: scoreColor),
-                        ),
+                        child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                            ? Image.network(item.imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _buildInitial(item.name))
+                            : _buildInitial(item.name),
                       ),
-                      const SizedBox(height: 3),
-                      Text(_scoreLabel(score),
-                          style: GoogleFonts.poppins(
-                              fontSize: 10, fontWeight: FontWeight.w600, color: scoreColor)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-              decoration: BoxDecoration(
-                color: _ARC.surface,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (item.scheduleAuditorName != null) ...[
-                    Row(
-                      children: [
-                        const Icon(Icons.assignment_ind_outlined, size: 12, color: _ARC.blue),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            '${_t('Auditor', 'Auditor', '审计员')}: ${item.scheduleAuditorName!}',
-                            style: GoogleFonts.poppins(fontSize: 11, color: _ARC.blue),
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                  ],
-                  Row(
-                    children: [
-                      const Icon(Icons.calendar_today_rounded, size: 12, color: _ARC.textSub),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          item.latestAuditDate != null
-                              ? '${_t('Last audit', 'Terakhir diaudit', '上次审计')}: ${_formatDate(item.latestAuditDate!)}'
-                              : _t('Never audited', 'Belum pernah diaudit', '从未审计'),
-                          style: GoogleFonts.poppins(fontSize: 11, color: _ARC.textSub),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(item.name,
+                                style: GoogleFonts.poppins(
+                                    fontSize: 15, fontWeight: FontWeight.w700, color: _AC.areaAccent),
+                                maxLines: 2, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 10,
+                                  backgroundColor: hasPic
+                                      ? _AC.areaAccent.withValues(alpha: 0.15)
+                                      : _AC.textSub.withValues(alpha: 0.12),
+                                  backgroundImage: (item.picImage != null && item.picImage!.isNotEmpty)
+                                      ? NetworkImage(item.picImage!)
+                                      : null,
+                                  child: (item.picImage == null || item.picImage!.isEmpty)
+                                      ? Icon(
+                                          hasPic ? Icons.person_rounded : Icons.person_off_rounded,
+                                          size: 12,
+                                          color: hasPic ? _AC.areaAccent : _AC.textSub,
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    hasPic
+                                        ? item.picName!
+                                        : _t('No PIC assigned', 'Belum ada PIC', '暂无负责人'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        fontStyle: hasPic ? FontStyle.normal : FontStyle.italic,
+                                        color: hasPic ? Colors.black87 : _AC.textSub),
+                                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(
+                                  hasSchedulePeriode ? Icons.event_rounded : Icons.event_busy_rounded,
+                                  size: 13,
+                                  color: hasSchedulePeriode ? _AC.blue : _AC.textSub,
+                                ),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    hasSchedulePeriode
+                                        ? item.schedulePeriode!
+                                        : _t('Not scheduled', 'Belum dijadwalkan', '未安排'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        fontStyle: hasSchedulePeriode ? FontStyle.normal : FontStyle.italic,
+                                        color: hasSchedulePeriode ? _AC.blue : _AC.textSub),
+                                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Align(
+                        alignment: Alignment.center,
+                        child: needsFix
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: _AC.amber.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: _AC.amber.withValues(alpha: 0.4), width: 1),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.build_rounded, size: 14, color: _AC.amber),
+                                    const SizedBox(height: 2),
+                                    Text(_t('Needs Fix', 'Perlu Perbaikan', '需要修复'),
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 8, fontWeight: FontWeight.w700, color: _AC.amber)),
+                                  ],
+                                ),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: scoreColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: scoreColor.withValues(alpha: 0.4), width: 1),
+                                ),
+                                child: Text(
+                                  displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 14, fontWeight: FontWeight.w800, color: scoreColor),
+                                ),
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                  decoration: BoxDecoration(
+                    color: _AC.surface,
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_t('Auditor', 'Auditor', '审计员'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 9.5, fontWeight: FontWeight.w600, color: _AC.textSub)),
+                            const SizedBox(height: 4),
+                            if (item.scheduleAuditorName != null)
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 10,
+                                    backgroundColor: _AC.blue.withValues(alpha: 0.15),
+                                    backgroundImage: (item.scheduleAuditorImage != null &&
+                                            item.scheduleAuditorImage!.isNotEmpty)
+                                        ? NetworkImage(item.scheduleAuditorImage!)
+                                        : null,
+                                    child: (item.scheduleAuditorImage == null ||
+                                            item.scheduleAuditorImage!.isEmpty)
+                                        ? const Icon(Icons.person_rounded, size: 11, color: _AC.blue)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(item.scheduleAuditorName!,
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 11, fontWeight: FontWeight.w600, color: _AC.blue),
+                                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  ),
+                                ],
+                              )
+                            else
+                              Text('-',
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 11, fontWeight: FontWeight.w600, color: _AC.textSub)),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        width: 1,
+                        height: 34,
+                        color: _AC.divider,
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_t('Last Audited', 'Terakhir Diaudit', '上次审计'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 9.5, fontWeight: FontWeight.w600, color: _AC.textSub)),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.calendar_today_rounded, size: 12, color: _AC.textSub),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    item.latestAuditDate != null
+                                        ? _formatDate(item.latestAuditDate!)
+                                        : _t('Never audited', 'Belum pernah diaudit', '从未审计'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black87),
+                                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+            if (item.scheduleJenisAuditName != null)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _AC.areaAccent,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(15),
+                      bottomLeft: Radius.circular(12),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.fact_check_rounded, size: 11, color: Colors.white),
+                      const SizedBox(width: 4),
+                      Text(item.scheduleJenisAuditName!,
+                          style: GoogleFonts.poppins(
+                              fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -794,15 +1624,78 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
   }
 
   Widget _buildEmpty() {
+    final bool isFiltering = _search.isNotEmpty || _filter != null;
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.location_off_rounded, size: 56, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          Text(_t('No data found', 'Tidak ada data', '没有数据'),
-              style: GoogleFonts.poppins(fontSize: 14, color: _ARC.textSub)),
-        ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 170,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: _AC.areaAccent.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.location_off_rounded, size: 56, color: _AC.areaAccent.withValues(alpha: 0.4)),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              isFiltering
+                  ? _t('No matching areas', 'Area Tidak Ditemukan', '未找到匹配区域')
+                  : _t('No areas yet', 'Belum Ada Area', '暂无区域'),
+              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.areaAccent),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isFiltering
+                  ? _t(
+                      'Try adjusting your search keyword or filter to find what you\'re looking for.',
+                      'Coba ubah kata kunci pencarian atau filter untuk menemukan yang Anda cari.',
+                      '尝试调整搜索关键词或筛选条件以查找您需要的内容。')
+                  : _t(
+                      'Areas will show up here as soon as they\'re added to the system.',
+                      'Area akan muncul di sini setelah ditambahkan ke sistem.',
+                      '添加区域后将显示在此处。'),
+              style: GoogleFonts.poppins(fontSize: 12.5, color: _AC.textSub, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            if (isFiltering) ...[
+              const SizedBox(height: 18),
+              GestureDetector(
+                onTap: () => setState(() {
+                  _search = '';
+                  _filter = null;
+                  _currentPage = 1;
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _AC.areaAccent.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: _AC.areaAccent.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 15, color: _AC.areaAccent),
+                      const SizedBox(width: 6),
+                      Text(_t('Clear search & filter', 'Hapus pencarian & filter', '清除搜索与筛选'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _AC.areaAccent)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -814,6 +1707,14 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
     final items = query.isEmpty
         ? filtered
         : filtered.where((i) => i.name.toLowerCase().contains(query)).toList();
+
+    final int totalPages = items.isEmpty ? 1 : (items.length / _itemsPerPage).ceil();
+    if (_currentPage > totalPages) _currentPage = totalPages;
+    if (_currentPage < 1) _currentPage = 1;
+    final pageItems = items
+        .skip((_currentPage - 1) * _itemsPerPage)
+        .take(_itemsPerPage)
+        .toList();
 
     String? filterLabel;
     if (_filter != null) {
@@ -842,24 +1743,27 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
               children: [
                 Expanded(
                   child: TextField(
-                    onChanged: (v) => setState(() => _search = v),
-                    style: GoogleFonts.poppins(fontSize: 14, color: _ARC.textMain),
+                    onChanged: (v) => setState(() {
+                      _search = v;
+                      _currentPage = 1;
+                    }),
+                    style: GoogleFonts.poppins(fontSize: 14, color: _AC.textMain),
                     decoration: InputDecoration(
                       hintText: _t('Search…', 'Cari…', '搜索…'),
-                      hintStyle: GoogleFonts.poppins(fontSize: 13, color: _ARC.textSub),
-                      prefixIcon: const Icon(Icons.search_rounded, color: _ARC.primary, size: 20),
+                      hintStyle: GoogleFonts.poppins(fontSize: 13, color: _AC.textSub),
+                      prefixIcon: const Icon(Icons.search_rounded, color: _AC.filterAccent, size: 20),
                       filled: true,
-                      fillColor: _ARC.surface,
+                      fillColor: _AC.surface,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _ARC.divider)),
+                          borderSide: const BorderSide(color: _AC.divider)),
                       enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _ARC.divider)),
+                          borderSide: const BorderSide(color: _AC.divider)),
                       focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: _ARC.primary, width: 1.5)),
+                          borderSide: const BorderSide(color: _AC.filterAccent, width: 1.5)),
                     ),
                   ),
                 ),
@@ -869,13 +1773,13 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: _filter != null ? _ARC.primary : _ARC.surface,
+                      color: _filter != null ? _AC.filterAccent : _AC.surface,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _filter != null ? _ARC.primary : _ARC.divider),
+                      border: Border.all(color: _filter != null ? _AC.filterAccent : _AC.divider),
                     ),
                     child: Icon(
                       Icons.filter_list_rounded,
-                      color: _filter != null ? Colors.white : _ARC.primary,
+                      color: _filter != null ? Colors.white : _AC.filterAccent,
                       size: 20,
                     ),
                   ),
@@ -891,33 +1795,30 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: _ARC.primary.withValues(alpha: 0.08),
+                  color: _AC.filterAccent.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _ARC.primary.withValues(alpha: 0.3)),
+                  border: Border.all(color: _AC.filterAccent.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.filter_alt_rounded, size: 14, color: _ARC.primary),
+                    const Icon(Icons.filter_alt_rounded, size: 14, color: _AC.filterAccent),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(filterLabel,
                           style: GoogleFonts.poppins(
-                              fontSize: 11, color: _ARC.primary, fontWeight: FontWeight.w600),
+                              fontSize: 11, color: _AC.filterAccent, fontWeight: FontWeight.w600),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                     GestureDetector(
-                      onTap: () => setState(() => _filter = null),
-                      child: const Icon(Icons.close_rounded, size: 14, color: _ARC.primary),
+                      onTap: () => setState(() {
+                        _filter = null;
+                        _currentPage = 1;
+                      }),
+                      child: const Icon(Icons.close_rounded, size: 14, color: _AC.filterAccent),
                     ),
                   ],
                 ),
               ),
-            ),
-
-          if (!_loading)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: _AreaStatsRow(items: _data, lang: widget.lang),
             ),
 
           Expanded(
@@ -927,82 +1828,21 @@ class _AuditAreaScreenState extends State<AuditAreaScreen> {
                     ? _buildEmpty()
                     : RefreshIndicator(
                         onRefresh: _fetchAreas,
-                        color: _ARC.primary,
+                        color: _AC.areaAccent,
                         child: ListView.builder(
-                          padding: const EdgeInsets.only(bottom: 100, top: 4),
-                          itemCount: items.length,
-                          itemBuilder: (_, i) => _buildCard(items[i]),
+                          padding: const EdgeInsets.only(bottom: 16, top: 4),
+                          itemCount: pageItems.length,
+                          itemBuilder: (_, i) => _buildCard(pageItems[i]),
                         ),
                       ),
           ),
-        ],
-      ),
-    );
-  }
-}
 
-class _AreaStatsRow extends StatelessWidget {
-  final List<_AreaItem> items;
-  final String lang;
-  const _AreaStatsRow({required this.items, required this.lang});
-
-  String _t(String en, String id, String zh) {
-    if (lang == 'EN') return en;
-    if (lang == 'ZH') return zh;
-    return id;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final audited = items.where((i) => i.latestScore != null).length;
-    final avgScore = audited > 0
-        ? items.where((i) => i.latestScore != null).map((i) => i.latestScore!).reduce((a, b) => a + b) / audited
-        : 0.0;
-
-    return Row(
-      children: [
-        Expanded(
-          child: _AreaStatChip(label: _t('Total', 'Total', '总计'), value: '${items.length}', color: _ARC.primary),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _AreaStatChip(label: _t('Audited', 'Diaudit', '已审计'), value: '$audited', color: _ARC.green),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _AreaStatChip(
-              label: _t('Avg Score', 'Rata-rata', '平均分'),
-              value: audited > 0 ? '${avgScore.toStringAsFixed(0)}%' : '-',
-              color: _ARC.amber),
-        ),
-      ],
-    );
-  }
-}
-
-class _AreaStatChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  const _AreaStatChip({required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(value, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w800, color: color)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: GoogleFonts.poppins(fontSize: 10, color: color.withValues(alpha: 0.8)),
-              textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+          if (!_loading && items.isNotEmpty && totalPages > 1)
+            _AreaPageIndicator(
+              currentPage: _currentPage,
+              totalPages: totalPages,
+              onPageChanged: (p) => setState(() => _currentPage = p),
+            ),
         ],
       ),
     );
@@ -1022,6 +1862,7 @@ class _AreaDetailSheetState extends State<_AreaDetailSheet> {
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _history = [];
   bool _loading = true;
+  int _shimmerCount = 3;
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -1036,10 +1877,16 @@ class _AreaDetailSheetState extends State<_AreaDetailSheet> {
   }
 
   Color _scoreColor(double? score) {
-    if (score == null) return _ARC.textSub;
-    if (score >= 80) return _ARC.green;
-    if (score >= 60) return _ARC.amber;
-    return _ARC.red;
+    if (score == null) return _AC.textSub;
+    if (score >= 80) return _AC.green;
+    if (score >= 60) return _AC.amber;
+    return _AC.red;
+  }
+
+  String _formatDate(String raw) {
+    final dt = DateTime.tryParse(raw);
+    if (dt == null) return raw;
+    return DateFormat('dd MMMM yyyy').format(dt);
   }
 
   Future<void> _fetchHistory() async {
@@ -1057,6 +1904,7 @@ class _AreaDetailSheetState extends State<_AreaDetailSheet> {
       if (mounted) {
         setState(() {
           _history = List<Map<String, dynamic>>.from(rows);
+          _shimmerCount = _history.isNotEmpty ? _history.length : _shimmerCount;
           _loading = false;
         });
       }
@@ -1067,157 +1915,516 @@ class _AreaDetailSheetState extends State<_AreaDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      maxChildSize: 0.95,
-      minChildSize: 0.4,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    final item = widget.item;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _AC.areaAccent, size: 20),
+          onPressed: () => Navigator.pop(context),
         ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 10),
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+        title: Text(
+          _t('Area Detail', 'Detail Area', '区域详情'),
+          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _AC.areaAccent),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 32),
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: SizedBox(
+                  width: 76,
+                  height: 76,
+                  child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                      ? Image.network(item.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                                color: _AC.areaAccent.withValues(alpha: 0.12),
+                                child: Icon(Icons.place_rounded, color: _AC.areaAccent, size: 32),
+                              ))
+                      : Container(
+                          color: _AC.areaAccent.withValues(alpha: 0.12),
+                          child: Icon(Icons.place_rounded, color: _AC.areaAccent, size: 32),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.name,
+                        style: GoogleFonts.poppins(
+                            fontSize: 18, fontWeight: FontWeight.w700, color: _AC.areaAccent),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                    if (item.description != null && item.description!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(item.description!,
+                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.black, fontWeight: FontWeight.w600, height: 1.4),
+                          maxLines: 3, overflow: TextOverflow.ellipsis),
+                    ],
+                  ],
+                ),
+              ),
+              if (item.latestScore != null) ...[
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _scoreColor(item.latestScore).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _scoreColor(item.latestScore).withValues(alpha: 0.4)),
+                  ),
+                  child: Text('${item.latestScore!.toStringAsFixed(0)}%',
+                      style: GoogleFonts.poppins(
+                          fontSize: 15, fontWeight: FontWeight.w800, color: _scoreColor(item.latestScore))),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 14),
+          Divider(color: Colors.grey.shade100, thickness: 1.5),
+          const SizedBox(height: 10),
+
+          Row(
+            children: [
+              Icon(Icons.info_rounded, size: 15, color: _AC.areaAccent),
+              const SizedBox(width: 6),
+              Text(_t('Information', 'Informasi', '信息'),
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _AC.areaAccent)),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          _DetailInfoTile(
+            icon: Icons.person_rounded,
+            iconColor: _AC.green,
+            label: _t('Person in Charge', 'Penanggung Jawab', '负责人'),
+            child: item.picName != null && item.picName!.isNotEmpty
+                ? Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 12,
+                        backgroundColor: _AC.green.withValues(alpha: 0.15),
+                        backgroundImage: (item.picImage != null && item.picImage!.isNotEmpty)
+                            ? NetworkImage(item.picImage!)
+                            : null,
+                        child: (item.picImage == null || item.picImage!.isEmpty)
+                            ? Icon(Icons.person_rounded, size: 13, color: _AC.green)
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(item.picName!,
+                            style: GoogleFonts.poppins(
+                                fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  )
+                : Text('-',
+                    style: GoogleFonts.poppins(
+                        fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black)),
+          ),
+
+          if (item.scheduleJenisAuditName != null)
+            _DetailInfoTile(
+              icon: Icons.fact_check_rounded,
+              iconColor: _AC.areaAccent,
+              label: _t('Audit Type', 'Tipe Audit', '审计类型'),
+              child: Text(item.scheduleJenisAuditName!,
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black)),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+
+          if (item.schedulePeriode != null)
+            _DetailInfoTile(
+              icon: Icons.event_rounded,
+              iconColor: _AC.blue,
+              label: _t('Audit Period', 'Periode Audit', '审计周期'),
+              child: Text(item.schedulePeriode!,
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black)),
+            ),
+
+          if (item.scheduleAuditorName != null)
+            _DetailInfoTile(
+              icon: Icons.assignment_ind_rounded,
+              iconColor: _AC.primary,
+              label: _t('Scheduled Auditor', 'Auditor Terjadwal', '预定审计员'),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Text(widget.item.name,
-                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _ARC.textMain)),
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: _AC.primary.withValues(alpha: 0.15),
+                    backgroundImage: (item.scheduleAuditorImage != null &&
+                            item.scheduleAuditorImage!.isNotEmpty)
+                        ? NetworkImage(item.scheduleAuditorImage!)
+                        : null,
+                    child: (item.scheduleAuditorImage == null || item.scheduleAuditorImage!.isEmpty)
+                        ? Icon(Icons.person_rounded, size: 13, color: _AC.primary)
+                        : null,
                   ),
-                  if (widget.item.latestScore != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: _scoreColor(widget.item.latestScore).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text('${widget.item.latestScore!.toStringAsFixed(0)}%',
-                          style: GoogleFonts.poppins(
-                              fontSize: 16, fontWeight: FontWeight.w800, color: _scoreColor(widget.item.latestScore))),
-                    ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(item.scheduleAuditorName!,
+                        style: GoogleFonts.poppins(
+                            fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
                 ],
               ),
             ),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 6),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(_t('Riwayat Audit', 'Audit History', '审计历史'),
-                    style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _ARC.textMain)),
-              ),
-            ),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: _ARC.primary))
-                  : _history.isEmpty
-                      ? Center(
-                          child: Text(_t('Belum ada riwayat audit', 'No audit history', '无审计历史'),
-                              style: GoogleFonts.poppins(fontSize: 13, color: _ARC.textSub)))
-                      : ListView.separated(
-                          controller: ctrl,
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                          itemCount: _history.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
-                          itemBuilder: (_, i) {
-                            final row = _history[i];
-                            final score = double.tryParse(row['nilai_audit']?.toString() ?? '');
-                            final scoreFinal = double.tryParse(row['nilai_final']?.toString() ?? '');
-                            final isFinalized = row['is_finalized'] == true;
-                            final displayScore = isFinalized ? scoreFinal : score;
-                            final auditorData = row['Auditor'] as Map<String, dynamic>?;
-                            final auditor = auditorData?['nama']?.toString() ?? '-';
-                            final date = row['tanggal_audit']?.toString() ?? '';
-                            final color = _scoreColor(displayScore);
-                            final idResult = row['id_result']?.toString() ?? '';
 
-                            return GestureDetector(
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => AuditResultDetailScreen(
-                                      lang: widget.lang,
-                                      idResult: idResult,
-                                      locationName: widget.item.name,
-                                      levelType: 'area',
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: color.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: color.withValues(alpha: 0.3)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 52, height: 52,
-                                      decoration: BoxDecoration(
-                                        color: color.withValues(alpha: 0.12),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Center(
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Text(
-                                              displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
-                                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w800, color: color),
-                                            ),
-                                            if (isFinalized)
-                                              Text(_t('Final', 'Final', '最终'),
-                                                  style: GoogleFonts.poppins(fontSize: 8, color: color)),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(auditor,
-                                              style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: _ARC.textMain)),
-                                          Text(date, style: GoogleFonts.poppins(fontSize: 11, color: _ARC.textSub)),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color: _ARC.primary.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: _ARC.primary.withValues(alpha: 0.3)),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.open_in_new_rounded, size: 12, color: _ARC.primary),
-                                          const SizedBox(width: 4),
-                                          Text(_t('Detail', 'Detail', '详情'),
-                                              style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w700, color: _ARC.primary)),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
+          const SizedBox(height: 4),
+          Divider(color: Colors.grey.shade100, thickness: 1.5),
+          const SizedBox(height: 10),
+
+          Row(
+            children: [
+              Icon(Icons.history_rounded, size: 15, color: _AC.areaAccent),
+              const SizedBox(width: 6),
+              Text(_t('Audit History', 'Riwayat Audit', '审计历史'),
+                  style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: _AC.areaAccent)),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          if (_loading)
+            Shimmer.fromColors(
+              baseColor: Colors.grey.shade200,
+              highlightColor: Colors.grey.shade50,
+              child: Column(
+                children: List.generate(_shimmerCount, (_) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  height: 106,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                )),
+              ),
+            )
+          else if (_history.isEmpty)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _AC.divider),
+              ),
+              child: Column(
+                children: [
+                  Image.asset(
+                    'assets/images/team_illustration.png',
+                    height: 140,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: _AC.areaAccent.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.history_toggle_off_rounded, size: 46, color: _AC.areaAccent.withValues(alpha: 0.4)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _t('No audit history yet', 'Belum Ada Riwayat Audit', '暂无审计历史'),
+                    style: GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w700, color: _AC.areaAccent),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _t(
+                        'This area hasn\'t been audited yet. Once an audit is completed, the results will appear here.',
+                        'Area ini belum pernah diaudit. Hasil audit akan muncul di sini setelah selesai dilakukan.',
+                        '该区域尚未进行审计。审计完成后结果将显示在此处。'),
+                    style: GoogleFonts.poppins(fontSize: 12, color: _AC.textSub, height: 1.5),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _history.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, i) {
+                final row = _history[i];
+                final score = double.tryParse(row['nilai_audit']?.toString() ?? '');
+                final scoreFinal = double.tryParse(row['nilai_final']?.toString() ?? '');
+                final isFinalized = row['is_finalized'] == true;
+                final needsFix = score != null && !isFinalized && score < 100;
+                final displayScore = isFinalized ? (scoreFinal ?? score) : score;
+                final auditorData = row['Auditor'] as Map<String, dynamic>?;
+                final auditor = auditorData?['nama']?.toString() ?? '-';
+                final auditorImage = auditorData?['gambar_user']?.toString();
+                final date = row['tanggal_audit']?.toString() ?? '';
+                final formattedDate = date.isNotEmpty ? _formatDate(date) : '-';
+                final color = isFinalized ? _AC.amber : _scoreColor(score);
+                final idResult = row['id_result']?.toString() ?? '';
+
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AuditResultDetailScreen(
+                          lang: widget.lang,
+                          idResult: idResult,
+                          locationName: item.name,
+                          levelType: 'area',
                         ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: color.withValues(alpha: 0.3)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: needsFix
+                                ? Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.build_rounded, size: 16, color: _AC.amber),
+                                      const SizedBox(height: 2),
+                                      Text(_t('Needs\nFix', 'Perlu\nPerbaikan', '需要\n修复'),
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.poppins(
+                                              fontSize: 7.5, fontWeight: FontWeight.w700, color: _AC.amber)),
+                                    ],
+                                  )
+                                : Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        displayScore != null ? '${displayScore.toStringAsFixed(0)}%' : '-',
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 13, fontWeight: FontWeight.w800, color: color),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.person_rounded, size: 13, color: _AC.blue),
+                                  const SizedBox(width: 5),
+                                  Text(_t('Auditor', 'Auditor', '审计员'),
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 10.5, fontWeight: FontWeight.w700, color: _AC.blue)),
+                                ],
+                              ),
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 11,
+                                    backgroundColor: _AC.blue.withValues(alpha: 0.15),
+                                    backgroundImage: (auditorImage != null && auditorImage.isNotEmpty)
+                                        ? NetworkImage(auditorImage)
+                                        : null,
+                                    child: (auditorImage == null || auditorImage.isEmpty)
+                                        ? Icon(Icons.person_rounded, size: 12, color: _AC.blue)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(auditor,
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 13, fontWeight: FontWeight.w700, color: Colors.black87),
+                                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Icon(Icons.event_available_rounded, size: 13, color: _AC.amber),
+                                  const SizedBox(width: 5),
+                                  Text(_t('Audited At', 'Diaudit Pada', '审计日期'),
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 10.5, fontWeight: FontWeight.w700, color: _AC.amber)),
+                                ],
+                              ),
+                              const SizedBox(height: 5),
+                              Text(formattedDate,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Align(
+                          alignment: Alignment.center,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _AC.areaAccent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: _AC.areaAccent.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.open_in_new_rounded, size: 12, color: _AC.areaAccent),
+                                const SizedBox(width: 4),
+                                Text(_t('Detail', 'Detail', '详情'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 11, fontWeight: FontWeight.w700, color: _AC.areaAccent)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailInfoTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final Widget child;
+  final Color? labelColor;
+  const _DetailInfoTile({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.child,
+    // ignore: unused_element_parameter
+    this.labelColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 16, color: iconColor),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: GoogleFonts.poppins(
+                        fontSize: 10, color: labelColor ?? iconColor, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                child,
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PickerTile extends StatelessWidget {
+  final String name;
+  final IconData icon;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _PickerTile({
+    required this.name,
+    required this.icon,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey.shade200,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: isSelected ? color : _AC.textSub),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(name,
+                  style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                      color: isSelected ? color : _AC.textMain)),
+            ),
+            if (isSelected) Icon(Icons.check_circle_rounded, color: color, size: 18),
           ],
         ),
       ),
@@ -1244,7 +2451,8 @@ class _FilterChipItem extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         decoration: BoxDecoration(
           color: isSelected ? color : Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -1255,11 +2463,160 @@ class _FilterChipItem extends StatelessWidget {
         ),
         child: Text(
           label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: GoogleFonts.poppins(
-            fontSize: 12,
+            fontSize: 11.5,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected ? Colors.white : _ARC.textSub,
+            color: isSelected ? Colors.white : _AC.textSub,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AreaPageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final ValueChanged<int> onPageChanged;
+
+  const _AreaPageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.onPageChanged,
+  });
+
+  static const Color _mainColor = _AC.areaAccent;
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(15, 8, 15, 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _mainColor.withValues(alpha: 0.2)),
+            boxShadow: [
+              BoxShadow(
+                color: _mainColor.withValues(alpha: 0.12),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              _buildArrowButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                enabled: canPrev,
+                onTap: () {
+                  if (!canPrev) return;
+                  onPageChanged(currentPage - 1);
+                },
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Row(
+                  children: [
+                    for (final p in pageNumbers) ...[
+                      Expanded(child: _buildPageNumberButton(p)),
+                      if (p != pageNumbers.last) const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _buildArrowButton(
+                icon: Icons.arrow_forward_ios_rounded,
+                enabled: canNext,
+                onTap: () {
+                  if (!canNext) return;
+                  onPageChanged(currentPage + 1);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageNumberButton(int page) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page == currentPage) return;
+        onPageChanged(page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? _mainColor : _mainColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive
+              ? null
+              : Border.all(color: _mainColor.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(
+            color: isActive ? Colors.white : _mainColor,
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArrowButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? _mainColor.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 15,
+          color: enabled ? _mainColor : Colors.grey.shade400,
         ),
       ),
     );
