@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../user/home/alert/required_field_alert.dart';
+import 'audit_pick_period.dart';
 import 'audit_pick_time.dart';
 import 'audit_schedule_popup.dart';
 
-// ─── Colour constants ───────────────────────
 class _SC {
   static const primary   = Color(0xFF8B5CF6);
   static const primaryLt = Color(0xFFEDE9FE);
@@ -15,7 +16,6 @@ class _SC {
   static const surface   = Color(0xFFF8FAFC);
 }
 
-// ─── Model schedule yang ada ──────────────────────────────────────────────────
 class AuditScheduleData {
   final String idSchedule;
   final String idAuditor;
@@ -42,10 +42,9 @@ class AuditScheduleData {
   });
 }
 
-// ─── Model assignment auditor ke lokasi spesifik ─────────────────────────────
 class _AuditorAssignment {
   final Map<String, dynamic> auditor;
-  final String levelType; // 'lokasi' | 'unit' | 'subunit' | 'area'
+  final String levelType;
   final String idRef;
   final String locationName;
 
@@ -57,7 +56,6 @@ class _AuditorAssignment {
   });
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
 class AuditScheduleScreen extends StatefulWidget {
   final String lang;
 
@@ -73,28 +71,23 @@ class AuditScheduleScreen extends StatefulWidget {
 class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
   final _supabase = Supabase.instance.client;
 
-  // ── Form state ──
   DateTime?                _periodeAwal;
   DateTime?                _periodeAkhir;
   final _catatanCtrl     = TextEditingController();
   final _searchCtrl      = TextEditingController();
 
-  // ── Data ──
   List<Map<String, dynamic>> _auditors         = [];
   List<Map<String, dynamic>> _filteredAuditors = [];
-  // ✅ MULTI-AUDITOR: ganti _existingSchedule jadi list assignments
   List<_AuditorAssignment>   _assignments      = [];
 
   List<Map<String, dynamic>> _jenisAuditList = [];
   String? _selectedJenisAuditId;
 
-  // ✅ Data hierarki untuk popup lokasi assignment
   List<Map<String, dynamic>> _allLokasi  = [];
   List<Map<String, dynamic>> _allUnit    = [];
   List<Map<String, dynamic>> _allSubunit = [];
   List<Map<String, dynamic>> _allArea    = [];
 
-  // ── UI state ──
   bool _loadingInit = true;
   bool _saving      = false;
   TimeOfDay _notifTime = const TimeOfDay(hour: 9, minute: 0);
@@ -118,7 +111,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
         '${n.day.toString().padLeft(2, '0')}';
   }
 
-  // ─── Lifecycle ──────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
@@ -144,14 +136,12 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     });
   }
 
-  // ─── Init ────────────────────────────────────────────────────────────────────
   Future<void> _initLoad() async {
     try {
       final results = await Future.wait([
         _fetchExistingSchedules(),
         _fetchAuditors(),
         _supabase.from('jenis_audit').select().order('urutan'),
-        // ✅ Load hierarki sekaligus
         _supabase.from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi'),
         _supabase.from('unit').select('id_unit, nama_unit, id_lokasi').order('nama_unit'),
         _supabase.from('subunit').select('id_subunit, nama_subunit, id_unit').order('nama_subunit'),
@@ -173,16 +163,12 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
         _allSubunit       = List<Map<String, dynamic>>.from(results[5] as List);
         _allArea          = List<Map<String, dynamic>>.from(results[6] as List);
 
-        // Restore periode & settings dari schedule pertama jika ada
         if (assignments.isNotEmpty) {
-          // Ambil periode dari schedule yang sudah ada di DB
-          // (akan di-fetch terpisah jika diperlukan)
         }
 
         _loadingInit = false;
       });
 
-      // ✅ Fetch periode & jenis audit dari schedule yang ada (ambil 1 untuk prefill)
       await _prefillPeriodeFromDB();
     } catch (e) {
       debugPrint('AuditScheduleScreen init error: $e');
@@ -222,7 +208,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     } catch (_) {}
   }
 
-  // ✅ Fetch semua assignment (multi-auditor) untuk level ini
   Future<List<_AuditorAssignment>> _fetchExistingSchedules() async {
     final rows = await _supabase
         .from('audit_schedule')
@@ -240,7 +225,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       final auditorData = r['User_Auditor'] as Map<String, dynamic>?;
       if (auditorData == null) continue;
 
-      // Cari nama lokasi dari id_ref dan level_type
       final locationName = await _resolveLocationName(
           r['level_type'].toString(), r['id_ref'].toString());
 
@@ -250,7 +234,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
           'nama':        auditorData['nama'],
           'gambar_user': auditorData['gambar_user'],
           'jabatan':     auditorData['jabatan'],
-          'id_schedule': r['id_schedule'], // simpan untuk update/delete
+          'id_schedule': r['id_schedule'],
         },
         levelType:    r['level_type'].toString(),
         idRef:        r['id_ref'].toString(),
@@ -284,28 +268,11 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     return List<Map<String, dynamic>>.from(rows as List);
   }
 
-  // ─── Date picker: hanya Senin ────────────────────────────────────────────
   Future<void> _pickStartDate() async {
-    final now             = DateTime.now();
-    final daysUntilMonday = (DateTime.monday - now.weekday + 7) % 7;
-    final firstMonday     = now.add(
-        Duration(days: daysUntilMonday == 0 ? 0 : daysUntilMonday));
-    final initial = (_periodeAwal != null && _periodeAwal!.isAfter(firstMonday))
-        ? _periodeAwal!
-        : firstMonday;
-
-    final picked = await showDatePicker(
+    final picked = await showAuditPeriodPicker(
       context: context,
-      initialDate: initial,
-      firstDate:   firstMonday,
-      lastDate:    DateTime(now.year + 2),
-      selectableDayPredicate: (day) => day.weekday == DateTime.monday,
-      builder: (c, child) => Theme(
-        data: ThemeData.light().copyWith(
-          colorScheme: const ColorScheme.light(primary: _SC.primary),
-        ),
-        child: child!,
-      ),
+      lang: widget.lang,
+      initialDate: _periodeAwal,
     );
     if (picked != null) {
       setState(() {
@@ -327,21 +294,32 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
   String _fmtTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} WIB';
 
-  // ─── Save / Update ───────────────────────────────────────────────────────
   Future<void> _save() async {
+    final List<MissingFieldItem> missing = [];
     if (_selectedJenisAuditId == null) {
-      _showError(_t('Please select audit type.',
-          'Pilih jenis audit terlebih dahulu.', '请选择审计类型。'));
-      return;
+      missing.add(MissingFieldItem(
+        icon: Icons.assignment_rounded,
+        label: _t('Audit Type', 'Jenis Audit', '审计类型'),
+      ));
     }
     if (_periodeAwal == null) {
-      _showError(_t('Please select audit period.',
-          'Pilih periode audit terlebih dahulu.', '请选择审计期间。'));
-      return;
+      missing.add(MissingFieldItem(
+        icon: Icons.date_range_rounded,
+        label: _t('Audit Period', 'Periode Audit', '审计期间'),
+      ));
     }
     if (_assignments.isEmpty) {
-      _showError(_t('Please assign at least one auditor.',
-          'Tambahkan minimal satu auditor.', '请至少分配一名审计员。'));
+      missing.add(MissingFieldItem(
+        icon: Icons.groups_rounded,
+        label: _t('Assign Auditors', 'Pilih Auditor', '分配审计员'),
+      ));
+    }
+    if (missing.isNotEmpty) {
+      await RequiredFieldAlert.show(
+        context,
+        lang: widget.lang,
+        missingFields: missing,
+      );
       return;
     }
 
@@ -350,7 +328,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       final notifTimeStr =
           '${_notifTime.hour.toString().padLeft(2, '0')}:${_notifTime.minute.toString().padLeft(2, '0')}';
 
-      // ✅ Upsert setiap assignment
       for (final a in _assignments) {
         final payload = {
           'level_type':      a.levelType,
@@ -390,27 +367,14 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     }
   }
 
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: _SC.red,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      margin: const EdgeInsets.all(16),
-    ));
-  }
-
-  // ✅ Popup pilih lokasi untuk auditor yang dipilih
   Future<void> _showLocationPickerForAuditor(
       Map<String, dynamic> auditor) async {
     String? selectedLevel;
     String? selectedId;
     String? selectedName;
 
-    // Set awal: tab lokasi
     String activeTab = 'lokasi';
 
-    // Cek lokasi yang sudah terpakai
     final usedKeys =
         _assignments.map((a) => '${a.levelType}_${a.idRef}').toSet();
 
@@ -468,7 +432,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Handle
                 Container(
                   margin: const EdgeInsets.only(top: 10),
                   width: 40, height: 4,
@@ -780,7 +743,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       '${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.month - 1]} '
       '${dt.year}';
 
-  // ─── Build ───────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     // ignore: unnecessary_null_comparison
@@ -791,6 +753,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        surfaceTintColor: Colors.white,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
@@ -799,7 +762,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
         ),
         title: Text(
           _t('Audit Schedule', 'Jadwal Audit', '审计计划'),
-          // ← sesuaikan teks dengan yang ada di file aslinya
           style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -807,13 +769,11 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
         ),
       ),
 
-      // ✅ Loading overlay saat init fetch
       body: _loadingInit
           ? const Center(
               child: CircularProgressIndicator(color: _SC.primary))
           : Column(
               children: [
-                // ── Bagian atas: Periode + Auditor search (scrollable) ──
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
@@ -824,6 +784,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         _SectionLabel(
                           icon: Icons.assignment_rounded,
                           text: _t('Audit Type', 'Jenis Audit', '审计类型'),
+                          isRequired: true,
                         ),
                         const SizedBox(height: 8),
                         Wrap(
@@ -849,7 +810,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                                   _jenisAuditLabel(j),
                                   style: GoogleFonts.poppins(
                                     fontSize: 12,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                                     color: isSelected ? Colors.white : _SC.textSub,
                                   ),
                                 ),
@@ -863,6 +824,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         _SectionLabel(
                           icon: Icons.date_range_rounded,
                           text: _t('Audit Period', 'Periode Audit', '审计期间'),
+                          isRequired: true,
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -905,6 +867,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         _SectionLabel(
                           icon: Icons.groups_rounded,
                           text: _t('Assign Auditors', 'Pilih Auditor', '分配审计员'),
+                          isRequired: true,
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -914,7 +877,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                             '每位审计员分配到一个具体位置。',
                           ),
                           style: GoogleFonts.poppins(
-                              fontSize: 10.5, color: Colors.grey.shade500),
+                              fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.grey.shade500),
                         ),
                         const SizedBox(height: 10),
 
@@ -1088,7 +1051,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                             '若未提交审计，将每天提醒审计员，持续7天。',
                           ),
                           style: GoogleFonts.poppins(
-                              fontSize: 10.5, color: Colors.grey.shade500),
+                              fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.grey.shade500),
                         ),
                         const SizedBox(height: 8),
                         GestureDetector(
@@ -1379,8 +1342,8 @@ class _DateField extends StatelessWidget {
             Text(label,
                 style: GoogleFonts.poppins(
                     fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: _SC.textSub)),
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black)),
             const SizedBox(height: 3),
             Row(
               children: [
@@ -1395,7 +1358,7 @@ class _DateField extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: value != null
                           ? FontWeight.w600
-                          : FontWeight.normal,
+                          : FontWeight.w500,
                       color:
                           value != null ? _SC.textMain : Colors.grey,
                     ),
@@ -1473,11 +1436,13 @@ class _SectionLabel extends StatelessWidget {
   final String text;
   final double fontSize;
   final FontWeight fontWeight;
+  final bool isRequired;
   const _SectionLabel({
     required this.icon,
     required this.text,
     this.fontSize = 12,
     this.fontWeight = FontWeight.w700,
+    this.isRequired = false,
   });
 
   @override
@@ -1491,9 +1456,20 @@ class _SectionLabel extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: fontSize,
             fontWeight: fontWeight,
-            color: _SC.textSub,
+            color: _SC.primary,
           ),
         ),
+        if (isRequired) ...[
+          const SizedBox(width: 2),
+          Text(
+            '*',
+            style: GoogleFonts.poppins(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              color: _SC.red,
+            ),
+          ),
+        ],
       ],
     );
   }
