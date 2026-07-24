@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../user/home/alert/required_field_alert.dart';
+import 'audit_assign_auditor.dart';
+import 'audit_pick_auditor.dart';
 import 'audit_pick_period.dart';
 import 'audit_pick_time.dart';
+import 'audit_pick_type.dart';
 import 'audit_schedule_popup.dart';
+
+const double _kAssignCardHeight = 128;
 
 class _SC {
   static const primary   = Color(0xFF8B5CF6);
@@ -74,19 +80,11 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
   DateTime?                _periodeAwal;
   DateTime?                _periodeAkhir;
   final _catatanCtrl     = TextEditingController();
-  final _searchCtrl      = TextEditingController();
 
-  List<Map<String, dynamic>> _auditors         = [];
-  List<Map<String, dynamic>> _filteredAuditors = [];
   List<_AuditorAssignment>   _assignments      = [];
 
   List<Map<String, dynamic>> _jenisAuditList = [];
   String? _selectedJenisAuditId;
-
-  List<Map<String, dynamic>> _allLokasi  = [];
-  List<Map<String, dynamic>> _allUnit    = [];
-  List<Map<String, dynamic>> _allSubunit = [];
-  List<Map<String, dynamic>> _allArea    = [];
 
   bool _loadingInit = true;
   bool _saving      = false;
@@ -114,33 +112,19 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
   @override
   void initState() {
     super.initState();
-    _searchCtrl.addListener(_onSearch);
     _initLoad();
   }
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
     _catatanCtrl.dispose();
     super.dispose();
   }
 
-  void _onSearch() {
-    final q = _searchCtrl.text.toLowerCase();
-    setState(() {
-      _filteredAuditors = q.isEmpty
-          ? _auditors
-          : _auditors
-              .where((u) => u['nama'].toString().toLowerCase().contains(q))
-              .toList();
-    });
-  }
-
   Future<void> _initLoad() async {
     try {
-      final results = await Future.wait([
+      final results = await Future.wait<dynamic>([
         _fetchExistingSchedules(),
-        _fetchAuditors(),
         _supabase.from('jenis_audit').select().order('urutan'),
         _supabase.from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi'),
         _supabase.from('unit').select('id_unit, nama_unit, id_lokasi').order('nama_unit'),
@@ -149,24 +133,13 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       ]);
 
       final assignments = results[0] as List<_AuditorAssignment>;
-      final auditors    = results[1] as List<Map<String, dynamic>>;
-      final jenisAudit  = List<Map<String, dynamic>>.from(results[2] as List);
+      final jenisAudit  = List<Map<String, dynamic>>.from(results[1] as List);
 
       if (!mounted) return;
       setState(() {
-        _auditors         = auditors;
-        _filteredAuditors = auditors;
         _assignments      = assignments;
         _jenisAuditList   = jenisAudit;
-        _allLokasi        = List<Map<String, dynamic>>.from(results[3] as List);
-        _allUnit          = List<Map<String, dynamic>>.from(results[4] as List);
-        _allSubunit       = List<Map<String, dynamic>>.from(results[5] as List);
-        _allArea          = List<Map<String, dynamic>>.from(results[6] as List);
-
-        if (assignments.isNotEmpty) {
-        }
-
-        _loadingInit = false;
+        _loadingInit      = false;
       });
 
       await _prefillPeriodeFromDB();
@@ -259,13 +232,16 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchAuditors() async {
-    final rows = await _supabase
-        .from('User')
-        .select(
-            'id_user, nama, gambar_user, jabatan!User_id_jabatan_fkey(nama_jabatan)')
-        .order('nama');
-    return List<Map<String, dynamic>>.from(rows as List);
+  Future<void> _pickAuditType() async {
+    final picked = await showAuditTypePicker(
+      context: context,
+      lang: widget.lang,
+      jenisAuditList: _jenisAuditList,
+      selectedId: _selectedJenisAuditId,
+    );
+    if (picked != null) {
+      setState(() => _selectedJenisAuditId = picked['id_jenis_audit'].toString());
+    }
   }
 
   Future<void> _pickStartDate() async {
@@ -291,8 +267,37 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     if (picked != null) setState(() => _notifTime = picked);
   }
 
-  String _fmtTime(TimeOfDay t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} WIB';
+  String _fmtTime(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} WIB';
+
+  Future<void> _openViewAllAuditors() async {
+    final initial = _assignments
+        .map((a) => AuditAssignmentData(
+              auditor: a.auditor,
+              levelType: a.levelType,
+              idRef: a.idRef,
+              locationName: a.locationName,
+            ))
+        .toList();
+
+    final result = await showAuditAssignAuditorPopup(
+      context: context,
+      lang: widget.lang,
+      initialAssignments: initial,
+    );
+
+    if (result != null) {
+      setState(() {
+        _assignments = result
+            .map((r) => _AuditorAssignment(
+                  auditor: r.auditor,
+                  levelType: r.levelType,
+                  idRef: r.idRef,
+                  locationName: r.locationName,
+                ))
+            .toList();
+      });
+    }
+  }
 
   Future<void> _save() async {
     final List<MissingFieldItem> missing = [];
@@ -367,375 +372,34 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
     }
   }
 
-  Future<void> _showLocationPickerForAuditor(
-      Map<String, dynamic> auditor) async {
-    String? selectedLevel;
-    String? selectedId;
-    String? selectedName;
+  Future<void> _openAuditorPicker() async {
+    final initial = _assignments
+        .map((a) => AuditAssignmentData(
+              auditor: a.auditor,
+              levelType: a.levelType,
+              idRef: a.idRef,
+              locationName: a.locationName,
+            ))
+        .toList();
 
-    String activeTab = 'lokasi';
-
-    final usedKeys =
-        _assignments.map((a) => '${a.levelType}_${a.idRef}').toSet();
-
-    await showModalBottomSheet(
+    final result = await showAuditPickAuditorPopup(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-          final tabs = ['lokasi', 'unit', 'subunit', 'area'];
-          final tabLabels = [
-            _t('Location', 'Lokasi', '位置'),
-            _t('Unit', 'Unit', '单元'),
-            _t('Sub-Unit', 'Sub-Unit', '子单元'),
-            _t('Area', 'Area', '区域'),
-          ];
-
-          List<Map<String, dynamic>> currentList() {
-            switch (activeTab) {
-              case 'unit':    return _allUnit;
-              case 'subunit': return _allSubunit;
-              case 'area':    return _allArea;
-              default:        return _allLokasi;
-            }
-          }
-
-          String idKey(Map<String, dynamic> item) {
-            switch (activeTab) {
-              case 'unit':    return item['id_unit']?.toString() ?? '';
-              case 'subunit': return item['id_subunit']?.toString() ?? '';
-              case 'area':    return item['id_area']?.toString() ?? '';
-              default:        return item['id_lokasi']?.toString() ?? '';
-            }
-          }
-
-          String nameKey(Map<String, dynamic> item) {
-            switch (activeTab) {
-              case 'unit':    return item['nama_unit']?.toString() ?? '';
-              case 'subunit': return item['nama_subunit']?.toString() ?? '';
-              case 'area':    return item['nama_area']?.toString() ?? '';
-              default:        return item['nama_lokasi']?.toString() ?? '';
-            }
-          }
-
-          final auditorName = auditor['nama']?.toString() ?? '-';
-          final jabatan = (auditor['jabatan'] as Map<String, dynamic>?)?['nama_jabatan']?.toString();
-
-          return Container(
-            constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(ctx).size.height * 0.88),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 10),
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2)),
-                ),
-                // Header
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _t('Select Audit Location', 'Pilih Lokasi Audit', '选择审计位置'),
-                        style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: _SC.textMain),
-                      ),
-                      const SizedBox(height: 8),
-                      // Info auditor
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: _SC.primary.withValues(alpha: 0.07),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: _SC.primary.withValues(alpha: 0.25)),
-                        ),
-                        child: Row(
-                          children: [
-                            _Avatar(user: auditor, radius: 16),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(auditorName,
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                          color: _SC.textMain)),
-                                  if (jabatan != null) ...[
-                                    const SizedBox(height: 3),
-                                    _JabatanBadge(jabatan: jabatan),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: _SC.primary,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                _t('Auditor', 'Auditor', '审计员'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Tab selector level
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.all(3),
-                    child: Row(
-                      children: tabs.asMap().entries.map((e) {
-                        final isActive = activeTab == e.value;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () => setSheet(() {
-                              activeTab     = e.value;
-                              selectedLevel = null;
-                              selectedId    = null;
-                              selectedName  = null;
-                            }),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 8),
-                              decoration: BoxDecoration(
-                                color: isActive
-                                    ? _SC.primary
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(7),
-                              ),
-                              child: Text(
-                                tabLabels[e.key],
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: isActive
-                                      ? Colors.white
-                                      : _SC.textSub,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // List lokasi
-                Flexible(
-                  child: ListView.builder(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    itemCount: currentList().length,
-                    itemBuilder: (_, i) {
-                      final item = currentList()[i];
-                      final id   = idKey(item);
-                      final name = nameKey(item);
-                      final key  = '${activeTab}_$id';
-                      final isUsed     = usedKeys.contains(key);
-                      final isSelected = selectedLevel == activeTab &&
-                          selectedId == id;
-
-                      return GestureDetector(
-                        onTap: isUsed
-                            ? null
-                            : () => setSheet(() {
-                                  selectedLevel = activeTab;
-                                  selectedId    = id;
-                                  selectedName  = name;
-                                }),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          margin: const EdgeInsets.only(bottom: 6),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: isUsed
-                                ? Colors.grey.shade50
-                                : isSelected
-                                    ? _SC.primary.withValues(alpha: 0.08)
-                                    : Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: isUsed
-                                  ? Colors.grey.shade200
-                                  : isSelected
-                                      ? _SC.primary
-                                      : Colors.grey.shade200,
-                              width: isSelected ? 1.5 : 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              // Level badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 7, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: isUsed
-                                      ? Colors.grey.shade200
-                                      : _SC.primary.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  tabLabels[tabs.indexOf(activeTab)],
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    color: isUsed
-                                        ? Colors.grey
-                                        : _SC.primary,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  name,
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isUsed
-                                        ? Colors.grey
-                                        : isSelected
-                                            ? _SC.primary
-                                            : _SC.textMain,
-                                  ),
-                                ),
-                              ),
-                              if (isUsed)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    _t('Assigned', 'Sudah Diatur', '已分配'),
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        color: Colors.grey,
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                )
-                              else if (isSelected)
-                                const Icon(Icons.check_circle_rounded,
-                                    color: _SC.primary, size: 20),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                // Tombol Confirm & Cancel
-                Container(
-                  color: Colors.white,
-                  padding: EdgeInsets.fromLTRB(
-                      16,
-                      10,
-                      16,
-                      MediaQuery.of(ctx).padding.bottom + 14),
-                  child: Row(
-                    children: [
-                      // Cancel
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: _SC.primary),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 13),
-                          ),
-                          child: Text(
-                            _t('Cancel', 'Batal', '取消'),
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600,
-                                color: _SC.primary),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Confirm
-                      Expanded(
-                        flex: 2,
-                        child: ElevatedButton(
-                          onPressed: selectedId == null
-                              ? null
-                              : () {
-                                  // Tambah assignment
-                                  setState(() {
-                                    _assignments.add(_AuditorAssignment(
-                                      auditor: Map<String, dynamic>.from(
-                                          auditor),
-                                      levelType:    selectedLevel!,
-                                      idRef:        selectedId!,
-                                      locationName: selectedName!,
-                                    ));
-                                  });
-                                  Navigator.pop(ctx);
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _SC.primary,
-                            foregroundColor: Colors.white,
-                            disabledBackgroundColor:
-                                Colors.grey.shade200,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 13),
-                          ),
-                          child: Text(
-                            _t('Confirm Assignment',
-                                'Konfirmasi Penugasan', '确认分配'),
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+      lang: widget.lang,
+      initialAssignments: initial,
     );
+
+    if (result != null) {
+      setState(() {
+        _assignments = result
+            .map((r) => _AuditorAssignment(
+                  auditor: r.auditor,
+                  levelType: r.levelType,
+                  idRef: r.idRef,
+                  locationName: r.locationName,
+                ))
+            .toList();
+      });
+    }
   }
 
   String _fmt(DateTime dt) =>
@@ -745,7 +409,6 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ignore: unnecessary_null_comparison
     final isUpdate = _assignments.any((a) => a.auditor['id_schedule'] != null);
 
     return Scaffold(
@@ -770,8 +433,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
       ),
 
       body: _loadingInit
-          ? const Center(
-              child: CircularProgressIndicator(color: _SC.primary))
+          ? _buildLoadingShimmer()
           : Column(
               children: [
                 Expanded(
@@ -780,47 +442,69 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // ── Jenis Audit ──────────────────────────────
+                        // AUDIT TYPE
                         _SectionLabel(
                           icon: Icons.assignment_rounded,
                           text: _t('Audit Type', 'Jenis Audit', '审计类型'),
                           isRequired: true,
                         ),
                         const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _jenisAuditList.map((j) {
-                            final id = j['id_jenis_audit'].toString();
-                            final isSelected = _selectedJenisAuditId == id;
-                            return GestureDetector(
-                              onTap: () => setState(() => _selectedJenisAuditId = id),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                                decoration: BoxDecoration(
-                                  color: isSelected ? _SC.primary : Colors.white,
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: isSelected ? _SC.primary : Colors.grey.shade300,
-                                    width: isSelected ? 1.5 : 1,
+                        GestureDetector(
+                          onTap: _pickAuditType,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _selectedJenisAuditId != null ? _SC.primary : _SC.divider,
+                                width: _selectedJenisAuditId != null ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: _SC.primaryLt,
+                                    borderRadius: BorderRadius.circular(9),
+                                  ),
+                                  child: const Icon(Icons.assignment_turned_in_rounded,
+                                      color: _SC.primary, size: 16),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _selectedJenisAuditId != null
+                                        ? _jenisAuditLabel(_jenisAuditList.firstWhere(
+                                            (j) => j['id_jenis_audit'].toString() == _selectedJenisAuditId,
+                                            orElse: () => {}))
+                                        : _t('Select audit type…', 'Pilih jenis audit…', '选择审计类型…'),
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: _selectedJenisAuditId != null ? _SC.textMain : Colors.grey,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                child: Text(
-                                  _jenisAuditLabel(j),
+                                Text(
+                                  _t('Change', 'Ubah', '更改'),
                                   style: GoogleFonts.poppins(
                                     fontSize: 12,
-                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                                    color: isSelected ? Colors.white : _SC.textSub,
+                                    fontWeight: FontWeight.w600,
+                                    color: _SC.primary,
                                   ),
                                 ),
-                              ),
-                            );
-                          }).toList(),
+                              ],
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 20),
 
-                        // ── Periode Audit ──────────────────────────────
+                        // AUDIT PERIOD
                         _SectionLabel(
                           icon: Icons.date_range_rounded,
                           text: _t('Audit Period', 'Periode Audit', '审计期间'),
@@ -863,7 +547,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        // ── Assign Auditor (Multi) ────────────────────────
+                        // ASSIGN AUDITOR
                         _SectionLabel(
                           icon: Icons.groups_rounded,
                           text: _t('Assign Auditors', 'Pilih Auditor', '分配审计员'),
@@ -881,164 +565,89 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         ),
                         const SizedBox(height: 10),
 
-                        // ✅ Daftar assignment yang sudah dikonfirmasi
+                        // ASSIGN AUDITOR LIST
                         if (_assignments.isNotEmpty) ...[
-                          ..._assignments.asMap().entries.map((entry) {
-                            final idx = entry.key;
-                            final a   = entry.value;
-                            final auditorName = a.auditor['nama']?.toString() ?? '-';
-                            final jabatan = (a.auditor['jabatan'] as Map<String, dynamic>?)?['nama_jabatan']?.toString();
-                            final levelLabel = {
-                              'lokasi': _t('Location', 'Lokasi', '位置'),
-                              'unit': _t('Unit', 'Unit', '单元'),
-                              'subunit': _t('Sub-Unit', 'Sub-Unit', '子单元'),
-                              'area': _t('Area', 'Area', '区域'),
-                            }[a.levelType] ?? a.levelType;
-
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: _SC.primary.withValues(alpha: 0.05),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                    color: _SC.primary.withValues(alpha: 0.3)),
-                              ),
-                              child: Row(
-                                children: [
-                                  _Avatar(user: a.auditor, radius: 18),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(auditorName,
-                                            style: GoogleFonts.poppins(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w700,
-                                                color: _SC.textMain)),
-                                        if (jabatan != null) ...[
-                                          const SizedBox(height: 3),
-                                          _JabatanBadge(jabatan: jabatan),
-                                        ],
-                                        const SizedBox(height: 4),
-                                        // Badge lokasi yang ditugaskan
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF10B981).withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(6),
-                                            border: Border.all(
-                                                color: const Color(0xFF10B981)
-                                                    .withValues(alpha: 0.35)),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(Icons.location_on_rounded,
-                                                  size: 10,
-                                                  color: Color(0xFF10B981)),
-                                              const SizedBox(width: 4),
-                                              Flexible(
-                                                child: Text(
-                                                  '$levelLabel: ${a.locationName}',
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: const Color(0xFF10B981),
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                          SizedBox(
+                            height: _assignments.length > 1
+                                ? _kAssignCardHeight * 2
+                                : _kAssignCardHeight,
+                            child: ListView.builder(
+                              physics: const ClampingScrollPhysics(),
+                              itemCount: _assignments.length,
+                              itemBuilder: (_, idx) {
+                                final a = _assignments[idx];
+                                return AuditAssignmentCard(
+                                  assignment: AuditAssignmentData(
+                                    auditor: a.auditor,
+                                    levelType: a.levelType,
+                                    idRef: a.idRef,
+                                    locationName: a.locationName,
                                   ),
-                                  // Tombol hapus assignment
-                                  GestureDetector(
-                                    onTap: () => setState(() => _assignments.removeAt(idx)),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: _SC.red.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                            color: _SC.red.withValues(alpha: 0.3)),
-                                      ),
-                                      child: const Icon(Icons.close_rounded,
-                                          size: 14, color: _SC.red),
+                                  lang: widget.lang,
+                                  onRemove: () => setState(() => _assignments.removeAt(idx)),
+                                );
+                              },
+                            ),
+                          ),
+                          if (_assignments.length > 2) ...[
+                            const SizedBox(height: 2),
+                            GestureDetector(
+                              onTap: _openViewAllAuditors,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      _t('View All (${_assignments.length})',
+                                          'Lihat Semua (${_assignments.length})',
+                                          '查看全部 (${_assignments.length})'),
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 12, fontWeight: FontWeight.w700, color: _SC.primary),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: _SC.primary),
+                                  ],
+                                ),
                               ),
-                            );
-                          }),
+                            ),
+                          ],
                           const SizedBox(height: 8),
                         ],
 
-                        // Search field + list auditor (untuk tambah auditor baru)
-                        _SectionLabel(
-                          icon: Icons.person_add_alt_1_rounded,
-                          text: _t('Add Auditor', 'Tambah Auditor', '添加审计员'),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _searchCtrl,
-                          decoration: InputDecoration(
-                            hintText: _t(
-                                'Search auditor…', 'Cari auditor…', '搜索审计员…'),
-                            hintStyle: GoogleFonts.poppins(
-                                fontSize: 12, color: _SC.textSub),
-                            prefixIcon: const Icon(Icons.search_rounded,
-                                color: _SC.primary, size: 18),
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(
-                                vertical: 8, horizontal: 16),
-                            border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(30),
-                                borderSide: const BorderSide(color: _SC.divider)),
-                            enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(30),
-                                borderSide: const BorderSide(color: _SC.divider)),
-                            focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(30),
-                                borderSide: const BorderSide(
-                                    color: _SC.primary, width: 1.5)),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // ✅ List auditor — klik langsung buka popup lokasi
-                        SizedBox(
-                          height: 220,
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            itemCount: _filteredAuditors.length,
-                            itemBuilder: (_, i) {
-                              final u = _filteredAuditors[i];
-                              // Cek apakah auditor sudah ada di assignments
-                              final alreadyAssigned = _assignments.any(
-                                  (a) => a.auditor['id_user']?.toString() ==
-                                      u['id_user']?.toString());
-                              return _AuditorTileSelectable(
-                                user: u,
-                                isAssigned: alreadyAssigned,
-                                onTap: alreadyAssigned
-                                    ? null
-                                    : () => _showLocationPickerForAuditor(u),
-                              );
-                            },
+                        // ADD AUDITOR BUTTON
+                        GestureDetector(
+                          onTap: _openAuditorPicker,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            decoration: BoxDecoration(
+                              color: _SC.primary.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: _SC.primary.withValues(alpha: 0.4),
+                                  width: 1.5),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.person_add_alt_1_rounded,
+                                    color: _SC.primary, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _t('Add Auditor', 'Tambah Auditor', '添加审计员'),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: _SC.primary),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
 
-                        // ── Waktu Notifikasi ───────────────────────────────
+                        // REMINDER TIME
                         _SectionLabel(
                           icon: Icons.notifications_active_rounded,
                           text: _t('Reminder Time', 'Waktu Pengingat', '提醒时间'),
@@ -1095,7 +704,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        // ── Notes ──────────────────────────────────────
+                        // NOTES
                         _SectionLabel(
                           icon: Icons.sticky_note_2_rounded,
                           text: _t('Notes (optional)', 'Catatan (opsional)', '备注（可选）'),
@@ -1130,7 +739,7 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
                   ),
                 ),
 
-                // ── Save Button (fixed bottom) ─────────────────────────
+                // SAVE BUTTON 
                 Container(
                   color: Colors.white,
                   padding: EdgeInsets.fromLTRB(
@@ -1173,132 +782,56 @@ class _AuditScheduleScreenState extends State<AuditScheduleScreen> {
             ),
     );
   }
-}
 
-class _Avatar extends StatelessWidget {
-  final Map<String, dynamic> user;
-  final double radius;
-  const _Avatar({required this.user, required this.radius});
-
-  @override
-  Widget build(BuildContext context) {
-    final initials = (user['nama'] as String? ?? '')
-        .trim()
-        .split(' ')
-        .take(2)
-        .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
-        .join();
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: _SC.primaryLt,
-      backgroundImage: user['gambar_user'] != null
-          ? NetworkImage(user['gambar_user'] as String)
-          : null,
-      child: user['gambar_user'] == null
-          ? Text(initials,
-              style: GoogleFonts.poppins(
-                  fontSize: radius * 0.65,
-                  fontWeight: FontWeight.w700,
-                  color: _SC.primary))
-          : null,
-    );
-  }
-}
-
-// ✅ Tile auditor untuk mode multi-select (klik buka popup lokasi)
-class _AuditorTileSelectable extends StatelessWidget {
-  final Map<String, dynamic> user;
-  final bool isAssigned;
-  final VoidCallback? onTap;
-  const _AuditorTileSelectable({
-    required this.user,
-    required this.isAssigned,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final jabatan =
-        (user['jabatan'] as Map<String, dynamic>?)?['nama_jabatan']
-            ?.toString();
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+  Widget _buildLoadingShimmer() {
+    Widget block({double height = 46, double width = double.infinity, double radius = 12}) {
+      return Container(
+        width: width,
+        height: height,
+        margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: isAssigned
-              ? const Color(0xFF10B981).withValues(alpha: 0.06)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isAssigned
-                ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                : Colors.grey.shade200,
-            width: isAssigned ? 1.5 : 1,
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(radius),
         ),
-        child: Row(
+      );
+    }
+
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade200,
+      highlightColor: Colors.grey.shade100,
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _Avatar(user: user, radius: 15),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(user['nama'] ?? '',
-                      style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isAssigned
-                              ? const Color(0xFF10B981)
-                              : _SC.textMain)),
-                  if (jabatan != null) _JabatanBadge(jabatan: jabatan),
-                ],
-              ),
+            block(height: 14, width: 100, radius: 6),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: block(height: 34, radius: 20)),
+                const SizedBox(width: 8),
+                Expanded(child: block(height: 34, radius: 20)),
+                const SizedBox(width: 8),
+                Expanded(child: block(height: 34, radius: 20)),
+              ],
             ),
-            if (isAssigned)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color:
-                      const Color(0xFF10B981).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.check_circle_rounded,
-                        size: 12, color: Color(0xFF10B981)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Assigned',
-                      style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF10B981)),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _SC.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '+ Assign',
-                  style: GoogleFonts.poppins(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: _SC.primary),
-                ),
-              ),
+            const SizedBox(height: 16),
+            block(height: 14, width: 110, radius: 6),
+            const SizedBox(height: 8),
+            block(height: 56),
+            const SizedBox(height: 16),
+            block(height: 14, width: 130, radius: 6),
+            const SizedBox(height: 8),
+            block(height: 80),
+            block(height: 80),
+            block(height: 80),
+            const SizedBox(height: 16),
+            block(height: 14, width: 120, radius: 6),
+            const SizedBox(height: 8),
+            block(height: 52),
+            const SizedBox(height: 16),
+            block(height: 60),
           ],
         ),
       ),
@@ -1375,87 +908,29 @@ class _DateField extends StatelessWidget {
   }
 }
 
-class _JabatanBadge extends StatelessWidget {
-  final String? jabatan;
-  const _JabatanBadge({required this.jabatan});
-
-  _JabatanStyle get _style {
-    final j = (jabatan ?? '').toLowerCase();
-    if (j.contains('eksekutif')) {
-      return const _JabatanStyle(Color(0xFFDC2626), Icons.workspace_premium_rounded);
-    } else if (j.contains('manager')) {
-      return const _JabatanStyle(Color(0xFF2563EB), Icons.badge_rounded);
-    } else if (j.contains('kasie')) {
-      return const _JabatanStyle(Color(0xFF7C3AED), Icons.supervisor_account_rounded);
-    } else if (j.contains('hrd')) {
-      return const _JabatanStyle(Color(0xFFF59E0B), Icons.groups_2_rounded);
-    } else if (j.contains('admin')) {
-      return const _JabatanStyle(Color(0xFF0EA5E9), Icons.admin_panel_settings_rounded);
-    }
-    return const _JabatanStyle(Color(0xFF64748B), Icons.person_rounded); // Staff / default
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (jabatan == null || jabatan!.trim().isEmpty) return const SizedBox.shrink();
-    final s = _style;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: s.color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: s.color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(s.icon, size: 10, color: s.color),
-          const SizedBox(width: 4),
-          Text(
-            jabatan!,
-            style: GoogleFonts.poppins(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: s.color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _JabatanStyle {
-  final Color color;
-  final IconData icon;
-  const _JabatanStyle(this.color, this.icon);
-}
-
 class _SectionLabel extends StatelessWidget {
   final IconData icon;
   final String text;
-  final double fontSize;
-  final FontWeight fontWeight;
   final bool isRequired;
   const _SectionLabel({
     required this.icon,
     required this.text,
-    this.fontSize = 12,
-    this.fontWeight = FontWeight.w700,
     this.isRequired = false,
   });
+
+  static const double _fontSize = 12;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: fontSize + 2, color: _SC.primary),
+        Icon(icon, size: _fontSize + 2, color: _SC.primary),
         const SizedBox(width: 6),
         Text(
           text,
           style: GoogleFonts.poppins(
-            fontSize: fontSize,
-            fontWeight: fontWeight,
+            fontSize: _fontSize,
+            fontWeight: FontWeight.w700,
             color: _SC.primary,
           ),
         ),
@@ -1464,7 +939,7 @@ class _SectionLabel extends StatelessWidget {
           Text(
             '*',
             style: GoogleFonts.poppins(
-              fontSize: fontSize,
+              fontSize: _fontSize,
               fontWeight: FontWeight.w700,
               color: _SC.red,
             ),
