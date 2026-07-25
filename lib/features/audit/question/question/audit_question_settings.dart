@@ -210,7 +210,23 @@ class _AuditQuestionManagerScreenState
           ),
 
           // AUDIT TYPE TABBAR
-          if (!_loadingJenis && _tabCtrl != null)
+          if (_loadingJenis)
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: Shimmer.fromColors(
+                baseColor: Colors.grey.shade200,
+                highlightColor: Colors.grey.shade50,
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            )
+          else if (_tabCtrl != null)
             Container(
               color: Colors.white,
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
@@ -271,26 +287,18 @@ class _AuditQuestionManagerScreenState
                   }).toList(),
                 ),
               ),
-            )
-          else if (_loadingJenis)
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-              child: Shimmer.fromColors(
-                baseColor: Colors.grey.shade200,
-                highlightColor: Colors.grey.shade50,
-                child: Container(
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
             ),
 
           // TAB BAR
-          if (!_loadingJenis && _tabCtrl != null)
+          if (_loadingJenis)
+            Expanded(
+              child: Shimmer.fromColors(
+                baseColor: Colors.grey.shade200,
+                highlightColor: Colors.grey.shade50,
+                child: _buildTabContentShimmer(),
+              ),
+            )
+          else if (_tabCtrl != null)
             Expanded(
               child: TabBarView(
                 controller: _tabCtrl,
@@ -306,6 +314,56 @@ class _AuditQuestionManagerScreenState
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTabContentShimmer() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: [
+        // THEME SETTINGS BUTTON placeholder
+        Container(
+          height: 40,
+          margin: const EdgeInsets.only(bottom: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        // SECTION CARD placeholder
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 14,
+                width: 130,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              ...List.generate(
+                3,
+                (i) => Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -638,16 +696,52 @@ class _QuestionTabViewState extends State<_QuestionTabView>
       return Shimmer.fromColors(
         baseColor: Colors.grey.shade200,
         highlightColor: Colors.grey.shade50,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: 6,
-          itemBuilder: (_, __) => Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            height: 64,
-            decoration: BoxDecoration(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            // THEME SETTINGS BUTTON placeholder
+            Container(
+              height: 40,
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12)),
-          ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            // SECTION CARD placeholder
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 14,
+                    width: 130,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  ...List.generate(
+                    3,
+                    (i) => Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -698,7 +792,7 @@ class _QuestionTabViewState extends State<_QuestionTabView>
 
     return Column(
       children: [
-        // THEME SETTINGS BUTTON — FIXED, TIDAK IKUT SCROLL
+        // THEME SETTINGS BUTTON
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
           child: GestureDetector(
@@ -717,16 +811,16 @@ class _QuestionTabViewState extends State<_QuestionTabView>
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color: _C.primaryLt,
+                color: const Color(0xFF1D72F3).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: _C.primary.withValues(alpha: 0.3)),
+                    color: const Color(0xFF1D72F3).withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.tune_rounded,
-                      color: _C.primary, size: 16),
+                  const Icon(Icons.topic_rounded,
+                      color: Color(0xFF1D72F3), size: 16),
                   const SizedBox(width: 6),
                   Text(
                       _t('Theme Settings', 'Pengaturan Tema',
@@ -734,14 +828,13 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                       style: GoogleFonts.poppins(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: _C.primary)),
+                          color: const Color(0xFF1D72F3))),
                 ],
               ),
             ),
           ),
         ),
 
-        // KONTEN SCROLLABLE
         Expanded(
           child: RefreshIndicator(
             onRefresh: _fetchAll,

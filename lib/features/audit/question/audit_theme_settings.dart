@@ -1,12 +1,14 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/translation_service.dart';
+import '../../user/home/alert/required_field_alert.dart';
+import 'audit_theme_detail.dart';
 
 class _C {
-  static const primary   = Color(0xFF6366F1);
-  static const primaryLt = Color(0xFFEDE9FE);
+  static const primary   = Color(0xFF1D72F3);
+  static const primaryLt = Color(0xFFE3EFFE);
   static const red       = Color(0xFFEF4444);
   static const textMain  = Color(0xFF1E3A8A);
   static const textSub   = Color(0xFF64748B);
@@ -34,7 +36,10 @@ class AuditThemeSettingsScreen extends StatefulWidget {
 class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _temas = [];
+  String _jenisAuditLabel = '-';
   bool _loading = true;
+  int _temaPage = 1;
+  static const int _temasPerPage = 10;
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -51,60 +56,49 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchTemas();
+    _fetchAll();
   }
 
-  Future<void> _fetchTemas() async {
+  Future<void> _fetchAll() async {
     setState(() => _loading = true);
     try {
-      final rows = await _supabase
-          .from('audit_tema')
-          .select()
-          .eq('id_jenis_audit', widget.idJenisAudit)
-          .order('urutan', ascending: true);
+      final results = await Future.wait([
+        _supabase
+            .from('audit_tema')
+            .select()
+            .eq('id_jenis_audit', widget.idJenisAudit)
+            .order('urutan', ascending: true),
+        _supabase
+            .from('jenis_audit')
+            .select()
+            .eq('id_jenis_audit', widget.idJenisAudit)
+            .maybeSingle(),
+      ]);
       if (mounted) {
+        final list = List<Map<String, dynamic>>.from(results[0] as List);
+        list.sort((a, b) => ((a['urutan'] as num?) ?? 0)
+            .compareTo((b['urutan'] as num?) ?? 0));
+
+        final jenisRow = results[1] as Map<String, dynamic>?;
+        String label = _jenisAuditLabel;
+        if (jenisRow != null) {
+          label = widget.lang == 'EN'
+              ? (jenisRow['nama_en']?.toString() ?? '-')
+              : widget.lang == 'ZH'
+                  ? (jenisRow['nama_zh']?.toString() ?? '-')
+                  : (jenisRow['nama_id']?.toString() ?? '-');
+        }
+
         setState(() {
-          _temas = List<Map<String, dynamic>>.from(rows);
+          _temas = list;
+          _jenisAuditLabel = label;
           _loading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error fetch temas: $e');
+      debugPrint('Error fetch theme settings data: $e');
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  Future<String> _translateText(String text, String langPair) async {
-    if (text.trim().isEmpty) return text;
-    try {
-      final normalized = langPair
-          .replaceAll('|zh', '|zh-CN')
-          .replaceAll('zh|', 'zh-CN|');
-      final uri = Uri.parse(
-        'https://api.mymemory.translated.net/get'
-        '?q=${Uri.encodeComponent(text)}&langpair=$normalized',
-      );
-      final res = await http.get(uri).timeout(const Duration(seconds: 20));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final t = data['responseData']?['translatedText']?.toString() ?? '';
-        if (t.isEmpty ||
-            t.toUpperCase().startsWith('MYMEMORY WARNING') ||
-            t.toUpperCase().startsWith('PLEASE')) { return text; }
-        return t;
-      }
-      return text;
-    } catch (_) {
-      return text;
-    }
-  }
-
-  Future<Map<String, String>> _translateAll(String text) async {
-    final results = await Future.wait([
-      _translateText(text, 'id|en'),
-      _translateText(text, 'id|zh'),
-    ]);
-    return {'id': text, 'en': results[0], 'zh': results[1]};
   }
 
   void _showSuccessPopup({
@@ -224,12 +218,11 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
         text: existing != null
             ? existing['nama_tema_id']?.toString() ?? ''
             : '');
-    bool isTranslating = false;
     final isEdit = existing != null;
 
     await showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => Dialog(
           backgroundColor: Colors.white,
@@ -263,6 +256,16 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
                           color: _C.textMain),
                     ),
                   ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                          color: Colors.grey.shade100, shape: BoxShape.circle),
+                      child: Icon(Icons.close,
+                          size: 16, color: Colors.grey.shade500),
+                    ),
+                  ),
                 ]),
                 const SizedBox(height: 6),
                 Text(
@@ -271,17 +274,27 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
                     'Nama akan diterjemahkan otomatis ke ID / EN / ZH.',
                     '名称将自动翻译为 ID / EN / ZH。',
                   ),
-                  style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub),
+                  style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: _C.textSub),
                 ),
                 const SizedBox(height: 18),
-                Text(
-                  _t('Theme Name (Indonesian)', 'Nama Tema (Indonesia)',
-                      '主题名称（印尼语）'),
-                  style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _C.textSub),
-                ),
+                Row(children: [
+                  const Icon(Icons.edit_note_rounded,
+                      size: 14, color: _C.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    _t('Theme Name (Indonesian)', 'Nama Tema (Indonesia)',
+                        '主题名称（印尼语）'),
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _C.primary),
+                  ),
+                  Text(' *',
+                      style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _C.red)),
+                ]),
                 const SizedBox(height: 6),
                 TextField(
                   controller: ctrl,
@@ -316,8 +329,7 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
                 Row(children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed:
-                          isTranslating ? null : () => Navigator.pop(ctx),
+                      onPressed: () => Navigator.pop(ctx),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: _C.divider),
                         shape: RoundedRectangleBorder(
@@ -336,69 +348,102 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: isTranslating
-                          ? null
-                          : () async {
-                              final text = ctrl.text.trim();
-                              if (text.isEmpty) return;
-                              setDlg(() => isTranslating = true);
-                              try {
-                                final isDup = _temas.any((tm) =>
-                                    (tm['nama_tema_id']?.toString().trim().toLowerCase() ?? '') ==
-                                        text.toLowerCase() &&
-                                    (!isEdit || tm['id_tema'] != existing['id_tema']));
-                                if (isDup) {
-                                  setDlg(() => isTranslating = false);
-                                  _showSuccessPopup(
-                                    isSuccess: false,
-                                    titleEn: 'Duplicate Theme',
-                                    titleId: 'Tema Duplikat',
-                                    titleZh: '主题重复',
-                                    msgEn: 'This theme name already exists in this audit type.',
-                                    msgId: 'Nama tema ini sudah ada pada jenis audit ini.',
-                                    msgZh: '该审计类型中已存在此主题名称。',
-                                  );
-                                  return;
-                                }
-                                final t = await _translateAll(text);
-                                if (isEdit) {
-                                  await _supabase.from('audit_tema').update({
-                                    'nama_tema_id': t['id'],
-                                    'nama_tema_en': t['en'],
-                                    'nama_tema_zh': t['zh'],
-                                  }).eq('id_tema', existing['id_tema']);
-                                } else {
-                                  await _supabase.from('audit_tema').insert({
-                                    'id_jenis_audit': widget.idJenisAudit,
-                                    'nama_tema_id': t['id'],
-                                    'nama_tema_en': t['en'],
-                                    'nama_tema_zh': t['zh'],
-                                    'urutan': _temas.length + 1,
-                                  });
-                                }
-                                if (ctx.mounted) Navigator.pop(ctx);
-                                await _fetchTemas();
-                                widget.onChanged();
-                                _showSuccessPopup(
-                                  isSuccess: true,
-                                  titleEn: isEdit ? 'Theme Updated!' : 'Theme Added!',
-                                  titleId: isEdit ? 'Tema Diperbarui!' : 'Tema Ditambahkan!',
-                                  titleZh: isEdit ? '主题已更新！' : '主题已添加！',
-                                  msgEn: isEdit
-                                      ? 'Theme has been updated successfully.'
-                                      : 'New theme has been saved successfully.',
-                                  msgId: isEdit
-                                      ? 'Tema berhasil diperbarui.'
-                                      : 'Tema baru berhasil disimpan.',
-                                  msgZh: isEdit ? '主题已成功更新。' : '新主题已成功保存。',
-                                );
-                              } catch (e) {
-                                debugPrint('Error save tema: $e');
-                                if (ctx.mounted) {
-                                  setDlg(() => isTranslating = false);
-                                }
-                              }
-                            },
+                      onPressed: () async {
+                        final text = ctrl.text.trim();
+
+                        if (text.isEmpty) {
+                          RequiredFieldAlert.show(
+                            context,
+                            lang: widget.lang,
+                            missingFields: [
+                              MissingFieldItem(
+                                icon: Icons.edit_note_rounded,
+                                label: _t('Theme Name', 'Nama Tema', '主题名称'),
+                              ),
+                            ],
+                          );
+                          return;
+                        }
+
+                        final isDup = _temas.any((tm) =>
+                            (tm['nama_tema_id']?.toString().trim().toLowerCase() ?? '') ==
+                                text.toLowerCase() &&
+                            (!isEdit || tm['id_tema'] != existing['id_tema']));
+                        if (isDup) {
+                          Navigator.pop(ctx);
+                          _showSuccessPopup(
+                            isSuccess: false,
+                            titleEn: 'Duplicate Theme',
+                            titleId: 'Tema Duplikat',
+                            titleZh: '主题重复',
+                            msgEn:
+                                'This theme name already exists in this audit type.',
+                            msgId: 'Nama tema ini sudah ada pada jenis audit ini.',
+                            msgZh: '该审计类型中已存在此主题名称。',
+                          );
+                          return;
+                        }
+
+                        Navigator.pop(ctx);
+
+                        if (context.mounted) {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => _TranslatingThemeDialog(
+                                color: _C.primary, lang: widget.lang),
+                          );
+                        }
+
+                        Map<String, String> t;
+                        try {
+                          t = await TranslationHelper.instance
+                              .translateDescriptionAllLangs(text, 'ID');
+                        } catch (e) {
+                          debugPrint('Error translating tema: $e');
+                          t = {'id': text, 'en': text, 'zh': text};
+                        }
+
+                        if (context.mounted) {
+                          Navigator.of(context, rootNavigator: true).pop();
+                        }
+
+                        try {
+                          if (isEdit) {
+                            await _supabase.from('audit_tema').update({
+                              'nama_tema_id': t['id'],
+                              'nama_tema_en': t['en'],
+                              'nama_tema_zh': t['zh'],
+                            }).eq('id_tema', existing['id_tema']);
+                          } else {
+                            await _supabase.from('audit_tema').insert({
+                              'id_jenis_audit': widget.idJenisAudit,
+                              'nama_tema_id': t['id'],
+                              'nama_tema_en': t['en'],
+                              'nama_tema_zh': t['zh'],
+                              'urutan': _temas.length + 1,
+                            });
+                          }
+                          await _fetchAll();
+                          widget.onChanged();
+                          _showSuccessPopup(
+                            isSuccess: true,
+                            titleEn: isEdit ? 'Theme Updated!' : 'Theme Added!',
+                            titleId:
+                                isEdit ? 'Tema Diperbarui!' : 'Tema Ditambahkan!',
+                            titleZh: isEdit ? '主题已更新！' : '主题已添加！',
+                            msgEn: isEdit
+                                ? 'Theme has been updated successfully.'
+                                : 'New theme has been saved successfully.',
+                            msgId: isEdit
+                                ? 'Tema berhasil diperbarui.'
+                                : 'Tema baru berhasil disimpan.',
+                            msgZh: isEdit ? '主题已成功更新。' : '新主题已成功保存。',
+                          );
+                        } catch (e) {
+                          debugPrint('Error save tema: $e');
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _C.primary,
                         foregroundColor: Colors.white,
@@ -407,33 +452,13 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
                             borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                       ),
-                      child: isTranslating
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _t('Saving...', 'Menyimpan...', '保存中...'),
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white),
-                                ),
-                              ],
-                            )
-                          : Text(
-                              _t('Save', 'Simpan', '保存'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white),
-                            ),
+                      child: Text(
+                        _t('Save', 'Simpan', '保存'),
+                        style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white),
+                      ),
                     ),
                   ),
                 ]),
@@ -551,7 +576,7 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
           .from('audit_tema')
           .delete()
           .eq('id_tema', item['id_tema']);
-      await _fetchTemas();
+      await _fetchAll();
       widget.onChanged();
       _showSuccessPopup(
         isSuccess: true,
@@ -574,9 +599,10 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: _C.textMain, size: 20),
+              color: _C.primary, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -584,7 +610,7 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
           style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: _C.textMain),
+              color: _C.primary),
         ),
       ),
       body: Column(
@@ -642,6 +668,7 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
                               '点击以添加新主题'),
                           style: GoogleFonts.poppins(
                               fontSize: 10,
+                              fontWeight: FontWeight.w600,
                               color: Colors.white.withValues(alpha: 0.82)),
                         ),
                       ],
@@ -654,15 +681,35 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
             ),
           ),
 
-          // COUNT
+          // COUNT BADGE
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '${_temas.length} ${_t('themes', 'tema', '个主题')}',
-                style: GoogleFonts.poppins(
-                    fontSize: 11, color: Colors.black38),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _C.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border:
+                      Border.all(color: _C.primary.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.list_alt_rounded,
+                        size: 13, color: _C.primary),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${_temas.length} ${_t('themes', 'tema', '个主题')}',
+                      style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _C.primary),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -670,140 +717,414 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
           // LIST
           Expanded(
             child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: _C.primary, strokeWidth: 2))
-                : _temas.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.folder_open_outlined,
-                                size: 52, color: Colors.grey.shade300),
-                            const SizedBox(height: 10),
-                            Text(
-                              _t('No themes yet.', 'Belum ada tema.',
-                                  '暂无主题。'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 13, color: _C.textSub),
-                            ),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _fetchTemas,
-                        color: _C.primary,
-                        child: ListView.separated(
-                          padding:
-                              const EdgeInsets.fromLTRB(16, 4, 16, 32),
-                          itemCount: _temas.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 8),
-                          itemBuilder: (_, i) {
-                            final item = _temas[i];
-                            return Container(
-                              padding: const EdgeInsets.fromLTRB(
-                                  14, 12, 10, 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: _C.divider),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black
-                                        .withValues(alpha: 0.03),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: _C.primaryLt,
-                                    borderRadius:
-                                        BorderRadius.circular(10),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${item['urutan'] ?? i + 1}',
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          color: _C.primary),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _temaLabel(item),
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w700,
-                                            color: _C.textMain),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'ID: ${item['nama_tema_id'] ?? '-'}  •  EN: ${item['nama_tema_en'] ?? '-'}',
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 10,
-                                            color: _C.textSub),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // EDIT
-                                GestureDetector(
-                                  onTap: () =>
-                                      _showFormDialog(existing: item),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: _C.primary
-                                          .withValues(alpha: 0.09),
-                                      borderRadius:
-                                          BorderRadius.circular(9),
-                                    ),
-                                    child: const Icon(
-                                        Icons.edit_outlined,
-                                        color: _C.primary,
-                                        size: 15),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                // DELETE
-                                GestureDetector(
-                                  onTap: () => _confirmDelete(item),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: _C.red
-                                          .withValues(alpha: 0.09),
-                                      borderRadius:
-                                          BorderRadius.circular(9),
-                                    ),
-                                    child: const Icon(
-                                        Icons.delete_outline_rounded,
-                                        color: _C.red,
-                                        size: 15),
-                                  ),
-                                ),
-                              ]),
-                            );
-                          },
+                ? Shimmer.fromColors(
+                    baseColor: Colors.grey.shade200,
+                    highlightColor: Colors.grey.shade50,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                      itemCount: 6,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, __) => Container(
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
+                    ),
+                  )
+                : _buildThemeList(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildThemeList() {
+    if (_temas.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.folder_open_outlined,
+                size: 52, color: Colors.grey.shade300),
+            const SizedBox(height: 10),
+            Text(
+              _t('No themes yet.', 'Belum ada tema.', '暂无主题。'),
+              style: GoogleFonts.poppins(fontSize: 13, color: _C.textSub),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final int totalPages = (_temas.length / _temasPerPage).ceil();
+    int page = _temaPage;
+    if (page > totalPages) page = totalPages;
+    if (page < 1) page = 1;
+
+    final int start = (page - 1) * _temasPerPage;
+    final int end = (start + _temasPerPage).clamp(0, _temas.length);
+    final List<Map<String, dynamic>> pagedTemas = _temas.sublist(start, end);
+
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _fetchAll,
+            color: _C.primary,
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              itemCount: pagedTemas.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, i) {
+                final item = pagedTemas[i];
+                return GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AuditThemeDetailScreen(
+                        lang: widget.lang,
+                        item: item,
+                        jenisAuditLabel: _jenisAuditLabel,
+                        onEdit: (it) => _showFormDialog(existing: it),
+                        onDelete: (it) => _confirmDelete(it),
+                      ),
+                    ),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: _C.divider),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: _C.primaryLt,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${item['urutan'] ?? start + i + 1}',
+                            style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: _C.primary),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _temaLabel(item),
+                          style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black),
+                        ),
+                      ),
+                      // EDIT
+                      GestureDetector(
+                        onTap: () => _showFormDialog(existing: item),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _C.primary.withValues(alpha: 0.09),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const Icon(Icons.edit_outlined,
+                              color: _C.primary, size: 15),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // DELETE
+                      GestureDetector(
+                        onTap: () => _confirmDelete(item),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _C.red.withValues(alpha: 0.09),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const Icon(Icons.delete_outline_rounded,
+                              color: _C.red, size: 15),
+                        ),
+                      ),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        if (totalPages > 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: _ThemeBottomIndicator(
+              currentPage: page,
+              totalPages: totalPages,
+              color: _C.primary,
+              onPageChanged: (p) => setState(() => _temaPage = p),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _TranslatingThemeDialog extends StatefulWidget {
+  final Color color;
+  final String lang;
+  const _TranslatingThemeDialog({required this.color, required this.lang});
+
+  @override
+  State<_TranslatingThemeDialog> createState() =>
+      _TranslatingThemeDialogState();
+}
+
+class _TranslatingThemeDialogState extends State<_TranslatingThemeDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String get _title {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Translating...';
+      case 'ZH':
+        return '翻译中...';
+      default:
+        return 'Menerjemahkan...';
+    }
+  }
+
+  String get _subtitle {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Converting to Indonesian, English & Mandarin';
+      case 'ZH':
+        return '正在转换为印尼语、英语和中文';
+      default:
+        return 'Mengubah ke Bahasa Indonesia, Inggris & Mandarin';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                final scale = 0.90 + (_controller.value * 0.12);
+                return Transform.scale(scale: scale, child: child);
+              },
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [widget.color, widget.color.withValues(alpha: 0.6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.color.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.translate_rounded,
+                    color: Colors.white, size: 30),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              _title,
+              style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E293B)),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _subtitle,
+              style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF64748B),
+                  height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 22),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: SizedBox(
+                width: 150,
+                height: 6,
+                child: LinearProgressIndicator(
+                  backgroundColor: widget.color.withValues(alpha: 0.12),
+                  valueColor: AlwaysStoppedAnimation<Color>(widget.color),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeBottomIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final Color color;
+  final ValueChanged<int> onPageChanged;
+
+  const _ThemeBottomIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.color,
+    required this.onPageChanged,
+  });
+
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _arrow(Icons.arrow_back_ios_new_rounded, canPrev, () {
+            if (canPrev) onPageChanged(currentPage - 1);
+          }),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Row(
+              children: [
+                for (final p in pageNumbers) ...[
+                  Expanded(child: _pageButton(p)),
+                  if (p != pageNumbers.last) const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _arrow(Icons.arrow_forward_ios_rounded, canNext, () {
+            if (canNext) onPageChanged(currentPage + 1);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _pageButton(int page) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page != currentPage) onPageChanged(page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? color : color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border:
+              isActive ? null : Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(
+            color: isActive ? Colors.white : color,
+            fontWeight: FontWeight.w800,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _arrow(IconData icon, bool enabled, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 15, color: enabled ? color : Colors.grey.shade400),
       ),
     );
   }
