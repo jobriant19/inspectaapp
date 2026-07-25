@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/translation_service.dart';
 import '../../../user/home/alert/required_field_alert.dart';
-import '../audit_theme_settings.dart';
+import '../theme/audit_theme_settings.dart';
 
 class _C {
   static const primary   = Color(0xFF6366F1);
