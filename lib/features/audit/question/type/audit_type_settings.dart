@@ -1,13 +1,15 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/services/translation_service.dart';
+import '../../../user/home/alert/required_field_alert.dart';
+import 'audit_type_detail.dart';
 
 class _C {
   static const primary   = Color(0xFF6366F1);
   static const primaryLt = Color(0xFFEDE9FE);
   static const red       = Color(0xFFEF4444);
+  static const blue      = Color(0xFF2563EB);
   static const textMain  = Color(0xFF1E3A8A);
   static const textSub   = Color(0xFF64748B);
   static const divider   = Color(0xFFE2E8F0);
@@ -72,39 +74,6 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
       debugPrint('Reload jenis_audit error: $e');
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  Future<String> _translateText(String text, String langPair) async {
-    if (text.trim().isEmpty) return text;
-    try {
-      final normalized = langPair
-          .replaceAll('|zh', '|zh-CN')
-          .replaceAll('zh|', 'zh-CN|');
-      final uri = Uri.parse(
-        'https://api.mymemory.translated.net/get'
-        '?q=${Uri.encodeComponent(text)}&langpair=$normalized',
-      );
-      final res = await http.get(uri).timeout(const Duration(seconds: 20));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final t = data['responseData']?['translatedText']?.toString() ?? '';
-        if (t.isEmpty ||
-            t.toUpperCase().startsWith('MYMEMORY WARNING') ||
-            t.toUpperCase().startsWith('PLEASE')) { return text; }
-        return t;
-      }
-      return text;
-    } catch (_) {
-      return text;
-    }
-  }
-
-  Future<Map<String, String>> _translateAll(String text) async {
-    final results = await Future.wait([
-      _translateText(text, 'id|en'),
-      _translateText(text, 'id|zh'),
-    ]);
-    return {'id': text, 'en': results[0], 'zh': results[1]};
   }
 
   void _showSuccessPopup({
@@ -222,12 +191,11 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
   Future<void> _showFormDialog({Map<String, dynamic>? existing}) async {
     final ctrl = TextEditingController(
         text: existing != null ? existing['nama_id']?.toString() ?? '' : '');
-    bool isTranslating = false;
     final isEdit = existing != null;
 
     await showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => Dialog(
           backgroundColor: Colors.white,
@@ -258,7 +226,17 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                       style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: _C.textMain),
+                          color: _C.primary),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                          color: Colors.grey.shade100, shape: BoxShape.circle),
+                      child: Icon(Icons.close,
+                          size: 16, color: Colors.grey.shade500),
                     ),
                   ),
                 ]),
@@ -269,17 +247,27 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                     'Nama akan diterjemahkan otomatis ke ID / EN / ZH.',
                     '名称将自动翻译为 ID / EN / ZH。',
                   ),
-                  style: GoogleFonts.poppins(fontSize: 11, color: _C.textSub),
+                  style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: _C.textSub),
                 ),
                 const SizedBox(height: 18),
-                Text(
-                  _t('Audit Type Name (Indonesian)',
-                      'Nama Jenis Audit (Indonesia)', '审计类型名称（印尼语）'),
-                  style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _C.textSub),
-                ),
+                Row(children: [
+                  const Icon(Icons.edit_note_rounded,
+                      size: 14, color: _C.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    _t('Audit Type Name (Indonesian)',
+                        'Nama Jenis Audit (Indonesia)', '审计类型名称（印尼语）'),
+                    style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: _C.primary),
+                  ),
+                  Text(' *',
+                      style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _C.red)),
+                ]),
                 const SizedBox(height: 6),
                 TextField(
                   controller: ctrl,
@@ -314,8 +302,7 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                 Row(children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed:
-                          isTranslating ? null : () => Navigator.pop(ctx),
+                      onPressed: () => Navigator.pop(ctx),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: _C.divider),
                         shape: RoundedRectangleBorder(
@@ -334,79 +321,110 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: isTranslating
-                          ? null
-                          : () async {
-                              final text = ctrl.text.trim();
-                              if (text.isEmpty) return;
-                              setDlg(() => isTranslating = true);
-                              try {
-                                final isDup = _list.any((j) =>
-                                    (j['nama_id']?.toString().trim().toLowerCase() ?? '') ==
-                                        text.toLowerCase() &&
-                                    (!isEdit || j['id_jenis_audit'] != existing['id_jenis_audit']));
-                                if (isDup) {
-                                  setDlg(() => isTranslating = false);
-                                  _showSuccessPopup(
-                                    isSuccess: false,
-                                    titleEn: 'Duplicate Name',
-                                    titleId: 'Nama Duplikat',
-                                    titleZh: '名称重复',
-                                    msgEn: 'This audit type name already exists.',
-                                    msgId: 'Nama jenis audit ini sudah ada.',
-                                    msgZh: '该审计类型名称已存在。',
-                                  );
-                                  return;
-                                }
-                                final t = await _translateAll(text);
-                                if (isEdit) {
-                                  await _supabase
-                                      .from('jenis_audit')
-                                      .update({
-                                    'nama_id': t['id'],
-                                    'nama_en': t['en'],
-                                    'nama_zh': t['zh'],
-                                  }).eq('id_jenis_audit',
-                                          existing['id_jenis_audit']);
-                                } else {
-                                  final kodeRaw =
-                                      text.toLowerCase().replaceAll(' ', '_');
-                                  final kode = kodeRaw.length > 18
-                                      ? kodeRaw.substring(0, 18)
-                                      : kodeRaw;
-                                  await _supabase.from('jenis_audit').insert({
-                                    'kode': kode,
-                                    'nama_id': t['id'],
-                                    'nama_en': t['en'],
-                                    'nama_zh': t['zh'],
-                                    'urutan': _list.length + 1,
-                                  });
-                                }
-                                if (ctx.mounted) Navigator.pop(ctx);
-                                await _reload();
-                                widget.onChanged();
-                                _showSuccessPopup(
-                                  isSuccess: true,
-                                  titleEn: isEdit ? 'Updated!' : 'Saved!',
-                                  titleId:
-                                      isEdit ? 'Diperbarui!' : 'Tersimpan!',
-                                  titleZh: isEdit ? '已更新！' : '已保存！',
-                                  msgEn: isEdit
-                                      ? 'Audit type has been updated successfully.'
-                                      : 'Audit type has been added successfully.',
-                                  msgId: isEdit
-                                      ? 'Jenis audit berhasil diperbarui.'
-                                      : 'Jenis audit berhasil ditambahkan.',
-                                  msgZh:
-                                      isEdit ? '审计类型已成功更新。' : '审计类型已成功添加。',
-                                );
-                              } catch (e) {
-                                debugPrint('Error save jenis_audit: $e');
-                                if (ctx.mounted) {
-                                  setDlg(() => isTranslating = false);
-                                }
-                              }
-                            },
+                      onPressed: () async {
+                        final text = ctrl.text.trim();
+
+                        if (text.isEmpty) {
+                          RequiredFieldAlert.show(
+                            context,
+                            lang: widget.lang,
+                            missingFields: [
+                              MissingFieldItem(
+                                icon: Icons.edit_note_rounded,
+                                label: _t('Audit Type Name',
+                                    'Nama Jenis Audit', '审计类型名称'),
+                              ),
+                            ],
+                          );
+                          return;
+                        }
+
+                        final isDup = _list.any((j) =>
+                            (j['nama_id']?.toString().trim().toLowerCase() ?? '') ==
+                                text.toLowerCase() &&
+                            (!isEdit ||
+                                j['id_jenis_audit'] !=
+                                    existing['id_jenis_audit']));
+                        if (isDup) {
+                          Navigator.pop(ctx);
+                          _showSuccessPopup(
+                            isSuccess: false,
+                            titleEn: 'Duplicate Name',
+                            titleId: 'Nama Duplikat',
+                            titleZh: '名称重复',
+                            msgEn: 'This audit type name already exists.',
+                            msgId: 'Nama jenis audit ini sudah ada.',
+                            msgZh: '该审计类型名称已存在。',
+                          );
+                          return;
+                        }
+
+                        Navigator.pop(ctx);
+
+                        if (context.mounted) {
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (_) => _TranslatingTypeDialog(
+                                color: _C.primary, lang: widget.lang),
+                          );
+                        }
+
+                        Map<String, String> t;
+                        try {
+                          t = await TranslationHelper.instance
+                              .translateDescriptionAllLangs(text, 'ID');
+                        } catch (e) {
+                          debugPrint('Error translating jenis_audit: $e');
+                          t = {'id': text, 'en': text, 'zh': text};
+                        }
+
+                        if (context.mounted) {
+                          Navigator.of(context, rootNavigator: true).pop();
+                        }
+
+                        try {
+                          if (isEdit) {
+                            await _supabase.from('jenis_audit').update({
+                              'nama_id': t['id'],
+                              'nama_en': t['en'],
+                              'nama_zh': t['zh'],
+                            }).eq('id_jenis_audit',
+                                    existing['id_jenis_audit']);
+                          } else {
+                            final kodeRaw =
+                                text.toLowerCase().replaceAll(' ', '_');
+                            final kode = kodeRaw.length > 18
+                                ? kodeRaw.substring(0, 18)
+                                : kodeRaw;
+                            await _supabase.from('jenis_audit').insert({
+                              'kode': kode,
+                              'nama_id': t['id'],
+                              'nama_en': t['en'],
+                              'nama_zh': t['zh'],
+                              'urutan': _list.length + 1,
+                            });
+                          }
+                          await _reload();
+                          widget.onChanged();
+                          _showSuccessPopup(
+                            isSuccess: true,
+                            titleEn: isEdit ? 'Updated!' : 'Saved!',
+                            titleId: isEdit ? 'Diperbarui!' : 'Tersimpan!',
+                            titleZh: isEdit ? '已更新！' : '已保存！',
+                            msgEn: isEdit
+                                ? 'Audit type has been updated successfully.'
+                                : 'Audit type has been added successfully.',
+                            msgId: isEdit
+                                ? 'Jenis audit berhasil diperbarui.'
+                                : 'Jenis audit berhasil ditambahkan.',
+                            msgZh:
+                                isEdit ? '审计类型已成功更新。' : '审计类型已成功添加。',
+                          );
+                        } catch (e) {
+                          debugPrint('Error save jenis_audit: $e');
+                        }
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _C.primary,
                         foregroundColor: Colors.white,
@@ -415,33 +433,13 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                             borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                       ),
-                      child: isTranslating
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _t('Saving...', 'Menyimpan...', '保存中...'),
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white),
-                                ),
-                              ],
-                            )
-                          : Text(
-                              _t('Save', 'Simpan', '保存'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white),
-                            ),
+                      child: Text(
+                        _t('Save', 'Simpan', '保存'),
+                        style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white),
+                      ),
                     ),
                   ),
                 ]),
@@ -583,8 +581,8 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
             (j['nama_zh'] ?? '').toString().toLowerCase().contains(q);
       }).toList();
     }
-    result.sort((a, b) =>
-        (a['urutan'] as int? ?? 0).compareTo(b['urutan'] as int? ?? 0));
+    result.sort((a, b) => ((a['urutan'] as num?) ?? 0)
+        .compareTo((b['urutan'] as num?) ?? 0));
     return result;
   }
 
@@ -598,7 +596,7 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: _C.textMain, size: 20),
+              color: _C.primary, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -606,7 +604,7 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
           style: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: _C.textMain),
+              color: _C.primary),
         ),
       ),
       body: Column(
@@ -668,6 +666,7 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                               '点击以添加新审计类型'),
                           style: GoogleFonts.poppins(
                               fontSize: 10,
+                              fontWeight: FontWeight.w600,
                               color: Colors.white.withValues(alpha: 0.82)),
                         ),
                       ],
@@ -693,9 +692,11 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
               ),
               child: TextField(
                 onChanged: (v) => setState(() => _search = v),
+                textAlignVertical: TextAlignVertical.center,
                 style:
                     GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
                 decoration: InputDecoration(
+                  isDense: true,
                   hintText: _t('Search audit type...', 'Cari jenis audit...',
                       '搜索审计类型...'),
                   hintStyle: GoogleFonts.poppins(
@@ -703,21 +704,42 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                   prefixIcon: const Icon(Icons.search_rounded,
                       color: Colors.black38, size: 18),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 11),
                 ),
               ),
             ),
           ),
 
-          // COUNT
+          // COUNT BADGE
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                '${_filtered.length} ${_t('types', 'jenis audit', '个审计类型')}',
-                style: GoogleFonts.poppins(
-                    fontSize: 11, color: Colors.black38),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _C.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border:
+                      Border.all(color: _C.primary.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.fact_check_outlined,
+                        size: 13, color: _C.primary),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${_filtered.length} ${_t('types', 'jenis audit', '个审计类型')}',
+                      style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _C.primary),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -730,19 +752,44 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                         color: _C.primary, strokeWidth: 2))
                 : _filtered.isEmpty
                     ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.fact_check_outlined,
-                                size: 52, color: Colors.grey.shade300),
-                            const SizedBox(height: 10),
-                            Text(
-                              _t('No audit types found.',
-                                  'Belum ada jenis audit.', '暂无审计类型。'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 13, color: _C.textSub),
-                            ),
-                          ],
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Image.asset(
+                                'assets/images/team_illustration.png',
+                                height: 140,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.fact_check_outlined,
+                                  size: 80,
+                                  color: _C.primary.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _t('No audit types found.',
+                                    'Belum ada jenis audit.', '暂无审计类型。'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: _C.primary),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _t(
+                                  'Tap "Add Audit Type" above to get started.',
+                                  'Ketuk "Tambah Jenis Audit" di atas untuk memulai.',
+                                  '点击上方"添加审计类型"开始使用。',
+                                ),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, color: _C.textSub),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     : RefreshIndicator(
@@ -756,103 +803,232 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                               const SizedBox(height: 8),
                           itemBuilder: (_, i) {
                             final item = _filtered[i];
-                            return Container(
-                              padding: const EdgeInsets.fromLTRB(
-                                  14, 12, 10, 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: _C.divider),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color:
-                                        Colors.black.withValues(alpha: 0.03),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: _C.primaryLt,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${item['urutan'] ?? i + 1}',
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          color: _C.primary),
-                                    ),
+                            return GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AuditTypeDetailScreen(
+                                    lang: widget.lang,
+                                    item: item,
+                                    onEdit: (it) =>
+                                        _showFormDialog(existing: it),
+                                    onDelete: (it) => _confirmDelete(it),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _label(item),
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.fromLTRB(
+                                    14, 12, 10, 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: _C.divider),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color:
+                                          Colors.black.withValues(alpha: 0.03),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: _C.primaryLt,
+                                      borderRadius:
+                                          BorderRadius.circular(10),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${item['urutan'] ?? i + 1}',
                                         style: GoogleFonts.poppins(
                                             fontSize: 13,
-                                            fontWeight: FontWeight.w700,
-                                            color: _C.textMain),
+                                            fontWeight: FontWeight.w800,
+                                            color: _C.primary),
                                       ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'ID: ${item['nama_id'] ?? '-'}  •  EN: ${item['nama_en'] ?? '-'}',
-                                        style: GoogleFonts.poppins(
-                                            fontSize: 10, color: _C.textSub),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      _label(item),
+                                      style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.black),
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () =>
+                                        _showFormDialog(existing: item),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: _C.blue
+                                            .withValues(alpha: 0.09),
+                                        borderRadius:
+                                            BorderRadius.circular(9),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                                GestureDetector(
-                                  onTap: () =>
-                                      _showFormDialog(existing: item),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: _C.primary
-                                          .withValues(alpha: 0.09),
-                                      borderRadius:
-                                          BorderRadius.circular(9),
+                                      child: const Icon(Icons.edit_outlined,
+                                          color: _C.blue, size: 15),
                                     ),
-                                    child: const Icon(Icons.edit_outlined,
-                                        color: _C.primary, size: 15),
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                GestureDetector(
-                                  onTap: () => _confirmDelete(item),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          _C.red.withValues(alpha: 0.09),
-                                      borderRadius:
-                                          BorderRadius.circular(9),
+                                  const SizedBox(width: 6),
+                                  GestureDetector(
+                                    onTap: () => _confirmDelete(item),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            _C.red.withValues(alpha: 0.09),
+                                        borderRadius:
+                                            BorderRadius.circular(9),
+                                      ),
+                                      child: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          color: _C.red,
+                                          size: 15),
                                     ),
-                                    child: const Icon(
-                                        Icons.delete_outline_rounded,
-                                        color: _C.red,
-                                        size: 15),
                                   ),
-                                ),
-                              ]),
+                                ]),
+                              ),
                             );
                           },
                         ),
                       ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TranslatingTypeDialog extends StatefulWidget {
+  final Color color;
+  final String lang;
+  const _TranslatingTypeDialog({required this.color, required this.lang});
+
+  @override
+  State<_TranslatingTypeDialog> createState() =>
+      _TranslatingTypeDialogState();
+}
+
+class _TranslatingTypeDialogState extends State<_TranslatingTypeDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String get _title {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Translating...';
+      case 'ZH':
+        return '翻译中...';
+      default:
+        return 'Menerjemahkan...';
+    }
+  }
+
+  String get _subtitle {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Converting to Indonesian, English & Mandarin';
+      case 'ZH':
+        return '正在转换为印尼语、英语和中文';
+      default:
+        return 'Mengubah ke Bahasa Indonesia, Inggris & Mandarin';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                final scale = 0.90 + (_controller.value * 0.12);
+                return Transform.scale(scale: scale, child: child);
+              },
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [widget.color, widget.color.withValues(alpha: 0.6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.color.withValues(alpha: 0.35),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.translate_rounded,
+                    color: Colors.white, size: 30),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              _title,
+              style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E293B)),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _subtitle,
+              style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF64748B),
+                  height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 22),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: SizedBox(
+                width: 150,
+                height: 6,
+                child: LinearProgressIndicator(
+                  backgroundColor: widget.color.withValues(alpha: 0.12),
+                  valueColor: AlwaysStoppedAnimation<Color>(widget.color),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

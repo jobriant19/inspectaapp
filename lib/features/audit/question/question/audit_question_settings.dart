@@ -171,7 +171,7 @@ class _AuditQuestionManagerScreenState
                       color: Colors.white.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.tune_rounded,
+                    child: const Icon(Icons.fact_check_outlined,
                         color: Colors.white, size: 18),
                   ),
                   const SizedBox(width: 10),
