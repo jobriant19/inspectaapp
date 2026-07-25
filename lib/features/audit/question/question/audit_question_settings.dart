@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'audit_bottom_indicator.dart';
+import '../audit_bottom_indicator.dart';
 import 'audit_question_detail.dart';
 import 'audit_question_form.dart';
-import 'audit_theme_settings.dart';
-import 'audit_type_settings.dart';
+import '../audit_theme_settings.dart';
+import '../audit_type_settings.dart';
 
 class AuditQuestionManagerScreen extends StatefulWidget {
   final String lang;
