@@ -40,6 +40,8 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
   bool _loading = true;
   int _temaPage = 1;
   static const int _temasPerPage = 10;
+  String _search = '';
+  final TextEditingController _searchCtrl = TextEditingController();
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -53,10 +55,26 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
     return t['nama_tema_id']?.toString() ?? '-';
   }
 
+  List<Map<String, dynamic>> get _filteredTemas {
+    if (_search.trim().isEmpty) return _temas;
+    final q = _search.trim().toLowerCase();
+    return _temas.where((t) {
+      return (t['nama_tema_id'] ?? '').toString().toLowerCase().contains(q) ||
+          (t['nama_tema_en'] ?? '').toString().toLowerCase().contains(q) ||
+          (t['nama_tema_zh'] ?? '').toString().toLowerCase().contains(q);
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
     _fetchAll();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchAll() async {
@@ -681,6 +699,61 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
             ),
           ),
 
+          // SEARCH
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Container(
+              height: 42,
+              decoration: BoxDecoration(
+                color: _C.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _C.divider),
+              ),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() {
+                  _search = v;
+                  _temaPage = 1;
+                }),
+                textAlignVertical: TextAlignVertical.center,
+                style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText:
+                      _t('Search theme...', 'Cari tema...', '搜索主题...'),
+                  hintStyle: GoogleFonts.poppins(
+                      fontSize: 12, color: Colors.black38),
+                  prefixIcon: const Icon(Icons.search_rounded,
+                      color: Colors.black38, size: 18),
+                  suffixIcon: _search.isNotEmpty
+                      ? GestureDetector(
+                          onTap: () {
+                            _searchCtrl.clear();
+                            setState(() {
+                              _search = '';
+                              _temaPage = 1;
+                            });
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: _C.red.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close_rounded,
+                                size: 14, color: _C.red),
+                          ),
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 11),
+                ),
+              ),
+            ),
+          ),
+
           // COUNT BADGE
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -702,7 +775,7 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
                         size: 13, color: _C.primary),
                     const SizedBox(width: 5),
                     Text(
-                      '${_temas.length} ${_t('themes', 'tema', '个主题')}',
+                      '${_filteredTemas.length} ${_t('themes', 'tema', '个主题')}',
                       style: GoogleFonts.poppins(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -740,32 +813,74 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
     );
   }
 
-  Widget _buildThemeList() {
-    if (_temas.isEmpty) {
-      return Center(
+  Widget _buildEmptyState({required String title, required String subtitle}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.folder_open_outlined,
-                size: 52, color: Colors.grey.shade300),
-            const SizedBox(height: 10),
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 140,
+              errorBuilder: (_, __, ___) => Icon(
+                Icons.folder_open_outlined,
+                size: 80,
+                color: _C.primary.withValues(alpha: 0.35),
+              ),
+            ),
+            const SizedBox(height: 16),
             Text(
-              _t('No themes yet.', 'Belum ada tema.', '暂无主题。'),
-              style: GoogleFonts.poppins(fontSize: 13, color: _C.textSub),
+              title,
+              style: GoogleFonts.poppins(
+                  fontSize: 15, fontWeight: FontWeight.w700, color: _C.primary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: GoogleFonts.poppins(fontSize: 12, color: _C.textSub),
+              textAlign: TextAlign.center,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeList() {
+    final filtered = _filteredTemas;
+
+    if (_temas.isEmpty) {
+      return _buildEmptyState(
+        title: _t('No themes yet.', 'Belum ada tema.', '暂无主题。'),
+        subtitle: _t(
+          'Tap "Add Theme" above to get started.',
+          'Ketuk "Tambah Tema" di atas untuk memulai.',
+          '点击上方"添加主题"开始使用。',
         ),
       );
     }
 
-    final int totalPages = (_temas.length / _temasPerPage).ceil();
+    if (filtered.isEmpty) {
+      return _buildEmptyState(
+        title: _t('No themes found.', 'Tema tidak ditemukan.', '未找到主题。'),
+        subtitle: _t(
+          'Try a different keyword.',
+          'Coba kata kunci lain.',
+          '请尝试其他关键词。',
+        ),
+      );
+    }
+
+    final int totalPages = (filtered.length / _temasPerPage).ceil();
     int page = _temaPage;
     if (page > totalPages) page = totalPages;
     if (page < 1) page = 1;
 
     final int start = (page - 1) * _temasPerPage;
-    final int end = (start + _temasPerPage).clamp(0, _temas.length);
-    final List<Map<String, dynamic>> pagedTemas = _temas.sublist(start, end);
+    final int end = (start + _temasPerPage).clamp(0, filtered.length);
+    final List<Map<String, dynamic>> pagedTemas = filtered.sublist(start, end);
 
     return Column(
       children: [
