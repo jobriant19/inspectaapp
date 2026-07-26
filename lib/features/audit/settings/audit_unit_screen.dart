@@ -104,6 +104,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
   List<_UnitItem> _data = [];
   bool _loading = true;
   String _search = '';
+  final TextEditingController _searchCtrl = TextEditingController();
   _UnitHierarchyFilter? _filter;
   bool _hasSchedule = false;
   int _currentPage = 1;
@@ -122,6 +123,12 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
   void initState() {
     super.initState();
     _fetchUnits();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUnits() async {
@@ -1121,7 +1128,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
                       'Units will show up here as soon as they\'re added to the system.',
                       'Unit akan muncul di sini setelah ditambahkan ke sistem.',
                       '添加单元后将显示在此处。'),
-              style: GoogleFonts.poppins(fontSize: 12.5, color: _UC.textSub, height: 1.5),
+              style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: _UC.textSub, height: 1.5),
               textAlign: TextAlign.center,
             ),
             if (isFiltering) ...[
@@ -1200,6 +1207,7 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
             children: [
               Expanded(
                 child: TextField(
+                  controller: _searchCtrl,
                   onChanged: (v) => setState(() {
                     _search = v;
                     _currentPage = 1;
@@ -1209,6 +1217,27 @@ class _AuditUnitScreenState extends State<AuditUnitScreen>
                     hintText: _t('Search…', 'Cari…', '搜索…'),
                     hintStyle: GoogleFonts.poppins(fontSize: 13, color: _UC.textSub),
                     prefixIcon: const Icon(Icons.search_rounded, color: _UC.filterAccent, size: 20),
+                    suffixIcon: _search.isNotEmpty
+                        ? GestureDetector(
+                            onTap: () {
+                              _searchCtrl.clear();
+                              setState(() {
+                                _search = '';
+                                _currentPage = 1;
+                              });
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.all(10),
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: _UC.red.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.close_rounded,
+                                  size: 14, color: _UC.red),
+                            ),
+                          )
+                        : null,
                     filled: true,
                     fillColor: _UC.surface,
                     contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
