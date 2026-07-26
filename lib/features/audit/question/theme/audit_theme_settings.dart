@@ -839,7 +839,7 @@ class _AuditThemeSettingsScreenState extends State<AuditThemeSettingsScreen> {
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style: GoogleFonts.poppins(fontSize: 12, color: _C.textSub),
+              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub),
               textAlign: TextAlign.center,
             ),
           ],
