@@ -97,6 +97,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
   List<_LocationItem> _data = [];
   bool _loading = true;
   String _search = '';
+  final TextEditingController _searchCtrl = TextEditingController();
   _LocationHierarchyFilter? _filter;
   bool _hasSchedule = false;
   int _currentPage = 1;
@@ -112,6 +113,12 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
   void initState() {
     super.initState();
     _fetchLokasi();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchLokasi() async {
@@ -828,7 +835,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                       'Locations will show up here as soon as they\'re added to the system.',
                       'Lokasi akan muncul di sini setelah ditambahkan ke sistem.',
                       '添加位置后将显示在此处。'),
-              style: GoogleFonts.poppins(fontSize: 12.5, color: _C.textSub, height: 1.5),
+              style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: _C.textSub, height: 1.5),
               textAlign: TextAlign.center,
             ),
             if (isFiltering) ...[
@@ -904,6 +911,7 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
               children: [
                 Expanded(
                   child: TextField(
+                    controller: _searchCtrl,
                     onChanged: (v) => setState(() {
                       _search = v;
                       _currentPage = 1;
@@ -913,6 +921,27 @@ class _AuditLocationScreenState extends State<AuditLocationScreen>
                       hintText: _t('Search…', 'Cari…', '搜索…'),
                       hintStyle: GoogleFonts.poppins(fontSize: 13, color: _C.textSub),
                       prefixIcon: const Icon(Icons.search_rounded, color: _C.textMain, size: 20),
+                      suffixIcon: _search.isNotEmpty
+                          ? GestureDetector(
+                              onTap: () {
+                                _searchCtrl.clear();
+                                setState(() {
+                                  _search = '';
+                                  _currentPage = 1;
+                                });
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.all(10),
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: _C.red.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close_rounded,
+                                    size: 14, color: _C.red),
+                              ),
+                            )
+                          : null,
                       filled: true,
                       fillColor: _C.surface,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
