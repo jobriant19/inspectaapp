@@ -393,6 +393,8 @@ class _QuestionTabViewState extends State<_QuestionTabView>
   final Map<String, int> _questionPage = {};
   static const int _temasPerPage = 4;
   static const int _questionsPerPage = 5;
+  String _search = '';
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   bool get wantKeepAlive => true;
@@ -546,6 +548,12 @@ class _QuestionTabViewState extends State<_QuestionTabView>
   void initState() {
     super.initState();
     _fetchAll();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchAll() async {
@@ -746,10 +754,18 @@ class _QuestionTabViewState extends State<_QuestionTabView>
       );
     }
 
+    // SEARCH FILTER
+    final String searchLower = _search.trim().toLowerCase();
+    final List<Map<String, dynamic>> displayQuestions = searchLower.isEmpty
+        ? _questions
+        : _questions
+            .where((q) => _questionText(q).toLowerCase().contains(searchLower))
+            .toList();
+
     // GROUP QUESTIONS BY THEME
     final Map<String, List<Map<String, dynamic>>> grouped = {};
     final List<Map<String, dynamic>> noTema = [];
-    for (final q in _questions) {
+    for (final q in displayQuestions) {
       final temaId = q['id_tema']?.toString();
       if (temaId == null) {
         noTema.add(q);
@@ -758,10 +774,21 @@ class _QuestionTabViewState extends State<_QuestionTabView>
       }
     }
 
-    final List<String> sectionKeys = [
-      for (final tema in _temas) tema['id_tema'].toString(),
-      if (noTema.isNotEmpty) '__notema__',
-    ];
+    final bool searchActive = searchLower.isNotEmpty;
+    final List<String> sectionKeys = !searchActive
+        ? [
+            for (final tema in _temas) tema['id_tema'].toString(),
+            if (noTema.isNotEmpty) '__notema__',
+          ]
+        : [
+            for (final tema in _temas)
+              if ((grouped[tema['id_tema'].toString()] ?? []).isNotEmpty)
+                tema['id_tema'].toString(),
+            if (noTema.isNotEmpty) '__notema__',
+          ];
+
+    final bool searchNoResults =
+        searchActive && sectionKeys.isEmpty && !(_temas.isEmpty && _questions.isEmpty);
 
     final int totalTemaPages = sectionKeys.isEmpty
         ? 1
@@ -835,6 +862,54 @@ class _QuestionTabViewState extends State<_QuestionTabView>
           ),
         ),
 
+        // SEARCH BOX
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+          child: Container(
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _C.divider),
+            ),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _search = v),
+              textAlignVertical: TextAlignVertical.center,
+              style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: _t(
+                    'Search question...', 'Cari pertanyaan...', '搜索问题...'),
+                hintStyle: GoogleFonts.poppins(
+                    fontSize: 12, color: Colors.black38),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    color: Colors.black38, size: 18),
+                suffixIcon: _search.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () {
+                          _searchCtrl.clear();
+                          setState(() => _search = '');
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: _C.red.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close_rounded,
+                              size: 14, color: _C.red),
+                        ),
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 11),
+              ),
+            ),
+          ),
+        ),
+
         Expanded(
           child: RefreshIndicator(
             onRefresh: _fetchAll,
@@ -858,6 +933,41 @@ class _QuestionTabViewState extends State<_QuestionTabView>
                             textAlign: TextAlign.center,
                             style: GoogleFonts.poppins(
                                 fontSize: 13, color: _C.textSub)),
+                      ],
+                    ),
+                  )
+                else if (searchNoResults)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset(
+                          'assets/images/team_illustration.png',
+                          height: 130,
+                          errorBuilder: (_, __, ___) => Icon(
+                              Icons.search_off_rounded,
+                              size: 72,
+                              color: Colors.grey.shade300),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          _t('No questions found',
+                              'Pertanyaan tidak ditemukan', '未找到问题'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: _C.primary),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _t('Try a different keyword.',
+                              'Coba kata kunci lain.', '请尝试其他关键词。'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub),
+                          textAlign: TextAlign.center,
+                        ),
                       ],
                     ),
                   ),

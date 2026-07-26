@@ -785,7 +785,7 @@ class _AuditTypeSettingsScreenState extends State<AuditTypeSettingsScreen> {
                                   '点击上方"添加审计类型"开始使用。',
                                 ),
                                 style: GoogleFonts.poppins(
-                                    fontSize: 12, color: _C.textSub),
+                                    fontSize: 12, fontWeight: FontWeight.w600, color: _C.textSub),
                                 textAlign: TextAlign.center,
                               ),
                             ],
