@@ -4,6 +4,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
+import 'admin_verification_config.dart';
+
 class AdminVerificationScreen extends StatefulWidget {
   final String lang;
   const AdminVerificationScreen({super.key, required this.lang});
@@ -17,13 +19,6 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
     with TickerProviderStateMixin {
   final _client = Supabase.instance.client;
   late TabController _tabController;
-
-  // ── Config state ──
-  bool _configLoading = true;
-  bool _configSaving = false;
-  int _durasiHari = 7;
-  int _minSuara = 3;
-  bool _autoValid = true;
 
   // ── Temuan verifikasi state ──
   bool _temuanLoading = true;
@@ -54,7 +49,6 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadConfig();
     _loadTemuanVerifikasi();
     _loadAccidentVerifikasi();
   }
@@ -71,71 +65,6 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
     if (widget.lang == 'EN') return en;
     if (widget.lang == 'ZH') return zh;
     return id;
-  }
-
-  // ══════════════════════════════════════════════
-  // LOAD & SAVE CONFIG
-  // ══════════════════════════════════════════════
-
-  Future<void> _loadConfig() async {
-    setState(() => _configLoading = true);
-    try {
-      final rows = await _client
-          .from('verifikasi_config')
-          .select('kode, nilai_int');
-      for (final row in rows) {
-        switch (row['kode']) {
-          case 'durasi_verifikasi_hari':
-            _durasiHari = row['nilai_int'] ?? 7;
-            break;
-          case 'min_suara_finalisasi':
-            _minSuara = row['nilai_int'] ?? 3;
-            break;
-          case 'auto_valid_jika_timeout':
-            _autoValid = (row['nilai_int'] ?? 1) == 1;
-            break;
-        }
-      }
-    } catch (e) {
-      debugPrint('loadConfig error: $e');
-    }
-    if (mounted) setState(() => _configLoading = false);
-  }
-
-  Future<void> _saveConfig() async {
-    setState(() => _configSaving = true);
-    try {
-      final updates = [
-        {'kode': 'durasi_verifikasi_hari', 'nilai_int': _durasiHari},
-        {'kode': 'min_suara_finalisasi', 'nilai_int': _minSuara},
-        {'kode': 'auto_valid_jika_timeout', 'nilai_int': _autoValid ? 1 : 0},
-      ];
-      for (final u in updates) {
-        await _client
-            .from('verifikasi_config')
-            .update({
-              'nilai_int': u['nilai_int'] as int,
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('kode', u['kode'] as String);
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(t(
-            'Konfigurasi berhasil disimpan!',
-            'Configuration saved successfully!',
-            '配置保存成功！',
-          )),
-          backgroundColor: _primaryColor,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(16),
-        ));
-      }
-    } catch (e) {
-      debugPrint('saveConfig error: $e');
-    }
-    if (mounted) setState(() => _configSaving = false);
   }
 
   // ══════════════════════════════════════════════
@@ -442,7 +371,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha:0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(Icons.assignment_turned_in_rounded,
@@ -470,7 +399,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
+                        color: Colors.white.withValues(alpha:0.25),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(children: [
@@ -552,7 +481,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: statusColor.withOpacity(0.2)),
+                        border: Border.all(color: statusColor.withValues(alpha:0.2)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -601,7 +530,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                             child: Stack(children: [
                               Container(
                                   height: 8,
-                                  color: const Color(0xFFDC2626).withOpacity(0.18)),
+                                  color: const Color(0xFFDC2626).withValues(alpha:0.18)),
                               FractionallySizedBox(
                                 widthFactor: validRatio.clamp(0.0, 1.0),
                                 child: Container(
@@ -621,9 +550,9 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                             width: double.infinity,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.07),
+                              color: statusColor.withValues(alpha:0.07),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: statusColor.withOpacity(0.25)),
+                              border: Border.all(color: statusColor.withValues(alpha:0.25)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -741,7 +670,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha:0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(Icons.health_and_safety_outlined,
@@ -770,7 +699,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
+                        color: Colors.white.withValues(alpha:0.25),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(children: [
@@ -970,7 +899,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: _primaryColor.withOpacity(0.07),
+              color: _primaryColor.withValues(alpha:0.07),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, size: 14, color: _primaryColor),
@@ -999,7 +928,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0FDF8),
+      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: Column(
           children: [
@@ -1009,7 +938,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildConfigTab(),
+                  AdminVerificationConfigTab(lang: widget.lang),
                   _buildTemuanTab(),
                   _buildAccidentTab(),
                 ],
@@ -1038,66 +967,23 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
         children: [
           GestureDetector(
             onTap: () => Navigator.pop(context),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _primaryColor.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.arrow_back_ios_new,
-                  size: 18, color: _primaryColor),
-            ),
+            child: const Icon(Icons.arrow_back_ios_new_rounded,
+                size: 20, color: _primaryColor),
           ),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  t('Manajemen Verifikasi', 'Verification Management',
-                      '验证管理'),
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF134E4A),
-                  ),
+            child: Center(
+              child: Text(
+                t('Manajemen Verifikasi', 'Verification Management',
+                    '验证管理'),
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _primaryColor,
                 ),
-                Text(
-                  t('Konfigurasi & Monitoring Verifikasi',
-                      'Configure & Monitor Verifications', '配置和监控验证'),
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Badge stats
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [_primaryColor, _accentColor],
               ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.verified_user_rounded,
-                    color: Colors.white, size: 14),
-                const SizedBox(width: 4),
-                Text(
-                  'Admin',
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
             ),
           ),
+          const SizedBox(width: 20),
         ],
       ),
     );
@@ -1131,7 +1017,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
             borderRadius: BorderRadius.circular(9),
             boxShadow: [
               BoxShadow(
-                color: _primaryColor.withOpacity(0.35),
+                color: _primaryColor.withValues(alpha:0.35),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -1156,392 +1042,6 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
               ],
             ),
           )),
-        ),
-      ),
-    );
-  }
-
-  // ══════════════════════════════════════════════
-  // TAB 1: KONFIGURASI
-  // ══════════════════════════════════════════════
-
-  Widget _buildConfigTab() {
-    if (_configLoading) {
-      return _buildShimmer();
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Info card
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0F766E), Color(0xFF0D9488)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline_rounded,
-                    color: Colors.white70, size: 26),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t('Konfigurasi Sistem Verifikasi',
-                            'Verification System Config', '验证系统配置'),
-                        style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14),
-                      ),
-                      Text(
-                        t('Ubah parameter verifikasi temuan di sini.',
-                            'Edit finding verification parameters here.',
-                            '在此编辑参数。'),
-                        style: GoogleFonts.poppins(
-                            color: Colors.white70, fontSize: 11, height: 1.4),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // ── Durasi Verifikasi ──
-          _buildConfigSection(
-            icon: Icons.timer_rounded,
-            title: t('Durasi Verifikasi (Hari)',
-                'Verification Duration (Days)', '验证时长（天）'),
-            subtitle: t(
-              'Temuan yang melebihi durasi ini akan difinalisasi otomatis.',
-              'Findings exceeding this duration will be auto-finalized.',
-              '超过此时限的发现将自动完成。',
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Slider(
-                        value: _durasiHari.toDouble(),
-                        min: 1,
-                        max: 30,
-                        divisions: 29,
-                        activeColor: _primaryColor,
-                        inactiveColor: _primaryColor.withOpacity(0.2),
-                        onChanged: (v) =>
-                            setState(() => _durasiHari = v.toInt()),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: _primaryColor.withOpacity(0.3)),
-                      ),
-                      child: Text(
-                        '$_durasiHari',
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: _primaryColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('1 hari',
-                        style: GoogleFonts.poppins(
-                            fontSize: 10, color: Colors.grey.shade500)),
-                    Text('30 hari',
-                        style: GoogleFonts.poppins(
-                            fontSize: 10, color: Colors.grey.shade500)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // ── Minimum Suara Finalisasi ──
-          _buildConfigSection(
-            icon: Icons.how_to_vote_rounded,
-            title: t('Minimum Suara Mayoritas',
-                'Minimum Majority Votes', '最少多数票'),
-            subtitle: t(
-              'Jika suara mayoritas mencapai angka ini, verifikasi langsung difinalisasi.',
-              'When majority votes reach this number, verification is immediately finalized.',
-              '当多数票达到此数字时，验证立即完成。',
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Slider(
-                    value: _minSuara.toDouble(),
-                    min: 1,
-                    max: 10,
-                    divisions: 9,
-                    activeColor: _primaryColor,
-                    inactiveColor: _primaryColor.withOpacity(0.2),
-                    onChanged: (v) => setState(() => _minSuara = v.toInt()),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: _primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                        color: _primaryColor.withOpacity(0.3)),
-                  ),
-                  child: Text(
-                    '$_minSuara',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: _primaryColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // ── Auto Valid jika Timeout ──
-          _buildConfigSection(
-            icon: Icons.auto_mode_rounded,
-            title: t('Hasil Otomatis jika Timeout',
-                'Auto Result on Timeout', '超时自动结果'),
-            subtitle: t(
-              'Jika tidak ada suara hingga batas waktu, hasil ditetapkan sebagai:',
-              'If no votes until timeout, result is set as:',
-              '如果超时无投票，结果设置为：',
-            ),
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _primaryColor.withOpacity(0.2)),
-              ),
-              child: Row(
-                children: [
-                  _buildToggleOption(
-                    label: t('Valid', 'Valid', '有效'),
-                    icon: Icons.thumb_up_rounded,
-                    isSelected: _autoValid,
-                    color: const Color(0xFF16A34A),
-                    onTap: () => setState(() => _autoValid = true),
-                  ),
-                  _buildToggleOption(
-                    label: t('Tidak Valid', 'Invalid', '无效'),
-                    icon: Icons.thumb_down_rounded,
-                    isSelected: !_autoValid,
-                    color: const Color(0xFFDC2626),
-                    onTap: () => setState(() => _autoValid = false),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // ── Save Button ──
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: _configSaving ? null : _saveConfig,
-              icon: _configSaving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2))
-                  : const Icon(Icons.save_rounded),
-              label: Text(
-                t('Simpan Konfigurasi', 'Save Configuration', '保存配置'),
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryColor,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // ── Manual Auto-Finalize Button ──
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: OutlinedButton.icon(
-              onPressed: () async {
-                try {
-                  await _client.rpc('auto_finalize_timeout_temuan');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(t(
-                        'Auto-finalisasi berhasil dijalankan.',
-                        'Auto-finalization ran successfully.',
-                        '自动完成运行成功。',
-                      )),
-                      backgroundColor: const Color(0xFF16A34A),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      margin: const EdgeInsets.all(16),
-                    ));
-                    _loadTemuanVerifikasi();
-                  }
-                } catch (e) {
-                  debugPrint('manual finalize error: $e');
-                }
-              },
-              icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
-              label: Text(
-                t('Jalankan Auto-Finalisasi Sekarang',
-                    'Run Auto-Finalization Now', '立即运行自动完成'),
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _primaryColor,
-                side: const BorderSide(color: _primaryColor),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConfigSection({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Widget child,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _primaryColor.withOpacity(0.15)),
-        boxShadow: [
-          BoxShadow(
-            color: _primaryColor.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: _primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Icon(icon, size: 16, color: _primaryColor),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF134E4A))),
-                    Text(subtitle,
-                        style: GoogleFonts.poppins(
-                            fontSize: 10.5,
-                            color: Colors.grey.shade500,
-                            height: 1.4)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToggleOption({
-    required String label,
-    required IconData icon,
-    required bool isSelected,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.all(4),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? color : Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isSelected ? color : Colors.grey.shade300,
-              width: isSelected ? 1.5 : 1,
-            ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                        color: color.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3))
-                  ]
-                : [],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon,
-                  color: isSelected ? Colors.white : color, size: 20),
-              const SizedBox(height: 4),
-              Text(label,
-                  style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: isSelected ? Colors.white : color)),
-            ],
-          ),
         ),
       ),
     );
@@ -1627,10 +1127,10 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
+          border: Border.all(color: accent.withValues(alpha:0.25), width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: accent.withOpacity(0.08),
+                color: accent.withValues(alpha:0.08),
                 blurRadius: 12,
                 offset: const Offset(0, 4))
           ],
@@ -1667,7 +1167,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: _primaryColor.withOpacity(0.1),
+                            color: _primaryColor.withValues(alpha:0.1),
                             borderRadius: BorderRadius.circular(5),
                           ),
                           child: Text(kategori,
@@ -1722,9 +1222,9 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: accent.withOpacity(0.1),
+                          color: accent.withValues(alpha:0.1),
                           shape: BoxShape.circle,
-                          border: Border.all(color: accent.withOpacity(0.3), width: 1.5),
+                          border: Border.all(color: accent.withValues(alpha:0.3), width: 1.5),
                         ),
                         child: Icon(statusIcon, color: accent, size: 22),
                       ),
@@ -1744,7 +1244,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
             Container(
                 margin: const EdgeInsets.symmetric(horizontal: 12),
                 height: 1,
-                color: accent.withOpacity(0.12)),
+                color: accent.withValues(alpha:0.12)),
 
             // ── Vote Breakdown (sama persis dengan executive history) ──
             Padding(
@@ -1757,7 +1257,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                       Row(children: [
                         Icon(Icons.how_to_vote_rounded,
                             size: 13,
-                            color: const Color(0xFF134E4A).withOpacity(0.7)),
+                            color: const Color(0xFF134E4A).withValues(alpha:0.7)),
                         const SizedBox(width: 5),
                         Text(t('Rincian Suara', 'Vote Breakdown', '投票详情'),
                             style: GoogleFonts.poppins(
@@ -1770,13 +1270,13 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: isFinalized
-                              ? const Color(0xFF16A34A).withOpacity(0.1)
-                              : Colors.orange.withOpacity(0.1),
+                              ? const Color(0xFF16A34A).withValues(alpha:0.1)
+                              : Colors.orange.withValues(alpha:0.1),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: isFinalized
-                                ? const Color(0xFF16A34A).withOpacity(0.3)
-                                : Colors.orange.withOpacity(0.3),
+                                ? const Color(0xFF16A34A).withValues(alpha:0.3)
+                                : Colors.orange.withValues(alpha:0.3),
                           ),
                         ),
                         child: Row(children: [
@@ -1839,7 +1339,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                       Container(
                           height: 8,
                           width: double.infinity,
-                          color: const Color(0xFFDC2626).withOpacity(0.18)),
+                          color: const Color(0xFFDC2626).withValues(alpha:0.18)),
                       FractionallySizedBox(
                         widthFactor: validRatio.clamp(0.0, 1.0),
                         child: Container(
@@ -1862,17 +1362,17 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                             horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
                           color: finalOutcome == null
-                              ? Colors.orange.withOpacity(0.07)
+                              ? Colors.orange.withValues(alpha:0.07)
                               : finalOutcome
-                                  ? const Color(0xFF16A34A).withOpacity(0.07)
-                                  : const Color(0xFFDC2626).withOpacity(0.07),
+                                  ? const Color(0xFF16A34A).withValues(alpha:0.07)
+                                  : const Color(0xFFDC2626).withValues(alpha:0.07),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
                             color: finalOutcome == null
-                                ? Colors.orange.withOpacity(0.2)
+                                ? Colors.orange.withValues(alpha:0.2)
                                 : finalOutcome
-                                    ? const Color(0xFF16A34A).withOpacity(0.2)
-                                    : const Color(0xFFDC2626).withOpacity(0.2),
+                                    ? const Color(0xFF16A34A).withValues(alpha:0.2)
+                                    : const Color(0xFFDC2626).withValues(alpha:0.2),
                           ),
                         ),
                         child: Column(
@@ -1923,10 +1423,10 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 7),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1E3A8A).withOpacity(0.05),
+                          color: const Color(0xFF1E3A8A).withValues(alpha:0.05),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: const Color(0xFF1E3A8A).withOpacity(0.15),
+                            color: const Color(0xFF1E3A8A).withValues(alpha:0.15),
                           ),
                         ),
                         child: Column(
@@ -2070,10 +1570,10 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
+          border: Border.all(color: accent.withValues(alpha:0.25), width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: accent.withOpacity(0.08),
+                color: accent.withValues(alpha:0.08),
                 blurRadius: 14,
                 offset: const Offset(0, 4))
           ],
@@ -2112,7 +1612,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFDC2626).withOpacity(0.1),
+                              color: const Color(0xFFDC2626).withValues(alpha:0.1),
                               borderRadius: BorderRadius.circular(5),
                             ),
                             child: Text(
@@ -2128,10 +1628,10 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: sevColor.withOpacity(0.1),
+                              color: sevColor.withValues(alpha:0.1),
                               borderRadius: BorderRadius.circular(5),
                               border: Border.all(
-                                  color: sevColor.withOpacity(0.4), width: 1),
+                                  color: sevColor.withValues(alpha:0.4), width: 1),
                             ),
                             child: Text(severity,
                                 style: GoogleFonts.poppins(
@@ -2213,7 +1713,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: accent.withOpacity(0.4),
+                          color: accent.withValues(alpha:0.4),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -2286,10 +1786,10 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                         return Container(
                           padding: const EdgeInsets.fromLTRB(6, 5, 10, 5),
                           decoration: BoxDecoration(
-                            color: badgeColor.withOpacity(0.07),
+                            color: badgeColor.withValues(alpha:0.07),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
-                                color: badgeColor.withOpacity(0.25), width: 1),
+                                color: badgeColor.withValues(alpha:0.25), width: 1),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -2299,9 +1799,9 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                                 height: 28,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: badgeColor.withOpacity(0.15),
+                                  color: badgeColor.withValues(alpha:0.15),
                                   border: Border.all(
-                                      color: badgeColor.withOpacity(0.4),
+                                      color: badgeColor.withValues(alpha:0.4),
                                       width: 1.5),
                                 ),
                                 child: ClipOval(
@@ -2330,7 +1830,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                                     Text(jabatan,
                                         style: GoogleFonts.poppins(
                                             fontSize: 9,
-                                            color: badgeColor.withOpacity(0.7),
+                                            color: badgeColor.withValues(alpha:0.7),
                                             fontWeight: FontWeight.w500)),
                                 ],
                               ),
@@ -2376,9 +1876,9 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.06),
+        color: color.withValues(alpha:0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha:0.2)),
       ),
       child: Row(
         children: [
@@ -2417,9 +1917,9 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha:0.1),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.25)),
+          border: Border.all(color: color.withValues(alpha:0.25)),
         ),
         child: Column(
           children: [
@@ -2432,7 +1932,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                     color: color)),
             Text(label,
                 style: GoogleFonts.poppins(
-                    fontSize: 9.5, color: color.withOpacity(0.8))),
+                    fontSize: 9.5, color: color.withValues(alpha:0.8))),
           ],
         ),
       ),
@@ -2476,7 +1976,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                   borderSide: BorderSide.none),
               enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: color.withOpacity(0.2))),
+                  borderSide: BorderSide(color: color.withValues(alpha:0.2))),
               focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: color, width: 1.5)),
@@ -2488,9 +1988,9 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
           // Filter chips — full width dibagi 3 rata
           Container(
             decoration: BoxDecoration(
-              color: color.withOpacity(0.06),
+              color: color.withValues(alpha:0.06),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color.withOpacity(0.15)),
+              border: Border.all(color: color.withValues(alpha:0.15)),
             ),
             padding: const EdgeInsets.all(3),
             child: Row(
@@ -2524,7 +2024,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                        color: color.withOpacity(0.3),
+                        color: color.withValues(alpha:0.3),
                         blurRadius: 6,
                         offset: const Offset(0, 2))
                   ]
@@ -2536,7 +2036,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
             style: GoogleFonts.poppins(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: isSelected ? Colors.white : color.withOpacity(0.7)),
+                color: isSelected ? Colors.white : color.withValues(alpha:0.7)),
           ),
         ),
       ),
@@ -2557,27 +2057,6 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen>
                 fontSize: 14, color: Colors.grey.shade400),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade200,
-      highlightColor: Colors.grey.shade50,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: List.generate(
-              4,
-              (_) => Container(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    height: 100,
-                    decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16)),
-                  )),
-        ),
       ),
     );
   }
