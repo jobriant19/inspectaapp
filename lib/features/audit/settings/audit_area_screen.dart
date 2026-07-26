@@ -106,6 +106,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
   List<_AreaItem> _data = [];
   bool _loading = true;
   String _search = '';
+  final TextEditingController _searchCtrl = TextEditingController();
   _AreaHierarchyFilter? _filter;
   bool _hasSchedule = false;
   bool _isFilterSheetOpen = false;
@@ -131,6 +132,12 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
   void initState() {
     super.initState();
     _fetchAreas();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchAreas() async {
@@ -1668,7 +1675,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                       'Areas will show up here as soon as they\'re added to the system.',
                       'Area akan muncul di sini setelah ditambahkan ke sistem.',
                       '添加区域后将显示在此处。'),
-              style: GoogleFonts.poppins(fontSize: 12.5, color: _AC.textSub, height: 1.5),
+              style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600, color: _AC.textSub, height: 1.5),
               textAlign: TextAlign.center,
             ),
             if (isFiltering) ...[
@@ -1748,6 +1755,7 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
               children: [
                 Expanded(
                   child: TextField(
+                    controller: _searchCtrl,
                     onChanged: (v) => setState(() {
                       _search = v;
                       _currentPage = 1;
@@ -1757,6 +1765,27 @@ class _AuditAreaScreenState extends State<AuditAreaScreen>
                       hintText: _t('Search…', 'Cari…', '搜索…'),
                       hintStyle: GoogleFonts.poppins(fontSize: 13, color: _AC.textSub),
                       prefixIcon: const Icon(Icons.search_rounded, color: _AC.filterAccent, size: 20),
+                      suffixIcon: _search.isNotEmpty
+                          ? GestureDetector(
+                              onTap: () {
+                                _searchCtrl.clear();
+                                setState(() {
+                                  _search = '';
+                                  _currentPage = 1;
+                                });
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.all(10),
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: _AC.red.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close_rounded,
+                                    size: 14, color: _AC.red),
+                              ),
+                            )
+                          : null,
                       filled: true,
                       fillColor: _AC.surface,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
