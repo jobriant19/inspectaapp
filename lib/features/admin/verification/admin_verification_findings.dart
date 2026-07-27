@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-
+import 'admin_verification_findings_detail.dart';
 import 'admin_verification_indicator.dart';
 
 class AdminVerificationFindingsTab extends StatefulWidget {
@@ -28,7 +28,6 @@ class _AdminVerificationFindingsTabState
   static const int _itemsPerPage = 5;
 
   static const Color _primaryColor = Color(0xFF0F766E);
-  static const Color _accentColor = Color(0xFF0D9488);
   static const Color _locationColor = Color(0xFF1D72F3);
 
   @override
@@ -61,10 +60,6 @@ class _AdminVerificationFindingsTabState
     return _isKts(item) ? 'KTS' : '5R';
   }
 
-  String _subkategoriLabel(Map<String, dynamic> item) {
-    return item['subkategoritemuan']?['nama_subkategoritemuan']?.toString() ?? '-';
-  }
-
   String _locationLabel(Map<String, dynamic> item) {
     if (_isKts(item)) {
       final section = item['penyelesaian']?['section'];
@@ -93,26 +88,49 @@ class _AdminVerificationFindingsTabState
     return '-';
   }
 
+  void _openDetail(Map<String, dynamic> item, {int initialTab = 0}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AdminVerificationFindingsDetailScreen(
+          lang: widget.lang,
+          item: item,
+          initialTab: initialTab,
+        ),
+      ),
+    );
+  }
+
   Future<void> _loadTemuanVerifikasi() async {
     setState(() => _temuanLoading = true);
     try {
       final response = await _client
-          .from('temuan')
-          .select('''
-            id_temuan, judul_temuan, gambar_temuan, created_at, jenis_temuan,
-            is_verif, hasil_verifikasi_mayoritas, status_temuan,
-            subkategoritemuan:id_subkategoritemuan_uuid (nama_subkategoritemuan),
-            lokasi:id_lokasi (nama_lokasi),
-            unit:id_unit (nama_unit),
-            subunit:id_subunit (nama_subunit),
-            area:id_area (nama_area),
-            penyelesaian:id_penyelesaian (
-              gambar_penyelesaian, catatan_penyelesaian,
-              section:id_section (nama_section_id, nama_section_en, nama_section_zh)
-            )
-          ''')
-          .eq('status_temuan', 'Selesai')
-          .order('created_at', ascending: false);
+        .from('temuan')
+        .select('''
+          id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, created_at, jenis_temuan,
+          is_verif, hasil_verifikasi_mayoritas, status_temuan,
+          target_waktu_selesai, poin_temuan, no_order, nama_item_manual, jumlah_item,
+          is_pro, is_visitor, is_eksekutif, nama_visitor, perusahaan_visitor,
+          is_late, latetime, id_perpanjang,
+          subkategoritemuan:id_subkategoritemuan_uuid (
+            nama_subkategoritemuan,
+            kategoritemuan:id_kategoritemuan (nama_kategoritemuan)
+          ),
+          lokasi:id_lokasi (nama_lokasi),
+          unit:id_unit (nama_unit),
+          subunit:id_subunit (nama_subunit),
+          area:id_area (nama_area),
+          penanggung_jawab:id_penanggung_jawab (nama, gambar_user),
+          perpanjang:id_perpanjang (waktu_perpanjang, alasan_perpanjang, tanggal_selesai),
+          penyelesaian:id_penyelesaian (
+            gambar_penyelesaian, catatan_penyelesaian, tanggal_selesai,
+            penyebab, bagian, poin_penyelesaian, additional_cost,
+            section:id_section (nama_section_id, nama_section_en, nama_section_zh),
+            faktor_penyebab_sub:id_subkategoritemuan_penyebab (nama_subkategoritemuan)
+          )
+        ''')
+        .eq('status_temuan', 'Selesai')
+        .order('created_at', ascending: false);
 
       final rawList = response as List;
 
@@ -183,323 +201,6 @@ class _AdminVerificationFindingsTabState
     return list;
   }
 
-  void _showTemuanDetail(Map<String, dynamic> item) {
-    final bool isFinalized = item['is_verif'] as bool? ?? false;
-    final bool? outcome = item['hasil_verifikasi_mayoritas'] as bool?;
-    final int validVotes = item['vote_valid'] as int? ?? 0;
-    final int invalidVotes = item['vote_invalid'] as int? ?? 0;
-    final int totalVotes = item['total_votes'] as int? ?? 0;
-    final String? imageUrl = item['gambar_temuan']?.toString();
-    final String title = item['judul_temuan']?.toString() ?? '-';
-    final String lokasi = _locationLabel(item);
-    final String subkategori = _subkategoriLabel(item);
-
-    String dateStr = '-';
-    try {
-      final dt =
-          DateTime.parse(item['created_at']?.toString() ?? '').toLocal();
-      dateStr = DateFormat('dd MMM yyyy, HH:mm').format(dt);
-    } catch (_) {}
-
-    Color statusColor;
-    IconData statusIcon;
-    String statusLabel;
-    if (!isFinalized) {
-      statusColor = Colors.orange.shade500;
-      statusIcon = Icons.pending_rounded;
-      statusLabel = t('Menunggu', 'Pending', '待定');
-    } else if (outcome == true) {
-      statusColor = const Color(0xFF16A34A);
-      statusIcon = Icons.check_circle_rounded;
-      statusLabel = t('Valid', 'Valid', '有效');
-    } else {
-      statusColor = const Color(0xFFDC2626);
-      statusIcon = Icons.cancel_rounded;
-      statusLabel = t('Tidak Valid', 'Invalid', '无效');
-    }
-
-    final double validRatio =
-        totalVotes > 0 ? validVotes / totalVotes : 0.0;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (_, scrollCtrl) => Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFF0FDF8),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 4),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [_primaryColor, _accentColor],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.assignment_turned_in_rounded,
-                          color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t('Detail Temuan', 'Finding Detail', '发现详情'),
-                            style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14),
-                          ),
-                          Text(dateStr,
-                              style: GoogleFonts.poppins(
-                                  color: Colors.white70, fontSize: 11)),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(children: [
-                        Icon(statusIcon, size: 12, color: Colors.white),
-                        const SizedBox(width: 4),
-                        Text(statusLabel,
-                            style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white)),
-                      ]),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  controller: scrollCtrl,
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    if (imageUrl != null) ...[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Image.network(
-                          imageUrl,
-                          width: double.infinity,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                              height: 200,
-                              color: Colors.grey.shade100,
-                              child: const Icon(
-                                  Icons.image_not_supported_outlined,
-                                  size: 48)),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(title,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF134E4A))),
-                          const SizedBox(height: 12),
-                          const Divider(height: 1),
-                          const SizedBox(height: 12),
-                          _buildAdminDetailRow(Icons.map_rounded,
-                              t('Lokasi', 'Location', '地点'), lokasi),
-                          _buildAdminDetailRow(Icons.category_outlined,
-                              t('Sub Kategori', 'Subcategory', '子类别'), subkategori),
-                          _buildAdminDetailRow(Icons.calendar_today,
-                              t('Tanggal', 'Date', '日期'), dateStr),
-                          _buildAdminDetailRow(
-                            Icons.verified_rounded,
-                            t('Status', 'Status', '状态'),
-                            isFinalized
-                                ? t('Final', 'Finalized', '已完成')
-                                : t('Menunggu', 'Pending', '待定'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: statusColor.withValues(alpha: 0.2)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t('Statistik Verifikasi', 'Verification Statistics', '验证统计'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF134E4A)),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(children: [
-                                const Icon(Icons.thumb_up_rounded,
-                                    size: 11, color: Color(0xFF16A34A)),
-                                const SizedBox(width: 3),
-                                Text('$validVotes ${t("Valid", "Valid", "有效")}',
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF16A34A))),
-                              ]),
-                              Text('$totalVotes ${t("Total Suara", "Total Votes", "总票数")}',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 10, color: Colors.grey.shade500)),
-                              Row(children: [
-                                Text('$invalidVotes ${t("Tidak Valid", "Invalid", "无效")}',
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFFDC2626))),
-                                const SizedBox(width: 3),
-                                const Icon(Icons.thumb_down_rounded,
-                                    size: 11, color: Color(0xFFDC2626)),
-                              ]),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Stack(children: [
-                              Container(
-                                  height: 8,
-                                  color: const Color(0xFFDC2626).withValues(alpha: 0.18)),
-                              FractionallySizedBox(
-                                widthFactor: validRatio.clamp(0.0, 1.0),
-                                child: Container(
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                        colors: [Color(0xFF16A34A), Color(0xFF4ADE80)]),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                ),
-                              ),
-                            ]),
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.07),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: statusColor.withValues(alpha: 0.25)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(statusIcon, size: 18, color: statusColor),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${t("Hasil Mayoritas", "Majority Result", "多数结果")}: $statusLabel',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: statusColor),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAdminDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: _primaryColor.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 14, color: _primaryColor),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: GoogleFonts.poppins(
-                        fontSize: 10, color: Colors.grey.shade500)),
-                Text(value,
-                    style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF134E4A))),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final items = _filteredTemuan;
@@ -559,17 +260,26 @@ class _AdminVerificationFindingsTabState
               prefixIcon: Icon(Icons.search_rounded,
                   color: _primaryColor, size: 18),
               suffixIcon: _temuanSearchCtrl.text.isNotEmpty
-                  ? GestureDetector(
-                      onTap: () {
-                        _temuanSearchCtrl.clear();
-                        setState(() {
-                          _temuanSearch = '';
-                          _currentPage = 1;
-                        });
-                      },
-                      child: Icon(Icons.clear_rounded,
-                          color: Colors.grey.shade400, size: 18))
-                  : null,
+                ? GestureDetector(
+                    onTap: () {
+                      _temuanSearchCtrl.clear();
+                      setState(() {
+                        _temuanSearch = '';
+                        _currentPage = 1;
+                      });
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          size: 14, color: Color(0xFFEF4444)),
+                    ),
+                  )
+                : null,
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
@@ -689,59 +399,65 @@ class _AdminVerificationFindingsTabState
     const Color validVoteColor = Color(0xFF16A34A);
     const Color invalidVoteColor = Color(0xFFE11D48);
 
-    return GestureDetector(
-      onTap: () => _showTemuanDetail(item),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: typeColor.withValues(alpha: 0.25), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-                color: typeColor.withValues(alpha: 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4))
-          ],
-        ),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 5,
-                  height: 96,
-                  decoration: BoxDecoration(
-                    color: typeColor,
-                    borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(19),
-                        bottomLeft: Radius.circular(4)),
-                  ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: typeColor.withValues(alpha: 0.25), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+              color: typeColor.withValues(alpha: 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 5,
+                height: 96,
+                decoration: BoxDecoration(
+                  color: typeColor,
+                  borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(19),
+                      bottomLeft: Radius.circular(4)),
                 ),
-                const SizedBox(width: 14),
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Row(
-                    children: [
-                      _buildHistoryThumb(
+              ),
+              const SizedBox(width: 14),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _openDetail(item, initialTab: 0),
+                      child: _buildHistoryThumb(
                         url: imageUrl,
                         label: t('Temuan', 'Finding', '发现'),
                         icon: Icons.search_rounded,
                         color: _primaryColor,
                       ),
-                      const SizedBox(width: 6),
-                      _buildHistoryThumb(
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => _openDetail(item, initialTab: 1),
+                      child: _buildHistoryThumb(
                         url: item['penyelesaian']?['gambar_penyelesaian']?.toString(),
                         label: t('Selesai', 'Completion', '完成'),
                         icon: Icons.task_alt_rounded,
                         color: const Color(0xFF16A34A),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 6),
-                Expanded(
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => _openDetail(item, initialTab: 0),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Column(
@@ -805,7 +521,10 @@ class _AdminVerificationFindingsTabState
                     ),
                   ),
                 ),
-                Padding(
+              ),
+              GestureDetector(
+                onTap: () => _openDetail(item, initialTab: 0),
+                child: Padding(
                   padding: const EdgeInsets.only(right: 12, top: 10),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -831,15 +550,18 @@ class _AdminVerificationFindingsTabState
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
 
-            Container(
-                margin: const EdgeInsets.symmetric(horizontal: 12),
-                height: 1,
-                color: typeColor.withValues(alpha: 0.12)),
+          Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              height: 1,
+              color: typeColor.withValues(alpha: 0.12)),
 
-            Padding(
+          GestureDetector(
+            onTap: () => _openDetail(item, initialTab: 0),
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Column(
                 children: [
@@ -1035,8 +757,8 @@ class _AdminVerificationFindingsTabState
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1095,19 +817,85 @@ class _AdminVerificationFindingsTabState
   }
 
   Widget _buildEmptyState() {
+    final bool isFiltering = _temuanSearch.isNotEmpty || _temuanFilter != 'all';
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off_rounded,
-              size: 64, color: Colors.grey.shade300),
-          const SizedBox(height: 12),
-          Text(
-            t('Tidak ada data.', 'No data found.', '未找到数据。'),
-            style: GoogleFonts.poppins(
-                fontSize: 14, color: Colors.grey.shade400),
-          ),
-        ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 170,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: _primaryColor.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.search_off_rounded,
+                    size: 56, color: _primaryColor.withValues(alpha: 0.4)),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              isFiltering
+                  ? t('Tidak Ditemukan', 'Not Found', '未找到匹配项')
+                  : t('Belum Ada Data', 'No Data Yet', '暂无数据'),
+              style: GoogleFonts.poppins(
+                  fontSize: 16, fontWeight: FontWeight.w700, color: _primaryColor),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isFiltering
+                  ? t(
+                      'Coba ubah kata kunci pencarian atau filter untuk menemukan yang Anda cari.',
+                      'Try adjusting your search keyword or filter to find what you\'re looking for.',
+                      '尝试调整搜索关键词或筛选条件以查找您需要的内容。')
+                  : t(
+                      'Temuan yang sudah selesai akan muncul di sini untuk diverifikasi.',
+                      'Completed findings will show up here for verification.',
+                      '已完成的发现将显示在此处以供验证。'),
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.grey.shade500, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            if (isFiltering) ...[
+              const SizedBox(height: 18),
+              GestureDetector(
+                onTap: () {
+                  _temuanSearchCtrl.clear();
+                  setState(() {
+                    _temuanSearch = '';
+                    _temuanFilter = 'all';
+                    _currentPage = 1;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: _primaryColor.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 15, color: _primaryColor),
+                      const SizedBox(width: 6),
+                      Text(t('Hapus pencarian & filter', 'Clear search & filter', '清除搜索与筛选'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 12, fontWeight: FontWeight.w700, color: _primaryColor)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
