@@ -51,6 +51,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
   // CARD STATE
   int _totalUsers = 0;
   int _totalLokasi = 0;
+  int _totalUnit = 0;
+  int _totalSubunit = 0;
+  int _totalArea = 0;
   int _totalKategori = 0;
   int _totalTemuan = 0;
 
@@ -143,6 +146,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
             .from('temuan')
             .count()
             .eq('status_temuan', 'Selesai'),
+        Supabase.instance.client.from('unit').count(),
+        Supabase.instance.client.from('subunit').count(),
+        Supabase.instance.client.from('area').count(),
       ]);
 
       if (mounted) {
@@ -151,6 +157,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
           _totalLokasi   = results[1];
           _totalKategori = results[2];
           _totalTemuan   = results[3];
+          _totalUnit     = results[6];
+          _totalSubunit  = results[7];
+          _totalArea     = results[8];
           _isLoadingStats = false;
         });
       }
@@ -223,6 +232,9 @@ class _AdminHomeScreenState extends State<AdminHomeScreen>
                             isLoadingStats: _isLoadingStats,
                             totalUsers: _totalUsers,
                             totalLokasi: _totalLokasi,
+                            totalUnit: _totalUnit,
+                            totalSubunit: _totalSubunit,
+                            totalArea: _totalArea,
                             totalKategori: _totalKategori,
                             totalTemuan: _totalTemuan,
                           ),

@@ -36,6 +36,9 @@ class _AdminHomeBodyState extends State<AdminHomeBody> {
 
   int _totalUsers = 0;
   int _totalLokasi = 0;
+  int _totalUnit = 0;
+  int _totalSubunit = 0;
+  int _totalArea = 0;
   int _totalKategori = 0;
   int _totalTemuan = 0;
 
@@ -82,13 +85,19 @@ class _AdminHomeBodyState extends State<AdminHomeBody> {
         Supabase.instance.client.from('lokasi').count(),
         Supabase.instance.client.from('kategoritemuan').count(),
         Supabase.instance.client.from('temuan').count(),
+        Supabase.instance.client.from('unit').count(),
+        Supabase.instance.client.from('subunit').count(),
+        Supabase.instance.client.from('area').count(),
       ]);
       if (mounted) {
         setState(() {
-          _totalUsers = results[0];
-          _totalLokasi = results[1];
+          _totalUsers    = results[0];
+          _totalLokasi   = results[1];
           _totalKategori = results[2];
-          _totalTemuan = results[3];
+          _totalTemuan   = results[3];
+          _totalUnit     = results[4];
+          _totalSubunit  = results[5];
+          _totalArea     = results[6];
           _isLoadingStats = false;
         });
       }
@@ -139,6 +148,9 @@ class _AdminHomeBodyState extends State<AdminHomeBody> {
               isLoadingStats: _isLoadingStats,
               totalUsers: _totalUsers,
               totalLokasi: _totalLokasi,
+              totalUnit: _totalUnit,
+              totalSubunit: _totalSubunit,
+              totalArea: _totalArea,
               totalKategori: _totalKategori,
               totalTemuan: _totalTemuan,
             ),

@@ -4,6 +4,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
+import 'admin_verification_indicator.dart';
+
 class AdminVerificationFindingsTab extends StatefulWidget {
   final String lang;
   const AdminVerificationFindingsTab({super.key, required this.lang});
@@ -22,9 +24,12 @@ class _AdminVerificationFindingsTabState
   String _temuanFilter = 'all';
   String _temuanSearch = '';
   final _temuanSearchCtrl = TextEditingController();
+  int _currentPage = 1;
+  static const int _itemsPerPage = 5;
 
   static const Color _primaryColor = Color(0xFF0F766E);
   static const Color _accentColor = Color(0xFF0D9488);
+  static const Color _locationColor = Color(0xFF1D72F3);
 
   @override
   void initState() {
@@ -44,13 +49,16 @@ class _AdminVerificationFindingsTabState
     return id;
   }
 
-  // ── Helper jenis_temuan & lokasi spesifik ──
   bool _isKts(Map<String, dynamic> item) {
     return (item['jenis_temuan']?.toString() ?? '') == 'KTS Production';
   }
 
   Color _typeColor(Map<String, dynamic> item) {
-    return _isKts(item) ? const Color(0xFFF97316) : const Color(0xFF2563EB);
+    return _isKts(item) ? const Color(0xFFF59E0B) : const Color(0xFF3B82F6);
+  }
+
+  String _typeBadgeLabel(Map<String, dynamic> item) {
+    return _isKts(item) ? 'KTS' : '5R';
   }
 
   String _subkategoriLabel(Map<String, dynamic> item) {
@@ -84,10 +92,6 @@ class _AdminVerificationFindingsTabState
     if (lokasi != null && lokasi.isNotEmpty) return lokasi;
     return '-';
   }
-
-  // ══════════════════════════════════════════════
-  // LOAD TEMUAN VERIFIKASI
-  // ══════════════════════════════════════════════
 
   Future<void> _loadTemuanVerifikasi() async {
     setState(() => _temuanLoading = true);
@@ -498,25 +502,40 @@ class _AdminVerificationFindingsTabState
 
   @override
   Widget build(BuildContext context) {
+    final items = _filteredTemuan;
+    final totalPages = items.isEmpty ? 1 : (items.length / _itemsPerPage).ceil();
+    if (_currentPage > totalPages) _currentPage = totalPages;
+    if (_currentPage < 1) _currentPage = 1;
+    final pageStart = (_currentPage - 1) * _itemsPerPage;
+    final pageEnd = (pageStart + _itemsPerPage).clamp(0, items.length);
+    final pageItems =
+        items.isEmpty ? <Map<String, dynamic>>[] : items.sublist(pageStart, pageEnd);
+
     return Column(
       children: [
         _buildSearchAndFilter(),
         Expanded(
           child: _temuanLoading
               ? _buildListShimmer()
-              : _filteredTemuan.isEmpty
+              : items.isEmpty
                   ? _buildEmptyState()
                   : RefreshIndicator(
                       onRefresh: _loadTemuanVerifikasi,
                       color: _primaryColor,
                       child: ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                        itemCount: _filteredTemuan.length,
+                        itemCount: pageItems.length,
                         itemBuilder: (_, i) =>
-                            _buildTemuanCard(_filteredTemuan[i]),
+                            _buildTemuanCard(pageItems[i]),
                       ),
                     ),
         ),
+        if (!_temuanLoading && totalPages > 1)
+          AdminVerificationIndicator(
+            currentPage: _currentPage,
+            totalPages: totalPages,
+            onPageChanged: (p) => setState(() => _currentPage = p),
+          ),
       ],
     );
   }
@@ -528,7 +547,10 @@ class _AdminVerificationFindingsTabState
         children: [
           TextField(
             controller: _temuanSearchCtrl,
-            onChanged: (v) => setState(() => _temuanSearch = v),
+            onChanged: (v) => setState(() {
+              _temuanSearch = v;
+              _currentPage = 1;
+            }),
             style: GoogleFonts.poppins(fontSize: 13),
             decoration: InputDecoration(
               hintText: t('Cari...', 'Search...', '搜索...'),
@@ -540,7 +562,10 @@ class _AdminVerificationFindingsTabState
                   ? GestureDetector(
                       onTap: () {
                         _temuanSearchCtrl.clear();
-                        setState(() => _temuanSearch = '');
+                        setState(() {
+                          _temuanSearch = '';
+                          _currentPage = 1;
+                        });
                       },
                       child: Icon(Icons.clear_rounded,
                           color: Colors.grey.shade400, size: 18))
@@ -599,7 +624,10 @@ class _AdminVerificationFindingsTabState
 
         return Expanded(
           child: GestureDetector(
-            onTap: () => setState(() => _temuanFilter = value),
+            onTap: () => setState(() {
+              _temuanFilter = value;
+              _currentPage = 1;
+            }),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -640,7 +668,6 @@ class _AdminVerificationFindingsTabState
   }
 
   Widget _buildTemuanCard(Map<String, dynamic> item) {
-    final bool isFinalized = item['is_verif'] as bool? ?? false;
     final bool? finalOutcome = item['hasil_verifikasi_mayoritas'] as bool?;
     final int validVotes = item['vote_valid'] as int? ?? 0;
     final int invalidVotes = item['vote_invalid'] as int? ?? 0;
@@ -648,8 +675,8 @@ class _AdminVerificationFindingsTabState
     final String? imageUrl = item['gambar_temuan']?.toString();
     final String title = item['judul_temuan']?.toString() ?? '-';
     final String lokasi = _locationLabel(item);
-    final String subkategori = _subkategoriLabel(item);
     final Color typeColor = _typeColor(item);
+    final String typeBadge = _typeBadgeLabel(item);
 
     String dateStr = '-';
     try {
@@ -657,20 +684,10 @@ class _AdminVerificationFindingsTabState
       dateStr = DateFormat('dd MMM yyyy, HH:mm').format(dt);
     } catch (_) {}
 
-    Color accent;
-    IconData statusIcon;
-    String statusLabel;
-    if (!isFinalized || finalOutcome == null) {
-      accent = Colors.orange.shade400;
-      statusLabel = t('Menunggu', 'Pending', '待定');
-      statusIcon = Icons.hourglass_empty_rounded;
-    } else {
-      accent = finalOutcome ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-      statusLabel = finalOutcome ? t('Valid', 'Valid', '有效') : t('Tidak Valid', 'Invalid', '无效');
-      statusIcon = finalOutcome ? Icons.emoji_events_rounded : Icons.highlight_off_rounded;
-    }
-
     final double validRatio = totalVotes > 0 ? validVotes / totalVotes : 0.0;
+    final bool hasVotes = totalVotes > 0;
+    const Color validVoteColor = Color(0xFF16A34A);
+    const Color invalidVoteColor = Color(0xFFE11D48);
 
     return GestureDetector(
       onTap: () => _showTemuanDetail(item),
@@ -679,10 +696,10 @@ class _AdminVerificationFindingsTabState
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: accent.withValues(alpha: 0.25), width: 1.5),
+          border: Border.all(color: typeColor.withValues(alpha: 0.25), width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: accent.withValues(alpha: 0.08),
+                color: typeColor.withValues(alpha: 0.08),
                 blurRadius: 12,
                 offset: const Offset(0, 4))
           ],
@@ -693,16 +710,16 @@ class _AdminVerificationFindingsTabState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 6,
+                  width: 5,
                   height: 96,
                   decoration: BoxDecoration(
-                    color: accent,
+                    color: typeColor,
                     borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(19),
                         bottomLeft: Radius.circular(4)),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 14),
                 Padding(
                   padding: const EdgeInsets.only(top: 10),
                   child: Row(
@@ -736,52 +753,54 @@ class _AdminVerificationFindingsTabState
                             style: GoogleFonts.poppins(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF134E4A),
+                                color: Colors.black,
                                 height: 1.25)),
                         const SizedBox(height: 6),
-                        Row(children: [
-                          Container(
-                            padding: const EdgeInsets.all(3.5),
-                            decoration: BoxDecoration(
-                              color: typeColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: _locationColor.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: _locationColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.map_rounded,
+                                size: 11, color: _locationColor),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(lokasi,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: _locationColor)),
                             ),
-                            child: Icon(Icons.map_rounded,
-                                size: 10, color: typeColor),
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(lokasi,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: typeColor)),
-                          ),
-                        ]),
+                          ]),
+                        ),
                         const SizedBox(height: 5),
-                        Row(children: [
-                          Container(
-                            padding: const EdgeInsets.all(3.5),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.access_time_filled_rounded,
+                                size: 11, color: Colors.grey.shade700),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(dateStr,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF334155))),
                             ),
-                            child: Icon(Icons.access_time_rounded,
-                                size: 10, color: Colors.grey.shade600),
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(dateStr,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey.shade700)),
-                          ),
-                        ]),
+                          ]),
+                        ),
                       ],
                     ),
                   ),
@@ -792,39 +811,23 @@ class _AdminVerificationFindingsTabState
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        margin: const EdgeInsets.only(bottom: 6),
-                        constraints: const BoxConstraints(maxWidth: 76),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: typeColor.withValues(alpha: 0.12),
+                          color: typeColor,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: typeColor.withValues(alpha: 0.35)),
+                          boxShadow: [
+                            BoxShadow(
+                                color: typeColor.withValues(alpha: 0.35),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2)),
+                          ],
                         ),
-                        child: Text(subkategori,
-                            maxLines: 1,
-                            textAlign: TextAlign.center,
-                            overflow: TextOverflow.ellipsis,
+                        child: Text(typeBadge,
                             style: GoogleFonts.poppins(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w700,
-                                color: typeColor)),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white)),
                       ),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: accent.withValues(alpha: 0.3), width: 1.5),
-                        ),
-                        child: Icon(statusIcon, color: accent, size: 22),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(statusLabel,
-                          style: GoogleFonts.poppins(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: accent)),
                     ],
                   ),
                 ),
@@ -834,62 +837,23 @@ class _AdminVerificationFindingsTabState
             Container(
                 margin: const EdgeInsets.symmetric(horizontal: 12),
                 height: 1,
-                color: accent.withValues(alpha: 0.12)),
+                color: typeColor.withValues(alpha: 0.12)),
 
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Column(
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(children: [
-                        Icon(Icons.how_to_vote_rounded,
-                            size: 13,
-                            color: const Color(0xFF134E4A).withValues(alpha: 0.7)),
-                        const SizedBox(width: 5),
-                        Text(t('Rincian Suara', 'Vote Breakdown', '投票详情'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF134E4A))),
-                      ]),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: isFinalized
-                              ? const Color(0xFF16A34A).withValues(alpha: 0.1)
-                              : Colors.orange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isFinalized
-                                ? const Color(0xFF16A34A).withValues(alpha: 0.3)
-                                : Colors.orange.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(children: [
-                          Icon(
-                              isFinalized
-                                  ? Icons.verified_rounded
-                                  : Icons.pending_rounded,
-                              size: 10,
-                              color: isFinalized
-                                  ? const Color(0xFF16A34A)
-                                  : Colors.orange),
-                          const SizedBox(width: 3),
-                          Text(
-                              isFinalized
-                                  ? t('Final', 'Finalized', '已完成')
-                                  : t('Berlangsung', 'In Progress', '进行中'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: isFinalized
-                                      ? const Color(0xFF16A34A)
-                                      : Colors.orange)),
-                        ]),
-                      ),
+                      Icon(Icons.how_to_vote_rounded,
+                          size: 13,
+                          color: const Color(0xFF134E4A).withValues(alpha: 0.7)),
+                      const SizedBox(width: 5),
+                      Text(t('Rincian Suara', 'Vote Breakdown', '投票详情'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF134E4A))),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -897,47 +861,53 @@ class _AdminVerificationFindingsTabState
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(children: [
-                        const Icon(Icons.thumb_up_rounded,
-                            size: 11, color: Color(0xFF16A34A)),
+                        Icon(Icons.thumb_up_rounded,
+                            size: 11, color: validVoteColor),
                         const SizedBox(width: 3),
                         Text('$validVotes ${t("Valid", "Valid", "有效")}',
                             style: GoogleFonts.poppins(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF16A34A))),
+                                color: validVoteColor)),
                       ]),
                       Row(children: [
                         Text('$invalidVotes ${t("Tidak Valid", "Invalid", "无效")}',
                             style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFFDC2626))),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                color: invalidVoteColor)),
                         const SizedBox(width: 3),
-                        const Icon(Icons.thumb_down_rounded,
-                            size: 11, color: Color(0xFFDC2626)),
+                        Icon(Icons.thumb_down_rounded,
+                            size: 11, color: invalidVoteColor),
                       ]),
                     ],
                   ),
                   const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: Stack(children: [
-                      Container(
-                          height: 8,
-                          width: double.infinity,
-                          color: const Color(0xFFDC2626).withValues(alpha: 0.18)),
-                      FractionallySizedBox(
-                        widthFactor: validRatio.clamp(0.0, 1.0),
-                        child: Container(
-                          height: 8,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                                colors: [Color(0xFF16A34A), Color(0xFF4ADE80)]),
-                            borderRadius: BorderRadius.circular(6),
+                    child: hasVotes
+                        ? Stack(children: [
+                            Container(
+                                height: 8,
+                                width: double.infinity,
+                                color: const Color(0xFFE11D48).withValues(alpha: 0.18)),
+                            FractionallySizedBox(
+                              widthFactor: validRatio.clamp(0.0, 1.0),
+                              child: Container(
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                      colors: [Color(0xFF16A34A), Color(0xFF4ADE80)]),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                            ),
+                          ])
+                        : Container(
+                            height: 8,
+                            width: double.infinity,
+                            color: Colors.grey.shade300,
                           ),
-                        ),
-                      ),
-                    ]),
                   ),
                   const SizedBox(height: 8),
                   Row(children: [
@@ -991,7 +961,7 @@ class _AdminVerificationFindingsTabState
                                       style: GoogleFonts.poppins(
                                           fontSize: 8.5,
                                           fontWeight: FontWeight.w600,
-                                          color: Colors.grey.shade600)),
+                                          color: Colors.black)),
                                   const SizedBox(height: 1),
                                   Text(
                                       finalOutcome == null
@@ -1003,12 +973,8 @@ class _AdminVerificationFindingsTabState
                                       overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.poppins(
                                           fontSize: 12,
-                                          fontWeight: FontWeight.w800,
-                                          color: finalOutcome == null
-                                              ? Colors.orange.shade700
-                                              : finalOutcome
-                                                  ? const Color(0xFF16A34A)
-                                                  : const Color(0xFFDC2626))),
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black)),
                                 ],
                               ),
                             ),
@@ -1049,15 +1015,15 @@ class _AdminVerificationFindingsTabState
                                       style: GoogleFonts.poppins(
                                           fontSize: 8.5,
                                           fontWeight: FontWeight.w600,
-                                          color: Colors.grey.shade600)),
+                                          color: Colors.black)),
                                   const SizedBox(height: 1),
                                   Text('$totalVotes ${t("suara", "votes", "票")}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: GoogleFonts.poppins(
                                           fontSize: 12,
-                                          fontWeight: FontWeight.w800,
-                                          color: const Color(0xFF1E3A8A))),
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black)),
                                 ],
                               ),
                             ),
@@ -1084,7 +1050,7 @@ class _AdminVerificationFindingsTabState
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
@@ -1092,6 +1058,8 @@ class _AdminVerificationFindingsTabState
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Icon(icon, size: 9, color: color),
               const SizedBox(width: 3),
@@ -1099,7 +1067,8 @@ class _AdminVerificationFindingsTabState
                   style: GoogleFonts.poppins(
                       fontSize: 8,
                       fontWeight: FontWeight.w700,
-                      color: color)),
+                      color: color,
+                      height: 1.0)),
             ],
           ),
         ),

@@ -11,6 +11,9 @@ class AdminHomeInfoCard extends StatelessWidget {
   final bool isLoadingStats;
   final int totalUsers;
   final int totalLokasi;
+  final int totalUnit;
+  final int totalSubunit;
+  final int totalArea;
   final int totalKategori;
   final int totalTemuan;
 
@@ -22,6 +25,9 @@ class AdminHomeInfoCard extends StatelessWidget {
     required this.isLoadingStats,
     required this.totalUsers,
     required this.totalLokasi,
+    required this.totalUnit,
+    required this.totalSubunit,
+    required this.totalArea,
     required this.totalKategori,
     required this.totalTemuan,
   });
@@ -64,18 +70,16 @@ class AdminHomeInfoCard extends StatelessWidget {
               ),
             ),
             // TEXT AREA DARK OVERLAY
-            Positioned(
-              top: 0, left: 0, right: 0,
+            Positioned.fill(
               child: Container(
-                height: 110,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
                       Colors.black.withValues(alpha:0.55),
                       Colors.black.withValues(alpha:0.0),
                     ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                   ),
                 ),
               ),
@@ -177,8 +181,8 @@ class AdminHomeInfoCard extends StatelessWidget {
       ),
       _BannerStatItem(
         label: lang == 'EN' ? 'Locations' : lang == 'ZH' ? '位置' : 'Lokasi',
-        value: totalLokasi,
-        icon: Icons.location_city_rounded,
+        value: totalLokasi + totalUnit + totalSubunit + totalArea,
+        icon: Icons.map,
         color: const Color(0xFF10B981),
       ),
       _BannerStatItem(
@@ -378,27 +382,40 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
 
   String _pad(int v) => v.toString().padLeft(2, '0');
 
-  Widget _fixedWidthDigits(
-    String text,
-    TextStyle style, {
-    required double digitWidth,
-    required double colonWidth,
-  }) {
+  Widget _buildTimeRow(
+    String h,
+    String m,
+    String s,
+    TextStyle timeStyle,
+    TextStyle secStyle,
+  ) {
+    const double digitWidth = 14;
+    const double colonWidth = 10;
+
+    Widget digit(String ch, TextStyle style) => SizedBox(
+          width: digitWidth,
+          child: Text(ch, textAlign: TextAlign.center, style: style),
+        );
+
+    Widget colon(TextStyle style) => SizedBox(
+          width: colonWidth,
+          child: Text(':', textAlign: TextAlign.center, style: style),
+        );
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
-      children: text.split('').map((ch) {
-        final isColon = ch == ':';
-        return SizedBox(
-          width: isColon ? colonWidth : digitWidth,
-          child: Text(
-            ch,
-            textAlign: TextAlign.center,
-            style: style,
-          ),
-        );
-      }).toList(),
+      children: [
+        digit(h[0], timeStyle),
+        digit(h[1], timeStyle),
+        colon(timeStyle),
+        digit(m[0], timeStyle),
+        digit(m[1], timeStyle),
+        colon(timeStyle),
+        digit(s[0], secStyle),
+        digit(s[1], secStyle),
+      ],
     );
   }
 
@@ -448,7 +465,7 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
         shadows: [Shadow(color: const Color(0xFF059669).withValues(alpha:0.8), blurRadius: 8)]);
 
     final dateStyle = GoogleFonts.poppins(
-            color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.w700,
+            color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w700,
             letterSpacing: 0.3,
             shadows: [Shadow(color: Colors.black.withValues(alpha:0.5), blurRadius: 4)]);
 
@@ -472,27 +489,7 @@ class _AdminHomeClockWidgetState extends State<AdminHomeClockWidget> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  _fixedWidthDigits('$h:$m', timeStyle, digitWidth: 14, colonWidth: 6),
-                  SizedBox(
-                    width: 8,
-                    child: Text(
-                      ':',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        color: Colors.white.withValues(alpha:0.70),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  _fixedWidthDigits(s, secStyle, digitWidth: 14, colonWidth: 8),
-                ],
-              ),
+              _buildTimeRow(h, m, s, timeStyle, secStyle),
               const SizedBox(height: 3),
               Text(
                 dateLabel,
