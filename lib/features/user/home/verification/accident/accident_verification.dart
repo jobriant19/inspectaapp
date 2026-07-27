@@ -4,10 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../../core/utils/jabatan_helper.dart';
-import '../../accident/picker/accident_pick_cause.dart';
-import '../../accident/picker/accident_pick_severity.dart';
-import 'accident_verification_history.dart';
+import '../../../../../core/utils/jabatan_helper.dart';
+import '../../../accident/picker/accident_pick_cause.dart';
+import '../../../accident/picker/accident_pick_severity.dart';
+import '../accident_verification_history.dart';
+import 'accident_verification_edit.dart';
 
 class AccidentVerificationScreen extends StatefulWidget {
   final String lang;
@@ -683,107 +684,62 @@ class _AccidentVerificationScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // HEADER REVIEW & EDIT — pemicu edit via ikon pensil
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: headerColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: headerColors.last.withValues(alpha: 0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.health_and_safety_outlined,
-                      color: Colors.white, size: 24),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _lang == 'ID'
-                            ? 'Tinjauan Laporan Kecelakaan'
-                            : _lang == 'ZH'
-                                ? '事故报告审查'
-                                : 'Accident Report Review',
-                        style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _lang == 'ID'
-                            ? 'Periksa dan edit laporan jika diperlukan'
-                            : _lang == 'ZH'
-                                ? '检查并编辑报告（如需要）'
-                                : 'Review and edit the report if needed',
-                        style: GoogleFonts.poppins(
-                            color: Colors.white70, fontSize: 11, height: 1.4),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: () => _showEditAccidentDialog(laporan),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.edit_rounded,
-                        color: Colors.white, size: 18),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
           // FOTO
           if (laporan['foto_bukti'] != null) ...[
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                PageRouteBuilder(
+                  opaque: false,
+                  barrierColor: Colors.black.withValues(alpha: 0.95),
+                  transitionDuration: const Duration(milliseconds: 200),
+                  reverseTransitionDuration: Duration.zero,
+                  pageBuilder: (_, __, ___) => AccidentFullscreenImageViewer(
+                    imageUrl: laporan['foto_bukti'],
                   ),
-                ],
+                ),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.network(
-                  laporan['foto_bukti'],
-                  width: double.infinity,
-                  height: 240,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 240,
-                    color: Colors.grey.shade100,
-                    child: Icon(Icons.image_not_supported_outlined,
-                        color: Colors.grey.shade400, size: 48),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    children: [
+                      Image.network(
+                        laporan['foto_bukti'],
+                        width: double.infinity,
+                        height: 240,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 240,
+                          color: Colors.grey.shade100,
+                          child: Icon(Icons.image_not_supported_outlined,
+                              color: Colors.grey.shade400, size: 48),
+                        ),
+                      ),
+                      Positioned(
+                        right: 10,
+                        bottom: 10,
+                        child: Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.fullscreen_rounded,
+                              color: Colors.white, size: 18),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -954,8 +910,8 @@ class _AccidentVerificationScreenState
             child: Column(
               children: [
                 _buildDetailStyleInfoRowBadge(
-                    Icons.location_on_outlined,
-                    _lang == 'ID' ? 'Lokasi' : _lang == 'ZH' ? '地点' : 'Location',
+                    Icons.map,
+                    _lang == 'ID' ? 'Lokasi Kejadian' : _lang == 'ZH' ? '事故地点' : 'Incident Location',
                     _buildDetailStyleValueBadge(Icons.location_city_rounded,
                         laporan['lokasi']?['nama_lokasi'] ?? '-',
                         const Color(0xFF10B981))),
@@ -1076,12 +1032,13 @@ class _AccidentVerificationScreenState
                       Expanded(
                         child: Text(
                           _lang == 'ID'
-                              ? 'Jika laporan ini menurut Anda tidak valid, gunakan ikon pensil pada bagian "Tinjauan Laporan Kecelakaan" di atas untuk meninjau dan mengedit laporan hingga Anda yakin laporan valid untuk dilanjutkan ke penambahan solusi.'
+                              ? 'Laporan tidak valid? Edit datanya di bawah.'
                               : _lang == 'ZH'
-                                  ? '如果您认为此报告无效，请使用上方"事故报告审查"中的铅笔图标来审查并编辑报告，直到您确认报告有效并可以继续添加解决方案。'
-                                  : 'If you believe this report is invalid, use the pencil icon on the "Accident Report Review" section above to review and edit the report until you are confident it is valid to proceed to adding a solution.',
+                                  ? '报告无效？请在下方编辑数据。'
+                                  : 'Report invalid? Edit the data below.',
                           style: GoogleFonts.poppins(
                               fontSize: 12,
+                              fontWeight: FontWeight.w600,
                               color: const Color(0xFF991B1B),
                               height: 1.5),
                         ),
@@ -1090,6 +1047,90 @@ class _AccidentVerificationScreenState
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ACCIDENT REPORT EDIT — dipindah ke paling bawah
+          GestureDetector(
+            onTap: () async {
+              final updated = await Navigator.push<Map<String, dynamic>>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AccidentVerificationEditScreen(
+                    lang: _lang,
+                    laporan: laporan,
+                  ),
+                ),
+              );
+              if (updated != null && mounted) {
+                setState(() => _accidentData = updated);
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: headerColors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: headerColors.last.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.edit_rounded,
+                        color: Colors.white, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _lang == 'ID'
+                              ? 'Edit Laporan Kecelakaan'
+                              : _lang == 'ZH'
+                                  ? '编辑事故报告'
+                                  : 'Accident Report Edit',
+                          style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _lang == 'ID'
+                              ? 'Ketuk untuk meninjau dan mengedit laporan'
+                              : _lang == 'ZH'
+                                  ? '点击以审查并编辑报告'
+                                  : 'Tap to review and edit the report',
+                          style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                              height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded,
+                      color: Colors.white, size: 16),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -1406,375 +1447,6 @@ class _AccidentVerificationScreenState
     );
   }
 
-  void _showEditAccidentDialog(Map<String, dynamic> laporan) {
-    final judulCtrl = TextEditingController(text: laporan['judul'] ?? '');
-    final descCtrl = TextEditingController(text: laporan['deskripsi'] ?? '');
-    final tindakanCtrl =
-        TextEditingController(text: laporan['tindakan_diambil'] ?? '');
-    final deptCtrl =
-        TextEditingController(text: laporan['departemen_terdampak'] ?? '');
-    String selectedSeverity = laporan['tingkat_keparahan'] ?? 'Ringan';
-    String selectedCause = laporan['penyebab'] ?? 'Lainnya';
-    bool isSaving = false;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDC2626).withValues(alpha:0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.edit_rounded,
-                          color: Color(0xFFDC2626), size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _lang == 'ID'
-                            ? 'Edit Laporan Kecelakaan'
-                            : _lang == 'ZH'
-                                ? '编辑事故报告'
-                                : 'Edit Accident Report',
-                        style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1E3A8A)),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(ctx),
-                      child: Icon(Icons.close, color: Colors.grey.shade400),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                _buildEditField(
-                    ctrl: judulCtrl,
-                    icon: Icons.edit_note_rounded,
-                    label: _lang == 'ID' ? 'Judul' : _lang == 'ZH' ? '标题' : 'Title',
-                    hint: _lang == 'ID'
-                        ? 'Contoh: Tergelincir di gudang'
-                        : 'Example: Slipped in warehouse'),
-                const SizedBox(height: 14),
-
-                _buildEditField(
-                    ctrl: descCtrl,
-                    icon: Icons.description_outlined,
-                    label: _lang == 'ID'
-                        ? 'Deskripsi Kejadian'
-                        : _lang == 'ZH'
-                            ? '事故描述'
-                            : 'Incident Description',
-                    hint: _lang == 'ID'
-                        ? 'Ceritakan kejadian secara rinci...'
-                        : 'Describe the incident...',
-                    maxLines: 4),
-                const SizedBox(height: 14),
-
-                _buildEditFieldLabel(
-                    _lang == 'ID'
-                        ? 'Tingkat Keparahan'
-                        : _lang == 'ZH'
-                            ? '严重程度'
-                            : 'Severity Level',
-                    icon: Icons.health_and_safety_outlined),
-                _buildDialogPickField(
-                  icon: AccidentSeverityData.iconOf(selectedSeverity),
-                  color: AccidentSeverityData.colorOf(selectedSeverity),
-                  label: AccidentSeverityData.labelOf(selectedSeverity, _lang),
-                  onTap: () async {
-                    final result = await showDialog<String>(
-                      context: ctx,
-                      barrierColor: Colors.black.withValues(alpha: 0.5),
-                      builder: (_) => AccidentPickSeverityScreen(
-                        lang: _lang,
-                        selectedSeverity: selectedSeverity,
-                      ),
-                    );
-                    if (result != null) setDlg(() => selectedSeverity = result);
-                  },
-                ),
-                const SizedBox(height: 14),
-
-                _buildEditFieldLabel(
-                    _lang == 'ID' ? 'Penyebab' : _lang == 'ZH' ? '原因' : 'Cause',
-                    icon: Icons.warning_amber_rounded),
-                _buildDialogPickField(
-                  icon: AccidentCauseData.iconOf(selectedCause),
-                  color: AccidentCauseData.colorOf(selectedCause),
-                  label: AccidentCauseData.labelOf(selectedCause, _lang),
-                  onTap: () async {
-                    final result = await showDialog<String>(
-                      context: ctx,
-                      barrierColor: Colors.black.withValues(alpha: 0.5),
-                      builder: (_) => AccidentPickCauseScreen(
-                        lang: _lang,
-                        selectedCause: selectedCause,
-                      ),
-                    );
-                    if (result != null) setDlg(() => selectedCause = result);
-                  },
-                ),
-                const SizedBox(height: 14),
-
-                _buildEditField(
-                    ctrl: deptCtrl,
-                    icon: Icons.business_outlined,
-                    required: false,
-                    label: _lang == 'ID'
-                        ? 'Departemen Terdampak'
-                        : _lang == 'ZH'
-                            ? '受影响部门'
-                            : 'Affected Department',
-                    hint: _lang == 'ID' ? 'Contoh: Marketing' : 'e.g. Marketing'),
-                const SizedBox(height: 14),
-
-                _buildEditField(
-                    ctrl: tindakanCtrl,
-                    icon: Icons.medical_services_outlined,
-                    required: false,
-                    label: _lang == 'ID'
-                        ? 'Tindakan yang Diambil'
-                        : _lang == 'ZH'
-                            ? '采取的措施'
-                            : 'Action Taken',
-                    hint: _lang == 'ID'
-                        ? 'Contoh: Dibawa ke rumah sakit'
-                        : 'e.g. Taken to hospital',
-                    maxLines: 3),
-                const SizedBox(height: 24),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.grey.shade300),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: Text(
-                            _lang == 'ID' ? 'Batal' : 'Cancel',
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade600)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: isSaving
-                            ? null
-                            : () async {
-                                if (judulCtrl.text.trim().isEmpty ||
-                                    descCtrl.text.trim().isEmpty) {
-                                  ScaffoldMessenger.of(context)
-                                      .showSnackBar(SnackBar(
-                                    content: Text(_lang == 'ID'
-                                        ? 'Judul dan deskripsi wajib diisi!'
-                                        : 'Title and description required!'),
-                                    backgroundColor: Colors.red,
-                                  ));
-                                  return;
-                                }
-                                setDlg(() => isSaving = true);
-                                try {
-                                  await _client
-                                      .from('accident_report')
-                                      .update({
-                                    'judul': judulCtrl.text.trim(),
-                                    'deskripsi': descCtrl.text.trim(),
-                                    'tingkat_keparahan': selectedSeverity,
-                                    'penyebab': selectedCause,
-                                    'departemen_terdampak':
-                                        deptCtrl.text.trim().isEmpty
-                                            ? null
-                                            : deptCtrl.text.trim(),
-                                    'tindakan_diambil':
-                                        tindakanCtrl.text.trim().isEmpty
-                                            ? null
-                                            : tindakanCtrl.text.trim(),
-                                    'updated_at':
-                                        DateTime.now().toIso8601String(),
-                                  }).eq('id_laporan',
-                                          laporan['id_laporan'].toString());
-
-                                  if (mounted) {
-                                    setState(() {
-                                      _accidentData!['judul'] =
-                                          judulCtrl.text.trim();
-                                      _accidentData!['deskripsi'] =
-                                          descCtrl.text.trim();
-                                      _accidentData!['tingkat_keparahan'] =
-                                          selectedSeverity;
-                                      _accidentData!['penyebab'] = selectedCause;
-                                      _accidentData!['departemen_terdampak'] =
-                                          deptCtrl.text.trim().isEmpty
-                                              ? null
-                                              : deptCtrl.text.trim();
-                                      _accidentData!['tindakan_diambil'] =
-                                          tindakanCtrl.text.trim().isEmpty
-                                              ? null
-                                              : tindakanCtrl.text.trim();
-                                    });
-                                  }
-                                  Navigator.pop(ctx);
-                                  ScaffoldMessenger.of(context)
-                                      .showSnackBar(SnackBar(
-                                    content: Text(_lang == 'ID'
-                                        ? 'Laporan berhasil diperbarui!'
-                                        : 'Report updated successfully!'),
-                                    backgroundColor: Colors.green,
-                                  ));
-                                } catch (e) {
-                                  debugPrint('Update error: $e');
-                                  setDlg(() => isSaving = false);
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFDC2626),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: isSaving
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2))
-                            : Text(
-                                _lang == 'ID' ? 'Simpan' : 'Save',
-                                style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEditFieldLabel(String label, {required IconData icon, bool required = true}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8, left: 2),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: const Color(0xFFDC2626)),
-          const SizedBox(width: 6),
-          Text(label,
-              style: GoogleFonts.poppins(
-                  fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFFDC2626))),
-          if (required)
-            const Text(' *',
-                style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEditField({
-    required TextEditingController ctrl,
-    required String label,
-    required String hint,
-    required IconData icon,
-    int maxLines = 1,
-    bool required = true,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildEditFieldLabel(label, icon: icon, required: required),
-        TextFormField(
-          controller: ctrl,
-          maxLines: maxLines,
-          style: GoogleFonts.inter(fontSize: 15, color: Colors.black87),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: GoogleFonts.inter(color: const Color(0xFFCBD5E1), fontSize: 15),
-            filled: true,
-            fillColor: const Color(0xFFF8FAFF),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE0E7FF), width: 1)),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.5)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDialogPickField({
-    required IconData icon,
-    required Color color,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFF),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: GoogleFonts.inter(
-                    fontSize: 15, fontWeight: FontWeight.w700, color: Colors.black87),
-              ),
-            ),
-            const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: Colors.black45),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildAccidentSuccessView() {
     return Center(
       child: Padding(
@@ -1796,11 +1468,11 @@ class _AccidentVerificationScreenState
             const SizedBox(height: 24),
             Text(t('success_title'),
                 style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w800,
-                    color: const Color(0xFF1E3A8A))),
+                    color: const Color(0xFF1D72F3))),
             const SizedBox(height: 8),
             Text(t('success_body'),
                 textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey.shade500)),
+                style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black)),
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity, height: 50,
@@ -2316,6 +1988,6 @@ class _CountdownAutoNextState extends State<_CountdownAutoNext> {
   Widget build(BuildContext context) {
     return Text('${widget.textPrefix} $_count ${widget.textSuffix}',
         style: GoogleFonts.poppins(
-            fontSize: 12, color: Colors.grey.shade400));
+            fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87));
   }
 }
