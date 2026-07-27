@@ -40,7 +40,6 @@ class _AccidentVerificationScreenState
   Timer? _accidentCountdownTimer;
   bool _showAccidentVerifPopup = false;
   bool _isAccidentVoteValid = false;
-  bool _showResolutionForm = false;
 
   static const Map<String, Map<String, String>> _txt = {
     'EN': {
@@ -48,11 +47,11 @@ class _AccidentVerificationScreenState
       'tab_history': 'History',
       'finding': 'Finding',
       'completion': 'Completion',
-      'swipe_correct': 'SWIPE — VALID',
+      'swipe_correct': 'VALID',
       'swipe_incorrect': 'SWIPE — INVALID',
       'wait_prefix': 'Please read carefully —',
       'wait_suffix': 's remaining',
-      'swipe_now': 'Swipe left or right to respond',
+      'swipe_now': 'Swipe right for Valid',
       'back': 'Back',
       'success_title': 'Verification Submitted',
       'success_body': 'Thank you! Continue to the next?',
@@ -71,11 +70,11 @@ class _AccidentVerificationScreenState
       'tab_history': 'Riwayat',
       'finding': 'Temuan',
       'completion': 'Penyelesaian',
-      'swipe_correct': 'GESER — VALID',
+      'swipe_correct': 'VALID',
       'swipe_incorrect': 'GESER — TIDAK VALID',
       'wait_prefix': 'Baca dulu —',
       'wait_suffix': 'd tersisa',
-      'swipe_now': 'Geser kiri atau kanan untuk menjawab',
+      'swipe_now': 'Geser ke kanan untuk Valid',
       'back': 'Kembali',
       'success_title': 'Verifikasi Terkirim',
       'success_body': 'Terima kasih! Lanjut ke berikutnya?',
@@ -94,11 +93,11 @@ class _AccidentVerificationScreenState
       'tab_history': '历史',
       'finding': '发现',
       'completion': '完成',
-      'swipe_correct': '滑动 — 有效',
+      'swipe_correct': '有效',
       'swipe_incorrect': '滑动 — 无效',
       'wait_prefix': '请仔细阅读 —',
       'wait_suffix': '秒剩余',
-      'swipe_now': '向左或向右滑动作答',
+      'swipe_now': '向右滑动以确认有效',
       'back': '返回',
       'success_title': '验证已提交',
       'success_body': '谢谢！继续下一个？',
@@ -377,9 +376,6 @@ class _AccidentVerificationScreenState
   Widget _buildVerifyTab() {
     if (_isAccidentLoading) return _buildVerifyShimmer();
     if (_showAccidentSuccess) return _buildAccidentSuccessView();
-    if (_showResolutionForm && _accidentData != null) {
-      return _buildResolutionForm();
-    }
     if (_noAccidentData) return _buildNoDataView();
     if (_accidentData != null) return _buildAccidentVerificationCard();
     return const SizedBox();
@@ -444,8 +440,15 @@ class _AccidentVerificationScreenState
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: const Color(0xFF4ADE80).withValues(alpha:0.1),
+                color: const Color(0xFF4ADE80).withValues(alpha: 0.1),
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
               ),
               child: const Icon(Icons.task_alt_rounded,
                   size: 54, color: Color(0xFF16A34A)),
@@ -455,22 +458,24 @@ class _AccidentVerificationScreenState
                 style: GoogleFonts.poppins(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF1E3A8A))),
+                    color: const Color(0xFF1D72F3))),
             const SizedBox(height: 8),
             Text(t('no_data_body'),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                     fontSize: 14,
-                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
                     height: 1.5)),
             const SizedBox(height: 32),
             OutlinedButton.icon(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.arrow_back_rounded),
-              label: Text(t('back')),
+              label: Text(t('back'),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF1E3A8A),
-                side: const BorderSide(color: Color(0xFF1E3A8A)),
+                foregroundColor: const Color(0xFF1D72F3),
+                side: const BorderSide(color: Color(0xFF1D72F3)),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
                 padding: const EdgeInsets.symmetric(
@@ -491,7 +496,6 @@ class _AccidentVerificationScreenState
       _isAccidentLoading = true;
       _noAccidentData = false;
       _showAccidentSuccess = false;
-      _showResolutionForm = false;
       _accidentData = null;
       _showAccidentVerifPopup = false;
     });
@@ -1432,16 +1436,42 @@ class _AccidentVerificationScreenState
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(icon, color: const Color(0xFF1D72F3), size: 18),
-          const SizedBox(width: 12),
-          Text(label,
-              style: GoogleFonts.poppins(
-                  fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3))),
-          const Spacer(),
-          Text(name,
-              style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w700, fontSize: 14, color: Colors.black)),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 3,
+            child: Text(label,
+                style: GoogleFonts.poppins(
+                    fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3))),
+          ),
+          Expanded(
+            flex: 5,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEFF6FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.person_rounded,
+                      size: 20, color: Color(0xFF1D72F3)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700, fontSize: 14, color: Colors.black),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1479,7 +1509,8 @@ class _AccidentVerificationScreenState
               child: ElevatedButton.icon(
                 onPressed: _loadNextAccidentReport,
                 icon: const Icon(Icons.arrow_forward_rounded),
-                label: Text(t('continue_btn')),
+                label: Text(t('continue_btn'),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF16A34A),
                   foregroundColor: Colors.white, elevation: 0,
@@ -1496,238 +1527,6 @@ class _AccidentVerificationScreenState
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildResolutionForm() {
-    final judulCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    final korektifCtrl = TextEditingController();
-    final preventifCtrl = TextEditingController();
-    bool isSavingResolution = false;
-
-    return StatefulBuilder(
-      builder: (context, setInner) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF16A34A), Color(0xFF15803D)],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.assignment_turned_in_rounded,
-                        color: Colors.white70, size: 28),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _lang == 'ID' ? 'Isi Penyelesaian Laporan'
-                                : _lang == 'ZH' ? '填写解决方案'
-                                : 'Fill Report Resolution',
-                            style: GoogleFonts.poppins(
-                                color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
-                          ),
-                          Text(
-                            _lang == 'ID' ? 'Berikan tindakan korektif dan preventif'
-                                : _lang == 'ZH' ? '提供纠正和预防措施'
-                                : 'Provide corrective and preventive actions',
-                            style: GoogleFonts.poppins(
-                                color: Colors.white70, fontSize: 11, height: 1.4),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              _buildResFormField(
-                ctrl: judulCtrl,
-                label: _lang == 'ID' ? 'Judul Penyelesaian *'
-                    : _lang == 'ZH' ? '解决方案标题 *' : 'Resolution Title *',
-                hint: _lang == 'ID' ? 'Contoh: Penanganan Insiden Gudang'
-                    : 'Example: Warehouse Incident Handling',
-                icon: Icons.title_rounded,
-              ),
-              const SizedBox(height: 14),
-              _buildResFormField(
-                ctrl: descCtrl,
-                label: _lang == 'ID' ? 'Deskripsi Penyelesaian *'
-                    : _lang == 'ZH' ? '解决方案描述 *' : 'Resolution Description *',
-                hint: _lang == 'ID' ? 'Jelaskan penyelesaian secara rinci...'
-                    : 'Explain the resolution in detail...',
-                icon: Icons.description_rounded,
-                maxLines: 4,
-              ),
-              const SizedBox(height: 14),
-              _buildResFormField(
-                ctrl: korektifCtrl,
-                label: _lang == 'ID' ? 'Tindakan Korektif'
-                    : _lang == 'ZH' ? '纠正措施' : 'Corrective Action',
-                hint: _lang == 'ID' ? 'Tindakan untuk mengatasi masalah...'
-                    : 'Actions to address the issue...',
-                icon: Icons.build_rounded,
-                maxLines: 3,
-                color: const Color(0xFFF97316),
-              ),
-              const SizedBox(height: 14),
-              _buildResFormField(
-                ctrl: preventifCtrl,
-                label: _lang == 'ID' ? 'Tindakan Preventif'
-                    : _lang == 'ZH' ? '预防措施' : 'Preventive Action',
-                hint: _lang == 'ID' ? 'Tindakan untuk mencegah terulang...'
-                    : 'Actions to prevent recurrence...',
-                icon: Icons.shield_rounded,
-                maxLines: 3,
-                color: const Color(0xFF16A34A),
-              ),
-              const SizedBox(height: 24),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        setState(() {
-                          _showResolutionForm = false;
-                          _showAccidentSuccess = true;
-                        });
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey.shade600,
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: Text(_lang == 'ID' ? 'Lewati'
-                          : _lang == 'ZH' ? '跳过' : 'Skip'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: isSavingResolution ? null : () async {
-                        if (judulCtrl.text.trim().isEmpty ||
-                            descCtrl.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(_lang == 'ID'
-                                ? 'Judul dan deskripsi wajib diisi!'
-                                : 'Title and description are required!'),
-                            backgroundColor: Colors.red,
-                          ));
-                          return;
-                        }
-                        setInner(() => isSavingResolution = true);
-                        try {
-                          final userId = _client.auth.currentUser!.id;
-                          await _client.from('resolution_accident').insert({
-                            'id_laporan': _accidentData!['id_laporan'],
-                            'id_hrd': userId,
-                            'judul_resolusi': judulCtrl.text.trim(),
-                            'deskripsi_resolusi': descCtrl.text.trim(),
-                            'tindakan_korektif': korektifCtrl.text.trim().isEmpty
-                                ? null : korektifCtrl.text.trim(),
-                            'tindakan_preventif': preventifCtrl.text.trim().isEmpty
-                                ? null : preventifCtrl.text.trim(),
-                            'tanggal_resolusi': DateTime.now()
-                                .toIso8601String().substring(0, 10),
-                          });
-                          await _client.from('accident_report')
-                              .update({'status': 'Selesai'})
-                              .eq('id_laporan', _accidentData!['id_laporan']);
-
-                          if (mounted) {
-                            setState(() {
-                              _showResolutionForm = false;
-                              _showAccidentSuccess = true;
-                            });
-                          }
-                        } catch (e) {
-                          debugPrint('Save resolution error: $e');
-                          setInner(() => isSavingResolution = false);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF16A34A),
-                        foregroundColor: Colors.white, elevation: 0,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: isSavingResolution
-                          ? const SizedBox(width: 20, height: 20,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2))
-                          : Text(_lang == 'ID' ? 'Simpan Penyelesaian'
-                              : _lang == 'ZH' ? '保存解决方案'
-                              : 'Save Resolution',
-                              style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildResFormField({
-    required TextEditingController ctrl,
-    required String label,
-    required String hint,
-    required IconData icon,
-    int maxLines = 1,
-    Color color = const Color(0xFF00C9E4),
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: GoogleFonts.poppins(
-            fontSize: 13, fontWeight: FontWeight.w700,
-            color: const Color(0xFF1E3A8A))),
-        const SizedBox(height: 6),
-        TextFormField(
-          controller: ctrl,
-          maxLines: maxLines,
-          style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: GoogleFonts.poppins(
-                color: Colors.grey.shade400, fontSize: 13),
-            prefixIcon: maxLines == 1
-                ? Icon(icon, color: color, size: 20) : null,
-            filled: true,
-            fillColor: const Color(0xFFF8FAFF),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none),
-            enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: color.withValues(alpha:0.3), width: 1)),
-            focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: color, width: 1.5)),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 14),
-          ),
-        ),
-      ],
     );
   }
 
