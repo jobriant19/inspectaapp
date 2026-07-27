@@ -58,7 +58,7 @@ class _AdminAreaTabState extends State<AdminAreaTab>
       final res = await Supabase.instance.client
           .from('area')
           .select(
-              'id_area, nama_area, deskripsi_area, deskripsi_area_en, deskripsi_area_zh, is_star, gambar_area, kategori, qrcode, id_subunit, id_unit, id_lokasi, id_pic, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), User!fk_area_pic(nama, gambar_user, id_jabatan, is_verificator, jabatan(nama_jabatan))')
+              'id_area, nama_area, deskripsi_area, deskripsi_area_en, deskripsi_area_zh, is_star, gambar_area, qrcode, id_subunit, id_unit, id_lokasi, id_pic, subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), User!fk_area_pic(nama, gambar_user, id_jabatan, is_verificator, jabatan(nama_jabatan))')
           .order('nama_area');
       if (mounted) {
         setState(() {
