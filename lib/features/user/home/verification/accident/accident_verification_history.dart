@@ -3,10 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../../core/utils/jabatan_helper.dart';
-import '../../accident/picker/accident_pick_cause.dart';
-import '../../accident/picker/accident_pick_severity.dart';
-import 'accident/accident_verification_indicator.dart';
+import '../../../../../core/utils/jabatan_helper.dart';
+import '../../../accident/picker/accident_pick_cause.dart';
+import '../../../accident/picker/accident_pick_severity.dart';
+import 'accident_verification_detail.dart';
+import 'accident_verification_indicator.dart';
 
 class AccidentVerificationHistoryScreen extends StatefulWidget {
   final String lang;
@@ -90,7 +91,6 @@ class AccidentVerificationHistoryScreenState
     super.dispose();
   }
 
-  // Hanya menampilkan laporan dengan hasil verifikasi VALID + support pencarian
   List<Map<String, dynamic>> get _filteredHistoryList {
     var list = _accidentHistoryList
         .where((i) => i['hasil_verifikasi_mayoritas'] == true)
@@ -108,9 +108,6 @@ class AccidentVerificationHistoryScreenState
     return list;
   }
 
-  // ================================================================
-  // LOAD DATA
-  // ================================================================
   Future<void> loadAccidentHistory() async {
     setState(() => _accidentHistoryLoading = true);
     try {
@@ -212,9 +209,6 @@ class AccidentVerificationHistoryScreenState
     }
   }
 
-  // ================================================================
-  // UI
-  // ================================================================
   @override
   Widget build(BuildContext context) {
     if (_accidentHistoryLoading) return _buildHistoryShimmer();
@@ -447,15 +441,18 @@ class AccidentVerificationHistoryScreenState
     final IconData statusIcon =
         finalOutcome == true ? Icons.verified_rounded : Icons.cancel_rounded;
 
-    final int totalVotes = (stats['total'] as int?) ?? 0;
-    final double validRatio = totalVotes > 0
-        ? ((stats['valid_count'] as int?) ?? 0) / totalVotes
-        : 0.0;
-
     return GestureDetector(
-      onTap: () => _showAccidentHistoryDetail(
-          data, stats, accent, statusLabel, statusIcon,
-          statusLabel, accent, validRatio),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AccidentVerificationDetailScreen(
+            lang: _lang,
+            data: data,
+            stats: stats,
+            userJabatanId: widget.userJabatanId,
+          ),
+        ),
+      ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
@@ -474,7 +471,6 @@ class AccidentVerificationHistoryScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── BARIS UTAMA: GAMBAR + KONTEN (gaya accident_report_list_screen) ──
               IntrinsicHeight(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -518,7 +514,6 @@ class AccidentVerificationHistoryScreenState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // JUDUL + SEVERITY BADGE (badge "ACCIDENT" dihapus)
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -560,7 +555,7 @@ class AccidentVerificationHistoryScreenState
                           ),
                           const SizedBox(height: 4),
 
-                          // LOKASI BADGE
+                          // LOCATION BADGE
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
@@ -592,7 +587,7 @@ class AccidentVerificationHistoryScreenState
                           ),
                           const SizedBox(height: 6),
 
-                          // PENYEBAB CHIP
+                          // FACTOR CHIP
                           Row(children: [
                             Flexible(
                               child: Container(
@@ -619,7 +614,7 @@ class AccidentVerificationHistoryScreenState
                           ]),
                           const SizedBox(height: 8),
 
-                          // TANGGAL FINAL + STATUS VALID/INVALID
+                          // COMPLETION DATE + STATUS VALID/INVALID
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(
@@ -673,7 +668,7 @@ class AccidentVerificationHistoryScreenState
                 ),
               ),
 
-              // ── VERIFIED BY — gaya sama seperti "Reported by" pada accident detail ──
+              // VERIFIED BY
               const SizedBox(height: 12),
               Container(height: 1, color: Colors.grey.shade100),
               const SizedBox(height: 10),
@@ -736,7 +731,6 @@ class AccidentVerificationHistoryScreenState
     );
   }
 
-  // Baris satu verifikator, gaya identik "Reported by" pada accident_detail_screen
   Widget _buildVerifiedPersonRow(Map<String, String> verifier) {
     final nama = (verifier['nama']?.isNotEmpty ?? false) ? verifier['nama']! : '-';
     final fotoUrl = verifier['foto_url'] ?? '';
@@ -806,366 +800,6 @@ class AccidentVerificationHistoryScreenState
                     ]),
                   ),
                 ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAccidentHistoryDetail(
-    Map<String, dynamic> data,
-    Map<String, dynamic> stats,
-    Color accent,
-    String statusLabel,
-    IconData statusIcon,
-    String voteLabel,
-    Color voteColor,
-    double validRatio,
-  ) {
-    final String title = data['judul']?.toString() ?? '-';
-    final String? imageUrl = data['foto_bukti']?.toString();
-    final String severity = data['tingkat_keparahan'] ?? '';
-    final String deskripsi = data['deskripsi']?.toString() ?? '-';
-    final String lokasiName = data['lokasi']?['nama_lokasi']?.toString() ?? '-';
-    final String pelaporName = data['pelapor']?['nama']?.toString() ?? '-';
-    final String tanggal =
-        data['tanggal_kejadian']?.toString() ?? '-';
-    final String waktu =
-        data['waktu_kejadian']?.toString().substring(0, 5) ?? '-';
-    final String penyebab = data['penyebab']?.toString() ?? '-';
-
-    String dateStr = '-';
-    try {
-      final rawDate = data['waktu_verifikasi'] ?? data['created_at'];
-      if (rawDate != null) {
-        final dt = DateTime.parse(rawDate.toString()).toLocal();
-        dateStr = DateFormat('dd MMM yyyy, HH:mm').format(dt);
-      }
-    } catch (_) {}
-
-    final Color sevColor = severity == 'Berat'
-        ? const Color(0xFFDC2626)
-        : severity == 'Menengah'
-            ? const Color(0xFFF97316)
-            : const Color(0xFF16A34A);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.85,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (_, scrollCtrl) => Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFF0F7FF),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 4),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: widget.userJabatanId == 2
-                        ? [const Color(0xFF7C3AED), const Color(0xFF6D28D9)]
-                        : [const Color(0xFFDC2626), const Color(0xFFB91C1C)],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha:0.2),
-                          borderRadius: BorderRadius.circular(8)),
-                      child: const Icon(Icons.health_and_safety_outlined,
-                          color: Colors.white, size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _lang == 'ID'
-                                ? 'Detail Laporan Kecelakaan'
-                                : _lang == 'ZH'
-                                    ? '事故报告详情'
-                                    : 'Accident Report Detail',
-                            style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14),
-                          ),
-                          Text(dateStr,
-                              style: GoogleFonts.poppins(
-                                  color: Colors.white70, fontSize: 11)),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: accent,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha:0.4), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha:0.2),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(statusIcon, size: 13, color: Colors.white),
-                          const SizedBox(width: 5),
-                          Text(
-                            statusLabel,
-                            style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  controller: scrollCtrl,
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    if (imageUrl != null) ...[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Stack(children: [
-                          Image.network(
-                            imageUrl,
-                            width: double.infinity,
-                            height: 200,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                                height: 200,
-                                color: Colors.grey.shade100,
-                                child: const Icon(
-                                    Icons.image_not_supported_outlined,
-                                    size: 48)),
-                          ),
-                          Positioned(
-                            top: 10,
-                            right: 10,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: sevColor,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                const Icon(Icons.warning_amber_rounded,
-                                    size: 12, color: Colors.white),
-                                const SizedBox(width: 4),
-                                Text(severity,
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white)),
-                              ]),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
-
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(title,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF1E3A8A))),
-                          const SizedBox(height: 12),
-                          const Divider(height: 1),
-                          const SizedBox(height: 12),
-                          _buildDetailInfoRow(Icons.person_outline,
-                              _lang == 'ID' ? 'Pelapor' : 'Reporter',
-                              pelaporName),
-                          _buildDetailInfoRow(Icons.personal_injury_outlined,
-                              _lang == 'ID' ? 'Pihak Terdampak' : 'Affected',
-                              data['pihak_terdampak']?['nama']?.toString() ?? '-'),
-                          _buildDetailInfoRow(Icons.location_on_outlined,
-                              _lang == 'ID' ? 'Lokasi' : 'Location', lokasiName),
-                          _buildDetailInfoRow(Icons.calendar_today,
-                              _lang == 'ID' ? 'Tanggal' : 'Date', tanggal),
-                          _buildDetailInfoRow(Icons.access_time,
-                              _lang == 'ID' ? 'Waktu' : 'Time', waktu),
-                          _buildDetailInfoRow(Icons.build_circle_outlined,
-                              _lang == 'ID' ? 'Penyebab' : 'Cause', penyebab),
-                          if (data['supervisor_user']?['nama'] != null)
-                            _buildDetailInfoRow(
-                                Icons.supervisor_account_outlined,
-                                'Supervisor',
-                                data['supervisor_user']['nama'].toString()),
-                          if (data['saksi_user']?['nama'] != null)
-                            _buildDetailInfoRow(
-                                Icons.visibility_outlined,
-                                _lang == 'ID' ? 'Saksi' : 'Witness',
-                                data['saksi_user']['nama'].toString()),
-                          if (data['departemen_terdampak'] != null)
-                            _buildDetailInfoRow(
-                                Icons.business_outlined,
-                                _lang == 'ID' ? 'Departemen' : 'Department',
-                                data['departemen_terdampak'].toString()),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF7ED),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.orange.shade200),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Icon(Icons.description_outlined,
-                                size: 14, color: Colors.orange.shade800),
-                            const SizedBox(width: 6),
-                            Text(
-                              _lang == 'ID'
-                                  ? 'Deskripsi Kejadian'
-                                  : _lang == 'ZH'
-                                      ? '事故描述'
-                                      : 'Incident Description',
-                              style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.orange.shade800),
-                            ),
-                          ]),
-                          const SizedBox(height: 8),
-                          Text(deskripsi,
-                              style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: const Color(0xFF1E3A8A),
-                                  height: 1.5)),
-                        ],
-                      ),
-                    ),
-
-                    if (data['tindakan_diambil'] != null &&
-                        data['tindakan_diambil'].toString().isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF0FDF4),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.green.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
-                              Icon(Icons.medical_services_outlined,
-                                  size: 14, color: Colors.green.shade800),
-                              const SizedBox(width: 6),
-                              Text(
-                                _lang == 'ID'
-                                    ? 'Tindakan yang Diambil'
-                                    : 'Action Taken',
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.green.shade800),
-                              ),
-                            ]),
-                            const SizedBox(height: 8),
-                            Text(data['tindakan_diambil'].toString(),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    color: const Color(0xFF1E3A8A),
-                                    height: 1.5)),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E3A8A).withValues(alpha:0.07),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 14, color: const Color(0xFF1E3A8A)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: GoogleFonts.poppins(
-                        fontSize: 10, color: Colors.grey.shade500)),
-                Text(value,
-                    style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E3A8A))),
               ],
             ),
           ),

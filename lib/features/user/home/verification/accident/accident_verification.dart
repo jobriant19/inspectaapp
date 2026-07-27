@@ -7,7 +7,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../../../core/utils/jabatan_helper.dart';
 import '../../../accident/picker/accident_pick_cause.dart';
 import '../../../accident/picker/accident_pick_severity.dart';
-import '../accident_verification_history.dart';
+import 'accident_verification_history.dart';
 import 'accident_verification_edit.dart';
 
 class AccidentVerificationScreen extends StatefulWidget {
