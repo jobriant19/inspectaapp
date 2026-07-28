@@ -7,7 +7,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dotted_border/dotted_border.dart';
-
 import '../../home/alert/required_field_alert.dart';
 import 'camera/help_center_camera.dart';
 
@@ -315,6 +314,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black.withOpacity(0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
         pageBuilder: (_, __, ___) => _ReportImageViewer(
           imageBytes: _pickedImageBytes,
           imageFile: _pickedImageFile,
@@ -330,6 +331,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black.withOpacity(0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
         pageBuilder: (_, __, ___) => _ReportImageViewer(imageUrl: url),
       ),
     );
@@ -1136,13 +1139,15 @@ class _ReportImageViewer extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget content;
     if (imageBytes != null) {
-      content = Image.memory(imageBytes!, fit: BoxFit.contain);
+      content = Image.memory(imageBytes!, fit: BoxFit.contain, width: double.infinity, height: double.infinity);
     } else if (imageFile != null) {
-      content = Image.file(imageFile!, fit: BoxFit.contain);
+      content = Image.file(imageFile!, fit: BoxFit.contain, width: double.infinity, height: double.infinity);
     } else if (imageUrl != null && imageUrl!.isNotEmpty) {
       content = Image.network(
         imageUrl!,
         fit: BoxFit.contain,
+        width: double.infinity,
+        height: double.infinity,
         errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
       );
     } else {
@@ -1150,20 +1155,14 @@ class _ReportImageViewer extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
           Positioned.fill(
-            child: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(color: Colors.black.withOpacity(0.001)),
-            ),
-          ),
-          Center(
             child: InteractiveViewer(
-              minScale: 0.8,
+              minScale: 1.0,
               maxScale: 4,
-              child: content,
+              child: Center(child: content),
             ),
           ),
           SafeArea(

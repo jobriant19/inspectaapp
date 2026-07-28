@@ -5,7 +5,6 @@ import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
-
 import '../../user/finding/finding_pick_pic.dart';
 import '../../user/home/alert/required_field_alert.dart';
 
@@ -376,8 +375,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
             .from('report_images')
             .getPublicUrl(filePath);
       }
-
-      // UPDATE & AMBIL ULANG ROW ASLI DARI DATABASE (sumber kebenaran waktu)
+      
       final updated = await Supabase.instance.client.from('help_reports').update({
         'admin_reply': replyText,
         'replied_at': DateTime.now().toUtc().toIso8601String(),
@@ -387,7 +385,6 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
 
       final newItem = Map<String, dynamic>.from(updated);
 
-      // GENERATE SIGNED URL UNTUK GAMBAR BALASAN
       final riu = newItem['admin_reply_image'] as String?;
       if (riu != null && riu.isNotEmpty) {
         try {
@@ -899,7 +896,7 @@ class _AdminHelpReportsScreenState extends State<AdminHelpReportsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // IMAGE / PLACEHOLDER — persegi ukuran tetap
+              // IMAGE / PLACEHOLDER
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: (signedUrl != null && signedUrl.isNotEmpty)
@@ -1159,6 +1156,8 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black.withValues(alpha:0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
         pageBuilder: (_, __, ___) => _FullImageViewer(imageUrl: url, closeLabel: _t('close_image')),
       ),
     );
@@ -1683,7 +1682,7 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
           const SizedBox(height: 10),
 
           if (_hasReply) ...[
-            // REPLY VIEW MODE — gambar di atas, teks di bawah
+            // REPLY VIEW MODE
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
@@ -1751,7 +1750,7 @@ class _HelpReportDetailScreenState extends State<_HelpReportDetailScreen> {
               ),
             ]),
           ] else ...[
-            // BELUM ADA BALASAN — tombol buka popup kirim balasan
+            // UNREPLY 
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -1784,26 +1783,24 @@ class _FullImageViewer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
           Positioned.fill(
-            child: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(color: Colors.black.withValues(alpha:0.001)),
-            ),
-          ),
-          Center(
             child: InteractiveViewer(
-              minScale: 0.8,
+              minScale: 1.0,
               maxScale: 4,
-              child: imageBytes != null
-                  ? Image.memory(imageBytes!, fit: BoxFit.contain)
-                  : Image.network(
-                      imageUrl!,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
-                    ),
+              child: Center(
+                child: imageBytes != null
+                    ? Image.memory(imageBytes!, fit: BoxFit.contain, width: double.infinity, height: double.infinity)
+                    : Image.network(
+                        imageUrl!,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                        height: double.infinity,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+                      ),
+              ),
             ),
           ),
           SafeArea(
@@ -1873,9 +1870,6 @@ class _HelpReportsPageIndicator extends StatelessWidget {
     final double bottomSpacing = bottomInset > 0 ? bottomInset + 10 : 16;
 
     return Container(
-      // Menutupi seluruh area bawah (termasuk celah safe-area) agar
-      // selalu terlihat penuh di semua HP Android, baik yang punya
-      // gesture bar maupun yang tidak.
       color: Colors.white,
       padding: EdgeInsets.fromLTRB(15, 8, 15, bottomSpacing),
       child: Container(
