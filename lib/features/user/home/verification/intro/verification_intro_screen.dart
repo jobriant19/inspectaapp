@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../executive_verification_screen.dart';
+import 'verification_intro_first.dart';
 import 'verification_intro_second.dart';
 
 class VerificationIntroScreen extends StatefulWidget {
@@ -353,25 +354,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
 
   Widget _buildSlide1() {
     return _SlideWrapper(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _FindingCompletionIllustration(
-            findingLabel: t('s1_finding'),
-            completionLabel: t('s1_completion'),
-          ),
-          const SizedBox(height: 28),
-          _SlideTitle(t('s1_title')),
-          const SizedBox(height: 14),
-          _SlideBody(t('s1_body')),
-          const SizedBox(height: 20),
-          _InfoChip(
-            icon: Icons.how_to_vote_rounded,
-            label: t('s1_sub'),
-            color: const Color(0xFF1D72F3),
-          ),
-        ],
-      ),
+      child: VerificationIntroFirstSlide(lang: widget.lang),
     );
   }
 
@@ -625,224 +608,6 @@ class _SlideBody extends StatelessWidget {
         color: Colors.grey.shade600,
         height: 1.6,
       ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  const _InfoChip(
-      {required this.icon, required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha:0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FindingCompletionIllustration extends StatefulWidget {
-  final String findingLabel;
-  final String completionLabel;
-  const _FindingCompletionIllustration({
-    required this.findingLabel,
-    required this.completionLabel,
-  });
-
-  @override
-  State<_FindingCompletionIllustration> createState() =>
-      _FindingCompletionIllustrationState();
-}
-
-class _FindingCompletionIllustrationState
-    extends State<_FindingCompletionIllustration>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _floatAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2000))
-      ..repeat(reverse: true);
-    _floatAnim = Tween<double>(begin: -4, end: 4)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _floatAnim,
-      builder: (_, __) {
-        return SizedBox(
-          height: 150,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned(
-                bottom: 0,
-                child: Row(
-                  children: List.generate(6, (i) {
-                    final colors = [
-                      const Color(0xFF1D72F3),
-                      const Color(0xFF4ADE80),
-                      const Color(0xFF1D72F3),
-                      const Color(0xFFFF6B6B),
-                      const Color(0xFF4ADE80),
-                      const Color(0xFF1D72F3),
-                    ];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: _VerifierAvatar(color: colors[i], size: 28),
-                    );
-                  }),
-                ),
-              ),
-
-              Positioned(
-                top: Transform.translate(
-                  offset: Offset(0, _floatAnim.value),
-                  child: const SizedBox(),
-                ).hashCode.isEven ? 0 : 0,
-                child: Transform.translate(
-                  offset: Offset(0, _floatAnim.value),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // FINDING
-                      Container(
-                        width: 120,
-                        height: 68,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFFFF6B6B), Color(0xFFE53E3E)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFFF6B6B).withValues(alpha:0.4),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.search_rounded,
-                                color: Colors.white70, size: 20),
-                            const SizedBox(height: 4),
-                            Text(
-                              widget.findingLabel,
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // CONNECTOR ARROW
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1D72F3).withValues(alpha:0.15),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFF1D72F3).withValues(alpha:0.4),
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 14,
-                            color: Color(0xFF1D72F3),
-                          ),
-                        ),
-                      ),
-
-                      // SOLUTION 
-                      Container(
-                        width: 120,
-                        height: 68,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF4ADE80), Color(0xFF16A34A)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF4ADE80).withValues(alpha:0.4),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.check_circle_rounded,
-                                color: Colors.white70, size: 20),
-                            const SizedBox(height: 4),
-                            Text(
-                              widget.completionLabel,
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
@@ -1392,26 +1157,6 @@ class _TimerIllustrationEnhancedState
           ),
         );
       },
-    );
-  }
-}
-
-class _VerifierAvatar extends StatelessWidget {
-  final Color color;
-  final double size;
-  const _VerifierAvatar({required this.color, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color.withValues(alpha:0.2),
-        border: Border.all(color: color, width: 1.5),
-      ),
-      child: Icon(Icons.person_rounded, size: size * 0.55, color: color),
     );
   }
 }
