@@ -185,7 +185,7 @@ class _VerifierRolesSlideState extends State<VerifierRolesSlide> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.touch_app_rounded, size: 13, color: Colors.grey.shade400),
+            Icon(Icons.touch_app_rounded, size: 13, color: Colors.black),
             const SizedBox(width: 5),
             Text(
               _t(lang, 's2_tap_hint'),
