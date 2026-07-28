@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../executive_verification_screen.dart';
+import '../verification_screen.dart';
 import 'verification_intro_first.dart';
 import 'verification_intro_fourth.dart';
 import 'verification_intro_last.dart';

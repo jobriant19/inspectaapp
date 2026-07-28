@@ -3,35 +3,32 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../../core/services/notification_service.dart';
-import 'accident/accident_verification.dart';
-import 'finding/finding_verification_history.dart';
+import '../../../../../core/services/notification_service.dart';
 
-// Tambahkan di luar class, di bawah semua import
 void unawaited(Future<void> future) {
   future.catchError((e) => debugPrint('Unawaited error: $e'));
 }
 
-class ExecVerificationScreen extends StatefulWidget {
+class FindingVerification extends StatefulWidget {
   final String lang;
-  final int? userJabatanId;
+  final bool isHrdMode;
   final Function(int)? onPointEarned;
 
-  const ExecVerificationScreen({
+  const FindingVerification({
     super.key,
     required this.lang,
-    this.userJabatanId,
+    required this.isHrdMode,
     this.onPointEarned,
   });
 
   @override
-  State<ExecVerificationScreen> createState() => _ExecVerificationScreenState();
+  State<FindingVerification> createState() => _FindingVerificationState();
 }
 
-class _ExecVerificationScreenState extends State<ExecVerificationScreen>
-    with TickerProviderStateMixin {
+class _FindingVerificationState extends State<FindingVerification> {
   final _client = Supabase.instance.client;
   late String _lang;
+  late bool _isHrdMode;
 
   bool _isLoading = true;
   bool _noData = false;
@@ -43,14 +40,9 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   int _verificationSecondsLeft = 300;
   Timer? _verificationTimer;
 
-  int _tabIndex = 0;
-
-  // ── Mode HRD untuk accident report ──
-  bool _isHrdMode = false; // true jika user adalah HRD (id_jabatan=5)
-
   // ── Konfigurasi verifikasi dari DB ──
   int _verifikasiDurasiHari = 7;
-  
+
   bool _isDecoyMode = false;
 
   // Internal: set berisi index sesi verifikasi mana yang akan jadi decoy
@@ -65,9 +57,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
   static const Map<String, Map<String, String>> _txt = {
     'EN': {
-      'screen_title': 'Executive Verification',
-      'tab_verify': 'Verify',
-      'tab_history': 'History',
       'card_title': 'Verification Review',
       'card_subtitle': 'Examine the finding & completion carefully. Is this report valid?',
       'finding': 'Finding',
@@ -89,26 +78,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       'continue_btn': 'Next Report',
       'auto_next': 'Auto-next in',
       'auto_suf': 's',
-      'hist_title': 'Verification History',
-      'hist_empty': 'No history yet.',
-      'your_vote': 'Your Vote',
-      'majority': 'Majority',
-      'minority': 'Minority',
-      'pending': 'Pending',
-      'valid': 'Valid',
-      'invalid': 'Invalid',
-      'accident_restricted': 'Accident reports can only be verified by HRD.',
-      'vote_breakdown': 'Vote Breakdown',
-      'total_votes': 'Total Votes',
-      'majority_result': 'Majority Result',
-      'your_points': 'Your Points',
-      'votes_valid': 'Valid',
-      'votes_invalid': 'Invalid',
-      'finalized': 'Finalized',
-      'not_finalized': 'In Progress',
-      'point_earned': 'Points Earned',
-      'point_deducted': 'Points Deducted',
-      'participation': 'Participation',
       'verif_popup_valid': 'You voted VALID',
       'verif_popup_invalid': 'You voted INVALID',
       'verif_popup_sub': 'Your verification has been recorded.',
@@ -116,9 +85,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       'verif_popup_processing': 'Processing...',
     },
     'ID': {
-      'screen_title': 'Verifikasi Eksekutif',
-      'tab_verify': 'Verifikasi',
-      'tab_history': 'Riwayat',
       'card_title': 'Tinjauan Verifikasi',
       'card_subtitle': 'Periksa temuan & penyelesaian dengan teliti. Apakah laporan ini valid?',
       'finding': 'Temuan',
@@ -140,26 +106,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       'continue_btn': 'Laporan Berikutnya',
       'auto_next': 'Lanjut otomatis dalam',
       'auto_suf': 'd',
-      'hist_title': 'Riwayat Verifikasi',
-      'hist_empty': 'Belum ada riwayat.',
-      'your_vote': 'Pilihan Anda',
-      'majority': 'Mayoritas',
-      'minority': 'Minoritas',
-      'pending': 'Menunggu',
-      'valid': 'Valid',
-      'invalid': 'Tidak Valid',
-      'accident_restricted': 'Laporan kecelakaan hanya dapat diverifikasi oleh HRD.',
-      'vote_breakdown': 'Rincian Suara',
-      'total_votes': 'Total Suara',
-      'majority_result': 'Hasil Mayoritas',
-      'your_points': 'Poin Anda',
-      'votes_valid': 'Valid',
-      'votes_invalid': 'Tidak Valid',
-      'finalized': 'Final',
-      'not_finalized': 'Berlangsung',
-      'point_earned': 'Poin Diperoleh',
-      'point_deducted': 'Poin Dikurangi',
-      'participation': 'Partisipasi',
       'verif_popup_valid': 'Anda memilih VALID',
       'verif_popup_invalid': 'Anda memilih TIDAK VALID',
       'verif_popup_sub': 'Verifikasi Anda telah dicatat.',
@@ -167,9 +113,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       'verif_popup_processing': 'Memproses...',
     },
     'ZH': {
-      'screen_title': '高管验证',
-      'tab_verify': '验证',
-      'tab_history': '历史',
       'card_title': '验证审查',
       'card_subtitle': '仔细检查发现和完成情况。此报告是否有效？',
       'finding': '发现',
@@ -191,26 +134,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       'continue_btn': '下一份报告',
       'auto_next': '自动继续于',
       'auto_suf': '秒',
-      'hist_title': '验证历史',
-      'hist_empty': '暂无历史记录。',
-      'your_vote': '您的投票',
-      'majority': '多数',
-      'minority': '少数',
-      'pending': '待定',
-      'valid': '有效',
-      'invalid': '无效',
-      'accident_restricted': '事故报告只能由HRD验证。',
-      'vote_breakdown': '投票详情',
-      'total_votes': '总票数',
-      'majority_result': '多数结果',
-      'your_points': '您的积分',
-      'votes_valid': '有效',
-      'votes_invalid': '无效',
-      'finalized': '已终结',
-      'not_finalized': '进行中',
-      'point_earned': '获得积分',
-      'point_deducted': '扣除积分',
-      'participation': '参与',
       'verif_popup_valid': '您投票：有效',
       'verif_popup_invalid': '您投票：无效',
       'verif_popup_sub': '您的验证已记录。',
@@ -225,7 +148,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
   void initState() {
     super.initState();
     _lang = widget.lang;
-    _isHrdMode = widget.userJabatanId == 5 || widget.userJabatanId == 2;
+    _isHrdMode = widget.isHrdMode;
     if (!_isHrdMode) {
       _loadVerifikasiConfig().then((_) {
         _loadNextTemuan();
@@ -254,39 +177,22 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             break;
           case 'auto_valid_jika_timeout':
             break;
-          // Hapus case 'jeda_decoy_min' dan 'jeda_decoy_max'
-          // Admin tidak lagi mengatur posisi decoy
         }
       }
     } catch (e) {
       debugPrint('loadVerifikasiConfig error: $e');
     }
-    // Generate posisi decoy batch pertama setelah config selesai dimuat
     _generateDecoyBatch(batchStart: 0);
   }
 
-  /// Generate posisi decoy untuk batch 10 verifikasi berikutnya.
-  ///
-  /// Aturan:
-  /// - Per 5 verifikasi dalam batch → tepat 1 posisi decoy acak
-  /// - Batch 10 → 2 decoy (posisi 0-4 dapat 1, posisi 5-9 dapat 1)
-  /// - Posisi dipilih murni random, tidak ada pola
-  /// - Admin tidak bisa mengatur, user tidak bisa menebak
   void _generateDecoyBatch({required int batchStart}) {
     _decoyPositions.clear();
     _currentBatchStart = batchStart;
 
     final rng = DateTime.now().microsecondsSinceEpoch;
 
-    // Batch dibagi 2 slot: slot A = indeks 0-4, slot B = indeks 5-9
-    // Masing-masing slot mendapat tepat 1 posisi decoy acak
-    // Sehingga: 5 verif → 1 decoy, 10 verif → 2 decoy
-
-    // Slot A: pilih 1 posisi acak dari 0,1,2,3,4
     final int posA = batchStart + (rng % 5);
 
-    // Slot B: pilih 1 posisi acak dari 5,6,7,8,9
-    // Gunakan seed berbeda agar posA dan posB tidak berkorelasi
     final int seedB = rng ^ (rng >> 17) ^ (rng * 0x45d9f3b);
     final int posB = batchStart + 5 + (seedB.abs() % 5);
 
@@ -320,19 +226,15 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           .subtract(Duration(days: _verifikasiDurasiHari))
           .toIso8601String();
 
-      // Cek apakah batch saat ini sudah habis (setiap 10 verifikasi)
-      // Jika iya, generate batch baru sebelum menentukan apakah ini decoy
       if (_sessionVerifCount > 0 &&
           _sessionVerifCount % 10 == 0 &&
           _sessionVerifCount != _currentBatchStart) {
         _generateDecoyBatch(batchStart: _sessionVerifCount);
       }
 
-      // Cek apakah posisi sesi ini adalah decoy
       final bool shouldShowDecoy =
           _decoyPositions.contains(_sessionVerifCount);
 
-      // Naikkan counter SETELAH pengecekan
       _sessionVerifCount++;
 
       if (shouldShowDecoy) {
@@ -340,7 +242,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         return;
       }
 
-      // ── Verifikasi Normal (tidak ada perubahan dari kode asli) ──
       var query = _client.from('temuan').select('''
         id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, status_temuan,
         id_kategoritemuan_uuid,
@@ -374,7 +275,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         return;
       }
 
-      // Skip accident jika bukan HRD
       final String katName =
           (result['kategoritemuan']?['nama_kategoritemuan']?.toString() ?? '')
               .toLowerCase();
@@ -428,15 +328,12 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     }
   }
 
-  /// Load decoy: ambil 2 temuan berbeda, swap gambar finding/completion secara acak
   Future<void> _loadDecoyTemuan(
     String userId,
     List<dynamic> verifiedIds,
     String cutoffDate,
   ) async {
     try {
-      // Query temuan yang belum diverifikasi user ini
-      // (sama dengan query normal, tapi ambil 2 untuk di-swap)
       var query = _client.from('temuan').select('''
         id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, status_temuan,
         id_kategoritemuan_uuid,
@@ -450,19 +347,16 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           .eq('is_verif', false)
           .gte('created_at', cutoffDate);
 
-      // Exclude yang sudah diverifikasi oleh user ini
       if (verifiedIds.isNotEmpty) {
         query = query.not('id_temuan', 'in', verifiedIds);
       }
 
-      // Ambil 2 temuan berbeda untuk bahan swap
       final results = await query
           .order('created_at', ascending: true)
           .limit(2);
 
       if (!mounted) return;
 
-      // Jika data kurang dari 2, tidak bisa buat decoy → tampilkan normal
       if (results.length < 2) {
         debugPrint('[Decoy] Data tidak cukup untuk decoy, tampilkan normal.');
         setState(() => _isDecoyMode = false);
@@ -479,10 +373,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         return;
       }
 
-      // Pilih jenis swap secara acak:
-      // 0 = swap gambar finding saja (swap_finding)
-      // 1 = swap gambar completion saja (swap_completion)
-      // 2 = swap keduanya (both) — paling sulit
       final int swapType =
           DateTime.now().microsecondsSinceEpoch % 3;
 
@@ -491,17 +381,17 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       Map<String, dynamic> decoyTemuan = Map.from(primary);
 
       switch (swapType) {
-        case 0: // swap_finding: gambar temuan diambil dari secondary
+        case 0:
           decoyTemuan['gambar_temuan'] = secondary['gambar_temuan'];
           break;
-        case 1: // swap_completion: gambar penyelesaian diambil dari secondary
+        case 1:
           final completionCopy = Map<String, dynamic>.from(
               primary['penyelesaian'] as Map? ?? {});
           completionCopy['gambar_penyelesaian'] =
               (secondary['penyelesaian'] as Map?)?['gambar_penyelesaian'];
           decoyTemuan['penyelesaian'] = completionCopy;
           break;
-        case 2: // both: swap gambar finding DAN completion
+        case 2:
         default:
           decoyTemuan['gambar_temuan'] = secondary['gambar_temuan'];
           final completionCopyBoth = Map<String, dynamic>.from(
@@ -514,23 +404,18 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
       debugPrint('[Decoy] Jenis swap: $swapType (0=finding, 1=completion, 2=both)');
 
-      // Jawaban BENAR untuk soal decoy adalah TIDAK VALID
-      // karena gambar temuan dan penyelesaian sengaja tidak cocok
       setState(() {
         _isDecoyMode = true;
-// simpan data asli untuk referensi
-        _temuanData = decoyTemuan;       // tampilkan yang sudah di-swap
+        _temuanData = decoyTemuan;
         _isLoading = false;
       });
       _startCountdown();
     } catch (e) {
       debugPrint('loadDecoyTemuan error: $e');
-      // Jika gagal, kembali ke mode normal
       if (mounted) setState(() { _isDecoyMode = false; _isLoading = false; });
     }
   }
 
-  /// Auto-finalisasi temuan yang sudah melewati batas waktu
   Future<void> _checkAndAutoFinalizeTimeout() async {
     try {
       await _client.rpc('auto_finalize_timeout_temuan');
@@ -559,7 +444,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
   void _startVerificationTimer() {
     _verificationTimer?.cancel();
-    // Durasi dari config (dalam hari), untuk UI tampilkan 5 menit sebagai batas baca
     setState(() {
       _verificationSecondsLeft = 120;
     });
@@ -577,22 +461,16 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     });
   }
 
-  // ══════════════════════════════════════════════════════
-  // SUBMIT VERIFIKASI — Tampilkan popup DULU, proses background
-  // ══════════════════════════════════════════════════════
   Future<void> _submitVerification(bool isValid) async {
     if (_temuanData == null) return;
     _verificationTimer?.cancel();
 
     if (_isDecoyMode) {
-      // Decoy: jawaban BENAR adalah TIDAK VALID (karena gambar sengaja tidak match)
-      // Tidak ada perubahan data DB, hanya feedback ke user
       final bool answeredCorrectly = !isValid;
       _handleDecoyResult(answeredCorrectly, isValid);
       return;
     }
 
-    // ── Verifikasi normal: sama persis dengan kode asli ──
     setState(() {
       _showVerifPopup = true;
       _isVoteValid = isValid;
@@ -733,7 +611,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
       },
     );
 
-    // Lanjut ke temuan berikutnya setelah dialog ditutup
     Future.delayed(const Duration(seconds: 4), () {
       if (mounted) {
         setState(() {
@@ -749,8 +626,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     try {
       final userId = _client.auth.currentUser!.id;
 
-      // Jalankan RPC vote dan ambil config poin SECARA PARALLEL
-      // Pisahkan tipe agar Future.wait tidak konflik
       final rpcFuture = _client.rpc('handle_verification_vote', params: {
         'p_temuan_id': temuanId,
         'p_verificator_id': userId,
@@ -765,10 +640,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
           .eq('is_aktif', true)
           .limit(1);
 
-      // Tunggu keduanya selesai secara parallel
       final results = await Future.wait<dynamic>([rpcFuture, configFuture]);
 
-      // Parse hasil config poin
       int pointParticipation = 10;
       String descParticipation = '';
 
@@ -786,7 +659,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 : 'Terima kasih telah berpartisipasi dalam verifikasi. +$pointParticipation poin!';
       }
 
-      // Beri poin partisipasi
       await _addPointsToUser(
         userId: userId,
         points: pointParticipation,
@@ -796,10 +668,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
       if (!mounted) return;
 
-      // Trigger animasi poin
       widget.onPointEarned?.call(pointParticipation);
 
-      // Notifikasi
       NotificationService.instance.showNotification(
         title: _lang == 'EN'
             ? '✅ Verification Recorded'
@@ -809,7 +679,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
         body: descParticipation,
       );
 
-      // Tampilkan dialog poin (muncul setelah success view sudah tampil)
       if (mounted) {
         _showVerifPointDialog(
           pointParticipation,
@@ -957,7 +826,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                             style: GoogleFonts.poppins(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w500,
-                                color: const Color(0xFF1E3A8A),
+                                color: const Color(0xFF1D72F3),
                                 height: 1.6),
                           ),
                         ),
@@ -1002,38 +871,14 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_isHrdMode) {
-      return AccidentVerificationScreen(
-        lang: widget.lang,
-        userJabatanId: widget.userJabatanId,
-      );
-    }
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F7FF),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                _buildHeader(),
-                _buildTabBar(),
-                Expanded(
-                  child: _tabIndex == 0
-                      ? _buildVerifyTab()
-                      : FindingVerificationHistory(lang: _lang),
-                ),
-              ],
-            ),
-            if (_showVerifPopup) _buildVerifPopupOverlay(),
-          ],
-        ),
-      ),
+    return Stack(
+      children: [
+        _buildVerifyTab(),
+        if (_showVerifPopup) _buildVerifPopupOverlay(),
+      ],
     );
   }
 
-  // ══════════════════════════════════════════════════════
-  // POPUP OVERLAY: Muncul langsung saat swipe sebelum loading selesai
-  // ══════════════════════════════════════════════════════
   Widget _buildVerifPopupOverlay() {
     final Color primary =
         _isVoteValid ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
@@ -1072,7 +917,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header berwarna
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
@@ -1111,8 +955,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     ),
                   ]),
                 ),
-
-                // Thumbnail temuan & penyelesaian
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Row(
@@ -1129,8 +971,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     ],
                   ),
                 ),
-
-                // Catatan
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Row(
@@ -1156,8 +996,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     ],
                   ),
                 ),
-
-                // Processing indicator
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
                   child: Row(
@@ -1203,7 +1041,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
               style: GoogleFonts.poppins(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1E3A8A))),
+                  color: const Color(0xFF1D72F3))),
         ]),
         const SizedBox(height: 4),
         ClipRRect(
@@ -1249,258 +1087,10 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.poppins(
                 fontSize: 10,
-                color: const Color(0xFF1E3A8A),
+                color: const Color(0xFF1D72F3),
                 height: 1.4),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    String roleLabel;
-    if (widget.userJabatanId == 5) {
-      roleLabel = 'HRD';
-    } else if (widget.userJabatanId == 2) {
-      roleLabel = _lang == 'EN' ? 'Manager' : _lang == 'ZH' ? '经理' : 'Manager';
-    } else if (widget.userJabatanId == 1) {
-      roleLabel = _lang == 'EN' ? 'Executive' : _lang == 'ZH' ? '高管' : 'Eksekutif';
-    } else if (widget.userJabatanId == 3) {
-      roleLabel = _lang == 'EN' ? 'Supervisor' : _lang == 'ZH' ? '主管' : 'Supervisor';
-    } else if (widget.userJabatanId == 4) {
-      roleLabel = 'Staff';
-    } else {
-      roleLabel = 'Executive';
-    }
-
-    String screenTitle;
-    if (_isHrdMode) {
-      screenTitle = _lang == 'EN'
-          ? 'Accident Verification'
-          : _lang == 'ZH'
-              ? '事故验证'
-              : 'Verifikasi Kecelakaan';
-    } else {
-      screenTitle = t('screen_title');
-    }
-
-    // Warna badge sesuai getCardGradient dari jabatan_helper.dart
-    // Ambil warna pertama (paling cerah) dan terakhir (medium) sebagai gradient badge
-    List<Color> badgeColors;
-    IconData badgeIcon;
-
-    switch (widget.userJabatanId) {
-      case 1: // Eksekutif: Pink-Rose
-        badgeColors = [const Color(0xFFFB7185), const Color(0xFFFDA4AF)];
-        badgeIcon = Icons.workspace_premium_rounded;
-        break;
-      case 2: // Manager: Biru
-        badgeColors = [const Color(0xFF3B82F6), const Color(0xFF60A5FA)];
-        badgeIcon = Icons.workspace_premium_rounded;
-        break;
-      case 3: // Supervisor: Teal/Cyan
-        badgeColors = [const Color(0xFF06B6D4), const Color(0xFF22D3EE)];
-        badgeIcon = Icons.manage_accounts_rounded;
-        break;
-      case 4: // Staff: Ungu
-        badgeColors = [const Color(0xFF8B5CF6), const Color(0xFFA78BFA)];
-        badgeIcon = Icons.badge_rounded;
-        break;
-      case 5: // HRD: Pink
-        badgeColors = [const Color(0xFFEC4899), const Color(0xFFF472B6)];
-        badgeIcon = Icons.people_rounded;
-        break;
-      default:
-        badgeColors = [const Color(0xFF00C9E4), const Color(0xFF0891B2)];
-        badgeIcon = Icons.verified_rounded;
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: badgeColors.first.withValues(alpha:0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F7FF),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.arrow_back_ios_new,
-                  size: 18, color: Color(0xFF1E3A8A)),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              screenTitle,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF1D72F3),
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: badgeColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: badgeColors.first.withValues(alpha:0.4),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(badgeIcon, color: Colors.white, size: 14),
-                const SizedBox(width: 5),
-                Text(
-                  roleLabel,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabBar() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        padding: const EdgeInsets.all(3),
-        child: Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  if (_tabIndex != 0) setState(() => _tabIndex = 0);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _tabIndex == 0
-                        ? const Color(0xFF1D72F3)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: _tabIndex == 0
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFF1D72F3).withValues(alpha:0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            )
-                          ]
-                        : [],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.verified_outlined,
-                          size: 15,
-                          color: _tabIndex == 0
-                              ? Colors.white
-                              : const Color(0xFF1D72F3)),
-                      const SizedBox(width: 5),
-                      Text(
-                        t('tab_verify'),
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          color: _tabIndex == 0
-                              ? Colors.white
-                              : const Color(0xFF1D72F3),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 3),
-            Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  if (_tabIndex != 1) {
-                    setState(() => _tabIndex = 1);
-                  }
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(
-                    color: _tabIndex == 1
-                        ? const Color(0xFF0EA5E9)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: _tabIndex == 1
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFF0EA5E9).withValues(alpha:0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            )
-                          ]
-                        : [],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.history_rounded,
-                          size: 15,
-                          color: _tabIndex == 1
-                              ? Colors.white
-                              : const Color(0xFF0EA5E9)),
-                      const SizedBox(width: 5),
-                      Text(
-                        t('tab_history'),
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          color: _tabIndex == 1
-                              ? Colors.white
-                              : const Color(0xFF0EA5E9),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1573,7 +1163,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF1E3A8A), Color(0xFF0891B2)],
+                colors: [Color(0xFF1D72F3), Color(0xFF0891B2)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -1790,7 +1380,6 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
     final Color timerColor =
         isUrgent ? const Color(0xFFDC2626) : const Color(0xFF00C9E4);
 
-    // Label decoy
     final bool showDecoyBadge = _isDecoyMode;
 
     return Column(
@@ -1919,7 +1508,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                       style: GoogleFonts.poppins(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF1E3A8A))),
+                          color: const Color(0xFF1D72F3))),
                   const SizedBox(height: 8),
                   Text(t('no_data_body'),
                       textAlign: TextAlign.center,
@@ -1933,8 +1522,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                     icon: const Icon(Icons.arrow_back_rounded),
                     label: Text(t('back')),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1E3A8A),
-                      side: const BorderSide(color: Color(0xFF1E3A8A)),
+                      foregroundColor: const Color(0xFF1D72F3),
+                      side: const BorderSide(color: Color(0xFF1D72F3)),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                       padding: const EdgeInsets.symmetric(
@@ -1977,7 +1566,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   style: GoogleFonts.poppins(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF1E3A8A)),
+                      color: const Color(0xFF1D72F3)),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -2017,8 +1606,8 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                   icon: const Icon(Icons.arrow_back_rounded, size: 18),
                   label: Text(t('back')),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF1E3A8A),
-                    side: const BorderSide(color: Color(0xFF1E3A8A)),
+                    foregroundColor: const Color(0xFF1D72F3),
+                    side: const BorderSide(color: Color(0xFF1D72F3)),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
                     padding: const EdgeInsets.symmetric(
@@ -2076,7 +1665,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
                 style: GoogleFonts.poppins(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF1E3A8A))),
+                    color: const Color(0xFF1D72F3))),
             const SizedBox(height: 8),
             Text(t('success_body'),
                 textAlign: TextAlign.center,
@@ -2113,7 +1702,7 @@ class _ExecVerificationScreenState extends State<ExecVerificationScreen>
 }
 
 // ──────────────────────────────────────────────────────────────
-// SUB-WIDGETS (tidak berubah dari asli, disertakan ulang)
+// SUB-WIDGETS
 // ──────────────────────────────────────────────────────────────
 
 class _ImageBox extends StatelessWidget {
@@ -2144,7 +1733,7 @@ class _ImageBox extends StatelessWidget {
               children: [
                 Center(
                   child: GestureDetector(
-                    onTap: () {}, // cegah dialog tertutup saat gambar disentuh
+                    onTap: () {},
                     child: InteractiveViewer(
                       minScale: 0.5,
                       maxScale: 4,
@@ -2295,7 +1884,7 @@ class _NoteCard extends StatelessWidget {
         const SizedBox(height: 4),
         Text((text != null && text!.isNotEmpty) ? text! : '-',
             style: GoogleFonts.poppins(
-                fontSize: 13, color: const Color(0xFF1E3A8A), height: 1.4),
+                fontSize: 13, color: const Color(0xFF1D72F3), height: 1.4),
             maxLines: 3,
             overflow: TextOverflow.ellipsis),
       ]),
