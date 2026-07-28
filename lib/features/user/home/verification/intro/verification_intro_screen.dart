@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'executive_verification_screen.dart';
+import '../executive_verification_screen.dart';
+import 'verification_intro_second.dart';
 
 class VerificationIntroScreen extends StatefulWidget {
   final String lang;
@@ -42,15 +43,6 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
       's1_sub': 'Every finding is reviewed by multiple verifiers',
       's1_finding': 'Finding',
       's1_completion': 'Completion',
-      // Slide 2
-      's2_title': 'Verifier Roles',
-      's2_exec': 'Executive',
-      's2_exec_desc': 'Reviews general findings & completions',
-      's2_hrd': 'HRD',
-      's2_hrd_desc': 'Verifies accident reports only',
-      's2_verif': 'Verificator',
-      's2_verif_desc': 'General verifier with voting rights',
-      's2_note': '3 Verificators are assigned per finding',
       // Slide 3
       's3_title': 'How Voting Works',
       's3_majority': 'MAJORITY',
@@ -85,14 +77,6 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
       's1_sub': 'Setiap temuan ditinjau oleh beberapa verifier',
       's1_finding': 'Temuan',
       's1_completion': 'Penyelesaian',
-      's2_title': 'Peran Verifier',
-      's2_exec': 'Eksekutif',
-      's2_exec_desc': 'Meninjau temuan & penyelesaian umum',
-      's2_hrd': 'HRD',
-      's2_hrd_desc': 'Memverifikasi laporan kecelakaan saja',
-      's2_verif': 'Verificator',
-      's2_verif_desc': 'Verifier umum dengan hak voting',
-      's2_note': '3 Verificator ditugaskan per temuan',
       's3_title': 'Cara Voting',
       's3_majority': 'MAYORITAS',
       's3_majority_desc': 'Suara mayoritas menentukan hasil akhir (Valid/Tidak Valid)',
@@ -123,14 +107,6 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
       's1_sub': '每个发现由多个验证员审查',
       's1_finding': '发现',
       's1_completion': '完成',
-      's2_title': '验证员角色',
-      's2_exec': '高管',
-      's2_exec_desc': '审查一般发现和完成情况',
-      's2_hrd': 'HRD',
-      's2_hrd_desc': '仅验证事故报告',
-      's2_verif': '验证员',
-      's2_verif_desc': '具有投票权的一般验证员',
-      's2_note': '每个发现分配3名验证员',
       's3_title': '投票方式',
       's3_majority': '多数',
       's3_majority_desc': '多数票决定最终结果（有效/无效）',
@@ -210,7 +186,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F7FF),
+      backgroundColor: Colors.white,
       body: FadeTransition(
         opacity: _fadeAnim,
         child: Stack(
@@ -262,10 +238,10 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
             child: Container(
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                color: const Color(0xFF00C9E4).withValues(alpha:0.12),
+                color: const Color(0xFF1D72F3).withValues(alpha:0.12),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: const Color(0xFF00C9E4).withValues(alpha:0.3), width: 1),
+                    color: const Color(0xFF1D72F3).withValues(alpha:0.3), width: 1),
               ),
               child: const Icon(Icons.arrow_back_ios_new,
                   size: 16, color: Color(0xFF1D72F3)),
@@ -326,8 +302,8 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
                 height: 7,
                 decoration: BoxDecoration(
                   color: isActive
-                      ? const Color(0xFF00C9E4)
-                      : Colors.grey.shade300,
+                    ? const Color(0xFF1D72F3)
+                    : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(10),
                 ),
               );
@@ -342,12 +318,12 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
             child: ElevatedButton(
               onPressed: _nextPage,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00C9E4),
+                backgroundColor: const Color(0xFF1D72F3),
                 foregroundColor: Colors.white,
-                elevation: 0,
+                elevation: 6,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18)),
-                shadowColor: const Color(0xFF00C9E4).withValues(alpha:0.4),
+                shadowColor: const Color(0xFF1D72F3).withValues(alpha:0.45),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -392,7 +368,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
           _InfoChip(
             icon: Icons.how_to_vote_rounded,
             label: t('s1_sub'),
-            color: const Color(0xFF00C9E4),
+            color: const Color(0xFF1D72F3),
           ),
         ],
       ),
@@ -400,64 +376,9 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
   }
 
   Widget _buildSlide2() {
-    return _SlideWrapper(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _SlideTitle(t('s2_title')),
-          const SizedBox(height: 24),
-
-          // Kartu 3 peran
-          _RoleCard(
-            icon: Icons.workspace_premium_rounded,
-            color: const Color(0xFF00C9E4),
-            role: t('s2_exec'),
-            desc: t('s2_exec_desc'),
-          ),
-          const SizedBox(height: 12),
-          _RoleCard(
-            icon: Icons.health_and_safety_rounded,
-            color: const Color(0xFFFF6B6B),
-            role: t('s2_hrd'),
-            desc: t('s2_hrd_desc'),
-          ),
-          const SizedBox(height: 12),
-          _RoleCard(
-            icon: Icons.fact_check_rounded,
-            color: const Color(0xFF4ADE80),
-            role: t('s2_verif'),
-            desc: t('s2_verif_desc'),
-          ),
-          const SizedBox(height: 20),
-
-          // 3 VERIFICATOR NOTE
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF4ADE80).withValues(alpha:0.12),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                  color: const Color(0xFF4ADE80).withValues(alpha:0.3)),
-            ),
-            child: Row(children: [
-              const Icon(Icons.group_rounded,
-                  color: Color(0xFF4ADE80), size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  t('s2_note'),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: const Color(0xFF4ADE80),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ]),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      child: VerifierRolesSlide(lang: widget.lang),
     );
   }
 
@@ -477,6 +398,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 12,
+              fontWeight: FontWeight.w600,
               color: Colors.grey.shade500,
             ),
           ),
@@ -576,6 +498,7 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 12,
+              fontWeight: FontWeight.w600,
               color: Colors.grey.shade500,
             ),
           ),
@@ -610,23 +533,23 @@ class _VerificationIntroScreenState extends State<VerificationIntroScreen>
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF1E3A8A).withValues(alpha:0.06),
+              color: const Color(0xFF1D72F3).withValues(alpha:0.06),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: const Color(0xFF1E3A8A).withValues(alpha:0.15)),
+                  color: const Color(0xFF1D72F3).withValues(alpha:0.15)),
             ),
             child: Row(
               children: [
                 const Icon(Icons.dashboard_rounded,
-                    size: 16, color: Color(0xFF1E3A8A)),
+                    size: 16, color: Color(0xFF1D72F3)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     t('s4_note'),
                     style: GoogleFonts.poppins(
                       fontSize: 11,
-                      color: const Color(0xFF1E3A8A),
-                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF1D72F3),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -680,7 +603,7 @@ class _SlideTitle extends StatelessWidget {
       style: GoogleFonts.poppins(
         fontSize: 22,
         fontWeight: FontWeight.w800,
-        color: const Color(0xFF1E3A8A),
+        color: const Color(0xFF1D72F3),
         height: 1.2,
       ),
     );
@@ -698,6 +621,7 @@ class _SlideBody extends StatelessWidget {
       textAlign: TextAlign.center,
       style: GoogleFonts.poppins(
         fontSize: 14,
+        fontWeight: FontWeight.w600,
         color: Colors.grey.shade600,
         height: 1.6,
       ),
@@ -793,12 +717,12 @@ class _FindingCompletionIllustrationState
                 child: Row(
                   children: List.generate(6, (i) {
                     final colors = [
-                      const Color(0xFF00C9E4),
+                      const Color(0xFF1D72F3),
                       const Color(0xFF4ADE80),
-                      const Color(0xFF00C9E4),
+                      const Color(0xFF1D72F3),
                       const Color(0xFFFF6B6B),
                       const Color(0xFF4ADE80),
-                      const Color(0xFF00C9E4),
+                      const Color(0xFF1D72F3),
                     ];
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -861,16 +785,16 @@ class _FindingCompletionIllustrationState
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00C9E4).withValues(alpha:0.15),
+                            color: const Color(0xFF1D72F3).withValues(alpha:0.15),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF00C9E4).withValues(alpha:0.4),
+                              color: const Color(0xFF1D72F3).withValues(alpha:0.4),
                             ),
                           ),
                           child: const Icon(
                             Icons.arrow_forward_rounded,
                             size: 14,
-                            color: Color(0xFF00C9E4),
+                            color: Color(0xFF1D72F3),
                           ),
                         ),
                       ),
@@ -1049,9 +973,9 @@ class _VotingGroupCard extends StatelessWidget {
             desc,
             style: GoogleFonts.poppins(
               fontSize: 12.5,
-              color: const Color(0xFF1E3A8A),
+              color: const Color(0xFF1D72F3),
               height: 1.4,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 6),
@@ -1154,6 +1078,7 @@ class _PointCardEnhanced extends StatelessWidget {
                     isPositive ? 'Suara mayoritas' : 'Suara minoritas',
                     style: GoogleFonts.poppins(
                       fontSize: 10,
+                      fontWeight: FontWeight.w600,
                       color: Colors.grey.shade500,
                     ),
                   ),
@@ -1240,7 +1165,7 @@ class _PointsIllustrationEnhancedState
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFF00C9E4).withValues(alpha:0.2),
+                      const Color(0xFF1D72F3).withValues(alpha:0.2),
                       Colors.transparent,
                     ],
                   ),
@@ -1253,7 +1178,7 @@ class _PointsIllustrationEnhancedState
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: const Color(0xFF00C9E4).withValues(alpha:0.3),
+                    color: const Color(0xFF1D72F3).withValues(alpha:0.3),
                     width: 2,
                   ),
                 ),
@@ -1265,13 +1190,13 @@ class _PointsIllustrationEnhancedState
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF00C9E4), Color(0xFF0891B2)],
+                    colors: [Color(0xFF1D72F3), Color(0xFF0891B2)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF00C9E4).withValues(alpha:0.5),
+                      color: const Color(0xFF1D72F3).withValues(alpha:0.5),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -1471,67 +1396,6 @@ class _TimerIllustrationEnhancedState
   }
 }
 
-class _RoleCard extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String role;
-  final String desc;
-  const _RoleCard(
-      {required this.icon,
-      required this.color,
-      required this.role,
-      required this.desc});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha:0.25), width: 1.5),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha:0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  role,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1E3A8A),
-                  ),
-                ),
-                Text(
-                  desc,
-                  style: GoogleFonts.poppins(
-                    fontSize: 11,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.arrow_forward_ios_rounded,
-              size: 13, color: color.withValues(alpha:0.5)),
-        ],
-      ),
-    );
-  }
-}
-
 class _VerifierAvatar extends StatelessWidget {
   final Color color;
   final double size;
@@ -1646,7 +1510,7 @@ class _AnimatedBackground extends StatelessWidget {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      const Color(0xFF00C9E4).withValues(alpha:0.12),
+                      const Color(0xFF1D72F3).withValues(alpha:0.10),
                       Colors.transparent,
                     ],
                   ),

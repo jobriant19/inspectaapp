@@ -9,7 +9,7 @@ import 'location/location_screen.dart';
 import '../ktsproduksi/kts_production_screen.dart';
 import '../accident/accident_report_screen.dart';
 import 'choose_mode_sheet.dart';
-import 'verification/verification_intro_screen.dart';
+import 'verification/intro/verification_intro_screen.dart';
 import 'home_latest_activity.dart';
 
 final _sb = Supabase.instance.client;
