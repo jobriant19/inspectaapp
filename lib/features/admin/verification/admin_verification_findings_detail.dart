@@ -99,6 +99,8 @@ class _AdminVerificationFindingsDetailScreenState
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black.withValues(alpha: 0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
         pageBuilder: (_, __, ___) => _FindingImageViewer(imageUrl: url),
       ),
     );
@@ -298,6 +300,7 @@ class _AdminVerificationFindingsDetailScreenState
   }
 
   Widget _buildDetailImage(String? url, Color borderColor) {
+    final bool hasImage = url != null && url.isNotEmpty;
     return GestureDetector(
       onTap: () => _openImageViewer(url),
       child: Container(
@@ -309,17 +312,37 @@ class _AdminVerificationFindingsDetailScreenState
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(14),
-          child: (url != null && url.isNotEmpty)
-              ? Image.network(url,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+          child: Stack(
+            children: [
+              hasImage
+                  ? Image.network(url,
+                      width: double.infinity,
+                      height: 220,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                          color: Colors.grey.shade100,
+                          child: Icon(Icons.image_not_supported_outlined,
+                              size: 48, color: Colors.grey.shade400)))
+                  : Container(
                       color: Colors.grey.shade100,
                       child: Icon(Icons.image_not_supported_outlined,
-                          size: 48, color: Colors.grey.shade400)))
-              : Container(
-                  color: Colors.grey.shade100,
-                  child: Icon(Icons.image_not_supported_outlined,
-                      size: 48, color: Colors.grey.shade400)),
+                          size: 48, color: Colors.grey.shade400)),
+              if (hasImage)
+                Positioned(
+                  right: 10,
+                  bottom: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.fullscreen_rounded,
+                        color: Colors.white, size: 18),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -798,24 +821,22 @@ class _FindingImageViewer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
           Positioned.fill(
-            child: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(color: Colors.black.withValues(alpha: 0.001)),
-            ),
-          ),
-          Center(
             child: InteractiveViewer(
-              minScale: 0.8,
+              minScale: 1.0,
               maxScale: 4,
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) =>
-                    const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+              child: Center(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+                ),
               ),
             ),
           ),
