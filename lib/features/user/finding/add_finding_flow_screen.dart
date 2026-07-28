@@ -1029,6 +1029,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         opaque: false,
         barrierColor: Colors.black,
         transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) {
           return FadeTransition(
             opacity: animation,
@@ -1739,11 +1740,9 @@ class _FullImagePreviewScreen extends StatelessWidget {
               child: Container(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEF4444),
                   shape: BoxShape.circle,
-                  border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3), width: 1),
                 ),
                 child: const Icon(Icons.close_rounded,
                     color: Colors.white, size: 24),

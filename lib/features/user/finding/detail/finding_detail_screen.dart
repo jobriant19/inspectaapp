@@ -307,9 +307,24 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
+  void _openFindingImageViewer(String? url) {
+    if (url == null || url.isEmpty) return;
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => _FindingImageViewer(imageUrl: url),
+      ),
+    );
+  }
+
   SliverToBoxAdapter _buildImageHeader(Map<String, dynamic> data) {
     final imageUrl = data['gambar_temuan'] as String?;
     final idTemuan = data['id_temuan'];
+    final bool hasImage = imageUrl != null && imageUrl.isNotEmpty;
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -328,17 +343,39 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(18.5),
-                child: Container(
-                  color: Colors.grey.shade200,
-                  child: imageUrl != null && imageUrl.isNotEmpty
-                      ? Image.network(imageUrl, fit: BoxFit.cover)
-                      : const Center(
-                          child: Icon(
-                            Icons.image_not_supported_rounded,
-                            color: Colors.grey,
-                            size: 50,
+                child: GestureDetector(
+                  onTap: () => _openFindingImageViewer(imageUrl),
+                  child: Container(
+                    color: Colors.grey.shade200,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        hasImage
+                            ? Image.network(imageUrl, fit: BoxFit.cover)
+                            : const Center(
+                                child: Icon(
+                                  Icons.image_not_supported_rounded,
+                                  color: Colors.grey,
+                                  size: 50,
+                                ),
+                              ),
+                        if (hasImage)
+                          Positioned(
+                            right: 10,
+                            bottom: 10,
+                            child: Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.55),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.fullscreen_rounded,
+                                  color: Colors.white, size: 18),
+                            ),
                           ),
-                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1311,5 +1348,53 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
       },
     };
     _texts = translations[widget.lang] ?? translations['EN']!;
+  }
+}
+
+class _FindingImageViewer extends StatelessWidget {
+  final String imageUrl;
+  const _FindingImageViewer({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 4,
+              child: Center(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

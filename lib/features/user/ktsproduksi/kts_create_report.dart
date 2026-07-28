@@ -173,6 +173,24 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
     KtsCameraWarmupService.instance.warmUp();
   }
 
+  void _openPhotoFullscreen() {
+    final hasPhoto = _imageFile != null || _existingImageUrl != null;
+    if (!hasPhoto) return;
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => _KtsFormImageViewer(
+          imageFile: _imageFile,
+          imageUrl: _imageFile == null ? _existingImageUrl : null,
+        ),
+      ),
+    );
+  }
+
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg, style: GoogleFonts.inter(color: Colors.white)),
@@ -554,13 +572,30 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
     }
     return Stack(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: _imageFile != null
-              ? (kIsWeb
-                  ? Image.network(_imageFile!.path, height: 200, width: double.infinity, fit: BoxFit.cover)
-                  : Image.file(File(_imageFile!.path), height: 200, width: double.infinity, fit: BoxFit.cover))
-              : Image.network(_existingImageUrl!, height: 200, width: double.infinity, fit: BoxFit.cover),
+        GestureDetector(
+          onTap: _openPhotoFullscreen,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: _imageFile != null
+                ? (kIsWeb
+                    ? Image.network(_imageFile!.path, height: 200, width: double.infinity, fit: BoxFit.cover)
+                    : Image.file(File(_imageFile!.path), height: 200, width: double.infinity, fit: BoxFit.cover))
+                : Image.network(_existingImageUrl!, height: 200, width: double.infinity, fit: BoxFit.cover),
+          ),
+        ),
+        Positioned(
+          left: 12, bottom: 12,
+          child: GestureDetector(
+            onTap: _openPhotoFullscreen,
+            child: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
+            ),
+          ),
         ),
         Positioned(
           right: 12, bottom: 12,
@@ -633,6 +668,64 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _KtsFormImageViewer extends StatelessWidget {
+  final XFile? imageFile;
+  final String? imageUrl;
+  const _KtsFormImageViewer({this.imageFile, this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget content;
+    if (imageFile != null) {
+      content = kIsWeb
+          ? Image.network(imageFile!.path, fit: BoxFit.contain, width: double.infinity, height: double.infinity)
+          : Image.file(File(imageFile!.path), fit: BoxFit.contain, width: double.infinity, height: double.infinity);
+    } else if (imageUrl != null && imageUrl!.isNotEmpty) {
+      content = Image.network(
+        imageUrl!,
+        fit: BoxFit.contain,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+      );
+    } else {
+      content = const Icon(Icons.image_not_supported, color: Colors.white54, size: 60);
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 4,
+              child: Center(child: content),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

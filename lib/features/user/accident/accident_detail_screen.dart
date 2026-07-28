@@ -355,6 +355,20 @@ class _AccidentReportDetailScreenState
     }
   }
 
+  void _openAccidentImageViewer(String? url) {
+    if (url == null || url.isEmpty) return;
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => _AccidentDetailImageViewer(imageUrl: url),
+      ),
+    );
+  }
+
   Widget _buildAppBarActionButton({
     required IconData icon,
     required Color color,
@@ -654,24 +668,46 @@ class _AccidentReportDetailScreenState
         children: [
           // PHOTO
           if (d['foto_bukti'] != null)
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha:0.1),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
+            GestureDetector(
+              onTap: () => _openAccidentImageViewer(d['foto_bukti']?.toString()),
+              child: Container(
+                height: 240,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha:0.1),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(
+                        d['foto_bukti'],
+                        width: double.infinity,
+                        height: 240,
+                        fit: BoxFit.cover,
+                      ),
+                      Positioned(
+                        right: 10,
+                        bottom: 10,
+                        child: Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.fullscreen_rounded,
+                              color: Colors.white, size: 18),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.network(
-                  d['foto_bukti'],
-                  width: double.infinity,
-                  height: 240,
-                  fit: BoxFit.cover,
                 ),
               ),
             ),
@@ -999,6 +1035,7 @@ class _AccidentReportDetailScreenState
       padding: const EdgeInsets.symmetric(
           horizontal: 16, vertical: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(icon,
               color: const Color(0xFF1D72F3), size: 18),
@@ -1008,8 +1045,13 @@ class _AccidentReportDetailScreenState
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: const Color(0xFF1D72F3))),
-          const Spacer(),
-          valueBadge,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: valueBadge,
+            ),
+          ),
         ],
       ),
     );
@@ -1154,20 +1196,96 @@ class _AccidentReportDetailScreenState
       padding: const EdgeInsets.symmetric(
           horizontal: 16, vertical: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(icon, color: const Color(0xFF1D72F3), size: 18),
-          const SizedBox(width: 12),
-          Text(label,
-              style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1D72F3))),
-          const Spacer(),
-          Text(name,
-              style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  color: Colors.black)),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 3,
+            child: Text(label,
+                style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF1D72F3))),
+          ),
+          Expanded(
+            flex: 5,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEFF6FF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(CupertinoIcons.person_fill,
+                      size: 20, color: Color(0xFF1D72F3)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Colors.black),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccidentDetailImageViewer extends StatelessWidget {
+  final String imageUrl;
+  const _AccidentDetailImageViewer({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 4,
+              child: Center(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
