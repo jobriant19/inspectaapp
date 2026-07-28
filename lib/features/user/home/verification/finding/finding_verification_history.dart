@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
+import 'findings_verification_detail.dart';
+import 'finding_verification_indicator.dart';
 
 class FindingVerificationHistory extends StatefulWidget {
   final String lang;
@@ -23,6 +25,9 @@ class _FindingVerificationHistoryState
   List<Map<String, dynamic>> _historyList = [];
   Map<String, Map<String, dynamic>> _voteStats = {};
   Map<String, int> _historyPointMap = {};
+
+  int _currentPage = 1;
+  static const int _itemsPerPage = 5;
 
   static const Map<String, Map<String, String>> _txt = {
     'EN': {
@@ -87,6 +92,36 @@ class _FindingVerificationHistoryState
     _loadHistory();
   }
 
+  bool _isKts(Map<String, dynamic> item) {
+    return (item['jenis_temuan']?.toString() ?? '') == 'KTS Production';
+  }
+
+  String _locationLabel(Map<String, dynamic> item) {
+    if (_isKts(item)) {
+      final section = item['penyelesaian']?['section'];
+      if (section == null) return '-';
+      String? name;
+      if (_lang == 'EN') {
+        name = section['nama_section_en']?.toString();
+      } else if (_lang == 'ZH') {
+        name = section['nama_section_zh']?.toString();
+      } else {
+        name = section['nama_section_id']?.toString();
+      }
+      if (name == null || name.isEmpty) name = section['nama_section_id']?.toString();
+      return (name != null && name.isNotEmpty) ? name : '-';
+    }
+    final area = item['area']?['nama_area']?.toString();
+    if (area != null && area.isNotEmpty) return area;
+    final subunit = item['subunit']?['nama_subunit']?.toString();
+    if (subunit != null && subunit.isNotEmpty) return subunit;
+    final unit = item['unit']?['nama_unit']?.toString();
+    if (unit != null && unit.isNotEmpty) return unit;
+    final lokasi = item['lokasi']?['nama_lokasi']?.toString();
+    if (lokasi != null && lokasi.isNotEmpty) return lokasi;
+    return '-';
+  }
+
   Future<void> _loadHistory() async {
     setState(() => _historyLoading = true);
     try {
@@ -99,22 +134,26 @@ class _FindingVerificationHistoryState
             jawaban_benar,
             waktu_verifikasi,
             temuan:id_temuan (
-              id_temuan,
-              judul_temuan,
-              deskripsi_temuan,
-              gambar_temuan,
-              status_temuan,
-              is_verif,
-              hasil_verifikasi_mayoritas,
-              created_at,
+              id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, created_at, jenis_temuan,
+              is_verif, hasil_verifikasi_mayoritas, status_temuan,
+              target_waktu_selesai, poin_temuan, no_order, nama_item_manual, jumlah_item,
+              is_pro, is_visitor, is_eksekutif, nama_visitor, perusahaan_visitor,
+              is_late, latetime, id_perpanjang,
+              subkategoritemuan:id_subkategoritemuan_uuid (
+                nama_subkategoritemuan,
+                kategoritemuan:id_kategoritemuan (nama_kategoritemuan)
+              ),
               lokasi:id_lokasi (nama_lokasi),
-              area:id_area (nama_area),
               unit:id_unit (nama_unit),
-              kategoritemuan:id_kategoritemuan_uuid (nama_kategoritemuan),
+              subunit:id_subunit (nama_subunit),
+              area:id_area (nama_area),
+              penanggung_jawab:id_penanggung_jawab (nama, gambar_user),
+              perpanjang:id_perpanjang (waktu_perpanjang, alasan_perpanjang, tanggal_selesai),
               penyelesaian:id_penyelesaian (
-                gambar_penyelesaian,
-                catatan_penyelesaian,
-                tanggal_selesai
+                gambar_penyelesaian, catatan_penyelesaian, tanggal_selesai,
+                penyebab, bagian, poin_penyelesaian, additional_cost,
+                section:id_section (nama_section_id, nama_section_en, nama_section_zh),
+                faktor_penyebab_sub:id_subkategoritemuan_penyebab (nama_subkategoritemuan)
               )
             )
           ''')
@@ -186,6 +225,14 @@ class _FindingVerificationHistoryState
         }
       }
 
+      for (final data in processed) {
+        final tid = data['id_temuan']?.toString();
+        final stats = tid != null ? voteStats[tid] : null;
+        data['vote_valid'] = (stats?['valid_count'] as int?) ?? 0;
+        data['vote_invalid'] = (stats?['invalid_count'] as int?) ?? 0;
+        data['total_votes'] = (stats?['total'] as int?) ?? 0;
+      }
+
       final Map<String, int> pointMap = {};
       try {
         final pointLogs = await _client
@@ -238,12 +285,26 @@ class _FindingVerificationHistoryState
           _voteStats = voteStats;
           _historyPointMap = pointMap;
           _historyLoading = false;
+          _currentPage = 1;
         });
       }
     } catch (e) {
       debugPrint('Load history error: $e');
       if (mounted) setState(() => _historyLoading = false);
     }
+  }
+
+  void _openDetail(Map<String, dynamic> data, {int initialTab = 0}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FindingsVerificationDetailScreen(
+          lang: _lang,
+          item: data,
+          initialTab: initialTab,
+        ),
+      ),
+    );
   }
 
   @override
@@ -262,10 +323,30 @@ class _FindingVerificationHistoryState
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _historyList.length,
-      itemBuilder: (_, i) => _buildHistoryCard(_historyList[i]),
+
+    final totalPages = (_historyList.length / _itemsPerPage).ceil();
+    if (_currentPage > totalPages) _currentPage = totalPages;
+    if (_currentPage < 1) _currentPage = 1;
+    final pageStart = (_currentPage - 1) * _itemsPerPage;
+    final pageEnd = (pageStart + _itemsPerPage).clamp(0, _historyList.length);
+    final pageItems = _historyList.sublist(pageStart, pageEnd);
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            itemCount: pageItems.length,
+            itemBuilder: (_, i) => _buildHistoryCard(pageItems[i]),
+          ),
+        ),
+        if (totalPages > 1)
+          FindingVerificationIndicator(
+            currentPage: _currentPage,
+            totalPages: totalPages,
+            onPageChanged: (p) => setState(() => _currentPage = p),
+          ),
+      ],
     );
   }
 
@@ -279,9 +360,9 @@ class _FindingVerificationHistoryState
         itemCount: 5,
         itemBuilder: (_, __) => Container(
           margin: const EdgeInsets.only(bottom: 14),
-          height: 90,
+          height: 96,
           decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(18)),
+              color: Colors.white, borderRadius: BorderRadius.circular(20)),
         ),
       ),
     );
@@ -297,16 +378,13 @@ class _FindingVerificationHistoryState
     final bool? finalOutcome = data['hasil_verifikasi_mayoritas'] as bool?;
     final bool isFinalized = data['is_verif'] as bool? ?? false;
 
-    final stats =
-        tid != null ? (_voteStats[tid] ?? {}) : <String, dynamic>{};
+    final stats = tid != null ? (_voteStats[tid] ?? {}) : <String, dynamic>{};
     final int validCount = (stats['valid_count'] as int?) ?? 0;
     final int invalidCount = (stats['invalid_count'] as int?) ?? 0;
     final int totalVotes = (stats['total'] as int?) ?? 0;
-    final int totalVerificators =
-        (stats['total_verificators'] as int?) ?? 0;
+    final int totalVerificators = (stats['total_verificators'] as int?) ?? 0;
 
-    final int netPoint =
-        tid != null ? (_historyPointMap[tid] ?? 0) : 0;
+    final int netPoint = tid != null ? (_historyPointMap[tid] ?? 0) : 0;
 
     Color accent;
     String statusLabel;
@@ -318,27 +396,14 @@ class _FindingVerificationHistoryState
       statusIcon = Icons.hourglass_empty_rounded;
     } else {
       final bool inMajority = userVote == finalOutcome;
-      accent = inMajority
-          ? const Color(0xFF16A34A)
-          : const Color(0xFFDC2626);
+      accent = inMajority ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
       statusLabel = inMajority ? t('majority') : t('minority');
-      statusIcon = inMajority
-          ? Icons.emoji_events_rounded
-          : Icons.highlight_off_rounded;
+      statusIcon = inMajority ? Icons.emoji_events_rounded : Icons.highlight_off_rounded;
     }
 
-    final String voteLabel = userVote ? t('valid') : t('invalid');
-    final Color voteColor =
-        userVote ? const Color(0xFF16A34A) : const Color(0xFFDC2626);
-
-    String loc = '-';
-    if (data['area']?['nama_area'] != null) {
-      loc = data['area']['nama_area'].toString();
-    } else if (data['unit']?['nama_unit'] != null) {
-      loc = data['unit']['nama_unit'].toString();
-    } else if (data['lokasi']?['nama_lokasi'] != null) {
-      loc = data['lokasi']['nama_lokasi'].toString();
-    }
+    final Color typeColor = _isKts(data) ? const Color(0xFFF59E0B) : const Color(0xFF3B82F6);
+    final String typeBadge = _isKts(data) ? 'KTS' : '5R';
+    final String loc = _locationLabel(data);
 
     String date = '-';
     try {
@@ -349,210 +414,220 @@ class _FindingVerificationHistoryState
       }
     } catch (_) {}
 
-    final double validRatio =
-        totalVotes > 0 ? validCount / totalVotes : 0.0;
+    final double validRatio = totalVotes > 0 ? validCount / totalVotes : 0.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withValues(alpha:0.25), width: 1.5),
+        border: Border.all(color: accent.withValues(alpha: 0.25), width: 1.5),
         boxShadow: [
-          BoxShadow(
-              color: accent.withValues(alpha:0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
+          BoxShadow(color: accent.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 6,
-                height: 88,
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(19),
-                      bottomLeft: Radius.circular(4)),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          children: [
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: 6,
+                    color: accent,
+                  ),
+                  const SizedBox(width: 10),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _openDetail(data, initialTab: 0),
+                      child: _buildHistoryThumb(
+                        url: imageUrl,
+                        label: t('finding'),
+                        icon: Icons.search_rounded,
+                        color: const Color(0xFF1E3A8A),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => _openDetail(data, initialTab: 1),
+                      child: _buildHistoryThumb(
+                        url: completionImageUrl,
+                        label: t('completion'),
+                        icon: Icons.task_alt_rounded,
+                        color: const Color(0xFF16A34A),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              _HistoryThumb(url: imageUrl, label: t('finding')),
               const SizedBox(width: 6),
-              _HistoryThumb(url: completionImageUrl, label: t('completion')),
-              const SizedBox(width: 10),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.poppins(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A),
-                              height: 1.25)),
-                      const SizedBox(height: 5),
-                      Row(children: [
-                        _VotePill(
-                            label: voteLabel,
-                            color: voteColor,
-                            icon: userVote
-                                ? Icons.thumb_up_rounded
-                                : Icons.thumb_down_rounded),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Row(children: [
-                            Icon(Icons.place_outlined,
-                                size: 11, color: Colors.grey.shade500),
-                            const SizedBox(width: 2),
-                            Expanded(
+                child: GestureDetector(
+                  onTap: () => _openDetail(data, initialTab: 0),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black,
+                                height: 1.25)),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1D72F3).withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF1D72F3).withValues(alpha: 0.3)),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.map_rounded, size: 11, color: Color(0xFF1D72F3)),
+                            const SizedBox(width: 5),
+                            Flexible(
                               child: Text(loc,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.poppins(
-                                      fontSize: 10,
-                                      color: Colors.grey.shade500)),
+                                      fontSize: 10.5, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3))),
                             ),
                           ]),
                         ),
-                      ]),
-                      const SizedBox(height: 3),
-                      Row(children: [
-                        Icon(Icons.access_time_rounded,
-                            size: 10, color: Colors.grey.shade400),
-                        const SizedBox(width: 3),
-                        Text(date,
-                            style: GoogleFonts.poppins(
-                                fontSize: 9.5, color: Colors.grey.shade400)),
-                      ]),
-                    ],
+                        const SizedBox(height: 5),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.access_time_filled_rounded, size: 11, color: Colors.grey.shade700),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(date,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 10.5, fontWeight: FontWeight.w700, color: const Color(0xFF334155))),
+                            ),
+                          ]),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.only(right: 12, top: 10),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // 5R & KTS LABEL
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: typeColor,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(color: typeColor.withValues(alpha: 0.35), blurRadius: 6, offset: const Offset(0, 2)),
+                        ],
+                      ),
+                      child: Text(typeBadge,
+                          style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
+                    ),
+                    const SizedBox(height: 6),
                     Container(
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: accent.withValues(alpha:0.1),
+                        color: accent.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                            color: accent.withValues(alpha:0.3), width: 1.5),
+                        border: Border.all(color: accent.withValues(alpha: 0.3), width: 1.5),
                       ),
                       child: Icon(statusIcon, color: accent, size: 22),
                     ),
                     const SizedBox(height: 3),
                     Text(statusLabel,
-                        style: GoogleFonts.poppins(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: accent)),
+                        style: GoogleFonts.poppins(fontSize: 9, fontWeight: FontWeight.w700, color: accent)),
                   ],
                 ),
               ),
             ],
           ),
+        ),
           Container(
               margin: const EdgeInsets.symmetric(horizontal: 12),
               height: 1,
-              color: accent.withValues(alpha:0.12)),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(children: [
-                      Icon(Icons.how_to_vote_rounded,
-                          size: 13,
-                          color: const Color(0xFF1E3A8A).withValues(alpha:0.7)),
-                      const SizedBox(width: 5),
-                      Text(t('vote_breakdown'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A))),
-                    ]),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: isFinalized
-                            ? const Color(0xFF16A34A).withValues(alpha:0.1)
-                            : Colors.orange.withValues(alpha:0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isFinalized
-                              ? const Color(0xFF16A34A).withValues(alpha:0.3)
-                              : Colors.orange.withValues(alpha:0.3),
-                        ),
-                      ),
-                      child: Row(children: [
-                        Icon(
-                            isFinalized
-                                ? Icons.verified_rounded
-                                : Icons.pending_rounded,
-                            size: 10,
-                            color: isFinalized
-                                ? const Color(0xFF16A34A)
-                                : Colors.orange),
-                        const SizedBox(width: 3),
-                        Text(
-                            isFinalized
-                                ? t('finalized')
-                                : t('not_finalized'),
-                            style: GoogleFonts.poppins(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: isFinalized
-                                    ? const Color(0xFF16A34A)
-                                    : Colors.orange)),
-                      ]),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Column(children: [
+              color: accent.withValues(alpha: 0.12)),
+          GestureDetector(
+            onTap: () => _openDetail(data, initialTab: 0),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                children: [
+                  Row(children: [
+                    Icon(Icons.how_to_vote_rounded,
+                        size: 13, color: const Color(0xFF1E3A8A).withValues(alpha: 0.7)),
+                    const SizedBox(width: 5),
+                    Text(t('vote_breakdown'),
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF1E3A8A))),
+                  ]),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _VoteCountChip(
-                          icon: Icons.thumb_up_rounded,
-                          label: t('votes_valid'),
-                          count: validCount,
-                          color: const Color(0xFF16A34A)),
-                      Text(
-                          '$totalVotes / $totalVerificators ${_lang == 'EN' ? 'voters' : _lang == 'ZH' ? '投票者' : 'pemilih'}',
-                          style: GoogleFonts.poppins(
-                              fontSize: 9.5, color: Colors.grey.shade500)),
-                      _VoteCountChip(
-                          icon: Icons.thumb_down_rounded,
-                          label: t('votes_invalid'),
-                          count: invalidCount,
-                          color: const Color(0xFFDC2626),
-                          iconOnRight: true),
+                      Row(children: [
+                        const Icon(Icons.thumb_up_rounded, size: 11, color: Color(0xFF16A34A)),
+                        const SizedBox(width: 3),
+                        Text('$validCount ${t('votes_valid')}',
+                            style: GoogleFonts.poppins(
+                                fontSize: 10, fontWeight: FontWeight.w700, color: const Color(0xFF16A34A))),
+                      ]),
+                      // VOTERS COUNT
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF38BDF8).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.groups_rounded, size: 12, color: Color(0xFF38BDF8)),
+                          const SizedBox(width: 4),
+                          Text(
+                              '$totalVotes/$totalVerificators ${_lang == 'EN' ? 'voters' : _lang == 'ZH' ? '投票者' : 'pemilih'}',
+                              style: GoogleFonts.poppins(
+                                  fontSize: 9.5, fontWeight: FontWeight.w800, color: const Color(0xFF38BDF8))),
+                        ]),
+                      ),
+                      Row(children: [
+                        Text('$invalidCount ${t('votes_invalid')}',
+                            style: GoogleFonts.poppins(
+                                fontSize: 10.5, fontWeight: FontWeight.w800, color: const Color(0xFFDC2626))),
+                        const SizedBox(width: 3),
+                        const Icon(Icons.thumb_down_rounded, size: 11, color: Color(0xFFDC2626)),
+                      ]),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: Stack(children: [
                       Container(
                           height: 8,
                           width: double.infinity,
-                          color: const Color(0xFFDC2626).withValues(alpha:0.18)),
+                          color: const Color(0xFFDC2626).withValues(alpha: 0.18)),
                       FractionallySizedBox(
                         widthFactor: validRatio.clamp(0.0, 1.0),
                         child: Container(
@@ -566,165 +641,128 @@ class _FindingVerificationHistoryState
                       ),
                     ]),
                   ),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: finalOutcome == null
-                            ? Colors.orange.withValues(alpha:0.07)
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(
+                      child: _buildInfoBox(
+                        icon: finalOutcome == null
+                            ? Icons.hourglass_empty_rounded
                             : finalOutcome
-                                ? const Color(0xFF16A34A).withValues(alpha:0.07)
-                                : const Color(0xFFDC2626).withValues(alpha:0.07),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: finalOutcome == null
-                              ? Colors.orange.withValues(alpha:0.2)
-                              : finalOutcome
-                                  ? const Color(0xFF16A34A).withValues(alpha:0.2)
-                                  : const Color(0xFFDC2626).withValues(alpha:0.2),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(t('majority_result'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 9,
-                                  color: Colors.grey.shade500,
-                                  fontWeight: FontWeight.w500)),
-                          const SizedBox(height: 2),
-                          Row(children: [
-                            Icon(
-                                finalOutcome == null
-                                    ? Icons.hourglass_empty_rounded
-                                    : finalOutcome
-                                        ? Icons.thumb_up_rounded
-                                        : Icons.thumb_down_rounded,
-                                size: 13,
-                                color: finalOutcome == null
-                                    ? Colors.orange
-                                    : finalOutcome
-                                        ? const Color(0xFF16A34A)
-                                        : const Color(0xFFDC2626)),
-                            const SizedBox(width: 4),
-                            Text(
-                                finalOutcome == null
-                                    ? t('pending')
-                                    : finalOutcome
-                                        ? t('valid')
-                                        : t('invalid'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: finalOutcome == null
-                                        ? Colors.orange
-                                        : finalOutcome
-                                            ? const Color(0xFF16A34A)
-                                            : const Color(0xFFDC2626))),
-                          ]),
-                        ],
+                                ? Icons.thumb_up_rounded
+                                : Icons.thumb_down_rounded,
+                        iconColor: finalOutcome == null
+                            ? Colors.orange
+                            : finalOutcome
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFFDC2626),
+                        label: t('majority_result'),
+                        value: finalOutcome == null
+                            ? t('pending')
+                            : finalOutcome
+                                ? t('valid')
+                                : t('invalid'),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Builder(
-                      builder: (_) {
-                        final int displayPoint = isFinalized ? netPoint : 0;
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: displayPoint >= 0
-                                ? const Color(0xFF1E3A8A).withValues(alpha:0.05)
-                                : const Color(0xFFDC2626).withValues(alpha:0.05),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: displayPoint >= 0
-                                  ? const Color(0xFF1E3A8A).withValues(alpha:0.15)
-                                  : const Color(0xFFDC2626).withValues(alpha:0.15),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(t('your_points'),
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 9,
-                                      color: Colors.grey.shade500,
-                                      fontWeight: FontWeight.w500)),
-                              const SizedBox(height: 2),
-                              Row(children: [
-                                Icon(
-                                    displayPoint >= 0
-                                        ? Icons.star_rounded
-                                        : Icons.star_half_rounded,
-                                    size: 13,
-                                    color: displayPoint >= 0
-                                        ? const Color(0xFFF59E0B)
-                                        : const Color(0xFFDC2626)),
-                                const SizedBox(width: 4),
-                                Text(
-                                    !isFinalized
-                                        ? '-'
-                                        : displayPoint > 0
-                                            ? '+$displayPoint'
-                                            : '$displayPoint',
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: displayPoint >= 0
-                                            ? const Color(0xFF1E3A8A)
-                                            : const Color(0xFFDC2626))),
-                                const SizedBox(width: 3),
-                                Text(_lang == 'ZH' ? '积分' : 'Poin',
-                                    style: GoogleFonts.poppins(
-                                        fontSize: 9,
-                                        color: Colors.grey.shade500)),
-                              ]),
-                            ],
-                          ),
-                        );
-                      },
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildInfoBox(
+                        icon: (isFinalized ? netPoint : 0) >= 0
+                            ? Icons.star_rounded
+                            : Icons.star_half_rounded,
+                        iconColor: const Color(0xFFFACC15),
+                        label: t('your_points'),
+                        value: !isFinalized
+                            ? '-'
+                            : (netPoint > 0 ? '+$netPoint' : '$netPoint'),
+                      ),
                     ),
-                  ),
-                ]),
-              ],
+                  ]),
+                ],
+              ),
             ),
           ),
         ],
       ),
+      ),
     );
   }
-}
 
-class _HistoryThumb extends StatelessWidget {
-  final String? url;
-  final String label;
-  const _HistoryThumb({required this.url, required this.label});
+  Widget _buildInfoBox({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: iconColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: iconColor.withValues(alpha: 0.3), width: 1.2),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(color: iconColor, shape: BoxShape.circle),
+          child: Icon(icon, size: 14, color: Colors.white),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label,
+                  style: GoogleFonts.poppins(fontSize: 8.5, fontWeight: FontWeight.w600, color: Colors.black)),
+              const SizedBox(height: 1),
+              Text(value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black)),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildHistoryThumb({
+    required String? url,
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
     return Column(
       children: [
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 8.5,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade500)),
-        const SizedBox(height: 3),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(icon, size: 9, color: color),
+              const SizedBox(width: 3),
+              Text(label,
+                  style: GoogleFonts.poppins(
+                      fontSize: 8, fontWeight: FontWeight.w700, color: color, height: 1.0)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
         ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           child: Container(
             width: 52,
             height: 52,
             color: Colors.grey.shade100,
-            child: (url != null && url!.isNotEmpty)
-                ? Image.network(url!,
+            child: (url != null && url.isNotEmpty)
+                ? Image.network(url,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Icon(
                         Icons.broken_image_outlined,
@@ -735,61 +773,6 @@ class _HistoryThumb extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _VotePill extends StatelessWidget {
-  final String label;
-  final Color color;
-  final IconData icon;
-  const _VotePill({required this.label, required this.color, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-          color: color.withValues(alpha:0.1),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: color.withValues(alpha:0.3), width: 1)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 9, color: color),
-        const SizedBox(width: 3),
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 9.5, fontWeight: FontWeight.w700, color: color)),
-      ]),
-    );
-  }
-}
-
-class _VoteCountChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final int count;
-  final Color color;
-  final bool iconOnRight;
-
-  const _VoteCountChip({
-    required this.icon,
-    required this.label,
-    required this.count,
-    required this.color,
-    this.iconOnRight = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final iconWidget = Icon(icon, size: 11, color: color);
-    final textWidget = Text('$count $label',
-        style: GoogleFonts.poppins(
-            fontSize: 10, fontWeight: FontWeight.w700, color: color));
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: iconOnRight
-          ? [textWidget, const SizedBox(width: 3), iconWidget]
-          : [iconWidget, const SizedBox(width: 3), textWidget],
     );
   }
 }

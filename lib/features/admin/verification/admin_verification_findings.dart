@@ -412,22 +412,19 @@ class _AdminVerificationFindingsTabState
               offset: const Offset(0, 4))
         ],
       ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 5,
-                height: 96,
-                decoration: BoxDecoration(
-                  color: typeColor,
-                  borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(19),
-                      bottomLeft: Radius.circular(4)),
-                ),
-              ),
-              const SizedBox(width: 14),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          children: [
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: 5,
+                    color: typeColor,
+                  ),
+                  const SizedBox(width: 14),
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: Row(
@@ -553,6 +550,7 @@ class _AdminVerificationFindingsTabState
               ),
             ],
           ),
+        ),
 
           Container(
               margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -759,6 +757,7 @@ class _AdminVerificationFindingsTabState
             ),
           ),
         ],
+      ),
       ),
     );
   }
