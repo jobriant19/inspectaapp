@@ -121,6 +121,7 @@ class NewsDetailScreen extends StatelessWidget {
         opaque: false,
         barrierColor: Colors.black.withValues(alpha: 0.95),
         transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) {
           return FadeTransition(
             opacity: animation,
@@ -447,26 +448,24 @@ class _NewsImageViewer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
           Positioned.fill(
-            child: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(color: Colors.black.withValues(alpha: 0.001)),
-            ),
-          ),
-          Center(
             child: InteractiveViewer(
-              minScale: 0.8,
+              minScale: 1.0,
               maxScale: 4,
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(
-                    Icons.image_not_supported,
-                    color: Colors.white54,
-                    size: 60),
+              child: Center(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (_, __, ___) => const Icon(
+                      Icons.image_not_supported,
+                      color: Colors.white54,
+                      size: 60),
+                ),
               ),
             ),
           ),
