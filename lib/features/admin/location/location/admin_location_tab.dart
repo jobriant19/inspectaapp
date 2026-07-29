@@ -1,14 +1,13 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../../../../core/services/translation_service.dart';
 import '../../../shared/code/qr_generator_screen.dart';
 import '../../../user/finding/finding_pick_pic.dart';
-import '../../../user/home/alert/required_field_alert.dart';
+import 'admin_add_location.dart';
+import 'admin_edit_location.dart';
+import 'admin_location_indicator.dart';
 import 'camera/admin_location_camera.dart';
 
 class AdminLocationTab extends StatefulWidget {
@@ -21,6 +20,7 @@ class AdminLocationTab extends StatefulWidget {
 
 class _AdminLocationTabState extends State<AdminLocationTab>
     with AutomaticKeepAliveClientMixin {
+  final TextEditingController _searchCtrl = TextEditingController();
   List<Map<String, dynamic>> _data = [];
   List<Map<String, dynamic>> _filtered = [];
   bool _isLoading = true;
@@ -39,8 +39,17 @@ class _AdminLocationTabState extends State<AdminLocationTab>
 
   @override
   void dispose() {
+    _searchCtrl.dispose();
     AdminLocationCameraWarmupService.instance.release();
     super.dispose();
+  }
+
+  void _clearSearch() {
+    _searchCtrl.clear();
+    setState(() {
+      _search = '';
+      _applyFilter();
+    });
   }
 
   Future<void> _load() async {
@@ -71,19 +80,6 @@ class _AdminLocationTabState extends State<AdminLocationTab>
             .where((d) => (d['nama_lokasi'] ?? '').toLowerCase().contains(q))
             .toList();
     _currentPage = 1;
-  }
-
-  String _localizedDesc(Map<String, dynamic> item) {
-    switch (widget.lang) {
-      case 'EN':
-        return (item['deskripsi_lokasi_en'] ?? item['deskripsi_lokasi'] ?? '')
-            .toString();
-      case 'ZH':
-        return (item['deskripsi_lokasi_zh'] ?? item['deskripsi_lokasi'] ?? '')
-            .toString();
-      default:
-        return (item['deskripsi_lokasi'] ?? '').toString();
-    }
   }
 
   Widget _buildPicSubtitle(Map<String, dynamic> item) {
@@ -165,206 +161,25 @@ class _AdminLocationTabState extends State<AdminLocationTab>
     );
   }
 
-  void _showDialog({Map<String, dynamic>? item}) {
-    final isEdit = item != null;
-    final namaCtrl = TextEditingController(text: item?['nama_lokasi'] ?? '');
-    final descCtrl = TextEditingController(text: item != null ? _localizedDesc(item) : '');
-    String? gambarUrl = item?['gambar_lokasi'] as String?;
-    Uint8List? previewBytes;
-
+  void _openAddDialog() {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => _AdminLocationFormDialog(
-          title: isEdit
-              ? (widget.lang == 'EN' ? 'Edit Location' : widget.lang == 'ZH' ? '编辑位置' : 'Edit Lokasi')
-              : (widget.lang == 'EN' ? 'Add Location' : widget.lang == 'ZH' ? '添加位置' : 'Tambah Lokasi'),
-          icon: Icons.location_city_rounded,
-          color: _primary,
-          fields: [
-            _LocationFormField(
-              label: widget.lang == 'EN' ? 'Location Name' : widget.lang == 'ZH' ? '位置名称' : 'Nama Lokasi',
-              controller: namaCtrl,
-              icon: Icons.location_city_rounded,
-              required: true,
-            ),
-            _LocationFormField(
-              label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
-              controller: descCtrl,
-              icon: Icons.notes_rounded,
-              maxLines: 3,
-            ),
-          ],
-          lang: widget.lang,
-          imagePickerWidget: _buildLocationPhotoPicker(
-            imageUrl: gambarUrl,
-            previewBytes: previewBytes,
-            onTap: () async {
-              final XFile? picked = await Navigator.push<XFile?>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AdminLocationCameraScreen(lang: widget.lang),
-                ),
-              );
-              if (picked == null) return;
-              final bytes = await picked.readAsBytes();
-              setDlg(() {
-                previewBytes = bytes;
-              });
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                AdminLocationCameraWarmupService.instance.warmUp();
-              });
-              try {
-                final ext = picked.name.split('.').last.toLowerCase();
-                final safeExt = ext.isEmpty ? 'jpg' : ext;
-                final fileName =
-                    '${item?['id_lokasi']?.toString() ?? 'new-lokasi'}-${DateTime.now().millisecondsSinceEpoch}.$safeExt';
-                final filePath = 'lokasi/$fileName';
-                final String contentType;
-                if (safeExt == 'png') {
-                  contentType = 'image/png';
-                } else if (safeExt == 'gif') {
-                  contentType = 'image/gif';
-                } else if (safeExt == 'webp') {
-                  contentType = 'image/webp';
-                } else {
-                  contentType = 'image/jpeg';
-                }
-                await Supabase.instance.client.storage
-                    .from('lokasi-images')
-                    .uploadBinary(filePath, bytes,
-                        fileOptions: FileOptions(contentType: contentType, upsert: true));
-                final newUrl = Supabase.instance.client.storage
-                    .from('lokasi-images')
-                    .getPublicUrl(filePath);
-                setDlg(() {
-                  gambarUrl = newUrl;
-                });
-              } catch (e) {
-                debugPrint('Error uploading location photo: $e');
-              }
-            },
-          ),
-          onSave: () async {
-            if (namaCtrl.text.trim().isEmpty) return;
-
-            final descSource = descCtrl.text.trim();
-
-            if (mounted) {
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (ctx) => _TranslatingDialog(color: _primary, lang: widget.lang),
-              );
-            }
-
-            Map<String, String> descAll = {'id': '', 'en': '', 'zh': ''};
-            if (descSource.isNotEmpty) {
-              try {
-                descAll = await TranslationHelper.instance
-                    .translateDescriptionAllLangs(descSource, widget.lang);
-              } catch (e) {
-                debugPrint('Error translating deskripsi lokasi: $e');
-                descAll = {'id': descSource, 'en': descSource, 'zh': descSource};
-              }
-            }
-
-            if (mounted) Navigator.of(context, rootNavigator: true).pop();
-
-            final data = {
-              'nama_lokasi': namaCtrl.text.trim(),
-              'deskripsi_lokasi': descAll['id']!.isEmpty ? null : descAll['id'],
-              'deskripsi_lokasi_en': descAll['en']!.isEmpty ? null : descAll['en'],
-              'deskripsi_lokasi_zh': descAll['zh']!.isEmpty ? null : descAll['zh'],
-              'gambar_lokasi': gambarUrl,
-            };
-            if (isEdit) {
-              await Supabase.instance.client
-                  .from('lokasi').update(data).eq('id_lokasi', item['id_lokasi']);
-            } else {
-              await Supabase.instance.client.from('lokasi').insert(data);
-            }
-            _load();
-          },
-        ),
+      builder: (ctx) => AdminAddLocationDialog(
+        lang: widget.lang,
+        onSaved: _load,
       ),
     );
   }
 
-  Widget _buildLocationPhotoPicker({
-    required String? imageUrl,
-    required Uint8List? previewBytes,
-    required VoidCallback onTap,
-  }) {
-    final bool hasPreview = previewBytes != null || (imageUrl != null && imageUrl.isNotEmpty);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        height: 120,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: _primary.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _primary.withValues(alpha: 0.3), width: 1.3),
-        ),
-        child: hasPreview
-            ? Stack(
-                fit: StackFit.expand,
-                children: [
-                  previewBytes != null
-                      ? Image.memory(previewBytes, fit: BoxFit.cover)
-                      : Image.network(imageUrl!, fit: BoxFit.cover),
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _primary, width: 1.5),
-                      ),
-                      child: Icon(Icons.camera_alt_rounded, size: 14, color: _primary),
-                    ),
-                  ),
-                ],
-              )
-            : Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: _primary.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.add_photo_alternate_rounded, color: _primary, size: 24),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.lang == 'EN'
-                          ? 'Tap to select image'
-                          : widget.lang == 'ZH'
-                              ? '点击选择图片'
-                              : 'Tap untuk pilih gambar',
-                      style: GoogleFonts.poppins(
-                          color: _primary, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.lang == 'EN'
-                          ? 'Camera or Gallery'
-                          : widget.lang == 'ZH'
-                              ? '相机或图库'
-                              : 'Kamera atau Galeri',
-                      style: GoogleFonts.poppins(color: Colors.black38, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
+  void _openEditDialog(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AdminEditLocationDialog(
+        lang: widget.lang,
+        existing: item,
+        onSaved: _load,
       ),
     );
   }
@@ -394,10 +209,12 @@ class _AdminLocationTabState extends State<AdminLocationTab>
     return _buildLocationTabContent(
       isLoading: _isLoading,
       search: _search,
+      searchCtrl: _searchCtrl,
       onSearch: (v) => setState(() {
         _search = v;
         _applyFilter();
       }),
+      onClearSearch: _clearSearch,
       addTitle: widget.lang == 'EN'
           ? 'Add New Location'
           : widget.lang == 'ZH'
@@ -420,8 +237,8 @@ class _AdminLocationTabState extends State<AdminLocationTab>
       subtitleWidgetBuilder: (item) => _buildPicSubtitle(item),
       icon: Icons.location_city_rounded,
       imageUrlFn: (item) => item['gambar_lokasi'] as String?,
-      onAdd: () => _showDialog(),
-      onEdit: (item) => _showDialog(item: item),
+      onAdd: () => _openAddDialog(),
+      onEdit: (item) => _openEditDialog(item),
       onDelete: (item) => _delete(item['id_lokasi'], item['nama_lokasi'] ?? ''),
       onRefresh: _load,
       onTapDetail: (item) => Navigator.push(
@@ -434,7 +251,7 @@ class _AdminLocationTabState extends State<AdminLocationTab>
             icon: Icons.location_city_rounded,
             nameKey: 'lokasi',
             nameFn: (item) => item['nama_lokasi'] ?? '',
-            onEdit: (item) => _showDialog(item: item),
+            onEdit: (item) => _openEditDialog(item),
             onDelete: (item) => _delete(item['id_lokasi'], item['nama_lokasi'] ?? ''),
           ),
         ),
@@ -909,7 +726,9 @@ class _LocationDetailScreenState extends State<_LocationDetailScreen> {
 Widget _buildLocationTabContent({
   required bool isLoading,
   required String search,
+  TextEditingController? searchCtrl,
   required ValueChanged<String> onSearch,
+  VoidCallback? onClearSearch,
   required List<Map<String, dynamic>> data,
   required String lang,
   required Color primaryColor,
@@ -1007,13 +826,28 @@ Widget _buildLocationTabContent({
               border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
             ),
             child: TextField(
+              controller: searchCtrl,
               onChanged: onSearch,
               textAlignVertical: TextAlignVertical.center,
               style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 14),
               decoration: InputDecoration(
-                hintText: lang == 'EN' ? 'Search...' : lang == 'ZH' ? '搜索...' : 'Cari...',
+                hintText: lang == 'EN' ? 'Search location...' : lang == 'ZH' ? '搜索位置...' : 'Cari lokasi...',
                 hintStyle: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
                 prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 20),
+                suffixIcon: search.isNotEmpty
+                    ? GestureDetector(
+                        onTap: onClearSearch,
+                        child: Container(
+                          margin: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFEF4444)),
+                        ),
+                      )
+                    : null,
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -1080,7 +914,7 @@ Widget _buildLocationTabContent({
                 )
               : data.isEmpty
                   ? Center(
-                      child: Padding(
+                      child: SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -1089,18 +923,24 @@ Widget _buildLocationTabContent({
                               'assets/images/team_illustration.png',
                               height: 140,
                               errorBuilder: (_, __, ___) => Icon(
-                                Icons.location_city_rounded,
+                                search.isNotEmpty ? Icons.search_off_rounded : Icons.location_city_rounded,
                                 size: 80,
                                 color: primaryColor.withValues(alpha: 0.35),
                               ),
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              lang == 'EN'
-                                  ? 'No location data found'
-                                  : lang == 'ZH'
-                                      ? '未找到位置数据'
-                                      : 'Data lokasi tidak ditemukan',
+                              search.isNotEmpty
+                                  ? (lang == 'EN'
+                                      ? 'No matching locations'
+                                      : lang == 'ZH'
+                                          ? '未找到匹配位置'
+                                          : 'Lokasi Tidak Ditemukan')
+                                  : (lang == 'EN'
+                                      ? 'No location data found'
+                                      : lang == 'ZH'
+                                          ? '未找到位置数据'
+                                          : 'Data lokasi tidak ditemukan'),
                               style: GoogleFonts.poppins(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -1108,6 +948,53 @@ Widget _buildLocationTabContent({
                               ),
                               textAlign: TextAlign.center,
                             ),
+                            const SizedBox(height: 8),
+                            Text(
+                              search.isNotEmpty
+                                  ? (lang == 'EN'
+                                      ? 'Try adjusting your search keyword to find what you\'re looking for.'
+                                      : lang == 'ZH'
+                                          ? '尝试调整搜索关键词以查找您需要的内容。'
+                                          : 'Coba ubah kata kunci pencarian untuk menemukan yang Anda cari.')
+                                  : (lang == 'EN'
+                                      ? 'Locations will show up here as soon as they\'re added.'
+                                      : lang == 'ZH'
+                                          ? '添加位置后将显示在此处。'
+                                          : 'Lokasi akan muncul di sini setelah ditambahkan.'),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.black45, height: 1.5),
+                              textAlign: TextAlign.center,
+                            ),
+                            if (search.isNotEmpty && onClearSearch != null) ...[
+                              const SizedBox(height: 18),
+                              GestureDetector(
+                                onTap: onClearSearch,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: primaryColor.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(color: primaryColor.withValues(alpha: 0.35)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.refresh_rounded, size: 15, color: primaryColor),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        lang == 'EN'
+                                            ? 'Clear search'
+                                            : lang == 'ZH'
+                                                ? '清除搜索'
+                                                : 'Hapus pencarian',
+                                        style: GoogleFonts.poppins(
+                                            fontSize: 12, fontWeight: FontWeight.w700, color: primaryColor),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1233,7 +1120,7 @@ Widget _buildLocationTabContent({
             top: false,
             child: Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 4),
-              child: _LocationPageIndicator(
+              child: AdminLocationPageIndicator(
                 currentPage: currentPage,
                 totalPages: totalPages,
                 onPageChanged: onPageChanged,
@@ -1244,144 +1131,6 @@ Widget _buildLocationTabContent({
       ],
     ),
   );
-}
-
-class _LocationPageIndicator extends StatelessWidget {
-  final int currentPage;
-  final int totalPages;
-  final ValueChanged<int> onPageChanged;
-  final Color color;
-
-  const _LocationPageIndicator({
-    required this.currentPage,
-    required this.totalPages,
-    required this.onPageChanged,
-    required this.color,
-  });
-
-  static const int _maxVisibleButtons = 5;
-
-  List<int> _visiblePageNumbers() {
-    if (totalPages <= _maxVisibleButtons) {
-      return List.generate(totalPages, (i) => i + 1);
-    }
-    int start = currentPage - 2;
-    int end = currentPage + 2;
-    if (start < 1) {
-      start = 1;
-      end = _maxVisibleButtons;
-    } else if (end > totalPages) {
-      end = totalPages;
-      start = totalPages - (_maxVisibleButtons - 1);
-    }
-    return List.generate(end - start + 1, (i) => start + i);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool canPrev = currentPage > 1;
-    final bool canNext = currentPage < totalPages;
-    final pageNumbers = _visiblePageNumbers();
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          _arrowButton(
-            icon: Icons.arrow_back_ios_new_rounded,
-            enabled: canPrev,
-            onTap: () {
-              if (!canPrev) return;
-              onPageChanged(currentPage - 1);
-            },
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Row(
-              children: [
-                for (final p in pageNumbers) ...[
-                  Expanded(child: _pageButton(p)),
-                  if (p != pageNumbers.last) const SizedBox(width: 8),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          _arrowButton(
-            icon: Icons.arrow_forward_ios_rounded,
-            enabled: canNext,
-            onTap: () {
-              if (!canNext) return;
-              onPageChanged(currentPage + 1);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pageButton(int page) {
-    final bool isActive = page == currentPage;
-    return GestureDetector(
-      onTap: () {
-        if (page == currentPage) return;
-        onPageChanged(page);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isActive ? color : color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
-          border: isActive ? null : Border.all(color: color.withValues(alpha: 0.25)),
-        ),
-        child: Text(
-          '$page',
-          style: GoogleFonts.poppins(
-            color: isActive ? Colors.white : color,
-            fontWeight: FontWeight.w800,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _arrowButton({
-    required IconData icon,
-    required bool enabled,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(
-          color: enabled ? color.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          icon,
-          size: 15,
-          color: enabled ? color : Colors.grey.shade400,
-        ),
-      ),
-    );
-  }
 }
 
 Future<bool> _showLocationConfirm(BuildContext context, String name, String lang) async {
@@ -1416,7 +1165,7 @@ Future<bool> _showLocationConfirm(BuildContext context, String name, String lang
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1E293B),
+                    color: Colors.black,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -1425,6 +1174,7 @@ Future<bool> _showLocationConfirm(BuildContext context, String name, String lang
                   '${lang == 'EN' ? 'Are you sure to delete' : lang == 'ZH' ? '确定要删除' : 'Yakin menghapus'} "$name"?',
                   style: GoogleFonts.poppins(
                     fontSize: 13,
+                    fontWeight: FontWeight.w600,
                     color: const Color(0xFF64748B),
                     height: 1.5,
                   ),
@@ -1478,397 +1228,4 @@ Future<bool> _showLocationConfirm(BuildContext context, String name, String lang
         ),
       ) ??
       false;
-}
-
-class _LocationFormField {
-  final String label;
-  final TextEditingController controller;
-  final IconData icon;
-  final int maxLines;
-  final bool required;
-  const _LocationFormField({
-    required this.label,
-    required this.controller,
-    required this.icon,
-    this.maxLines = 1,
-    this.required = false,
-  });
-}
-
-class _TranslatingDialog extends StatefulWidget {
-  final Color color;
-  final String lang;
-  const _TranslatingDialog({required this.color, required this.lang});
-
-  @override
-  State<_TranslatingDialog> createState() => _TranslatingDialogState();
-}
-
-class _TranslatingDialogState extends State<_TranslatingDialog>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  String get _title {
-    switch (widget.lang) {
-      case 'EN':
-        return 'Translating...';
-      case 'ZH':
-        return '翻译中...';
-      default:
-        return 'Menerjemahkan...';
-    }
-  }
-
-  String get _subtitle {
-    switch (widget.lang) {
-      case 'EN':
-        return 'Converting to Indonesian, English & Mandarin';
-      case 'ZH':
-        return '正在转换为印尼语、英语和中文';
-      default:
-        return 'Mengubah ke Bahasa Indonesia, Inggris & Mandarin';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                final scale = 0.90 + (_controller.value * 0.12);
-                return Transform.scale(scale: scale, child: child);
-              },
-              child: Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [widget.color, widget.color.withValues(alpha: 0.6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.color.withValues(alpha: 0.35),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.translate_rounded, color: Colors.white, size: 30),
-              ),
-            ),
-            const SizedBox(height: 22),
-            Text(
-              _title,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF1E293B),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _subtitle,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF64748B),
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 22),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: SizedBox(
-                width: 150,
-                height: 6,
-                child: LinearProgressIndicator(
-                  backgroundColor: widget.color.withValues(alpha: 0.12),
-                  valueColor: AlwaysStoppedAnimation<Color>(widget.color),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminLocationFormDialog extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final List<_LocationFormField> fields;
-  final Widget? extraWidget;
-  final Widget? imagePickerWidget;
-  final String lang;
-  final Future<void> Function() onSave;
-
-  const _AdminLocationFormDialog({
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.fields,
-    required this.lang,
-    required this.onSave,
-    // ignore: unused_element_parameter
-    this.extraWidget,
-    this.imagePickerWidget,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.88,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 20, 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(icon, color: color, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.close, size: 18, color: Colors.grey.shade500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (imagePickerWidget != null) ...[
-                      Row(
-                        children: [
-                          Icon(Icons.camera_alt_rounded, size: 14, color: color),
-                          const SizedBox(width: 6),
-                          Text(
-                            lang == 'EN' ? 'Location Photo' : lang == 'ZH' ? '位置照片' : 'Foto Lokasi',
-                            style: GoogleFonts.poppins(
-                              color: color,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      imagePickerWidget!,
-                      const SizedBox(height: 20),
-                    ],
-                    ...fields.map((f) => Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(f.icon, size: 14, color: color),
-                                const SizedBox(width: 6),
-                                Text(
-                                  f.label,
-                                  style: GoogleFonts.poppins(
-                                    color: color,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                                if (f.required) ...[
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    '*',
-                                    style: GoogleFonts.poppins(
-                                      color: const Color(0xFFEF4444),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: TextField(
-                                controller: f.controller,
-                                maxLines: f.maxLines,
-                                style: GoogleFonts.poppins(
-                                  color: Colors.black,
-                                  fontSize: 14,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: f.label,
-                                  hintStyle: GoogleFonts.poppins(color: Colors.black26, fontSize: 13),
-                                  prefixIcon: f.maxLines == 1
-                                      ? Icon(f.icon, color: Colors.black38, size: 18)
-                                      : null,
-                                  border: InputBorder.none,
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                          ],
-                        )),
-                    if (extraWidget != null) ...[
-                      extraWidget!,
-                      const SizedBox(height: 20),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 6,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.grey.shade300),
-                        foregroundColor: Colors.grey.shade600,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text(
-                        lang == 'EN' ? 'Cancel' : lang == 'ZH' ? '取消' : 'Batal',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final missing = fields
-                            .where((f) => f.required && f.controller.text.trim().isEmpty)
-                            .toList();
-                        if (missing.isNotEmpty) {
-                          RequiredFieldAlert.show(
-                            context,
-                            lang: lang,
-                            missingFields: missing
-                                .map((f) => MissingFieldItem(icon: f.icon, label: f.label))
-                                .toList(),
-                          );
-                          return;
-                        }
-                        Navigator.pop(context);
-                        await onSave();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: color,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 2,
-                        shadowColor: color.withValues(alpha: 0.3),
-                      ),
-                      child: Text(
-                        lang == 'EN' ? 'Save' : lang == 'ZH' ? '保存' : 'Simpan',
-                        style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
