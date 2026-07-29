@@ -1,14 +1,13 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../../../../core/services/translation_service.dart';
 import '../../../shared/code/qr_generator_screen.dart';
 import '../../../user/finding/finding_pick_pic.dart';
-import '../../../user/home/alert/required_field_alert.dart';
+import 'admin_add_subunit.dart';
+import 'admin_edit_subunit.dart';
+import 'admin_subunit_indicator.dart';
 import 'camera/admin_subunit_camera.dart';
 
 class AdminSubunitTab extends StatefulWidget {
@@ -91,17 +90,6 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
     _currentPage = 1;
   }
 
-  String _localizedDesc(Map<String, dynamic> item) {
-    switch (widget.lang) {
-      case 'EN':
-        return (item['deskripsi_subunit_en'] ?? item['deskripsi_subunit'] ?? '').toString();
-      case 'ZH':
-        return (item['deskripsi_subunit_zh'] ?? item['deskripsi_subunit'] ?? '').toString();
-      default:
-        return (item['deskripsi_subunit'] ?? '').toString();
-    }
-  }
-
   Widget _buildPicSubtitle(Map<String, dynamic> item) {
     final picData = item['User'] as Map<String, dynamic>?;
     final picName = picData?['nama'] as String?;
@@ -177,230 +165,27 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
     );
   }
 
-  void _showDialog({Map<String, dynamic>? item}) {
-    final isEdit = item != null;
-    final namaCtrl = TextEditingController(text: item?['nama_subunit'] ?? '');
-    final descCtrl = TextEditingController(text: item != null ? _localizedDesc(item) : '');
-    String? selectedUnitId = item?['id_unit']?.toString();
-    String? selectedUnitName = item?['unit']?['nama_unit'] as String?;
-    String? gambarUrl = item?['gambar_subunit'] as String?;
-    Uint8List? previewBytes;
-
+  void _showAddDialog() {
     showDialog(
       context: context,
-      barrierDismissible: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => _AdminSubunitFormDialog(
-          title: isEdit
-              ? (widget.lang == 'EN' ? 'Edit Sub-Unit' : widget.lang == 'ZH' ? '编辑子单位' : 'Edit Sub-Unit')
-              : (widget.lang == 'EN' ? 'Add Sub-Unit' : widget.lang == 'ZH' ? '添加子单位' : 'Tambah Sub-Unit'),
-          icon: Icons.layers_rounded,
-          color: _primary,
-          lang: widget.lang,
-          fields: [
-            _SubunitFormField(
-              label: widget.lang == 'EN' ? 'Sub-Unit Name' : widget.lang == 'ZH' ? '子单位名称' : 'Nama Sub-Unit',
-              controller: namaCtrl,
-              icon: Icons.layers_rounded,
-              required: true,
-            ),
-            _SubunitFormField(
-              label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
-              controller: descCtrl,
-              icon: Icons.notes_rounded,
-              maxLines: 3,
-            ),
-          ],
-          imagePickerWidget: _buildSubunitPhotoPicker(
-            imageUrl: gambarUrl,
-            previewBytes: previewBytes,
-            onTap: () async {
-              final XFile? picked = await Navigator.push<XFile?>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AdminSubunitCameraScreen(lang: widget.lang),
-                ),
-              );
-              if (picked == null) return;
-              final bytes = await picked.readAsBytes();
-              setDlg(() {
-                previewBytes = bytes;
-              });
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                AdminSubunitCameraWarmupService.instance.warmUp();
-              });
-              try {
-                final ext = picked.name.split('.').last.toLowerCase();
-                final safeExt = ext.isEmpty ? 'jpg' : ext;
-                final fileName =
-                    '${item?['id_subunit']?.toString() ?? 'new-subunit'}-${DateTime.now().millisecondsSinceEpoch}.$safeExt';
-                final filePath = 'subunit/$fileName';
-                final String contentType;
-                if (safeExt == 'png') {
-                  contentType = 'image/png';
-                } else if (safeExt == 'gif') {
-                  contentType = 'image/gif';
-                } else if (safeExt == 'webp') {
-                  contentType = 'image/webp';
-                } else {
-                  contentType = 'image/jpeg';
-                }
-                await Supabase.instance.client.storage
-                    .from('lokasi-images')
-                    .uploadBinary(filePath, bytes,
-                        fileOptions: FileOptions(contentType: contentType, upsert: true));
-                final newUrl = Supabase.instance.client.storage
-                    .from('lokasi-images')
-                    .getPublicUrl(filePath);
-                setDlg(() {
-                  gambarUrl = newUrl;
-                });
-              } catch (e) {
-                debugPrint('Error uploading subunit photo: $e');
-              }
-            },
-          ),
-          extraWidget: _buildUnitPickerField(
-            label: 'Unit',
-            selectedName: selectedUnitName,
-            lang: widget.lang,
-            onTap: () {
-              showDialog(
-                context: context,
-                barrierDismissible: true,
-                builder: (ctx) => _SubunitUnitPickerDialog(
-                  selectedId: selectedUnitId,
-                  lang: widget.lang,
-                  onSelect: (id, name) {
-                    setDlg(() {
-                      selectedUnitId = id;
-                      selectedUnitName = name;
-                    });
-                  },
-                ),
-              );
-            },
-          ),
-          onSave: () async {
-            if (namaCtrl.text.trim().isEmpty || selectedUnitId == null) return;
-
-            final descSource = descCtrl.text.trim();
-
-            if (mounted) {
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (ctx) => _TranslatingDialog(color: _primary, lang: widget.lang),
-              );
-            }
-
-            Map<String, String> descAll = {'id': '', 'en': '', 'zh': ''};
-            if (descSource.isNotEmpty) {
-              try {
-                descAll = await TranslationHelper.instance
-                    .translateDescriptionAllLangs(descSource, widget.lang);
-              } catch (e) {
-                debugPrint('Error translating deskripsi subunit: $e');
-                descAll = {'id': descSource, 'en': descSource, 'zh': descSource};
-              }
-            }
-
-            if (mounted) Navigator.of(context, rootNavigator: true).pop();
-
-            final data = {
-              'nama_subunit': namaCtrl.text.trim(),
-              'deskripsi_subunit': descAll['id']!.isEmpty ? null : descAll['id'],
-              'deskripsi_subunit_en': descAll['en']!.isEmpty ? null : descAll['en'],
-              'deskripsi_subunit_zh': descAll['zh']!.isEmpty ? null : descAll['zh'],
-              'gambar_subunit': gambarUrl,
-              'id_unit': selectedUnitId,
-            };
-            if (isEdit) {
-              await Supabase.instance.client
-                  .from('subunit').update(data).eq('id_subunit', item['id_subunit']);
-            } else {
-              await Supabase.instance.client.from('subunit').insert(data);
-            }
-            _load();
-          },
-        ),
+      barrierDismissible: false,
+      builder: (_) => AdminAddSubunitDialog(
+        lang: widget.lang,
+        subunits: _data,
+        onSaved: _load,
       ),
     );
   }
 
-  Widget _buildSubunitPhotoPicker({
-    required String? imageUrl,
-    required Uint8List? previewBytes,
-    required VoidCallback onTap,
-  }) {
-    final bool hasPreview = previewBytes != null || (imageUrl != null && imageUrl.isNotEmpty);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        height: 120,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: _primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _primary.withValues(alpha: 0.4), width: 1.3),
-        ),
-        child: hasPreview
-            ? Stack(
-                fit: StackFit.expand,
-                children: [
-                  previewBytes != null
-                      ? Image.memory(previewBytes, fit: BoxFit.cover)
-                      : Image.network(imageUrl!, fit: BoxFit.cover),
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _primary, width: 1.5),
-                      ),
-                      child: const Icon(Icons.camera_alt_rounded, size: 14, color: Color(0xFFB45309)),
-                    ),
-                  ),
-                ],
-              )
-            : Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: _primary.withValues(alpha: 0.18),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.add_photo_alternate_rounded, color: Color(0xFFB45309), size: 24),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.lang == 'EN'
-                          ? 'Tap to select image'
-                          : widget.lang == 'ZH'
-                              ? '点击选择图片'
-                              : 'Tap untuk pilih gambar',
-                      style: GoogleFonts.poppins(
-                          color: const Color(0xFFB45309), fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      widget.lang == 'EN'
-                          ? 'Camera or Gallery'
-                          : widget.lang == 'ZH'
-                              ? '相机或图库'
-                              : 'Kamera atau Galeri',
-                      style: GoogleFonts.poppins(color: Colors.black38, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
+  void _showEditDialog(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AdminEditSubunitDialog(
+        lang: widget.lang,
+        existing: item,
+        subunits: _data,
+        onSaved: _load,
       ),
     );
   }
@@ -538,15 +323,15 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
         _applyFilter();
       }),
       addTitle: widget.lang == 'EN'
-          ? 'Add New Sub-Unit'
+          ? 'Add New Subunit'
           : widget.lang == 'ZH'
               ? '添加新子单位'
-              : 'Tambah Sub-Unit Baru',
+              : 'Tambah Subunit Baru',
       addSubtitle: widget.lang == 'EN'
-          ? 'Tap to add a new sub-unit'
+          ? 'Tap to add a new subunit'
           : widget.lang == 'ZH'
               ? '点击以添加新子单位'
-              : 'Ketuk untuk menambah sub-unit baru',
+              : 'Ketuk untuk menambah subunit baru',
       data: pageData,
       totalCount: _filtered.length,
       currentPage: safePage,
@@ -558,8 +343,8 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
       subtitleWidgetBuilder: (item) => _buildPicSubtitle(item),
       imageUrlFn: (item) => item['gambar_subunit'] as String?,
       icon: Icons.layers_rounded,
-      onAdd: () => _showDialog(),
-      onEdit: (item) => _showDialog(item: item),
+      onAdd: () => _showAddDialog(),
+      onEdit: (item) => _showEditDialog(item),
       onDelete: (item) => _delete(item['id_subunit'], item['nama_subunit'] ?? ''),
       onRefresh: _load,
       filterWidget: _buildFilterRow(),
@@ -573,7 +358,7 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
             unitColor: _unitColor,
             icon: Icons.layers_rounded,
             nameFn: (item) => item['nama_subunit'] ?? '',
-            onEdit: (item) => _showDialog(item: item),
+            onEdit: (item) => _showEditDialog(item),
             onDelete: (item) => _delete(item['id_subunit'], item['nama_subunit'] ?? ''),
           ),
         ),
@@ -703,10 +488,10 @@ class _SubunitDetailScreenState extends State<_SubunitDetailScreen> {
         ),
         title: Text(
           widget.lang == 'EN'
-              ? 'Sub-Unit Detail'
+              ? 'Subunit Detail'
               : widget.lang == 'ZH'
                   ? '子单位详情'
-                  : 'Detail Sub-Unit',
+                  : 'Detail Subunit',
           style: GoogleFonts.poppins(
             color: widget.primaryColor,
             fontWeight: FontWeight.w700,
@@ -1288,10 +1073,10 @@ Widget _buildSubunitTabContent({
                             const SizedBox(height: 16),
                             Text(
                               lang == 'EN'
-                                  ? 'No sub-unit data found'
+                                  ? 'No subunit data found'
                                   : lang == 'ZH'
                                       ? '未找到子单位数据'
-                                      : 'Data sub-unit tidak ditemukan',
+                                      : 'Data subunit tidak ditemukan',
                               style: GoogleFonts.poppins(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -1406,155 +1191,18 @@ Widget _buildSubunitTabContent({
             top: false,
             child: Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 4),
-              child: _SubunitPageIndicator(
+              child: AdminSubunitPageIndicator(
                 currentPage: currentPage,
                 totalPages: totalPages,
                 onPageChanged: onPageChanged,
                 color: primaryColor,
+                horizontalMargin: 16,
               ),
             ),
           ),
       ],
     ),
   );
-}
-
-class _SubunitPageIndicator extends StatelessWidget {
-  final int currentPage;
-  final int totalPages;
-  final ValueChanged<int> onPageChanged;
-  final Color color;
-
-  const _SubunitPageIndicator({
-    required this.currentPage,
-    required this.totalPages,
-    required this.onPageChanged,
-    required this.color,
-  });
-
-  static const int _maxVisibleButtons = 5;
-
-  List<int> _visiblePageNumbers() {
-    if (totalPages <= _maxVisibleButtons) {
-      return List.generate(totalPages, (i) => i + 1);
-    }
-    int start = currentPage - 2;
-    int end = currentPage + 2;
-    if (start < 1) {
-      start = 1;
-      end = _maxVisibleButtons;
-    } else if (end > totalPages) {
-      end = totalPages;
-      start = totalPages - (_maxVisibleButtons - 1);
-    }
-    return List.generate(end - start + 1, (i) => start + i);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool canPrev = currentPage > 1;
-    final bool canNext = currentPage < totalPages;
-    final pageNumbers = _visiblePageNumbers();
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.14),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          _arrowButton(
-            icon: Icons.arrow_back_ios_new_rounded,
-            enabled: canPrev,
-            onTap: () {
-              if (!canPrev) return;
-              onPageChanged(currentPage - 1);
-            },
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Row(
-              children: [
-                for (final p in pageNumbers) ...[
-                  Expanded(child: _pageButton(p)),
-                  if (p != pageNumbers.last) const SizedBox(width: 8),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          _arrowButton(
-            icon: Icons.arrow_forward_ios_rounded,
-            enabled: canNext,
-            onTap: () {
-              if (!canNext) return;
-              onPageChanged(currentPage + 1);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pageButton(int page) {
-    final bool isActive = page == currentPage;
-    return GestureDetector(
-      onTap: () {
-        if (page == currentPage) return;
-        onPageChanged(page);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isActive ? color : color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(10),
-          border: isActive ? null : Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Text(
-          '$page',
-          style: GoogleFonts.poppins(
-            color: isActive ? Colors.white : const Color(0xFFB45309),
-            fontWeight: FontWeight.w800,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _arrowButton({
-    required IconData icon,
-    required bool enabled,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(
-          color: enabled ? color.withValues(alpha: 0.16) : Colors.grey.withValues(alpha: 0.08),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          icon,
-          size: 15,
-          color: enabled ? const Color(0xFFB45309) : Colors.grey.shade400,
-        ),
-      ),
-    );
-  }
 }
 
 Future<bool> _showSubunitConfirm(BuildContext context, String name, String lang) async {
@@ -1654,736 +1302,6 @@ Future<bool> _showSubunitConfirm(BuildContext context, String name, String lang)
         ),
       ) ??
       false;
-}
-
-Widget _buildUnitPickerField({
-  required String label,
-  required String? selectedName,
-  required String lang,
-  required VoidCallback onTap,
-}) {
-  const purple = Color(0xFF6366F1);
-  final hasValue = selectedName != null && selectedName.isNotEmpty;
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          const Icon(Icons.business_rounded, size: 14, color: purple),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: GoogleFonts.poppins(
-              color: purple,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(width: 3),
-          Text('*',
-              style: GoogleFonts.poppins(
-                  color: const Color(0xFFEF4444),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700)),
-        ],
-      ),
-      const SizedBox(height: 6),
-      GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.business_rounded,
-                  size: 16, color: hasValue ? purple : Colors.black26),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  hasValue
-                      ? selectedName
-                      : (lang == 'EN'
-                          ? 'Select Unit'
-                          : lang == 'ZH'
-                              ? '选择单位'
-                              : 'Pilih Unit'),
-                  style: GoogleFonts.poppins(
-                    color: hasValue ? const Color(0xFF1E3A8A) : Colors.black38,
-                    fontSize: 13,
-                    fontWeight: hasValue ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.black45),
-            ],
-          ),
-        ),
-      ),
-    ],
-  );
-}
-
-class _SubunitUnitPickerDialog extends StatefulWidget {
-  final String? selectedId;
-  final String lang;
-  final void Function(String? id, String? name) onSelect;
-
-  const _SubunitUnitPickerDialog({
-    required this.selectedId,
-    required this.lang,
-    required this.onSelect,
-  });
-
-  @override
-  State<_SubunitUnitPickerDialog> createState() => _SubunitUnitPickerDialogState();
-}
-
-class _SubunitUnitPickerDialogState extends State<_SubunitUnitPickerDialog> {
-  static const _purple = Color(0xFF6366F1);
-
-  List<Map<String, dynamic>>? _data;
-  List<Map<String, dynamic>> _filtered = [];
-  bool _isLoading = true;
-  final _searchCtrl = TextEditingController();
-
-  String get _lang => widget.lang;
-
-  @override
-  void initState() {
-    super.initState();
-    _searchCtrl.addListener(_applyFilter);
-    _load();
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.removeListener(_applyFilter);
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    try {
-      final res = await Supabase.instance.client
-          .from('unit')
-          .select('id_unit, nama_unit')
-          .order('nama_unit');
-      if (mounted) {
-        final list = List<Map<String, dynamic>>.from(res);
-        setState(() {
-          _data = list;
-          _filtered = list;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading unit picker: $e');
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _applyFilter() {
-    final q = _searchCtrl.text.trim().toLowerCase();
-    final data = _data ?? [];
-    if (q.isEmpty) {
-      setState(() => _filtered = List.from(data));
-      return;
-    }
-    setState(() {
-      _filtered = data
-          .where((item) => (item['nama_unit'] ?? '').toString().toLowerCase().contains(q))
-          .toList();
-    });
-  }
-
-  String _t(String id, String en, String zh) => _lang == 'EN' ? en : _lang == 'ZH' ? zh : id;
-
-  Widget _buildUnitCard(Map<String, dynamic> item) {
-    final id = item['id_unit']?.toString() ?? '';
-    final name = item['nama_unit']?.toString() ?? '';
-    final isSelected = id == widget.selectedId;
-
-    return GestureDetector(
-      onTap: () {
-        widget.onSelect(id, name);
-        Navigator.pop(context);
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected ? _purple.withValues(alpha: 0.08) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: isSelected ? _purple : Colors.grey.shade200, width: isSelected ? 1.5 : 1),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: _purple.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.business_rounded, color: _purple, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                name,
-                style: GoogleFonts.poppins(color: Colors.black, fontWeight: FontWeight.w700, fontSize: 13),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (isSelected)
-              const Icon(Icons.check_circle_rounded, color: _purple, size: 20)
-            else
-              const Icon(Icons.chevron_right_rounded, color: _purple, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
-          maxWidth: 440,
-        ),
-        child: Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                          color: _purple.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.business_rounded, color: _purple, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _t('PILIH UNIT', 'SELECT UNIT', '选择单位'),
-                        style: GoogleFonts.poppins(fontSize: 17, fontWeight: FontWeight.w800, color: _purple),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration:
-                            BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
-                        child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 20),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(height: 1, color: const Color(0xFFF1F5F9)),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                child: Container(
-                  height: 46,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: _purple.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(color: _purple.withValues(alpha: 0.3), width: 1.2),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.search_rounded, size: 20, color: _purple),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: _searchCtrl,
-                          style: GoogleFonts.poppins(
-                              fontSize: 13.5, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A)),
-                          decoration: InputDecoration(
-                            hintText: _t('Cari Unit...', 'Search Unit...', '搜索单位...'),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 13),
-                            hintStyle: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
-                          ),
-                        ),
-                      ),
-                      if (_searchCtrl.text.isNotEmpty)
-                        GestureDetector(
-                          onTap: () => _searchCtrl.clear(),
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration:
-                                BoxDecoration(color: _purple.withValues(alpha: 0.15), shape: BoxShape.circle),
-                            child: const Icon(Icons.close_rounded, size: 14, color: _purple),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              Container(height: 1, color: const Color(0xFFF1F5F9)),
-              Expanded(
-                child: _isLoading
-                    ? Shimmer.fromColors(
-                        baseColor: Colors.grey.shade200,
-                        highlightColor: Colors.grey.shade50,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                          itemCount: 5,
-                          itemBuilder: (_, __) => Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            height: 68,
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                          ),
-                        ),
-                      )
-                    : _filtered.isEmpty
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 48),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.search_off_rounded, size: 44, color: Colors.grey.shade300),
-                                  const SizedBox(height: 10),
-                                  Text(_t('Tidak ada hasil', 'No results found', '没有结果'),
-                                      style: GoogleFonts.poppins(color: Colors.grey.shade500)),
-                                ],
-                              ),
-                            ),
-                          )
-                        : ListView(
-                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                            children: _filtered.map(_buildUnitCard).toList(),
-                          ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SubunitFormField {
-  final String label;
-  final TextEditingController controller;
-  final IconData icon;
-  final int maxLines;
-  final bool required;
-  const _SubunitFormField({
-    required this.label,
-    required this.controller,
-    required this.icon,
-    this.maxLines = 1,
-    this.required = false,
-  });
-}
-
-class _TranslatingDialog extends StatefulWidget {
-  final Color color;
-  final String lang;
-  const _TranslatingDialog({required this.color, required this.lang});
-
-  @override
-  State<_TranslatingDialog> createState() => _TranslatingDialogState();
-}
-
-class _TranslatingDialogState extends State<_TranslatingDialog>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  String get _title {
-    switch (widget.lang) {
-      case 'EN':
-        return 'Translating...';
-      case 'ZH':
-        return '翻译中...';
-      default:
-        return 'Menerjemahkan...';
-    }
-  }
-
-  String get _subtitle {
-    switch (widget.lang) {
-      case 'EN':
-        return 'Converting to Indonesian, English & Mandarin';
-      case 'ZH':
-        return '正在转换为印尼语、英语和中文';
-      default:
-        return 'Mengubah ke Bahasa Indonesia, Inggris & Mandarin';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                final scale = 0.90 + (_controller.value * 0.12);
-                return Transform.scale(scale: scale, child: child);
-              },
-              child: Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [widget.color, widget.color.withValues(alpha: 0.6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: widget.color.withValues(alpha: 0.35),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.translate_rounded, color: Colors.white, size: 30),
-              ),
-            ),
-            const SizedBox(height: 22),
-            Text(
-              _title,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF1E293B),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _subtitle,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF64748B),
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 22),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: SizedBox(
-                width: 150,
-                height: 6,
-                child: LinearProgressIndicator(
-                  backgroundColor: widget.color.withValues(alpha: 0.12),
-                  valueColor: AlwaysStoppedAnimation<Color>(widget.color),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminSubunitFormDialog extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final List<_SubunitFormField> fields;
-  final Widget? extraWidget;
-  final Widget? imagePickerWidget;
-  final String lang;
-  final Future<void> Function() onSave;
-
-  const _AdminSubunitFormDialog({
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.fields,
-    required this.lang,
-    required this.onSave,
-    this.extraWidget,
-    this.imagePickerWidget,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.88,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 20, 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha:0.04),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha:0.16),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(icon, color: const Color(0xFFB45309), size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        color: const Color(0xFFB45309),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.close, size: 18, color: Colors.grey.shade500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (imagePickerWidget != null) ...[
-                      Row(
-                        children: [
-                          const Icon(Icons.camera_alt_rounded, size: 14, color: Color(0xFFB45309)),
-                          const SizedBox(width: 6),
-                          Text(
-                            lang == 'EN' ? 'Sub-Unit Photo' : lang == 'ZH' ? '子单位照片' : 'Foto Sub-Unit',
-                            style: GoogleFonts.poppins(
-                              color: const Color(0xFFB45309),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      imagePickerWidget!,
-                      const SizedBox(height: 20),
-                    ],
-                    ...fields.map((f) => Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(f.icon, size: 14, color: const Color(0xFFB45309)),
-                                const SizedBox(width: 6),
-                                Text(
-                                  f.label,
-                                  style: GoogleFonts.poppins(
-                                    color: const Color(0xFFB45309),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                                if (f.required) ...[
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    '*',
-                                    style: GoogleFonts.poppins(
-                                      color: const Color(0xFFEF4444),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: TextField(
-                                controller: f.controller,
-                                maxLines: f.maxLines,
-                                style: GoogleFonts.poppins(
-                                  color: Colors.black,
-                                  fontSize: 14,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: f.label,
-                                  hintStyle: GoogleFonts.poppins(
-                                      color: Colors.black26, fontSize: 13),
-                                  prefixIcon: f.maxLines == 1
-                                      ? Icon(f.icon, color: Colors.black38, size: 18)
-                                      : null,
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      vertical: 14, horizontal: 16),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                          ],
-                        )),
-                    if (extraWidget != null) ...[
-                      extraWidget!,
-                      const SizedBox(height: 20),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha:0.05),
-                    blurRadius: 6,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.grey.shade300),
-                        foregroundColor: Colors.grey.shade600,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: Text(
-                        lang == 'EN' ? 'Cancel' : lang == 'ZH' ? '取消' : 'Batal',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final missing = fields
-                            .where((f) => f.required && f.controller.text.trim().isEmpty)
-                            .toList();
-                        if (missing.isNotEmpty) {
-                          RequiredFieldAlert.show(
-                            context,
-                            lang: lang,
-                            missingFields: missing
-                                .map((f) => MissingFieldItem(icon: f.icon, label: f.label))
-                                .toList(),
-                          );
-                          return;
-                        }
-                        Navigator.pop(context);
-                        await onSave();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: color,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        elevation: 2,
-                        shadowColor: color.withValues(alpha:0.3),
-                      ),
-                      child: Text(
-                        lang == 'EN' ? 'Save' : lang == 'ZH' ? '保存' : 'Simpan',
-                        style: GoogleFonts.poppins(
-                            color: Colors.white, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _SubunitFilterButton extends StatelessWidget {
