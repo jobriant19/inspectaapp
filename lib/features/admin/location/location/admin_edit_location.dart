@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/translation_service.dart';
 import '../../../user/finding/finding_pick_pic.dart';
 import '../../../user/home/alert/required_field_alert.dart';
+import '../../user/filter/admin_user_filter.dart';
 import 'admin_location_indicator.dart';
 import 'camera/admin_location_camera.dart';
 
@@ -827,6 +828,7 @@ class _LocationPicPickerDialogState extends State<_LocationPicPickerDialog> {
   bool _loading = true;
   int? _roleFilterId;
   String? _roleFilterName;
+  bool _roleFilterIsVerificator = false;
   int _picCurrentPage = 1;
 
   String _t(String en, String id, String zh) {
@@ -873,7 +875,9 @@ class _LocationPicPickerDialogState extends State<_LocationPicPickerDialog> {
     setState(() {
       _filtered = _items.where((u) {
         final matchesSearch = q.isEmpty || (u['nama'] ?? '').toString().toLowerCase().contains(q);
-        final matchesRole = _roleFilterId == null || u['id_jabatan'] == _roleFilterId;
+        final matchesRole = _roleFilterIsVerificator
+            ? (u['is_verificator'] == true)
+            : (_roleFilterId == null || u['id_jabatan'] == _roleFilterId);
         return matchesSearch && matchesRole;
       }).toList();
       _picCurrentPage = 1;
@@ -884,15 +888,25 @@ class _LocationPicPickerDialogState extends State<_LocationPicPickerDialog> {
     final result = await showDialog<Map<String, dynamic>?>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => _LocationRoleFilterDialog(lang: widget.lang, selectedId: _roleFilterId),
+      builder: (ctx) => _LocationRoleFilterDialog(
+        lang: widget.lang,
+        selectedId: _roleFilterId,
+        isVerificatorSelected: _roleFilterIsVerificator,
+      ),
     );
     if (result != null) {
       setState(() {
         if (result.isEmpty) {
           _roleFilterId = null;
           _roleFilterName = null;
+          _roleFilterIsVerificator = false;
+        } else if (result['is_verificator'] == true) {
+          _roleFilterId = null;
+          _roleFilterIsVerificator = true;
+          _roleFilterName = _t('Verificator', 'Verifikator', '验证员');
         } else {
           _roleFilterId = result['id_jabatan'] as int?;
+          _roleFilterIsVerificator = false;
           _roleFilterName = result['nama_jabatan']?.toString();
         }
       });
@@ -935,7 +949,7 @@ class _LocationPicPickerDialogState extends State<_LocationPicPickerDialog> {
               Expanded(
                 child: Text(
                   _t('Select Person in Charge', 'Pilih Penanggung Jawab', '选择负责人'),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _C.primary),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: _C.primary),
                 ),
               ),
               GestureDetector(
@@ -1220,7 +1234,12 @@ class _LocationPicPickerDialogState extends State<_LocationPicPickerDialog> {
 class _LocationRoleFilterDialog extends StatefulWidget {
   final String lang;
   final int? selectedId;
-  const _LocationRoleFilterDialog({required this.lang, required this.selectedId});
+  final bool isVerificatorSelected;
+  const _LocationRoleFilterDialog({
+    required this.lang,
+    required this.selectedId,
+    this.isVerificatorSelected = false,
+  });
 
   @override
   State<_LocationRoleFilterDialog> createState() => _LocationRoleFilterDialogState();
@@ -1229,15 +1248,9 @@ class _LocationRoleFilterDialog extends StatefulWidget {
 class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
   final _supabase = Supabase.instance.client;
   final TextEditingController _searchCtrl = TextEditingController();
-  List<Map<String, dynamic>> _jabatanList = [];
+  List<Map<String, dynamic>> _allRoles = [];
   List<Map<String, dynamic>> _filtered = [];
   bool _loading = true;
-
-  static const List<Color> _palette = [
-    Color(0xFF6366F1), Color(0xFF10B981), Color(0xFFF59E0B),
-    Color(0xFFEC4899), Color(0xFF06B6D4), Color(0xFFEF4444),
-    Color(0xFF8B5CF6), Color(0xFF14B8A6),
-  ];
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -1260,14 +1273,26 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
   }
 
   Future<void> _load() async {
+    List<Map<String, dynamic>> jabatanList = [];
     try {
-      final res = await _supabase.from('jabatan').select('id_jabatan, nama_jabatan').order('id_jabatan', ascending: true);
-      _jabatanList = List<Map<String, dynamic>>.from(res);
+      final res = await _supabase
+          .from('jabatan')
+          .select('id_jabatan, nama_jabatan')
+          .order('id_jabatan', ascending: true);
+      jabatanList = List<Map<String, dynamic>>.from(res);
     } catch (e) {
       debugPrint('Error load jabatan: $e');
-      _jabatanList = [];
+      jabatanList = [];
     }
-    _filtered = List.from(_jabatanList);
+    _allRoles = [
+      ...jabatanList,
+      {
+        'id_jabatan': null,
+        'nama_jabatan': _t('Verificator', 'Verifikator', '验证员'),
+        'is_verificator': true,
+      },
+    ];
+    _filtered = List.from(_allRoles);
     if (mounted) setState(() => _loading = false);
   }
 
@@ -1275,12 +1300,26 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
     final q = _searchCtrl.text.trim().toLowerCase();
     setState(() {
       _filtered = q.isEmpty
-          ? List.from(_jabatanList)
-          : _jabatanList.where((e) => (e['nama_jabatan'] ?? '').toString().toLowerCase().contains(q)).toList();
+          ? List.from(_allRoles)
+          : _allRoles
+              .where((e) => (e['nama_jabatan'] ?? '').toString().toLowerCase().contains(q))
+              .toList();
     });
   }
 
-  Color _colorFor(int? id) => _palette[(id ?? 0) % _palette.length];
+  void _resetSearch() {
+    _searchCtrl.clear();
+  }
+
+  Color _colorForItem(Map<String, dynamic> item) {
+    if (item['is_verificator'] == true) return const Color(0xFFF59E0B);
+    return adminRoleColor(item['id_jabatan'] as int?);
+  }
+
+  IconData _iconForItem(Map<String, dynamic> item) {
+    if (item['is_verificator'] == true) return Icons.verified_rounded;
+    return adminRoleIcon(item['id_jabatan'] as int?);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1307,7 +1346,7 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(_t('Select Role', 'Pilih Role', '选择角色'),
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _C.primary)),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: _C.primary)),
               ),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
@@ -1340,7 +1379,7 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
                   prefixIcon: const Icon(Icons.search_rounded, color: _C.primary, size: 19),
                   suffixIcon: _searchCtrl.text.isNotEmpty
                       ? GestureDetector(
-                          onTap: () => _searchCtrl.clear(),
+                          onTap: _resetSearch,
                           child: Container(
                             margin: const EdgeInsets.all(10),
                             padding: const EdgeInsets.all(4),
@@ -1384,11 +1423,11 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
                           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           decoration: BoxDecoration(
-                            color: widget.selectedId == null ? _C.primaryLt : Colors.white,
+                            color: widget.selectedId == null && !widget.isVerificatorSelected ? _C.primaryLt : Colors.white,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: widget.selectedId == null ? _C.primary : _C.divider,
-                                width: widget.selectedId == null ? 1.5 : 1),
+                                color: widget.selectedId == null && !widget.isVerificatorSelected ? _C.primary : _C.divider,
+                                width: widget.selectedId == null && !widget.isVerificatorSelected ? 1.5 : 1),
                           ),
                           child: Row(children: [
                             Container(
@@ -1446,7 +1485,7 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
                               if (_searchCtrl.text.isNotEmpty) ...[
                                 const SizedBox(height: 12),
                                 GestureDetector(
-                                  onTap: () => _searchCtrl.clear(),
+                                  onTap: _resetSearch,
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
                                     decoration: BoxDecoration(
@@ -1474,12 +1513,19 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
                         )
                       else
                         ..._filtered.map((item) {
+                          final isVerif = item['is_verificator'] == true;
                           final id = item['id_jabatan'] as int?;
                           final nama = item['nama_jabatan']?.toString() ?? '-';
-                          final isSelected = id != null && id == widget.selectedId;
-                          final color = _colorFor(id);
+                          final isSelected = isVerif
+                              ? widget.isVerificatorSelected
+                              : (id != null && id == widget.selectedId);
+                          final color = _colorForItem(item);
+                          final icon = _iconForItem(item);
                           return InkWell(
-                            onTap: () => Navigator.pop(context, item),
+                            onTap: () => Navigator.pop(
+                              context,
+                              isVerif ? <String, dynamic>{'is_verificator': true} : item,
+                            ),
                             child: Container(
                               margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1494,7 +1540,7 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
                                   height: 36,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
-                                  child: Icon(Icons.badge_rounded, size: 17, color: color),
+                                  child: Icon(icon, size: 17, color: color),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
