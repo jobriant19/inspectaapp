@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_add_section.dart';
 import 'admin_edit_section.dart';
 import 'admin_section_detail.dart';
+import 'admin_section_filter.dart';
+import 'admin_section_indicator.dart';
 import 'camera/admin_section_camera.dart';
 
 class _C {
@@ -50,7 +52,6 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
   static const _subunitColor = Color(0xFFFBBF24);
   static const _areaColor = Color(0xFFF472B6);
 
-  // Urutan (en, id, zh) -- konvensi bahasa di file ini.
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
     if (widget.lang == 'ZH') return zh;
@@ -110,6 +111,21 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
       debugPrint('Error fetch section: $e');
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  bool get _isFiltering => _search.isNotEmpty || _filterField != null || _sortOrder != 'none';
+
+  void _clearSearchAndFilter() {
+    _searchCtrl.clear();
+    setState(() {
+      _search = '';
+      _filterField = null;
+      _filterValue = null;
+      _filterLabel = null;
+      _filterActiveColor = null;
+      _sortOrder = 'none';
+      _currentPage = 1;
+    });
   }
 
   List<Map<String, dynamic>> get _filtered {
@@ -280,7 +296,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => _SectionLocationFilterDialog(
+      builder: (ctx) => AdminSectionLocationFilterDialog(
         lang: widget.lang,
         lokasiList: _lokasiList,
         unitList: _unitList,
@@ -325,7 +341,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
   void _showSortDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => _SectionSortDialog(
+      builder: (ctx) => AdminSectionSortDialog(
         primaryColor: _C.primary,
         currentSort: _sortOrder,
         lang: widget.lang,
@@ -340,7 +356,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     );
   }
 
-  // ADD FORM — didelegasikan ke AdminAddSectionDialog
+  // ADD FORM 
   Future<void> _showAddDialog() async {
     await showDialog(
       context: context,
@@ -358,7 +374,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     );
   }
 
-  // EDIT FORM — didelegasikan ke AdminEditSectionDialog
+  // EDIT FORM
   Future<void> _showEditDialog(Map<String, dynamic> existing) async {
     await showDialog(
       context: context,
@@ -478,9 +494,6 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
     }
   }
 
-  // Label lokasi di card hanya menampilkan level PALING SPESIFIK yang
-  // tersedia, urutan prioritas: Area > Sub-Unit > Unit > Lokasi -- masing
-  // masing dengan ikon dan warna khas levelnya sendiri.
   Map<String, dynamic>? _specificLocationInfo(Map<String, dynamic> item) {
     if (item['area']?['nama_area'] != null) {
       return {
@@ -564,12 +577,12 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _C.primary, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _C.primary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           _t('Section Settings', 'Pengaturan Section', '部门设置'),
-          style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: _C.primary),
+          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: _C.primary),
         ),
       ),
       body: Column(
@@ -660,13 +673,13 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                             });
                           },
                           child: Container(
-                            margin: const EdgeInsets.all(11),
-                            padding: const EdgeInsets.all(3),
+                            margin: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade200,
+                              color: _C.red.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(Icons.close_rounded, size: 12, color: Colors.grey.shade600),
+                            child: const Icon(Icons.close_rounded, size: 14, color: _C.red),
                           ),
                         )
                       : null,
@@ -733,25 +746,31 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                   )
                 : data.isEmpty
                     ? Center(
-                        child: Padding(
+                        child: SingleChildScrollView(
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Image.asset(
                                 'assets/images/team_illustration.png',
-                                height: 140,
-                                errorBuilder: (_, __, ___) => Icon(
-                                  Icons.dashboard_customize_rounded,
-                                  size: 80,
-                                  color: _C.primary.withValues(alpha: 0.35),
+                                height: 150,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 110,
+                                  height: 110,
+                                  decoration: BoxDecoration(
+                                    color: _C.primary.withValues(alpha: 0.08),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(Icons.dashboard_customize_rounded,
+                                      size: 50, color: _C.primary.withValues(alpha: 0.4)),
                                 ),
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 20),
                               Text(
-                                _search.isNotEmpty
-                                    ? _t('No sections found', 'Section tidak ditemukan', '未找到部门')
-                                    : _t('No sections yet', 'Belum ada section', '暂无部门'),
+                                _isFiltering
+                                    ? _t('No matching sections', 'Section Tidak Ditemukan', '未找到匹配部门')
+                                    : _t('No sections yet', 'Belum Ada Section', '暂无部门'),
                                 style: GoogleFonts.poppins(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
@@ -759,18 +778,45 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                                 ),
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 8),
                               Text(
-                                _search.isNotEmpty
-                                    ? _t('Try a different keyword.', 'Coba kata kunci lain.', '请尝试其他关键词。')
+                                _isFiltering
+                                    ? _t(
+                                        'Try adjusting your search keyword or filter to find what you\'re looking for.',
+                                        'Coba ubah kata kunci pencarian atau filter untuk menemukan yang Anda cari.',
+                                        '尝试调整搜索关键词或筛选条件以查找您需要的内容。')
                                     : _t(
-                                        'Tap "Add Section" above to create your first section.',
-                                        'Ketuk "Tambah Section" di atas untuk membuat section pertama.',
-                                        '点击上方"添加部门"以创建您的第一个部门。',
-                                      ),
-                                style: GoogleFonts.poppins(fontSize: 12, color: _C.textSub, height: 1.5),
+                                        'Sections will show up here as soon as they\'re added.',
+                                        'Section akan muncul di sini setelah ditambahkan.',
+                                        '添加部门后将显示在此处。'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12.5, fontWeight: FontWeight.w600, color: _C.textSub, height: 1.5),
                                 textAlign: TextAlign.center,
                               ),
+                              if (_isFiltering) ...[
+                                const SizedBox(height: 18),
+                                GestureDetector(
+                                  onTap: _clearSearchAndFilter,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _C.primary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(30),
+                                      border: Border.all(color: _C.primary.withValues(alpha: 0.35)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.refresh_rounded, size: 15, color: _C.primary),
+                                        const SizedBox(width: 6),
+                                        Text(_t('Clear search & filter', 'Hapus pencarian & filter', '清除搜索与筛选'),
+                                            style: GoogleFonts.poppins(
+                                                fontSize: 12, fontWeight: FontWeight.w700, color: _C.primary)),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -879,7 +925,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
           if (!_loading && totalPages > 1)
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 8),
-              child: _SectionPageIndicator(
+              child: AdminSectionPageIndicator(
                 currentPage: safePage,
                 totalPages: totalPages,
                 onPageChanged: (p) => setState(() => _currentPage = p),
@@ -892,147 +938,6 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
   }
 }
 
-class _SectionPageIndicator extends StatelessWidget {
-  final int currentPage;
-  final int totalPages;
-  final ValueChanged<int> onPageChanged;
-  final Color color;
-
-  const _SectionPageIndicator({
-    required this.currentPage,
-    required this.totalPages,
-    required this.onPageChanged,
-    required this.color,
-  });
-
-  static const int _maxVisibleButtons = 5;
-
-  List<int> _visiblePageNumbers() {
-    if (totalPages <= _maxVisibleButtons) {
-      return List.generate(totalPages, (i) => i + 1);
-    }
-    int start = currentPage - 2;
-    int end = currentPage + 2;
-    if (start < 1) {
-      start = 1;
-      end = _maxVisibleButtons;
-    } else if (end > totalPages) {
-      end = totalPages;
-      start = totalPages - (_maxVisibleButtons - 1);
-    }
-    return List.generate(end - start + 1, (i) => start + i);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool canPrev = currentPage > 1;
-    final bool canNext = currentPage < totalPages;
-    final pageNumbers = _visiblePageNumbers();
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.14),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          _arrowButton(
-            icon: Icons.arrow_back_ios_new_rounded,
-            enabled: canPrev,
-            onTap: () {
-              if (!canPrev) return;
-              onPageChanged(currentPage - 1);
-            },
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Row(
-              children: [
-                for (final p in pageNumbers) ...[
-                  Expanded(child: _pageButton(p)),
-                  if (p != pageNumbers.last) const SizedBox(width: 8),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          _arrowButton(
-            icon: Icons.arrow_forward_ios_rounded,
-            enabled: canNext,
-            onTap: () {
-              if (!canNext) return;
-              onPageChanged(currentPage + 1);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pageButton(int page) {
-    final bool isActive = page == currentPage;
-    return GestureDetector(
-      onTap: () {
-        if (page == currentPage) return;
-        onPageChanged(page);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isActive ? color : color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(10),
-          border: isActive ? null : Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Text(
-          '$page',
-          style: GoogleFonts.poppins(
-            color: isActive ? Colors.white : color,
-            fontWeight: FontWeight.w800,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _arrowButton({
-    required IconData icon,
-    required bool enabled,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(
-          color: enabled ? color.withValues(alpha: 0.16) : Colors.grey.withValues(alpha: 0.08),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          icon,
-          size: 15,
-          color: enabled ? color : Colors.grey.shade400,
-        ),
-      ),
-    );
-  }
-}
-
-// --------------------------------------------------------------------
-// Filter Button & Location Filter Dialog untuk Section Settings
-// --------------------------------------------------------------------
 class _SectionFilterButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -1114,479 +1019,6 @@ class _SectionFilterButton extends StatelessWidget {
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _SectionLocationFilterDialog extends StatefulWidget {
-  final String lang;
-  final List<Map<String, dynamic>> lokasiList;
-  final List<Map<String, dynamic>> unitList;
-  final List<Map<String, dynamic>> subunitList;
-  final List<Map<String, dynamic>> areaList;
-  final String? initialField;
-
-  const _SectionLocationFilterDialog({
-    required this.lang,
-    required this.lokasiList,
-    required this.unitList,
-    required this.subunitList,
-    required this.areaList,
-    required this.initialField,
-  });
-
-  @override
-  State<_SectionLocationFilterDialog> createState() => _SectionLocationFilterDialogState();
-}
-
-class _SectionLocationFilterDialogState extends State<_SectionLocationFilterDialog> {
-  static const _levels = ['Lokasi', 'Unit', 'Sub-Unit', 'Area'];
-  static const _levelColors = [
-    Color(0xFF10B981),
-    Color(0xFF6366F1),
-    Color(0xFFFBBF24),
-    Color(0xFFF472B6),
-  ];
-  static const _levelIcons = [
-    Icons.location_city_rounded,
-    Icons.business_rounded,
-    Icons.layers_rounded,
-    Icons.place_rounded,
-  ];
-
-  final TextEditingController _searchCtrl = TextEditingController();
-  int _tabIndex = 0;
-
-  String _t(String en, String id, String zh) {
-    if (widget.lang == 'EN') return en;
-    if (widget.lang == 'ZH') return zh;
-    return id;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _tabIndex = widget.initialField == 'id_unit'
-        ? 1
-        : widget.initialField == 'id_subunit'
-            ? 2
-            : widget.initialField == 'id_area'
-                ? 3
-                : 0;
-    _searchCtrl.addListener(() => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  String _levelLabel(int i) {
-    switch (i) {
-      case 1:
-        return 'Unit';
-      case 2:
-        return 'Sub-Unit';
-      case 3:
-        return _t('Area', 'Area', '区域');
-      default:
-        return _t('Location', 'Lokasi', '位置');
-    }
-  }
-
-  List<Map<String, dynamic>> get _currentData {
-    switch (_tabIndex) {
-      case 1:
-        return widget.unitList;
-      case 2:
-        return widget.subunitList;
-      case 3:
-        return widget.areaList;
-      default:
-        return widget.lokasiList;
-    }
-  }
-
-  String _idKey(int i) {
-    switch (i) {
-      case 1:
-        return 'id_unit';
-      case 2:
-        return 'id_subunit';
-      case 3:
-        return 'id_area';
-      default:
-        return 'id_lokasi';
-    }
-  }
-
-  String _nameKey(int i) {
-    switch (i) {
-      case 1:
-        return 'nama_unit';
-      case 2:
-        return 'nama_subunit';
-      case 3:
-        return 'nama_area';
-      default:
-        return 'nama_lokasi';
-    }
-  }
-
-  String _typeKey(int i) {
-    switch (i) {
-      case 1:
-        return 'unit';
-      case 2:
-        return 'subunit';
-      case 3:
-        return 'area';
-      default:
-        return 'lokasi';
-    }
-  }
-
-  List<Map<String, dynamic>> get _filtered {
-    final q = _searchCtrl.text.trim().toLowerCase();
-    final nameKey = _nameKey(_tabIndex);
-    if (q.isEmpty) return _currentData;
-    return _currentData
-        .where((item) => (item[nameKey]?.toString() ?? '').toLowerCase().contains(q))
-        .toList();
-  }
-
-  void _selectItem(Map<String, dynamic> item) {
-    Navigator.pop(context, {
-      'type': _typeKey(_tabIndex),
-      'id': item[_idKey(_tabIndex)]?.toString(),
-      'name': item[_nameKey(_tabIndex)]?.toString(),
-    });
-  }
-
-  void _selectAll() => Navigator.pop(context, {'type': 'none'});
-
-  Widget _buildAllCard() {
-    final color = _levelColors[_tabIndex];
-    final isSel = widget.initialField == null;
-    return GestureDetector(
-      onTap: _selectAll,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isSel ? _C.primaryLt : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isSel ? _C.primary : const Color(0xFFE2E8F0), width: isSel ? 1.5 : 1),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
-              child: Icon(Icons.apps_rounded, size: 20, color: color),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _t('All (No Filter)', 'Semua (Tanpa Filter)', '全部'),
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: _C.textMain),
-              ),
-            ),
-            if (isSel)
-              Icon(Icons.check_circle_rounded, color: _C.primary, size: 20)
-            else
-              Icon(Icons.chevron_right_rounded, color: color, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildItemCard(Map<String, dynamic> item) {
-    final color = _levelColors[_tabIndex];
-    final name = item[_nameKey(_tabIndex)]?.toString() ?? '-';
-    return GestureDetector(
-      onTap: () => _selectItem(item),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
-              child: Icon(_levelIcons[_tabIndex], size: 20, color: color),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: _C.textMain),
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: color, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final filtered = _filtered;
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: 340,
-        height: screenHeight * 0.72,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _C.primaryLt, width: 1.5),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: _C.primaryLt, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.map_rounded, color: _C.primary, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _t('Filter Section', 'Filter Section', '筛选部门'),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _C.primary),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
-                      child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(height: 1, color: const Color(0xFFF1F5F9)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
-              child: Row(
-                children: List.generate(_levels.length, (index) {
-                  final isActive = _tabIndex == index;
-                  final color = _levelColors[index];
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() {
-                        _tabIndex = index;
-                        _searchCtrl.clear();
-                      }),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 2),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isActive ? color : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: isActive ? color : const Color(0xFFE2E8F0)),
-                          boxShadow: isActive
-                              ? [BoxShadow(color: color.withValues(alpha: 0.30), blurRadius: 8, offset: const Offset(0, 3))]
-                              : null,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(_levelIcons[index], size: 15, color: isActive ? Colors.white : color),
-                            const SizedBox(height: 3),
-                            Text(
-                              _levelLabel(index),
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: isActive ? Colors.white : const Color(0xFF475569),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
-              child: Container(
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _C.primary.withValues(alpha: 0.35), width: 1.3),
-                ),
-                child: TextField(
-                  controller: _searchCtrl,
-                  textAlignVertical: TextAlignVertical.center,
-                  style: GoogleFonts.poppins(fontSize: 13, color: _C.textMain),
-                  decoration: InputDecoration(
-                    hintText: '${_t('Search', 'Cari', '搜索')} ${_levelLabel(_tabIndex)}...',
-                    hintStyle: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black38),
-                    prefixIcon: const Icon(Icons.search_rounded, color: _C.primary, size: 18),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                ),
-              ),
-            ),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-                children: [
-                  _buildAllCard(),
-                  if (filtered.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Text(_t('No data found', 'Tidak ada data', '未找到数据'),
-                            style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: _C.textSub)),
-                      ),
-                    )
-                  else
-                    ...filtered.map(_buildItemCard),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionSortDialog extends StatelessWidget {
-  final Color primaryColor;
-  final String currentSort;
-  final String lang;
-  final void Function(String sort) onSelect;
-
-  const _SectionSortDialog({
-    required this.primaryColor,
-    required this.currentSort,
-    required this.lang,
-    required this.onSelect,
-  });
-
-  String _t(String en, String id, String zh) {
-    if (lang == 'EN') return en;
-    if (lang == 'ZH') return zh;
-    return id;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final options = [
-      {'value': 'none', 'label': _t('Default (No Sort)', 'Default (Tanpa Urutan)', '默认（无排序）')},
-      {'value': 'asc', 'label': 'A → Z'},
-      {'value': 'desc', 'label': 'Z → A'},
-    ];
-
-    return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
-            decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: 0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.sort_by_alpha_rounded, color: primaryColor, size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _t('Sort Order', 'Urutan Abjad', '排序方式'),
-                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: primaryColor),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
-                    child: Icon(Icons.close, size: 16, color: Colors.grey.shade500),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-            child: Column(
-              children: options.map((opt) {
-                final isSelected = currentSort == opt['value'];
-                return GestureDetector(
-                  onTap: () => onSelect(opt['value']!),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isSelected ? primaryColor.withValues(alpha: 0.10) : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? primaryColor : Colors.grey.shade200,
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            opt['label']!,
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: isSelected ? primaryColor : const Color(0xFF1E3A8A),
-                            ),
-                          ),
-                        ),
-                        if (isSelected) Icon(Icons.check_circle_rounded, color: primaryColor, size: 18),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
       ),
     );
   }
