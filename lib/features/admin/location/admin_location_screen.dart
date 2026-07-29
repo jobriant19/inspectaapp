@@ -153,16 +153,16 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
                           ),
                           Text(
                             _lang == 'EN'
-                                ? 'Manage Laser, Mesin, Assy, and other sections'
+                                ? 'Manage all sections'
                                 : _lang == 'ZH'
-                                    ? '管理激光、机械、组装等部门'
-                                    : 'Kelola Laser, Mesin, Assy, dan section lainnya',
+                                    ? '管理所有部分'
+                                    : 'Kelola semua bagian',
                             style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black26, size: 13),
+                    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.black, size: 13),
                   ],
                 ),
               ),
