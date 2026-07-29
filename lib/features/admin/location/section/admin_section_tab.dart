@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../shared/code/qr_generator_screen.dart';
-import '../../../user/finding/finding_pick_pic.dart';
 import 'admin_add_section.dart';
 import 'admin_edit_section.dart';
+import 'admin_section_detail.dart';
 import 'camera/admin_section_camera.dart';
 
 class _C {
@@ -29,6 +27,7 @@ class AdminSectionTab extends StatefulWidget {
 
 class _AdminSectionTabState extends State<AdminSectionTab> {
   final _supabase = Supabase.instance.client;
+  final TextEditingController _searchCtrl = TextEditingController();
 
   List<Map<String, dynamic>> _sections = [];
   List<Map<String, dynamic>> _lokasiList = [];
@@ -78,6 +77,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
 
   @override
   void dispose() {
+    _searchCtrl.dispose();
     AdminSectionCameraWarmupService.instance.release();
     super.dispose();
   }
@@ -560,6 +560,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
       backgroundColor: _C.surface,
       appBar: AppBar(
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
@@ -638,6 +639,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                 border: Border.all(color: _C.divider),
               ),
               child: TextField(
+                controller: _searchCtrl,
                 onChanged: (v) => setState(() {
                   _search = v;
                   _currentPage = 1;
@@ -648,6 +650,26 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                   hintText: _t('Search section...', 'Cari section...', '搜索部门...'),
                   hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.black38),
                   prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 18),
+                  suffixIcon: _search.isNotEmpty
+                      ? GestureDetector(
+                          onTap: () {
+                            _searchCtrl.clear();
+                            setState(() {
+                              _search = '';
+                              _currentPage = 1;
+                            });
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.all(11),
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.close_rounded, size: 12, color: Colors.grey.shade600),
+                          ),
+                        )
+                      : null,
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -664,7 +686,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
 
           // COUNT
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Container(
@@ -697,7 +719,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                     baseColor: Colors.grey.shade200,
                     highlightColor: Colors.grey.shade50,
                     child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                       itemCount: 6,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (_, __) => Container(
@@ -711,21 +733,53 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                   )
                 : data.isEmpty
                     ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.dashboard_customize_outlined, size: 52, color: Colors.grey.shade300),
-                            const SizedBox(height: 10),
-                            Text(_t('No sections yet.', 'Belum ada section.', '暂无部门。'),
-                                style: GoogleFonts.poppins(fontSize: 13, color: _C.textSub)),
-                          ],
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Image.asset(
+                                'assets/images/team_illustration.png',
+                                height: 140,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.dashboard_customize_rounded,
+                                  size: 80,
+                                  color: _C.primary.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _search.isNotEmpty
+                                    ? _t('No sections found', 'Section tidak ditemukan', '未找到部门')
+                                    : _t('No sections yet', 'Belum ada section', '暂无部门'),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: _C.primary,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _search.isNotEmpty
+                                    ? _t('Try a different keyword.', 'Coba kata kunci lain.', '请尝试其他关键词。')
+                                    : _t(
+                                        'Tap "Add Section" above to create your first section.',
+                                        'Ketuk "Tambah Section" di atas untuk membuat section pertama.',
+                                        '点击上方"添加部门"以创建您的第一个部门。',
+                                      ),
+                                style: GoogleFonts.poppins(fontSize: 12, color: _C.textSub, height: 1.5),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     : RefreshIndicator(
                         onRefresh: _fetchAll,
                         color: _C.primary,
                         child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                           itemCount: data.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 8),
                           itemBuilder: (_, i) {
@@ -735,7 +789,7 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => _SectionDetailScreen(
+                                  builder: (_) => AdminSectionDetailScreen(
                                     item: item,
                                     lang: widget.lang,
                                     onEdit: (it) => _showEditDialog(it),
@@ -767,20 +821,16 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
                                         ? Image.network(
                                             imgUrl,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Center(
-                                              child: Text(
-                                                '${item['urutan'] ?? i + 1}',
-                                                style: GoogleFonts.poppins(
-                                                    fontSize: 15, fontWeight: FontWeight.w800, color: _C.primary),
-                                              ),
+                                            errorBuilder: (_, __, ___) => const Icon(
+                                              Icons.dashboard_customize_rounded,
+                                              color: _C.primary,
+                                              size: 24,
                                             ),
                                           )
-                                        : Center(
-                                            child: Text(
-                                              '${item['urutan'] ?? i + 1}',
-                                              style: GoogleFonts.poppins(
-                                                  fontSize: 15, fontWeight: FontWeight.w800, color: _C.primary),
-                                            ),
+                                        : const Icon(
+                                            Icons.dashboard_customize_rounded,
+                                            color: _C.primary,
+                                            size: 24,
                                           ),
                                   ),
                                   const SizedBox(width: 12),
@@ -837,520 +887,6 @@ class _AdminSectionTabState extends State<AdminSectionTab> {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-// --------------------------------------------------------------------
-// Layar Detail Section: semua kolom tabel + generate/regenerate QR Code
-// --------------------------------------------------------------------
-class _SectionDetailScreen extends StatefulWidget {
-  final Map<String, dynamic> item;
-  final String lang;
-  final void Function(Map<String, dynamic>) onEdit;
-  final void Function(Map<String, dynamic>) onDelete;
-
-  const _SectionDetailScreen({
-    required this.item,
-    required this.lang,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  State<_SectionDetailScreen> createState() => _SectionDetailScreenState();
-}
-
-class _SectionDetailScreenState extends State<_SectionDetailScreen> {
-  late Map<String, dynamic> _item;
-  bool _isRefreshing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _item = widget.item;
-  }
-
-  String _t(String en, String id, String zh) {
-    if (widget.lang == 'EN') return en;
-    if (widget.lang == 'ZH') return zh;
-    return id;
-  }
-
-  String get _name {
-    if (widget.lang == 'EN') {
-      return _item['nama_section_en']?.toString() ?? _item['nama_section_id']?.toString() ?? '-';
-    }
-    if (widget.lang == 'ZH') {
-      return _item['nama_section_zh']?.toString() ?? _item['nama_section_id']?.toString() ?? '-';
-    }
-    return _item['nama_section_id']?.toString() ?? '-';
-  }
-
-  String get _desc {
-    if (widget.lang == 'EN') {
-      return (_item['deskripsi_section_en'] ?? _item['deskripsi_section'] ?? '').toString();
-    }
-    if (widget.lang == 'ZH') {
-      return (_item['deskripsi_section_zh'] ?? _item['deskripsi_section'] ?? '').toString();
-    }
-    return (_item['deskripsi_section'] ?? '').toString();
-  }
-
-  Future<void> _openQrGenerator() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => QRGeneratorScreen(
-          lang: widget.lang,
-          levelName: 'section',
-          levelId: _item['id_section'].toString(),
-          itemName: _name,
-        ),
-      ),
-    );
-    if (result == true) {
-      setState(() => _isRefreshing = true);
-      try {
-        final refreshed = await Supabase.instance.client
-            .from('section')
-            .select(
-                '*, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area), User!fk_section_pic(nama, gambar_user, id_jabatan, is_verificator, jabatan(nama_jabatan))')
-            .eq('id_section', _item['id_section'].toString())
-            .maybeSingle();
-        if (refreshed != null && mounted) {
-          setState(() => _item = {..._item, ...refreshed});
-        }
-      } catch (e) {
-        debugPrint('Refresh QR section error: $e');
-      } finally {
-        if (mounted) setState(() => _isRefreshing = false);
-      }
-    }
-  }
-
-  void _openFullImage(String url) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.9),
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(12),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            GestureDetector(
-              onTap: () => Navigator.pop(ctx),
-              child: InteractiveViewer(
-                minScale: 0.8,
-                maxScale: 4,
-                child: Image.network(
-                  url,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
-                    Icons.broken_image_rounded,
-                    color: Colors.white54,
-                    size: 64,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: GestureDetector(
-                onTap: () => Navigator.pop(ctx),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionLabel(IconData icon, String title) {
-    return Row(
-      children: [
-        Icon(icon, size: 15, color: _C.primary),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: GoogleFonts.poppins(color: _C.primary, fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-      ],
-    );
-  }
-
-  Widget _mappingBadge({required IconData icon, required Color color, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(color: color, fontSize: 11, fontWeight: FontWeight.w700),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final gambarUrl = _item['gambar_section'] as String?;
-    final isStar = (_item['is_star'] ?? 0) as int;
-    final qrcode = _item['qrcode'] as String?;
-    final lokasiName = _item['lokasi']?['nama_lokasi'] as String?;
-    final unitName = _item['unit']?['nama_unit'] as String?;
-    final subunitName = _item['subunit']?['nama_subunit'] as String?;
-    final areaName = _item['area']?['nama_area'] as String?;
-    final picData = _item['User'] as Map<String, dynamic>?;
-    final picName = picData?['nama'] as String?;
-    final picImage = picData?['gambar_user'] as String?;
-    final picJabatan = picData?['jabatan']?['nama_jabatan'] as String?;
-    final picIdJabatan = picData?['id_jabatan'] as int?;
-    final picIsVerificator = picData?['is_verificator'] as bool?;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _C.primary),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          _t('Section Detail', 'Detail Section', '部门详情'),
-          style: GoogleFonts.poppins(color: _C.primary, fontWeight: FontWeight.w700, fontSize: 17),
-        ),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                GestureDetector(
-                  onTap: (gambarUrl != null && gambarUrl.isNotEmpty)
-                      ? () => _openFullImage(gambarUrl)
-                      : null,
-                  child: Container(
-                    width: 96,
-                    height: 96,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: _C.primary.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(18),
-                      border: (gambarUrl != null && gambarUrl.isNotEmpty)
-                          ? Border.all(color: _C.primary.withValues(alpha: 0.25), width: 1.5)
-                          : null,
-                    ),
-                    child: (gambarUrl != null && gambarUrl.isNotEmpty)
-                        ? Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Image.network(
-                                gambarUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    const Icon(Icons.dashboard_customize_rounded, color: _C.primary, size: 30),
-                              ),
-                              Positioned(
-                                right: 6,
-                                bottom: 6,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.9),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.zoom_in_rounded, size: 13, color: _C.primary),
-                                ),
-                              ),
-                            ],
-                          )
-                        : const Icon(Icons.dashboard_customize_rounded, color: _C.primary, size: 30),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _name,
-                        style: GoogleFonts.poppins(color: Colors.black, fontWeight: FontWeight.w700, fontSize: 18),
-                      ),
-                      if (lokasiName != null || unitName != null || subunitName != null || areaName != null) ...[
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            if (lokasiName != null && lokasiName.isNotEmpty)
-                              _mappingBadge(icon: Icons.location_city_rounded, color: const Color(0xFF10B981), label: lokasiName),
-                            if (unitName != null && unitName.isNotEmpty)
-                              _mappingBadge(icon: Icons.business_rounded, color: const Color(0xFF6366F1), label: unitName),
-                            if (subunitName != null && subunitName.isNotEmpty)
-                              _mappingBadge(icon: Icons.layers_rounded, color: const Color(0xFFFBBF24), label: subunitName),
-                            if (areaName != null && areaName.isNotEmpty)
-                              _mappingBadge(icon: Icons.place_rounded, color: const Color(0xFFF472B6), label: areaName),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isStar > 0 ? const Color(0xFFFEF3C7) : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: isStar > 0 ? const Color(0xFFFBBF24) : Colors.grey.shade300),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(isStar > 0 ? Icons.star_rounded : Icons.star_border_rounded,
-                                size: 12, color: isStar > 0 ? const Color(0xFFFBBF24) : Colors.grey),
-                            const SizedBox(width: 4),
-                            Text(
-                              isStar > 0 ? _t('Starred', 'Bintang', '已加星标') : _t('No Star', 'Tanpa Bintang', '无星标'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 10, fontWeight: FontWeight.w600, color: isStar > 0 ? const Color(0xFFF59E0B) : Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Divider(color: Colors.grey.shade100, thickness: 1.5),
-            const SizedBox(height: 16),
-
-            _sectionLabel(Icons.notes_rounded, _t('Description', 'Deskripsi', '描述')),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _C.primary.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.primary.withValues(alpha: 0.20)),
-              ),
-              child: Text(
-                _desc.isEmpty ? '-' : _desc,
-                style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13, height: 1.5),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            _sectionLabel(Icons.badge_rounded, 'PIC'),
-            const SizedBox(height: 10),
-            if (picName != null && picName.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _C.primary.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _C.primary.withValues(alpha: 0.20)),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 22,
-                      backgroundColor: _C.primary.withValues(alpha: 0.18),
-                      backgroundImage: (picImage != null && picImage.isNotEmpty) ? NetworkImage(picImage) : null,
-                      child: (picImage == null || picImage.isEmpty)
-                          ? const Icon(Icons.person_rounded, color: _C.primary, size: 22)
-                          : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(picName, style: GoogleFonts.poppins(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 5),
-                          buildJabatanBadge(
-                            idJabatan: picIdJabatan,
-                            jabatanNama: picJabatan,
-                            isVerificator: picIsVerificator,
-                            lang: widget.lang,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFBBF24).withValues(alpha: 0.4)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: const Color(0xFFFBBF24).withValues(alpha: 0.15), shape: BoxShape.circle),
-                      child: const Icon(Icons.person_off_rounded, size: 16, color: Color(0xFFF59E0B)),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _t('No PIC assigned yet', 'Belum ada PIC yang ditugaskan', '尚未分配负责人'),
-                        style: GoogleFonts.poppins(color: const Color(0xFFB45309), fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 20),
-
-            _sectionLabel(Icons.qr_code_2_rounded, 'QR Code'),
-            const SizedBox(height: 10),
-            if (_isRefreshing)
-              const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
-            else if (qrcode != null && qrcode.isNotEmpty) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _C.primary.withValues(alpha: 0.25)),
-                  boxShadow: [BoxShadow(color: _C.primary.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4))],
-                ),
-                child: Column(
-                  children: [
-                    QrImageView(data: qrcode, version: QrVersions.auto, size: 220),
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: _openQrGenerator,
-                      icon: const Icon(Icons.refresh_rounded, size: 16),
-                      label: Text(_t('Regenerate QR', 'Buat Ulang QR', '重新生成二维码'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _C.primary,
-                        side: const BorderSide(color: _C.primary),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200)),
-                child: Column(
-                  children: [
-                    Icon(Icons.qr_code_scanner_rounded, size: 64, color: Colors.grey.shade300),
-                    const SizedBox(height: 12),
-                    Text(
-                      _t('QR Code has not been generated yet.', 'Kode QR belum dibuat.', '二维码尚未生成。'),
-                      style: GoogleFonts.poppins(fontSize: 13, color: Colors.black45, fontWeight: FontWeight.w500),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _openQrGenerator,
-                      icon: const Icon(Icons.add_circle_outline, size: 18),
-                      label: Text(_t('Generate QR Code', 'Buat Kode QR', '生成二维码'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _C.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 2,
-                        shadowColor: _C.primary.withValues(alpha: 0.3),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      widget.onEdit(_item);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(color: const Color(0xFF2563EB).withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.edit_outlined, color: Color(0xFF2563EB), size: 16),
-                          const SizedBox(width: 6),
-                          Text(_t('Edit', 'Edit', '编辑'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFF2563EB))),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      widget.onDelete(_item);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(color: const Color(0xFFEF4444).withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 16),
-                          const SizedBox(width: 6),
-                          Text(_t('Delete', 'Hapus', '删除'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFFEF4444))),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
