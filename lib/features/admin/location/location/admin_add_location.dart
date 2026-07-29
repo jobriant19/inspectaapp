@@ -5,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/translation_service.dart';
-import '../../../user/finding/finding_pick_pic.dart';
 import '../../../user/home/alert/required_field_alert.dart';
 import '../../user/filter/admin_user_filter.dart';
 import 'admin_location_indicator.dart';
@@ -274,7 +273,7 @@ class _AdminAddLocationDialogState extends State<AdminAddLocationDialog> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 3),
-                        buildJabatanBadge(
+                        buildAdminRoleBadge(
                           idJabatan: idJabatan,
                           jabatanNama: jabatanNama,
                           isVerificator: isVerificator,
@@ -839,7 +838,9 @@ class _LocationPicPickerDialogState extends State<_LocationPicPickerDialog> {
           .from('User')
           .select('id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
           .order('nama');
-      final list = List<Map<String, dynamic>>.from(res);
+      final list = List<Map<String, dynamic>>.from(res)
+          .where((u) => u['id_jabatan'] != 6)
+          .toList();
       if (mounted) {
         setState(() {
           _items = list;
@@ -865,6 +866,25 @@ class _LocationPicPickerDialogState extends State<_LocationPicPickerDialog> {
       }).toList();
       _picCurrentPage = 1;
     });
+  }
+
+  Color get _activeRoleFilterColor {
+    if (_roleFilterIsVerificator) return adminRoleColor(kVerificatorFilterId);
+    return adminRoleColor(_roleFilterId);
+  }
+
+  IconData get _activeRoleFilterIcon {
+    if (_roleFilterIsVerificator) return adminRoleIcon(kVerificatorFilterId);
+    return adminRoleIcon(_roleFilterId);
+  }
+
+  void _clearRoleFilter() {
+    setState(() {
+      _roleFilterId = null;
+      _roleFilterName = null;
+      _roleFilterIsVerificator = false;
+    });
+    _applyFilter();
   }
 
   Future<void> _openRoleFilter() async {
@@ -1032,13 +1052,34 @@ class _LocationPicPickerDialogState extends State<_LocationPicPickerDialog> {
               ),
               if (_roleFilterName != null) ...[
                 const Spacer(),
-                Flexible(
+                GestureDetector(
+                  onTap: _clearRoleFilter,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: _C.primaryLt, borderRadius: BorderRadius.circular(20)),
-                    child: Text(_roleFilterName!,
-                        style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: _C.primary),
-                        overflow: TextOverflow.ellipsis),
+                    padding: const EdgeInsets.only(left: 8, right: 6, top: 3, bottom: 3),
+                    decoration: BoxDecoration(
+                      color: _activeRoleFilterColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _activeRoleFilterColor.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(_activeRoleFilterIcon, size: 12, color: _activeRoleFilterColor),
+                        const SizedBox(width: 4),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 90),
+                          child: Text(
+                            _roleFilterName!,
+                            style: GoogleFonts.poppins(
+                                fontSize: 10, fontWeight: FontWeight.w700, color: _activeRoleFilterColor),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        Icon(Icons.close_rounded, size: 13, color: _activeRoleFilterColor),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -1185,7 +1226,7 @@ class _LocationPicPickerDialogState extends State<_LocationPicPickerDialog> {
                                               fontWeight: FontWeight.w700,
                                               color: isSelected ? _C.primary : _C.textMain)),
                                       const SizedBox(height: 4),
-                                      buildJabatanBadge(
+                                      buildAdminRoleBadge(
                                           idJabatan: idJabatan, jabatanNama: jabatanNama, isVerificator: isVerificator, lang: widget.lang),
                                     ],
                                   ),
@@ -1262,7 +1303,9 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
           .from('jabatan')
           .select('id_jabatan, nama_jabatan')
           .order('id_jabatan', ascending: true);
-      jabatanList = List<Map<String, dynamic>>.from(res);
+      jabatanList = List<Map<String, dynamic>>.from(res)
+          .where((j) => j['id_jabatan'] != 6)
+          .toList();
     } catch (e) {
       debugPrint('Error load jabatan: $e');
       jabatanList = [];
@@ -1295,12 +1338,12 @@ class _LocationRoleFilterDialogState extends State<_LocationRoleFilterDialog> {
   }
 
   Color _colorForItem(Map<String, dynamic> item) {
-    if (item['is_verificator'] == true) return const Color(0xFFF59E0B);
+    if (item['is_verificator'] == true) return adminRoleColor(kVerificatorFilterId);
     return adminRoleColor(item['id_jabatan'] as int?);
   }
 
   IconData _iconForItem(Map<String, dynamic> item) {
-    if (item['is_verificator'] == true) return Icons.verified_rounded;
+    if (item['is_verificator'] == true) return adminRoleIcon(kVerificatorFilterId);
     return adminRoleIcon(item['id_jabatan'] as int?);
   }
 

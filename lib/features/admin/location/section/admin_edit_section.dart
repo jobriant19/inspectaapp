@@ -5,8 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/translation_service.dart';
-import '../../../user/finding/finding_pick_pic.dart';
 import '../../../user/home/alert/required_field_alert.dart';
+import '../../user/filter/admin_user_filter.dart';
 import 'admin_section_indicator.dart';
 import 'camera/admin_section_camera.dart';
 
@@ -377,7 +377,7 @@ class _AdminEditSectionDialogState extends State<AdminEditSectionDialog> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 3),
-                          buildJabatanBadge(
+                          buildAdminRoleBadge(
                             idJabatan: idJabatan,
                             jabatanNama: jabatanNama,
                             isVerificator: isVerificator,
@@ -1371,6 +1371,7 @@ class _SectionPicPickerDialogState extends State<_SectionPicPickerDialog> {
           .eq(widget.idCol, widget.locId)
           .order('nama');
       final list = List<Map<String, dynamic>>.from(res)
+          .where((u) => u['id_jabatan'] != 6)
           .where((u) => !excluded.contains(u['id_user']?.toString()) || u['id_user']?.toString() == widget.selectedUserId)
           .toList();
       if (mounted) {
@@ -1402,6 +1403,25 @@ class _SectionPicPickerDialogState extends State<_SectionPicPickerDialog> {
 
   void _resetSearch() {
     _searchCtrl.clear();
+    _applyFilter();
+  }
+
+  Color get _activeRoleFilterColor {
+    if (_roleFilterIsVerificator) return adminRoleColor(kVerificatorFilterId);
+    return adminRoleColor(_roleFilterId);
+  }
+
+  IconData get _activeRoleFilterIcon {
+    if (_roleFilterIsVerificator) return adminRoleIcon(kVerificatorFilterId);
+    return adminRoleIcon(_roleFilterId);
+  }
+
+  void _clearRoleFilter() {
+    setState(() {
+      _roleFilterId = null;
+      _roleFilterName = null;
+      _roleFilterIsVerificator = false;
+    });
     _applyFilter();
   }
 
@@ -1466,7 +1486,7 @@ class _SectionPicPickerDialogState extends State<_SectionPicPickerDialog> {
               Expanded(
                 child: Text(
                   _t('Select Person in Charge', 'Pilih Penanggung Jawab', '选择负责人'),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _C.primary),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: _C.primary),
                 ),
               ),
               GestureDetector(
@@ -1560,13 +1580,34 @@ class _SectionPicPickerDialogState extends State<_SectionPicPickerDialog> {
               ),
               if (_roleFilterName != null) ...[
                 const Spacer(),
-                Flexible(
+                GestureDetector(
+                  onTap: _clearRoleFilter,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: _C.primaryLt, borderRadius: BorderRadius.circular(20)),
-                    child: Text(_roleFilterName!,
-                        style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: _C.primary),
-                        overflow: TextOverflow.ellipsis),
+                    padding: const EdgeInsets.only(left: 8, right: 6, top: 3, bottom: 3),
+                    decoration: BoxDecoration(
+                      color: _activeRoleFilterColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _activeRoleFilterColor.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(_activeRoleFilterIcon, size: 12, color: _activeRoleFilterColor),
+                        const SizedBox(width: 4),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 90),
+                          child: Text(
+                            _roleFilterName!,
+                            style: GoogleFonts.poppins(
+                                fontSize: 10, fontWeight: FontWeight.w700, color: _activeRoleFilterColor),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        Icon(Icons.close_rounded, size: 13, color: _activeRoleFilterColor),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -1638,7 +1679,7 @@ class _SectionPicPickerDialogState extends State<_SectionPicPickerDialog> {
                                               fontWeight: FontWeight.w700,
                                               color: isSelected ? _C.primary : _C.textMain)),
                                       const SizedBox(height: 4),
-                                      buildJabatanBadge(
+                                      buildAdminRoleBadge(
                                           idJabatan: idJabatan, jabatanNama: jabatanNama, isVerificator: isVerificator, lang: widget.lang),
                                     ],
                                   ),
@@ -1754,15 +1795,9 @@ class _SectionRoleFilterDialog extends StatefulWidget {
 class _SectionRoleFilterDialogState extends State<_SectionRoleFilterDialog> {
   final _supabase = Supabase.instance.client;
   final TextEditingController _searchCtrl = TextEditingController();
-  List<Map<String, dynamic>> _jabatanList = [];
+  List<Map<String, dynamic>> _allRoles = [];
   List<Map<String, dynamic>> _filtered = [];
   bool _loading = true;
-
-  static const List<Color> _palette = [
-    Color(0xFF6366F1), Color(0xFF10B981), Color(0xFFF59E0B),
-    Color(0xFFEC4899), Color(0xFF06B6D4), Color(0xFFEF4444),
-    Color(0xFF8B5CF6), Color(0xFF14B8A6),
-  ];
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -1785,14 +1820,28 @@ class _SectionRoleFilterDialogState extends State<_SectionRoleFilterDialog> {
   }
 
   Future<void> _load() async {
+    List<Map<String, dynamic>> jabatanList = [];
     try {
-      final res = await _supabase.from('jabatan').select('id_jabatan, nama_jabatan').order('id_jabatan', ascending: true);
-      _jabatanList = List<Map<String, dynamic>>.from(res);
+      final res = await _supabase
+          .from('jabatan')
+          .select('id_jabatan, nama_jabatan')
+          .order('id_jabatan', ascending: true);
+      jabatanList = List<Map<String, dynamic>>.from(res)
+          .where((j) => j['id_jabatan'] != 6)
+          .toList();
     } catch (e) {
       debugPrint('Error load jabatan: $e');
-      _jabatanList = [];
+      jabatanList = [];
     }
-    _filtered = List.from(_jabatanList);
+    _allRoles = [
+      ...jabatanList,
+      {
+        'id_jabatan': null,
+        'nama_jabatan': _t('Verificator', 'Verifikator', '验证员'),
+        'is_verificator': true,
+      },
+    ];
+    _filtered = List.from(_allRoles);
     if (mounted) setState(() => _loading = false);
   }
 
@@ -1800,8 +1849,10 @@ class _SectionRoleFilterDialogState extends State<_SectionRoleFilterDialog> {
     final q = _searchCtrl.text.trim().toLowerCase();
     setState(() {
       _filtered = q.isEmpty
-          ? List.from(_jabatanList)
-          : _jabatanList.where((e) => (e['nama_jabatan'] ?? '').toString().toLowerCase().contains(q)).toList();
+          ? List.from(_allRoles)
+          : _allRoles
+              .where((e) => (e['nama_jabatan'] ?? '').toString().toLowerCase().contains(q))
+              .toList();
     });
   }
 
@@ -1809,7 +1860,15 @@ class _SectionRoleFilterDialogState extends State<_SectionRoleFilterDialog> {
     _searchCtrl.clear();
   }
 
-  Color _colorFor(int? id) => _palette[(id ?? 0) % _palette.length];
+  Color _colorForItem(Map<String, dynamic> item) {
+    if (item['is_verificator'] == true) return adminRoleColor(kVerificatorFilterId);
+    return adminRoleColor(item['id_jabatan'] as int?);
+  }
+
+  IconData _iconForItem(Map<String, dynamic> item) {
+    if (item['is_verificator'] == true) return adminRoleIcon(kVerificatorFilterId);
+    return adminRoleIcon(item['id_jabatan'] as int?);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1836,7 +1895,7 @@ class _SectionRoleFilterDialogState extends State<_SectionRoleFilterDialog> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(_t('Select Role', 'Pilih Role', '选择角色'),
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _C.primary)),
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 16, color: _C.primary)),
               ),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
@@ -1930,40 +1989,6 @@ class _SectionRoleFilterDialogState extends State<_SectionRoleFilterDialog> {
                           ]),
                         ),
                       ),
-                      InkWell(
-                        onTap: () => Navigator.pop(context, <String, dynamic>{'is_verificator': true}),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: widget.isVerificatorSelected ? const Color(0xFFFEF3C7) : Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: widget.isVerificatorSelected ? const Color(0xFFF59E0B) : _C.divider,
-                                width: widget.isVerificatorSelected ? 1.5 : 1),
-                          ),
-                          child: Row(children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
-                              child: const Icon(Icons.verified_rounded, size: 18, color: Color(0xFFF59E0B)),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(_t('Verificator', 'Verifikator', '验证员'),
-                                  style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                      color: widget.isVerificatorSelected ? const Color(0xFFB45309) : _C.textMain)),
-                            ),
-                            if (widget.isVerificatorSelected)
-                              const Icon(Icons.check_circle_rounded, color: Color(0xFFF59E0B), size: 18),
-                          ]),
-                        ),
-                      ),
                       if (_filtered.isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 24),
@@ -2021,12 +2046,19 @@ class _SectionRoleFilterDialogState extends State<_SectionRoleFilterDialog> {
                         )
                       else
                         ..._filtered.map((item) {
+                          final isVerif = item['is_verificator'] == true;
                           final id = item['id_jabatan'] as int?;
                           final nama = item['nama_jabatan']?.toString() ?? '-';
-                          final isSelected = id != null && id == widget.selectedId;
-                          final color = _colorFor(id);
+                          final isSelected = isVerif
+                              ? widget.isVerificatorSelected
+                              : (id != null && id == widget.selectedId);
+                          final color = _colorForItem(item);
+                          final icon = _iconForItem(item);
                           return InkWell(
-                            onTap: () => Navigator.pop(context, item),
+                            onTap: () => Navigator.pop(
+                              context,
+                              isVerif ? <String, dynamic>{'is_verificator': true} : item,
+                            ),
                             child: Container(
                               margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -2041,7 +2073,7 @@ class _SectionRoleFilterDialogState extends State<_SectionRoleFilterDialog> {
                                   height: 36,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(10)),
-                                  child: Icon(Icons.badge_rounded, size: 17, color: color),
+                                  child: Icon(icon, size: 17, color: color),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(

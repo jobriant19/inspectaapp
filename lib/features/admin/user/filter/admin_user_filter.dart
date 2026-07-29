@@ -54,7 +54,7 @@ IconData _adminLevelIcon(String level) {
 const int kVerificatorFilterId = -1;
 
 Color adminRoleColor(int? idJabatan) {
-  if (idJabatan == kVerificatorFilterId) return const Color(0xFFF59E0B);
+  if (idJabatan == kVerificatorFilterId) return const Color(0xFF10B981);
   if (idJabatan == 6) return const Color(0xFF059669);
   return JabatanHelper.getPrimaryColor(isVerificatorFlag: false, idJabatan: idJabatan);
 }
@@ -63,6 +63,43 @@ IconData adminRoleIcon(int? idJabatan) {
   if (idJabatan == kVerificatorFilterId) return Icons.verified_user_outlined;
   if (idJabatan == 6) return Icons.admin_panel_settings_rounded;
   return JabatanHelper.getRoleIcon(isVerificatorFlag: false, idJabatan: idJabatan);
+}
+
+Widget buildAdminRoleBadge({
+  required int? idJabatan,
+  required String? jabatanNama,
+  required bool? isVerificator,
+  required String lang,
+}) {
+  final bool isVerif = isVerificator == true;
+  final Color color = isVerif ? adminRoleColor(kVerificatorFilterId) : adminRoleColor(idJabatan);
+  final IconData icon = isVerif ? adminRoleIcon(kVerificatorFilterId) : adminRoleIcon(idJabatan);
+  final String label = isVerif
+      ? (lang == 'EN' ? 'Verificator' : lang == 'ZH' ? '验证员' : 'Verifikator')
+      : (jabatanNama ?? '-');
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withValues(alpha: 0.4)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: color),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 Widget _buildAdminFilterShimmerList() {
@@ -675,6 +712,28 @@ class _AdminUserRoleFilterDialogState extends State<_AdminUserRoleFilterDialog> 
     }
   }
 
+  String get _emptySubtitle {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Try a different keyword.';
+      case 'ZH':
+        return '请尝试其他关键词。';
+      default:
+        return 'Coba kata kunci lain.';
+    }
+  }
+
+  String get _clearSearchLabel {
+    switch (widget.lang) {
+      case 'EN':
+        return 'Clear search';
+      case 'ZH':
+        return '清除搜索';
+      default:
+        return 'Hapus pencarian';
+    }
+  }
+
   String get _verificatorLabel {
     switch (widget.lang) {
       case 'EN':
@@ -702,6 +761,11 @@ class _AdminUserRoleFilterDialogState extends State<_AdminUserRoleFilterDialog> 
                   (e['nama_jabatan'] ?? '').toString().toLowerCase().contains(query))
               .toList();
     });
+  }
+
+  void _resetSearch() {
+    _searchCtrl.clear();
+    _applySearch('');
   }
 
   @override
@@ -790,6 +854,20 @@ class _AdminUserRoleFilterDialogState extends State<_AdminUserRoleFilterDialog> 
                       TextStyle(fontSize: 12.5, color: _AdminFilterColors.textMuted),
                   prefixIcon: const Icon(Icons.search_rounded,
                       color: _AdminFilterColors.primary, size: 19),
+                  suffixIcon: _searchCtrl.text.isNotEmpty
+                      ? GestureDetector(
+                          onTap: _resetSearch,
+                          child: Container(
+                            margin: const EdgeInsets.all(10),
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close_rounded, size: 14, color: Colors.red),
+                          ),
+                        )
+                      : null,
                   border: InputBorder.none,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -811,26 +889,9 @@ class _AdminUserRoleFilterDialogState extends State<_AdminUserRoleFilterDialog> 
                   isSelected: widget.selectedJabatanId == null,
                   onTap: () => Navigator.pop(context, {'id': null, 'name': null}),
                 ),
-                if (_verificatorMatchesSearch)
-                  _buildRoleCard(
-                    context: context,
-                    icon: adminRoleIcon(kVerificatorFilterId),
-                    color: adminRoleColor(kVerificatorFilterId),
-                    label: _verificatorLabel,
-                    isSelected: widget.selectedJabatanId == kVerificatorFilterId,
-                    onTap: () => Navigator.pop(
-                        context, {'id': kVerificatorFilterId, 'name': _verificatorLabel}),
-                  ),
                 if (_filtered.isEmpty && !_verificatorMatchesSearch)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: Text(_emptyText,
-                          style: const TextStyle(
-                              fontSize: 12.5, color: _AdminFilterColors.textSecondary)),
-                    ),
-                  )
-                else
+                  _buildEmptyState()
+                else ...[
                   ..._filtered.map((jab) {
                     final id = jab['id_jabatan'] as int;
                     final nama = jab['nama_jabatan']?.toString() ?? '';
@@ -843,10 +904,90 @@ class _AdminUserRoleFilterDialogState extends State<_AdminUserRoleFilterDialog> 
                       onTap: () => Navigator.pop(context, {'id': id, 'name': nama}),
                     );
                   }),
+                  if (_verificatorMatchesSearch)
+                    _buildRoleCard(
+                      context: context,
+                      icon: adminRoleIcon(kVerificatorFilterId),
+                      color: adminRoleColor(kVerificatorFilterId),
+                      label: _verificatorLabel,
+                      isSelected: widget.selectedJabatanId == kVerificatorFilterId,
+                      onTap: () => Navigator.pop(
+                          context, {'id': kVerificatorFilterId, 'name': _verificatorLabel}),
+                    ),
+                ],
               ],
             ),
           ),
         ]),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Image.asset(
+            'assets/images/team_illustration.png',
+            height: 100,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: _AdminFilterColors.primary.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.badge_rounded,
+                  size: 28, color: _AdminFilterColors.primary.withValues(alpha: 0.4)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _emptyText,
+            style: GoogleFonts.poppins(
+                fontSize: 13, fontWeight: FontWeight.w700, color: _AdminFilterColors.textPrimary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _emptySubtitle,
+            style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: _AdminFilterColors.textSecondary,
+                height: 1.5),
+            textAlign: TextAlign.center,
+          ),
+          if (_searchCtrl.text.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: _resetSearch,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                decoration: BoxDecoration(
+                  color: _AdminFilterColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: _AdminFilterColors.primary.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.refresh_rounded, size: 14, color: _AdminFilterColors.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      _clearSearchLabel,
+                      style: GoogleFonts.poppins(
+                          fontSize: 11, fontWeight: FontWeight.w700, color: _AdminFilterColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
