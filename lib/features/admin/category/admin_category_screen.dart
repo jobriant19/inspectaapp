@@ -4,8 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../user/home/alert/required_field_alert.dart';
+import 'admin_add_category.dart';
+import 'admin_edit_category.dart';
 
 // ============================================================
 // SHARED: Translate helper (ID / EN / ZH)
@@ -761,117 +762,6 @@ class _KategoriListState extends State<_KategoriList>
     );
   }
 
-  void _showAddEditDialog({Map<String, dynamic>? item}) {
-    final isEdit = item != null;
-    final namaCtrl = TextEditingController(text: item != null ? _localizedNama(item) : '');
-    final descCtrl = TextEditingController(text: item != null ? _localizedDesk(item) : '');
-    final poinCtrl = TextEditingController(
-        text: (item?['poin_kategoritemuan'] ?? 0).toString());
-    final String jenisKategori = widget.isKts ? 'KTS' : '5R';
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => _LightFormDialog(
-        title: isEdit
-            ? (widget.lang == 'EN' ? 'Edit Category' : widget.lang == 'ZH' ? '编辑分类' : 'Edit Kategori')
-            : (widget.lang == 'EN' ? 'Add Category' : widget.lang == 'ZH' ? '添加分类' : 'Tambah Kategori'),
-        icon: Icons.category_rounded,
-        color: widget.color,
-        lang: widget.lang,
-        badge: widget.isKts ? 'KTS Production' : '5R Finding',
-        fields: [
-          _FieldConfig(
-            label: widget.lang == 'EN' ? 'Category Name' : widget.lang == 'ZH' ? '分类名称' : 'Nama Kategori',
-            ctrl: namaCtrl,
-            icon: Icons.category_rounded,
-            required: true,
-          ),
-          _FieldConfig(
-            label: widget.lang == 'EN' ? 'Description' : widget.lang == 'ZH' ? '描述' : 'Deskripsi',
-            ctrl: descCtrl,
-            icon: Icons.notes_rounded,
-            maxLines: 3,
-          ),
-          _FieldConfig(
-            label: widget.lang == 'EN' ? 'Points' : widget.lang == 'ZH' ? '积分' : 'Poin',
-            ctrl: poinCtrl,
-            icon: Icons.star_rounded,
-            keyboardType: TextInputType.number,
-          ),
-        ],
-        onSave: () async {
-          if (namaCtrl.text.trim().isEmpty) return;
-
-          final namaSource = namaCtrl.text.trim();
-          final descSource = descCtrl.text.trim();
-
-          final bool namaChanged = !isEdit || namaSource != _localizedNama(item);
-          final bool descChanged = !isEdit || descSource != _localizedDesk(item);
-          final bool needsTranslate = namaChanged || (descChanged && descSource.isNotEmpty);
-
-          Map<String, String> namaAll = isEdit && !namaChanged
-              ? {
-                  'id': (item['nama_kategoritemuan'] ?? namaSource).toString(),
-                  'en': (item['nama_kategoritemuan_en'] ?? namaSource).toString(),
-                  'zh': (item['nama_kategoritemuan_zh'] ?? namaSource).toString(),
-                }
-              : {'id': namaSource, 'en': namaSource, 'zh': namaSource};
-          Map<String, String> descAll = isEdit && !descChanged
-              ? {
-                  'id': (item['deskripsi_kategoritemuan'] ?? '').toString(),
-                  'en': (item['deskripsi_kategoritemuan_en'] ?? '').toString(),
-                  'zh': (item['deskripsi_kategoritemuan_zh'] ?? '').toString(),
-                }
-              : {'id': '', 'en': '', 'zh': ''};
-
-          if (needsTranslate) {
-            // JANGAN pakai 'await' di sini — lihat catatan di _showTranslatingDialog
-            if (mounted) _showTranslatingDialog(context, widget.lang, widget.color);
-            try {
-              final translateResults = await Future.wait([
-                if (namaChanged) _translateAllLangs(namaSource, widget.lang),
-                if (descChanged && descSource.isNotEmpty) _translateAllLangs(descSource, widget.lang),
-              ]);
-              int idx = 0;
-              if (namaChanged) namaAll = translateResults[idx++];
-              if (descChanged && descSource.isNotEmpty) descAll = translateResults[idx++];
-              if (mounted) Navigator.of(context, rootNavigator: true).pop();
-            } catch (e) {
-              debugPrint('Error translating kategori: $e');
-              if (mounted) Navigator.of(context, rootNavigator: true).pop();
-              if (mounted) _showTranslateFailedDialog(context, widget.lang, widget.color);
-              return; // STOP — jangan simpan data yang belum berhasil diterjemahkan
-            }
-          }
-
-          final data = {
-            'nama_kategoritemuan': namaAll['id'],
-            'nama_kategoritemuan_en': namaAll['en'],
-            'nama_kategoritemuan_zh': namaAll['zh'],
-            'deskripsi_kategoritemuan':
-                descAll['id']!.isEmpty ? null : descAll['id'],
-            'deskripsi_kategoritemuan_en':
-                descAll['en']!.isEmpty ? null : descAll['en'],
-            'deskripsi_kategoritemuan_zh':
-                descAll['zh']!.isEmpty ? null : descAll['zh'],
-            'poin_kategoritemuan': int.tryParse(poinCtrl.text.trim()) ?? 0,
-            'jenis_kategori': jenisKategori,
-          };
-          if (isEdit) {
-            await Supabase.instance.client
-                .from('kategoritemuan')
-                .update(data)
-                .eq('id_kategoritemuan', item['id_kategoritemuan']);
-          } else {
-            await Supabase.instance.client.from('kategoritemuan').insert(data);
-          }
-          _load();
-        },
-      ),
-    );
-  }
-
   void _showDetail(Map<String, dynamic> item) {
     final subs = List<Map<String, dynamic>>.from(
         item['subkategoritemuan'] as List? ?? []);
@@ -1035,7 +925,20 @@ class _KategoriListState extends State<_KategoriList>
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      onPressed: () { Navigator.pop(ctx); _showAddEditDialog(item: item); },
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        showDialog(
+                          context: context,
+                          barrierDismissible: true,
+                          builder: (dctx) => AdminEditCategoryDialog(
+                            lang: widget.lang,
+                            isKts: widget.isKts,
+                            color: widget.color,
+                            item: item,
+                            onSaved: _load,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1122,7 +1025,16 @@ class _KategoriListState extends State<_KategoriList>
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: GestureDetector(
-              onTap: () => _showAddEditDialog(),
+              onTap: () => showDialog(
+                context: context,
+                barrierDismissible: true,
+                builder: (ctx) => AdminAddCategoryDialog(
+                  lang: widget.lang,
+                  isKts: widget.isKts,
+                  color: widget.color,
+                  onSaved: _load,
+                ),
+              ),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -1153,7 +1065,7 @@ class _KategoriListState extends State<_KategoriList>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(addTitle, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                          Text(addSubtitle, style: GoogleFonts.poppins(fontSize: 10, color: Colors.white.withValues(alpha:0.85))),
+                          Text(addSubtitle, style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha:0.85))),
                         ],
                       ),
                     ),
@@ -1287,7 +1199,17 @@ class _KategoriListState extends State<_KategoriList>
             ),
             // ── Edit & chevron ──
             GestureDetector(
-              onTap: () => _showAddEditDialog(item: item),
+              onTap: () => showDialog(
+                context: context,
+                barrierDismissible: true,
+                builder: (ctx) => AdminEditCategoryDialog(
+                  lang: widget.lang,
+                  isKts: widget.isKts,
+                  color: widget.color,
+                  item: item,
+                  onSaved: _load,
+                ),
+              ),
               child: Container(
                 padding: const EdgeInsets.all(8),
                 margin: const EdgeInsets.only(right: 8),
