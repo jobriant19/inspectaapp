@@ -4,9 +4,11 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_add_category.dart';
 import 'admin_add_subcategory.dart';
+import 'admin_category_detail.dart';
 import 'admin_category_indicator.dart';
 import 'admin_edit_category.dart';
 import 'admin_edit_subcategory.dart';
+import 'admin_subcategory_detail.dart';
 
 // ============================================================
 // ADMIN CATEGORY SCREEN
@@ -360,17 +362,6 @@ class _KategoriListState extends State<_KategoriList>
     }
   }
 
-  String _localizedDesk(Map<String, dynamic> item) {
-    switch (widget.lang) {
-      case 'EN':
-        return (item['deskripsi_kategoritemuan_en'] ?? item['deskripsi_kategoritemuan'] ?? '').toString();
-      case 'ZH':
-        return (item['deskripsi_kategoritemuan_zh'] ?? item['deskripsi_kategoritemuan'] ?? '').toString();
-      default:
-        return (item['deskripsi_kategoritemuan'] ?? '').toString();
-    }
-  }
-
   List<Map<String, dynamic>> get _filtered {
     final q = _search.toLowerCase();
     List<Map<String, dynamic>> result = List.from(_data);
@@ -563,228 +554,6 @@ class _KategoriListState extends State<_KategoriList>
           Navigator.pop(ctx);
         },
       ),
-    );
-  }
-
-  void _showDetail(Map<String, dynamic> item) {
-    final subs = List<Map<String, dynamic>>.from(
-        item['subkategoritemuan'] as List? ?? []);
-    final poin = item['poin_kategoritemuan'] ?? 0;
-    final descRaw = _localizedDesk(item);
-    final desc = descRaw.isEmpty ? '-' : descRaw;
-    final nama = _localizedNama(item);
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [widget.color.withValues(alpha:0.14), widget.color.withValues(alpha:0.04)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: widget.color.withValues(alpha:0.18),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(color: widget.color.withValues(alpha:0.25), blurRadius: 10, offset: const Offset(0, 4)),
-                          ],
-                        ),
-                        child: Icon(Icons.category_rounded, color: widget.color, size: 24),
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(ctx),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8),
-                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.06), blurRadius: 6)]),
-                          child: Icon(Icons.close, size: 18, color: Colors.grey.shade500),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(nama, style: GoogleFonts.poppins(color: widget.color, fontWeight: FontWeight.w800, fontSize: 19)),
-                  const SizedBox(height: 8),
-                  Text(
-                    desc,
-                    style: GoogleFonts.poppins(color: Colors.black87, fontSize: 13.5, height: 1.5),
-                  ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _detailChip('${widget.lang == 'EN' ? 'Points' : widget.lang == 'ZH' ? '积分' : 'Poin'}: $poin', _poinColor, Icons.star_rounded),
-                      _detailChip('${subs.length} ${widget.lang == 'EN' ? 'sub-cat' : widget.lang == 'ZH' ? '子类' : 'sub-kat'}', _subColor, Icons.list_alt_rounded),
-                      _detailChip(widget.isKts ? 'KTS' : '5R', widget.isKts ? const Color(0xFF0891B2) : const Color(0xFF6366F1), Icons.label_rounded),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: subs.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Image.asset(
-                            'assets/images/team_illustration.png',
-                            width: 150,
-                            fit: BoxFit.contain,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            widget.lang == 'EN' ? 'No sub-categories yet' : widget.lang == 'ZH' ? '暂无子分类' : 'Belum ada sub-kategori',
-                            style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 14, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.lang == 'EN'
-                                ? 'Add sub-categories to organize this category better'
-                                : widget.lang == 'ZH'
-                                    ? '添加子分类以更好地组织此分类'
-                                    : 'Tambahkan sub-kategori untuk mengelompokkan kategori ini',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(color: Colors.black38, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                      itemCount: subs.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (_, i) {
-                        final sub = subs[i];
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: widget.color.withValues(alpha:0.14)),
-                            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.03), blurRadius: 6, offset: const Offset(0, 2))],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 30, height: 30,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: _subColor.withValues(alpha:0.12),
-                                  borderRadius: BorderRadius.circular(9),
-                                ),
-                                child: Text('${i + 1}', style: GoogleFonts.poppins(color: _subColor, fontSize: 12, fontWeight: FontWeight.w700)),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(child: Text(sub['nama_subkategoritemuan'] ?? '-',
-                                  style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 13, fontWeight: FontWeight.w600))),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(color: _poinColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
-                                child: Text('${sub['poin_subkategoritemuan'] ?? 0} pt',
-                                    style: GoogleFonts.poppins(color: const Color(0xFFB45309), fontSize: 11, fontWeight: FontWeight.w700)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.white),
-                      label: Text(widget.lang == 'EN' ? 'Edit' : widget.lang == 'ZH' ? '编辑' : 'Ubah',
-                          style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        showDialog(
-                          context: context,
-                          barrierDismissible: true,
-                          builder: (dctx) => AdminEditCategoryDialog(
-                            lang: widget.lang,
-                            isKts: widget.isKts,
-                            color: widget.color,
-                            item: item,
-                            onSaved: _load,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Colors.white),
-                      label: Text(widget.lang == 'EN' ? 'Delete' : widget.lang == 'ZH' ? '删除' : 'Hapus',
-                          style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEF4444),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: () async {
-                        Navigator.pop(ctx);
-                        await _deleteItem(item['id_kategoritemuan'], item['nama_kategoritemuan'] ?? '');
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _detailChip(String label, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha:0.10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha:0.25)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 11, color: color),
-        const SizedBox(width: 4),
-        Text(label, style: GoogleFonts.poppins(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
-      ]),
     );
   }
 
@@ -984,7 +753,15 @@ class _KategoriListState extends State<_KategoriList>
     final nama = _localizedNama(item);
 
     return GestureDetector(
-      onTap: () => _showDetail(item),
+      onTap: () => AdminCategoryDetailDialog.show(
+        context: context,
+        lang: widget.lang,
+        isKts: widget.isKts,
+        color: widget.color,
+        item: item,
+        onSaved: _load,
+        onDelete: _deleteItem,
+      ),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -1229,17 +1006,6 @@ class _SubkategoriListState extends State<_SubkategoriList>
     }
   }
 
-  String _localizedDesk(Map<String, dynamic> item) {
-    switch (widget.lang) {
-      case 'EN':
-        return (item['deskripsi_subkategoritemuan_en'] ?? item['deskripsi_subkategoritemuan'] ?? '').toString();
-      case 'ZH':
-        return (item['deskripsi_subkategoritemuan_zh'] ?? item['deskripsi_subkategoritemuan'] ?? '').toString();
-      default:
-        return (item['deskripsi_subkategoritemuan'] ?? '').toString();
-    }
-  }
-
   String _localizedParentNama(Map<String, dynamic> item) {
     final parent = item['kategoritemuan'];
     if (parent == null) return '-';
@@ -1250,19 +1016,6 @@ class _SubkategoriListState extends State<_SubkategoriList>
         return (parent['nama_kategoritemuan_zh'] ?? parent['nama_kategoritemuan'] ?? '-').toString();
       default:
         return (parent['nama_kategoritemuan'] ?? '-').toString();
-    }
-  }
-
-  String _localizedParentDesk(Map<String, dynamic> item) {
-    final parent = item['kategoritemuan'];
-    if (parent == null) return '';
-    switch (widget.lang) {
-      case 'EN':
-        return (parent['deskripsi_kategoritemuan_en'] ?? parent['deskripsi_kategoritemuan'] ?? '').toString();
-      case 'ZH':
-        return (parent['deskripsi_kategoritemuan_zh'] ?? parent['deskripsi_kategoritemuan'] ?? '').toString();
-      default:
-        return (parent['deskripsi_kategoritemuan'] ?? '').toString();
     }
   }
 
@@ -1433,209 +1186,6 @@ class _SubkategoriListState extends State<_SubkategoriList>
         ],
         onSelect: (v) { setState(() { _sortOrder = v; _currentPage = 1; }); Navigator.pop(ctx); },
       ),
-    );
-  }
-
-  void _showDetail(Map<String, dynamic> item) {
-    final parent = item['kategoritemuan'];
-    final parentNama = _localizedParentNama(item);
-    final parentDescRaw = _localizedParentDesk(item);
-    final parentDesc = parentDescRaw.isEmpty ? '-' : parentDescRaw;
-    final parentPoin = parent?['poin_kategoritemuan'] ?? 0;
-    final poin = item['poin_subkategoritemuan'] ?? 0;
-    final descRaw = _localizedDesk(item);
-    final desc = descRaw.isEmpty ? '-' : descRaw;
-    final nama = _localizedNama(item);
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [widget.color.withValues(alpha:0.14), widget.color.withValues(alpha:0.04)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: widget.color.withValues(alpha:0.18),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(color: widget.color.withValues(alpha:0.25), blurRadius: 10, offset: const Offset(0, 4)),
-                            ],
-                          ),
-                          child: Icon(Icons.list_alt_rounded, color: widget.color, size: 24),
-                        ),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () => Navigator.pop(ctx),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8),
-                                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.06), blurRadius: 6)]),
-                            child: Icon(Icons.close, size: 18, color: Colors.grey.shade500),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Text(nama, style: GoogleFonts.poppins(color: widget.color, fontWeight: FontWeight.w800, fontSize: 19)),
-                    if (desc != '-') ...[
-                      const SizedBox(height: 8),
-                      Text(desc, style: GoogleFonts.poppins(color: Colors.black87, fontSize: 13.5, height: 1.5)),
-                    ],
-                    const SizedBox(height: 14),
-                    Wrap(spacing: 8, runSpacing: 8, children: [
-                      _detailChip('$poin pt', const Color(0xFFF59E0B), Icons.star_rounded),
-                      _detailChip(widget.isKts ? 'KTS' : '5R', widget.color, Icons.label_rounded),
-                    ]),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-                child: Row(
-                  children: [
-                    Icon(Icons.account_tree_rounded, size: 13, color: Colors.black45),
-                    const SizedBox(width: 5),
-                    Text(widget.lang == 'EN' ? 'Parent Category' : widget.lang == 'ZH' ? '父分类' : 'Kategori Induk',
-                        style: GoogleFonts.poppins(color: Colors.black45, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [const Color(0xFF6366F1).withValues(alpha:0.08), const Color(0xFF6366F1).withValues(alpha:0.02)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF6366F1).withValues(alpha:0.18)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(9),
-                        decoration: BoxDecoration(color: const Color(0xFF6366F1).withValues(alpha:0.14), borderRadius: BorderRadius.circular(10)),
-                        child: const Icon(Icons.category_rounded, color: Color(0xFF6366F1), size: 17),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(parentNama, style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontWeight: FontWeight.w700, fontSize: 13.5)),
-                          if (parentDesc != '-') ...[
-                            const SizedBox(height: 3),
-                            Text(parentDesc, style: GoogleFonts.poppins(color: Colors.black54, fontSize: 11.5, height: 1.4)),
-                          ],
-                        ]),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                        decoration: BoxDecoration(color: const Color(0xFFF59E0B).withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
-                        child: Text('$parentPoin pt',
-                            style: GoogleFonts.poppins(color: const Color(0xFFB45309), fontSize: 11, fontWeight: FontWeight.w700)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Divider(color: Colors.grey.shade100, thickness: 1, height: 1),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.edit_outlined, size: 16, color: Colors.white),
-                        label: Text(widget.lang == 'EN' ? 'Edit' : widget.lang == 'ZH' ? '编辑' : 'Ubah',
-                            style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          showDialog(
-                            context: context,
-                            barrierDismissible: true,
-                            builder: (dctx) => AdminEditSubcategoryDialog(
-                              lang: widget.lang,
-                              isKts: widget.isKts,
-                              color: widget.color,
-                              item: item,
-                              kategoriList: _allKategori,
-                              onSaved: _load,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Colors.white),
-                        label: Text(widget.lang == 'EN' ? 'Delete' : widget.lang == 'ZH' ? '删除' : 'Hapus',
-                            style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFEF4444),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () async { Navigator.pop(ctx); await _deleteItem(item['id_subkategoritemuan'], item['nama_subkategoritemuan'] ?? ''); },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _detailChip(String label, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha:0.10),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha:0.25)),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 11, color: color),
-        const SizedBox(width: 4),
-        Text(label, style: GoogleFonts.poppins(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
-      ]),
     );
   }
 
@@ -1831,7 +1381,16 @@ class _SubkategoriListState extends State<_SubkategoriList>
     final nama = _localizedNama(item);
 
     return GestureDetector(
-      onTap: () => _showDetail(item),
+      onTap: () => AdminSubcategoryDetailDialog.show(
+        context: context,
+        lang: widget.lang,
+        isKts: widget.isKts,
+        color: widget.color,
+        item: item,
+        kategoriList: _allKategori,
+        onSaved: _load,
+        onDelete: _deleteItem,
+      ),
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
