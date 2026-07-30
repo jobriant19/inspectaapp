@@ -380,10 +380,12 @@ class _AdminEditSubunitDialogState extends State<AdminEditSubunitDialog> {
   }
 
   void _showResultDialog({required bool isSuccess, required String title, required String message}) {
+    final navContext = context;
+    if (!navContext.mounted) return;
     showDialog(
-      context: context,
+      context: navContext,
       barrierDismissible: true,
-      builder: (_) => Dialog(
+      builder: (dialogContext) => Dialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
@@ -405,7 +407,10 @@ class _AdminEditSubunitDialogState extends State<AdminEditSubunitDialog> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    Navigator.pop(dialogContext); 
+                    if (isSuccess && mounted) Navigator.pop(context);
+                  },
                   style: ElevatedButton.styleFrom(backgroundColor: isSuccess ? _C.locationCol : _C.red, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   child: Text('OK', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w700)),
                 ),
@@ -472,8 +477,8 @@ class _AdminEditSubunitDialogState extends State<AdminEditSubunitDialog> {
       };
       await _supabase.from('subunit').update(data).eq('id_subunit', widget.existing['id_subunit']);
 
-      if (mounted) Navigator.pop(context);
       await widget.onSaved();
+      if (!mounted) return;
       _showResultDialog(
         isSuccess: true,
         title: _t('Subunit Updated!', 'Subunit Diperbarui!', '子单位已更新！'),

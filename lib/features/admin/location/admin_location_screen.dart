@@ -46,10 +46,10 @@ class _AdminLocationScreenState extends State<AdminLocationScreen>
   @override
   Widget build(BuildContext context) {
     final tabLabels = _lang == 'EN'
-        ? ['Location', 'Unit', 'Sub-Unit', 'Area']
+        ? ['Location', 'Unit', 'Subunit', 'Area']
         : _lang == 'ZH'
             ? ['位置', '单位', '子单位', '区域']
-            : ['Lokasi', 'Unit', 'Sub-Unit', 'Area'];
+            : ['Lokasi', 'Unit', 'Subunit', 'Area'];
 
     return Scaffold(
       backgroundColor: _bg,

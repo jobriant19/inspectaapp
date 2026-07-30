@@ -415,10 +415,11 @@ class _AdminAddSubunitDialogState extends State<AdminAddSubunitDialog> {
   }
 
   void _showResultDialog({required bool isSuccess, required String title, required String message}) {
+    if (!mounted) return;
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (_) => Dialog(
+      builder: (dialogContext) => Dialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
@@ -448,7 +449,10 @@ class _AdminAddSubunitDialogState extends State<AdminAddSubunitDialog> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    Navigator.pop(dialogContext);
+                    if (isSuccess && mounted) Navigator.pop(context);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isSuccess ? _C.locationCol : _C.red,
                     padding: const EdgeInsets.symmetric(vertical: 12),
@@ -518,8 +522,8 @@ class _AdminAddSubunitDialogState extends State<AdminAddSubunitDialog> {
       };
       await _supabase.from('subunit').insert(data);
 
-      if (mounted) Navigator.pop(context);
       await widget.onSaved();
+      if (!mounted) return;
       _showResultDialog(
         isSuccess: true,
         title: _t('Subunit Added!', 'Subunit Ditambahkan!', '子单位已添加！'),
