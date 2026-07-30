@@ -6,6 +6,7 @@ import '../../../user/finding/finding_pick_pic.dart';
 import 'admin_add_subunit.dart';
 import 'admin_edit_subunit.dart';
 import 'admin_subunit_detail.dart';
+import 'admin_subunit_filter.dart';
 import 'admin_subunit_indicator.dart';
 import 'camera/admin_subunit_camera.dart';
 
@@ -25,6 +26,8 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
   String _search = '';
   int _currentPage = 1;
   static const int _perPage = 10;
+
+  final TextEditingController _searchCtrl = TextEditingController();
 
   String? _filterField;
   String? _filterValue;
@@ -46,6 +49,7 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
 
   @override
   void dispose() {
+    _searchCtrl.dispose();
     AdminSubunitCameraWarmupService.instance.release();
     super.dispose();
   }
@@ -87,6 +91,21 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
     }
     _filtered = result;
     _currentPage = 1;
+  }
+
+  bool get _isFiltering => _search.isNotEmpty || _filterField != null || _sortOrder != 'none';
+
+  void _clearSearchAndFilter() {
+    _searchCtrl.clear();
+    setState(() {
+      _search = '';
+      _filterField = null;
+      _filterValue = null;
+      _filterLabel = null;
+      _filterActiveColor = null;
+      _sortOrder = 'none';
+      _applyFilter();
+    });
   }
 
   Widget _buildPicSubtitle(Map<String, dynamic> item) {
@@ -246,7 +265,7 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => _SubunitFilterDialog(
+      builder: (ctx) => AdminSubunitLocationFilterDialog(
         lang: widget.lang,
         initialField: _filterField,
         initialValue: _filterValue,
@@ -283,8 +302,7 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
   void _showSortDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => _buildSortDialog(
-        ctx: ctx,
+      builder: (ctx) => AdminSubunitSortDialog(
         primaryColor: _primary,
         currentSort: _sortOrder,
         lang: widget.lang,
@@ -317,6 +335,9 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
     return _buildSubunitTabContent(
       isLoading: _isLoading,
       search: _search,
+      searchController: _searchCtrl,
+      isFiltering: _isFiltering,
+      onClearAll: _clearSearchAndFilter,
       onSearch: (v) => setState(() {
         _search = v;
         _applyFilter();
@@ -369,6 +390,9 @@ class _AdminSubunitTabState extends State<AdminSubunitTab>
 Widget _buildSubunitTabContent({
   required bool isLoading,
   required String search,
+  required TextEditingController searchController,
+  required bool isFiltering,
+  required VoidCallback onClearAll,
   required ValueChanged<String> onSearch,
   required List<Map<String, dynamic>> data,
   required String lang,
@@ -469,13 +493,31 @@ Widget _buildSubunitTabContent({
               border: Border.all(color: Colors.black.withValues(alpha:0.08)),
             ),
             child: TextField(
+              controller: searchController,
               onChanged: onSearch,
               textAlignVertical: TextAlignVertical.center,
               style: GoogleFonts.poppins(color: const Color(0xFF1E3A8A), fontSize: 14),
               decoration: InputDecoration(
-                hintText: lang == 'EN' ? 'Search...' : lang == 'ZH' ? '搜索...' : 'Cari...',
+                hintText: lang == 'EN' ? 'Search Subunit...' : lang == 'ZH' ? '搜索子单位...' : 'Cari Subunit...',
                 hintStyle: GoogleFonts.poppins(color: Colors.black38, fontSize: 13),
                 prefixIcon: const Icon(Icons.search, color: Colors.black38, size: 20),
+                suffixIcon: search.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () {
+                          searchController.clear();
+                          onSearch('');
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFEF4444)),
+                        ),
+                      )
+                    : null,
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -542,7 +584,7 @@ Widget _buildSubunitTabContent({
                 )
               : data.isEmpty
                   ? Center(
-                      child: Padding(
+                      child: SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -558,11 +600,17 @@ Widget _buildSubunitTabContent({
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              lang == 'EN'
-                                  ? 'No subunit data found'
-                                  : lang == 'ZH'
-                                      ? '未找到子单位数据'
-                                      : 'Data subunit tidak ditemukan',
+                              isFiltering
+                                  ? (lang == 'EN'
+                                      ? 'No matching subunits'
+                                      : lang == 'ZH'
+                                          ? '未找到匹配子单位'
+                                          : 'Subunit Tidak Ditemukan')
+                                  : (lang == 'EN'
+                                      ? 'No subunit data found'
+                                      : lang == 'ZH'
+                                          ? '未找到子单位数据'
+                                          : 'Data subunit tidak ditemukan'),
                               style: GoogleFonts.poppins(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -570,6 +618,60 @@ Widget _buildSubunitTabContent({
                               ),
                               textAlign: TextAlign.center,
                             ),
+                            const SizedBox(height: 8),
+                            Text(
+                              isFiltering
+                                  ? (lang == 'EN'
+                                      ? 'Try adjusting your search keyword or filter to find what you\'re looking for.'
+                                      : lang == 'ZH'
+                                          ? '尝试调整搜索关键词或筛选条件以查找您需要的内容。'
+                                          : 'Coba ubah kata kunci pencarian atau filter untuk menemukan yang Anda cari.')
+                                  : (lang == 'EN'
+                                      ? 'Subunits will show up here as soon as they\'re added.'
+                                      : lang == 'ZH'
+                                          ? '添加子单位后将显示在此处。'
+                                          : 'Subunit akan muncul di sini setelah ditambahkan.'),
+                              style: GoogleFonts.poppins(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF64748B),
+                                height: 1.5,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            if (isFiltering) ...[
+                              const SizedBox(height: 18),
+                              GestureDetector(
+                                onTap: onClearAll,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: primaryColor.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(color: primaryColor.withValues(alpha: 0.35)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.refresh_rounded, size: 15, color: primaryColor),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        lang == 'EN'
+                                            ? 'Clear search & filter'
+                                            : lang == 'ZH'
+                                                ? '清除搜索与筛选'
+                                                : 'Hapus pencarian & filter',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: primaryColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -882,532 +984,4 @@ class _SubunitFilterButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _SubunitFilterDialog extends StatefulWidget {
-  final String lang;
-  final String? initialField;
-  final String? initialValue;
-
-  const _SubunitFilterDialog({
-    required this.lang,
-    this.initialField,
-    this.initialValue,
-  });
-
-  @override
-  State<_SubunitFilterDialog> createState() => _SubunitFilterDialogState();
-}
-
-class _SubunitFilterDialogState extends State<_SubunitFilterDialog> {
-  static const _purple = Color(0xFF6366F1);
-  static const _purpleLight = Color(0xFFEEF2FF);
-  static const _amber = Color(0xFFFBBF24);
-
-  static const _levels = ['Lokasi', 'Unit', 'Area'];
-  static const _levelColors = [Color(0xFF10B981), _purple, Color(0xFFF472B6)];
-  static const _levelIcons = [
-    Icons.location_city_rounded,
-    Icons.business_rounded,
-    Icons.place_rounded,
-  ];
-
-  final TextEditingController _searchCtrl = TextEditingController();
-  int _tabIndex = 0;
-  bool _isLoading = true;
-
-  List<Map<String, dynamic>> _lokasiData = [];
-  List<Map<String, dynamic>> _unitData = [];
-  List<Map<String, dynamic>> _areaData = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _tabIndex = widget.initialField == 'id_unit'
-        ? 1
-        : widget.initialField == 'id_subunit'
-            ? 2
-            : 0;
-    _searchCtrl.addListener(() => setState(() {}));
-    _loadAll();
-  }
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  String _t(String id, String en, String zh) =>
-      widget.lang == 'EN' ? en : widget.lang == 'ZH' ? zh : id;
-
-  String _levelLabel(int i) {
-    switch (i) {
-      case 1:
-        return 'Unit';
-      case 2:
-        return _t('Area', 'Area', '区域');
-      default:
-        return _t('Lokasi', 'Location', '位置');
-    }
-  }
-
-  Future<void> _loadAll() async {
-    setState(() => _isLoading = true);
-    try {
-      final supabase = Supabase.instance.client;
-      final results = await Future.wait([
-        supabase.from('lokasi').select('id_lokasi, nama_lokasi').order('nama_lokasi'),
-        supabase.from('unit').select('id_unit, nama_unit').order('nama_unit'),
-        supabase
-            .from('area')
-            .select('id_area, nama_area, id_subunit, subunit(nama_subunit)')
-            .order('nama_area'),
-      ]);
-      if (mounted) {
-        setState(() {
-          _lokasiData = List<Map<String, dynamic>>.from(results[0] as List);
-          _unitData = List<Map<String, dynamic>>.from(results[1] as List);
-          _areaData = List<Map<String, dynamic>>.from(results[2] as List);
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading subunit filter dialog: $e');
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  List<Map<String, dynamic>> get _currentData {
-    switch (_tabIndex) {
-      case 1:
-        return _unitData;
-      case 2:
-        return _areaData;
-      default:
-        return _lokasiData;
-    }
-  }
-
-  String _nameOf(Map<String, dynamic> item) {
-    switch (_tabIndex) {
-      case 1:
-        return item['nama_unit']?.toString() ?? '-';
-      case 2:
-        return item['nama_area']?.toString() ?? '-';
-      default:
-        return item['nama_lokasi']?.toString() ?? '-';
-    }
-  }
-
-  String? _subunitNameOf(Map<String, dynamic> item) {
-    final s = item['subunit'];
-    if (s is Map) return s['nama_subunit']?.toString();
-    return null;
-  }
-
-  List<Map<String, dynamic>> get _filtered {
-    final q = _searchCtrl.text.trim().toLowerCase();
-    if (q.isEmpty) return _currentData;
-    return _currentData.where((item) => _nameOf(item).toLowerCase().contains(q)).toList();
-  }
-
-  void _selectItem(Map<String, dynamic> item) {
-    if (_tabIndex == 0) {
-      Navigator.pop(context, {
-        'type': 'lokasi',
-        'id': item['id_lokasi']?.toString(),
-        'name': item['nama_lokasi']?.toString(),
-      });
-    } else if (_tabIndex == 1) {
-      Navigator.pop(context, {
-        'type': 'unit',
-        'id': item['id_unit']?.toString(),
-        'name': item['nama_unit']?.toString(),
-      });
-    } else {
-      Navigator.pop(context, {
-        'type': 'area',
-        'id': item['id_subunit']?.toString(),
-        'name': _nameOf(item),
-      });
-    }
-  }
-
-  void _selectAll() {
-    Navigator.pop(context, {'type': 'none'});
-  }
-
-  Widget _buildAllCard() {
-    final color = _levelColors[_tabIndex];
-    final isSel = widget.initialField == null;
-    return GestureDetector(
-      onTap: _selectAll,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isSel ? _purpleLight : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isSel ? _purple : const Color(0xFFE2E8F0), width: isSel ? 1.5 : 1),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
-              child: Icon(Icons.apps_rounded, size: 20, color: color),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _t('Semua (Tanpa Filter)', 'All (No Filter)', '全部'),
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14, color: const Color(0xFF1E3A8A)),
-              ),
-            ),
-            if (isSel)
-              const Icon(Icons.check_circle_rounded, color: _purple, size: 20)
-            else
-              Icon(Icons.chevron_right_rounded, color: color, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildItemCard(Map<String, dynamic> item) {
-    final color = _levelColors[_tabIndex];
-    final name = _nameOf(item);
-    final subunitName = _tabIndex == 2 ? _subunitNameOf(item) : null;
-
-    return GestureDetector(
-      onTap: () => _selectItem(item),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
-              child: Icon(_levelIcons[_tabIndex], size: 20, color: color),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 13, color: const Color(0xFF1E3A8A)),
-                  ),
-                  if (_tabIndex == 2 && subunitName != null && subunitName.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.layers_rounded, size: 11, color: _amber),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            subunitName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.poppins(fontSize: 10.5, color: const Color(0xFFB45309), fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: color, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/images/team_illustration.png',
-              height: 100,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.layers_rounded,
-                size: 56,
-                color: Color(0xFFFDE68A),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _t('Tidak ada data', 'No data found', '未找到数据'),
-              style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: _purple),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final filtered = _filtered;
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: 340,
-        height: screenHeight * 0.72,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _purpleLight, width: 1.5),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: _purpleLight, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.map_rounded, color: _purple, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _t('Filter Sub-Unit', 'Filter Sub-Unit', '筛选子单位'),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _purple),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
-                      child: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 18),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(height: 1, color: const Color(0xFFF1F5F9)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-              child: Row(
-                children: List.generate(_levels.length, (index) {
-                  final isActive = _tabIndex == index;
-                  final color = _levelColors[index];
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() {
-                        _tabIndex = index;
-                        _searchCtrl.clear();
-                      }),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isActive ? color : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: isActive ? color : const Color(0xFFE2E8F0)),
-                          boxShadow: isActive
-                              ? [BoxShadow(color: color.withValues(alpha: 0.30), blurRadius: 8, offset: const Offset(0, 3))]
-                              : null,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(_levelIcons[index], size: 15, color: isActive ? Colors.white : color),
-                            const SizedBox(height: 3),
-                            Text(
-                              _levelLabel(index),
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.poppins(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w700,
-                                color: isActive ? Colors.white : const Color(0xFF475569),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
-              child: Container(
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _purple.withValues(alpha: 0.35), width: 1.3),
-                ),
-                child: TextField(
-                  controller: _searchCtrl,
-                  textAlignVertical: TextAlignVertical.center,
-                  style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF1E3A8A)),
-                  decoration: InputDecoration(
-                    hintText: '${_t('Cari', 'Search', '搜索')} ${_levelLabel(_tabIndex)}...',
-                    hintStyle: GoogleFonts.poppins(fontSize: 12.5, color: Colors.black38),
-                    prefixIcon: const Icon(Icons.search_rounded, color: _purple, size: 18),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                ),
-              ),
-            ),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            Expanded(
-              child: _isLoading
-                  ? Shimmer.fromColors(
-                      baseColor: Colors.grey.shade200,
-                      highlightColor: Colors.grey.shade100,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-                        itemCount: 6,
-                        itemBuilder: (_, __) => Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          height: 64,
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                        ),
-                      ),
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-                      children: [
-                        _buildAllCard(),
-                        if (filtered.isEmpty)
-                          _buildEmptyState()
-                        else
-                          ...filtered.map(_buildItemCard),
-                      ],
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-Widget _buildSortDialog({
-  required BuildContext ctx,
-  required Color primaryColor,
-  required String currentSort,
-  required String lang,
-  required void Function(String sort) onSelect,
-}) {
-  final options = [
-    {'value': 'none', 'label': lang == 'EN' ? 'Default (No Sort)' : lang == 'ZH' ? '默认' : 'Default (Tanpa Urutan)'},
-    {'value': 'asc', 'label': lang == 'EN' ? 'A → Z (Ascending)' : 'A → Z (Ascending)'},
-    {'value': 'desc', 'label': lang == 'EN' ? 'Z → A (Descending)' : 'Z → A (Descending)'},
-  ];
-
-  return Dialog(
-    backgroundColor: Colors.white,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-    insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
-          decoration: BoxDecoration(
-            color: primaryColor.withValues(alpha:0.08),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.sort_by_alpha_rounded, color: Color(0xFFB45309), size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  lang == 'EN' ? 'Sort Order' : lang == 'ZH' ? '排序方式' : 'Urutan Abjad',
-                  style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1E3A8A)),
-                ),
-              ),
-              GestureDetector(
-                onTap: () => Navigator.pop(ctx),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration:
-                      BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
-                  child: Icon(Icons.close, size: 16, color: Colors.grey.shade500),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-          child: Column(
-            children: options.map((opt) {
-              final isSelected = currentSort == opt['value'];
-              return GestureDetector(
-                onTap: () => onSelect(opt['value']!),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isSelected ? primaryColor.withValues(alpha:0.10) : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? primaryColor : Colors.grey.shade200,
-                      width: isSelected ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          opt['label']!,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                            color: isSelected ? const Color(0xFFB45309) : const Color(0xFF1E3A8A),
-                          ),
-                        ),
-                      ),
-                      if (isSelected)
-                        const Icon(Icons.check_circle_rounded, color: Color(0xFFB45309), size: 18),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    ),
-  );
 }
