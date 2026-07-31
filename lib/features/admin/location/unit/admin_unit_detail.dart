@@ -36,11 +36,28 @@ class AdminUnitDetailScreen extends StatefulWidget {
 class _AdminUnitDetailScreenState extends State<AdminUnitDetailScreen> {
   late Map<String, dynamic> _item;
   bool _isRefreshing = false;
+  int? _favoriteCount;
 
   @override
   void initState() {
     super.initState();
     _item = widget.item;
+    _loadFavoriteCount();
+  }
+
+  Future<void> _loadFavoriteCount() async {
+    try {
+      final idValue = _item['id_unit'].toString();
+      final rows = await Supabase.instance.client
+          .from('favorit_lokasi')
+          .select('id_favorit')
+          .eq('level_type', 'unit')
+          .eq('level_id', idValue);
+      if (mounted) setState(() => _favoriteCount = (rows as List).length);
+    } catch (e) {
+      debugPrint('Load favorite count error: $e');
+      if (mounted) setState(() => _favoriteCount = 0);
+    }
   }
 
   String get _localizedDesc {
@@ -119,7 +136,6 @@ class _AdminUnitDetailScreenState extends State<AdminUnitDetailScreen> {
   Widget build(BuildContext context) {
     final name = widget.nameFn(_item);
     final deskripsi = _localizedDesc;
-    final isStar = (_item['is_star'] ?? 0) as int;
     final qrcode = _item['qrcode'] as String?;
     final gambarUrl = _item['gambar_unit'] as String?;
     final lokasiName = _item['lokasi']?['nama_lokasi'] as String?;
@@ -137,6 +153,7 @@ class _AdminUnitDetailScreenState extends State<AdminUnitDetailScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        surfaceTintColor: Colors.white,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: widget.primaryColor),
           onPressed: () => Navigator.pop(context),
@@ -231,29 +248,23 @@ class _AdminUnitDetailScreenState extends State<AdminUnitDetailScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: isStar > 0 ? const Color(0xFFFEF3C7) : Colors.grey.shade100,
+                          color: const Color(0xFFFEF3C7),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isStar > 0 ? const Color(0xFFFBBF24) : Colors.grey.shade300,
-                          ),
+                          border: Border.all(color: const Color(0xFFFBBF24)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              isStar > 0 ? Icons.star_rounded : Icons.star_border_rounded,
-                              size: 12,
-                              color: isStar > 0 ? const Color(0xFFFBBF24) : Colors.grey,
-                            ),
+                            const Icon(Icons.star_rounded, size: 12, color: Color(0xFFFBBF24)),
                             const SizedBox(width: 4),
                             Text(
-                              isStar > 0
-                                  ? (widget.lang == 'EN' ? 'Starred' : widget.lang == 'ZH' ? '已加星标' : 'Bintang')
-                                  : (widget.lang == 'EN' ? 'No Star' : widget.lang == 'ZH' ? '无星标' : 'Tanpa Bintang'),
+                              _favoriteCount == null
+                                  ? '...'
+                                  : '$_favoriteCount ${widget.lang == 'EN' ? 'Favorites' : widget.lang == 'ZH' ? '收藏' : 'Favorit'}',
                               style: GoogleFonts.poppins(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: isStar > 0 ? const Color(0xFFF59E0B) : Colors.grey,
+                                color: const Color(0xFFF59E0B),
                               ),
                             ),
                           ],
@@ -393,6 +404,38 @@ class _AdminUnitDetailScreenState extends State<AdminUnitDetailScreen> {
             else if (qrcode != null && qrcode.isNotEmpty) ...[
               Container(
                 width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: widget.primaryColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: widget.primaryColor.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_rounded, size: 18, color: widget.primaryColor),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.lang == 'EN'
+                            ? 'This QR code is used to scan and submit a 5R finding report at this specific location.'
+                            : widget.lang == 'ZH'
+                                ? '此二维码用于扫描并在该特定位置提交5R发现报告。'
+                                : 'Kode QR ini digunakan untuk discan guna membuat laporan temuan 5R pada lokasi spesifik ini.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: widget.primaryColor,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -408,7 +451,57 @@ class _AdminUnitDetailScreenState extends State<AdminUnitDetailScreen> {
                 ),
                 child: Column(
                   children: [
+                    Image.asset(
+                      'assets/images/logo1.PNG',
+                      height: 40,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                    const SizedBox(height: 14),
                     QrImageView(data: qrcode, version: QrVersions.auto, size: 220),
+                    const SizedBox(height: 14),
+                    Text(
+                      name,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: widget.primaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.lang == 'EN' ? 'Person in Charge : ' : widget.lang == 'ZH' ? '负责人 : ' : 'Penanggung Jawab : ',
+                          style: GoogleFonts.poppins(
+                              color: widget.primaryColor, fontSize: 12.5, fontWeight: FontWeight.w700),
+                        ),
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundColor: widget.primaryColor.withValues(alpha: 0.15),
+                          backgroundImage: (picImage != null && picImage.isNotEmpty)
+                              ? NetworkImage(picImage)
+                              : null,
+                          child: (picImage == null || picImage.isEmpty)
+                              ? Icon(Icons.person_rounded, color: widget.primaryColor, size: 13)
+                              : null,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            (picName != null && picName.isNotEmpty)
+                                ? picName
+                                : (widget.lang == 'EN' ? 'No PIC' : widget.lang == 'ZH' ? '无负责人' : 'Belum ada PIC'),
+                            style: GoogleFonts.poppins(
+                                color: Colors.black87, fontSize: 12.5, fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
                       onPressed: _openQrGenerator,
