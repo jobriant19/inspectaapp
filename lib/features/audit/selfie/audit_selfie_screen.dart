@@ -1,9 +1,8 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:camera/camera.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuditSelfieWarmupService {
   AuditSelfieWarmupService._();
@@ -93,8 +92,7 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
   // ignore: unused_field
   bool _isRetaking = false;
 
-  Uint8List? _capturedBytes;
-  bool _uploading = false;
+  XFile? _capturedFile;
   String? _errorMsg;
 
   IconData get _locationLevelIcon {
@@ -256,7 +254,7 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
     if (mounted) {
       setState(() {
         _selectedCameraIndex = next;
-        _capturedBytes = null;
+        _capturedFile = null;
       });
     }
     await _startCamera(next);
@@ -265,13 +263,12 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
   Future<void> _capture() async {
     if (_controller == null || !_isCameraInitialized) return;
     try {
-      final xfile = await _controller!.takePicture();
-      final bytes = await xfile.readAsBytes();
-      // Pause preview setelah capture agar controller tetap valid untuk resume
-      try {
-        await _controller!.pausePreview();
-      } catch (_) {}
-      if (mounted) setState(() => _capturedBytes = bytes);
+      final xfile = await _takePictureWithRetry();
+      if (!mounted || xfile == null) return;
+      // Tampilkan hasil foto secara instan (tanpa menunggu decode/bytes)
+      setState(() => _capturedFile = xfile);
+      // Pause preview di background, tidak menahan transisi UI
+      _controller!.pausePreview().catchError((_) {});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -285,38 +282,29 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
     }
   }
 
-  Future<void> _uploadAndProceed() async {
-    if (_capturedBytes == null) return;
-    if (mounted) setState(() => _uploading = true);
-
+  /// Kamera terkadang belum sepenuhnya siap di sisi native walau
+  /// `initialize()` sudah selesai — terutama saat controller berasal dari
+  /// hasil warm-up. Ini menyebabkan percobaan foto PERTAMA gagal padahal
+  /// tombol shutter sudah terlihat aktif. Fix: retry sekali secara diam-diam
+  /// sebelum menampilkan error ke user.
+  Future<XFile?> _takePictureWithRetry() async {
     try {
-      final sb = Supabase.instance.client;
-      final userId = sb.auth.currentUser?.id ?? 'unknown';
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final path =
-          'selfies/${widget.levelType}/${widget.idRef}/$userId-$ts.jpg';
-
-      await sb.storage.from('audit-selfie').uploadBinary(
-            path,
-            _capturedBytes!,
-            fileOptions:
-                const FileOptions(contentType: 'image/jpeg', upsert: false),
-          );
-
-      final url = sb.storage.from('audit-selfie').getPublicUrl(path);
-      if (mounted) Navigator.pop(context, url);
+      return await _controller!.takePicture();
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _uploading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            _t('Upload failed: $e', 'Upload gagal: $e', '上传失败: $e')),
-        backgroundColor: Colors.red.shade700,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ));
+      debugPrint('Capture gagal, mencoba ulang sekali: $e');
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (_controller == null || !_controller!.value.isInitialized) rethrow;
+      return await _controller!.takePicture();
     }
+  }
+
+  void _useCapturedPhoto() {
+    if (_capturedFile == null) return;
+    // Kembali secara INSTAN dengan path file lokal — TANPA upload di sini,
+    // sehingga tidak ada loading/jeda sama sekali saat tombol "Use Photo"
+    // ditekan. File baru diunggah ke Supabase Storage nanti saat proses
+    // submit audit (lihat AuditFormScreen → _resolveSelfieUrlForSubmit).
+    Navigator.pop(context, _capturedFile!.path);
   }
 
   @override
@@ -329,7 +317,6 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
           _buildCameraOrPreview(),
           _buildAppBar(),
           _buildBottomControls(),
-          if (_uploading) _buildUploadingOverlay(),
         ],
       ),
     );
@@ -421,9 +408,12 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
   }
 
   Widget _buildCameraOrPreview() {
-    if (_capturedBytes != null) {
+    if (_capturedFile != null) {
       return Positioned.fill(
-          child: Image.memory(_capturedBytes!, fit: BoxFit.cover));
+        child: kIsWeb
+            ? Image.network(_capturedFile!.path, fit: BoxFit.cover)
+            : Image.file(File(_capturedFile!.path), fit: BoxFit.cover),
+      );
     }
 
     if (_errorMsg != null) {
@@ -485,7 +475,7 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
             ],
           ),
         ),
-        child: _capturedBytes == null
+        child: _capturedFile == null
             ? _buildCaptureRow()
             : _buildConfirmButtons(),
       ),
@@ -501,11 +491,11 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
       children: [
         // Hint text dengan badge background agar lebih terbaca
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.45),
+            color: Colors.black.withOpacity(0.55),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white12, width: 1),
+            border: Border.all(color: Colors.white24, width: 1),
           ),
           child: Text(
             _t(
@@ -514,8 +504,10 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
               '拍摄自拍照作为审计位置证明',
             ),
             style: GoogleFonts.poppins(
-              color: Colors.white70,
-              fontSize: 11.5,
+              color: Colors.white,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              height: 1.3,
             ),
             textAlign: TextAlign.center,
           ),
@@ -589,9 +581,9 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
             Text(
               _t('Capture', 'Foto', '拍照'),
               style: GoogleFonts.poppins(
-                color: Colors.white60,
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
+                color: Colors.white,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -647,9 +639,9 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
               Text(
                 _t('Flash', 'Flash', '闪光'),
                 style: GoogleFonts.poppins(
-                  color: Colors.white60,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -692,9 +684,9 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
                 Text(
                   label,
                   style: GoogleFonts.poppins(
-                    color: Colors.white60,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -710,18 +702,16 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
       children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: _uploading
-                ? null
-                : () async {
-                    setState(() {
-                      _capturedBytes = null;
-                      _isRetaking = true;
-                    });
+            onPressed: () async {
+              setState(() {
+                _capturedFile = null;
+                _isRetaking = true;
+              });
 
-                    await _startCamera(_selectedCameraIndex);
+              await _startCamera(_selectedCameraIndex);
 
-                    if (mounted) setState(() => _isRetaking = false);
-                  },
+              if (mounted) setState(() => _isRetaking = false);
+            },
             icon: const Icon(Icons.replay_rounded, size: 18),
             label: Text(
               _t('Retake', 'Ambil Ulang', '重拍'),
@@ -739,11 +729,11 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
         const SizedBox(width: 16),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: _uploading ? null : _uploadAndProceed,
+            onPressed: _useCapturedPhoto,
             icon: const Icon(Icons.check_rounded, size: 18),
             label: Text(
               _t('Use Photo', 'Gunakan Foto', '使用照片'),
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 14),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: _primary,
@@ -758,25 +748,4 @@ class _AuditSelfieScreenState extends State<AuditSelfieScreen> {
     );
   }
 
-  Widget _buildUploadingOverlay() {
-    return Positioned.fill(
-      child: Container(
-        color: Colors.black.withOpacity(0.65),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(color: _primary),
-              const SizedBox(height: 16),
-              Text(
-                _t('Uploading photo…', 'Mengunggah foto…', '正在上传照片…'),
-                style:
-                    GoogleFonts.poppins(color: Colors.white, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
-}

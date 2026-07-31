@@ -3,7 +3,53 @@ import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lottie/lottie.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
+/// Warm-up kamera evidence — dipanggil lebih awal (saat jawaban "No" dipilih)
+/// agar saat AuditEvidenceCameraScreen dibuka, kamera sudah siap dan
+/// transisinya instan (tidak stuck di loading screen).
+class AuditEvidenceWarmupService {
+  AuditEvidenceWarmupService._();
+  static final AuditEvidenceWarmupService instance =
+      AuditEvidenceWarmupService._();
+
+  CameraController? controller;
+  List<CameraDescription>? cameras;
+  int selectedCameraIndex = 0;
+  bool isWarming = false;
+
+  bool get isReady => controller != null && controller!.value.isInitialized;
+
+  Future<void> warmUp() async {
+    if (isReady || isWarming) return;
+    isWarming = true;
+    try {
+      cameras ??= await availableCameras();
+      if (cameras == null || cameras!.isEmpty) return;
+      final newController = CameraController(
+        cameras![selectedCameraIndex],
+        ResolutionPreset.high,
+        enableAudio: false,
+      );
+      await newController.initialize();
+      controller = newController;
+    } catch (e) {
+      debugPrint('Error warming up evidence camera: $e');
+    } finally {
+      isWarming = false;
+    }
+  }
+
+  CameraController? takeController() {
+    final c = controller;
+    controller = null;
+    return c;
+  }
+
+  Future<void> release() async {
+    await controller?.dispose();
+    controller = null;
+  }
+}
 
 class AuditEvidenceCameraScreen extends StatefulWidget {
   final String lang;
@@ -30,9 +76,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
 
   bool _flashEnabled = false;
   bool _flashSupported = false;
-  bool _isUploading = false;
   final ImagePicker _picker = ImagePicker();
-  final _supabase = Supabase.instance.client;
 
   String _t(String en, String id, String zh) {
     if (widget.lang == 'EN') return en;
@@ -66,8 +110,25 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
   }
 
   Future<void> _initCamera() async {
+    final warm = AuditEvidenceWarmupService.instance;
+
+    // Jika sudah di-warm-up sebelumnya → langsung pakai, instan.
+    if (warm.isReady) {
+      _cameras = warm.cameras;
+      _selectedCameraIndex = warm.selectedCameraIndex;
+      _cameraController = warm.takeController();
+      if (mounted) {
+        setState(() {
+          _flashEnabled = false;
+          _status = _CamStatus.ready;
+        });
+      }
+      await _checkFlashSupport();
+      return;
+    }
+
     try {
-      _cameras = await availableCameras();
+      _cameras = warm.cameras ?? await availableCameras();
       if (_cameras != null && _cameras!.isNotEmpty) {
         await _setCamera(_selectedCameraIndex);
       } else {
@@ -147,40 +208,12 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
     } catch (_) {}
   }
 
-  Future<void> _uploadAndReturn(XFile imageFile) async {
+  void _returnAndProceed(XFile imageFile) {
     if (!mounted) return;
-    setState(() => _isUploading = true);
-    try {
-      final bytes = await imageFile.readAsBytes();
-      final fileName = 'evidence_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final storagePath = 'audit_evidence/$fileName';
-
-      await _supabase.storage.from('audit-evidence').uploadBinary(
-            storagePath,
-            bytes,
-            fileOptions:
-                const FileOptions(contentType: 'image/jpeg', upsert: true),
-          );
-
-      final publicUrl =
-          _supabase.storage.from('audit-evidence').getPublicUrl(storagePath);
-
-      if (mounted) Navigator.pop(context, publicUrl);
-    } catch (e) {
-      debugPrint('Upload evidence error: $e');
-      if (mounted) {
-        setState(() => _isUploading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(_t('Upload failed. Try again.',
-              'Gagal mengunggah. Coba lagi.', '上传失败，请重试。')),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          margin: const EdgeInsets.all(16),
-        ));
-      }
-    }
+    // Langsung kembali dengan file lokal — TANPA upload di sini agar
+    // transisi ke form audit instan. Upload dilakukan saat submit audit
+    // (lihat audit_form_screen.dart → _uploadPendingEvidence).
+    Navigator.pop(context, imageFile);
   }
 
   Future<void> _takePicture() async {
@@ -191,7 +224,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
         c.value.isTakingPicture) { return; }
     try {
       final XFile picture = await c.takePicture();
-      await _uploadAndReturn(picture);
+      _returnAndProceed(picture);
     } on CameraException catch (e) {
       debugPrint('Error take picture: ${e.code}\n${e.description}');
     }
@@ -202,7 +235,7 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
       final XFile? image = await _picker.pickImage(
           source: ImageSource.gallery, imageQuality: 85);
       if (image == null) return;
-      await _uploadAndReturn(image);
+      _returnAndProceed(image);
     } catch (e) {
       debugPrint('Error pick image: $e');
     }
@@ -265,6 +298,20 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
                   valueColor:
                       AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
                 ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // ── Akses galeri instan, tidak perlu menunggu kamera siap ──
+            TextButton.icon(
+              onPressed: _pickFromGallery,
+              icon: const Icon(Icons.photo_library_rounded,
+                  color: Color(0xFF6366F1), size: 18),
+              label: Text(
+                _t('Choose from Gallery', 'Pilih dari Galeri', '从相册选择'),
+                style: GoogleFonts.poppins(
+                    color: const Color(0xFF6366F1),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13),
               ),
             ),
           ],
@@ -488,37 +535,6 @@ class _AuditEvidenceCameraScreenState extends State<AuditEvidenceCameraScreen>
               ),
             ),
           ),
-
-          // ── Loading overlay saat upload ──
-          if (_isUploading)
-            Container(
-              color: Colors.black.withValues(alpha:0.6),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 160,
-                      height: 160,
-                      child: Lottie.asset(
-                        'assets/lottie/uploading.json',
-                        fit: BoxFit.contain,
-                        frameRate: FrameRate.max,
-                        errorBuilder: (_, __, ___) => const CircularProgressIndicator(
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _t('Uploading…', 'Mengunggah…', '上传中…'),
-                      style: GoogleFonts.poppins(
-                          color: Colors.white, fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-            ),
         ],
       ),
     );

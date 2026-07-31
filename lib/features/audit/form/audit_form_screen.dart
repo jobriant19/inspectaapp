@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'audit_evidence_camera_screen.dart';
 import 'audit_popup_selfie.dart';
@@ -37,6 +41,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   List<Map<String, dynamic>> _temas = [];
   List<Map<String, dynamic>> _questions = [];
   final Map<String, bool?> _answers = {};
+  // File lokal hasil foto/galeri (belum diupload — diupload saat submit)
+  final Map<String, XFile> _evidenceFiles = {};
+  // URL hasil upload (diisi saat proses submit)
   final Map<String, String> _evidenceUrls = {};
   final Map<String, TextEditingController> _noteCtrls = {};
   final _finalNoteCtrl = TextEditingController();
@@ -67,6 +74,25 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     return id;
   }
 
+  // ── Icon & warna khas sesuai levelType, konsisten dengan screen lain ──
+  IconData get _locationLevelIcon {
+    switch (widget.levelType) {
+      case 'area': return Icons.place_rounded;
+      case 'subunit': return Icons.layers_rounded;
+      case 'unit': return Icons.business_rounded;
+      default: return Icons.location_city_rounded;
+    }
+  }
+
+  Color get _locationLevelColor {
+    switch (widget.levelType) {
+      case 'area': return const Color(0xFFF472B6);
+      case 'subunit': return const Color(0xFFFBBF24);
+      case 'unit': return const Color(0xFF6366F1);
+      default: return const Color(0xFF10B981);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +107,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     _scrollCtrl.dispose();
     _finalNoteCtrl.dispose();
     for (final c in _noteCtrls.values) { c.dispose(); }
+    AuditEvidenceWarmupService.instance.release();
     super.dispose();
   }
 
@@ -146,7 +173,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     final ans = _answers[id];
     if (ans == null) return false;
     if (ans == false) {
-      return (_evidenceUrls[id] ?? '').isNotEmpty &&
+      return _evidenceFiles.containsKey(id) &&
           (_noteCtrls[id]?.text.trim() ?? '').isNotEmpty;
     }
     return true;
@@ -178,6 +205,10 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
 
   void _onAnswer(String id, bool value) {
     setState(() => _answers[id] = value);
+    if (value == false) {
+      // Warm-up kamera evidence sedini mungkin, sebelum user tap "Take Photo"
+      AuditEvidenceWarmupService.instance.warmUp();
+    }
     _requestAutoScroll(id, delayMs: 150);
   }
 
@@ -321,7 +352,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
   }
 
   Future<void> _captureEvidence(String id, String questionText) async {
-    final url = await Navigator.push<String>(
+    final file = await Navigator.push<XFile>(
       context,
       MaterialPageRoute(
         builder: (_) => AuditEvidenceCameraScreen(
@@ -330,13 +361,18 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         ),
       ),
     );
-    if (url != null && mounted) {
-      setState(() => _evidenceUrls[id] = url);
+    if (file != null && mounted) {
+      setState(() {
+        _evidenceFiles[id] = file;
+        _evidenceUrls.remove(id); // pastikan re-upload foto terbaru saat submit
+      });
       _requestAutoScroll(id, delayMs: 150);
+      // Warm-up lagi untuk kemungkinan retake berikutnya
+      AuditEvidenceWarmupService.instance.warmUp();
     }
   }
 
-  void _showEvidencePreview(String url) {
+  void _showEvidencePreview(XFile file) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -346,6 +382,32 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         final isLandscape = size.width > size.height;
         final maxW = isLandscape ? size.width * 0.75 : size.width * 0.92;
         final maxH = isLandscape ? size.height * 0.88 : size.height * 0.7;
+
+        Widget img() => kIsWeb
+            ? Image.network(
+                file.path,
+                fit: BoxFit.contain,
+                width: double.infinity,
+                errorBuilder: (_, __, ___) => SizedBox(
+                  height: 200,
+                  child: Center(
+                    child: Icon(Icons.broken_image_outlined,
+                        color: Colors.grey.shade400, size: 40),
+                  ),
+                ),
+              )
+            : Image.file(
+                File(file.path),
+                fit: BoxFit.contain,
+                width: double.infinity,
+                errorBuilder: (_, __, ___) => SizedBox(
+                  height: 200,
+                  child: Center(
+                    child: Icon(Icons.broken_image_outlined,
+                        color: Colors.grey.shade400, size: 40),
+                  ),
+                ),
+              );
 
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -362,34 +424,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                     child: InteractiveViewer(
                       minScale: 1,
                       maxScale: 4,
-                      child: Image.network(
-                        url,
-                        fit: BoxFit.contain,
-                        width: double.infinity,
-                        errorBuilder: (_, __, ___) => SizedBox(
-                          height: 200,
-                          child: Center(
-                            child: Icon(Icons.broken_image_outlined,
-                                color: Colors.grey.shade400, size: 40),
-                          ),
-                        ),
-                        loadingBuilder: (context, child, progress) {
-                          if (progress == null) return child;
-                          return SizedBox(
-                            height: 220,
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.white70,
-                                strokeWidth: 2.4,
-                                value: progress.expectedTotalBytes != null
-                                    ? (progress.cumulativeBytesLoaded /
-                                        (progress.expectedTotalBytes ?? 1))
-                                    : null,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                      child: img(),
                     ),
                   ),
                 ),
@@ -421,6 +456,64 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     );
   }
 
+  /// Upload seluruh foto evidence lokal (di [_evidenceFiles]) ke Supabase
+  /// Storage, lalu simpan URL-nya ke [_evidenceUrls]. Dipanggil sekali saat
+  /// submit audit — bukan saat ambil foto — supaya transisi kamera/galeri
+  /// tetap instan.
+  Future<void> _uploadPendingEvidence() async {
+    for (final entry in _evidenceFiles.entries) {
+      final qId = entry.key;
+      if (_evidenceUrls.containsKey(qId)) continue;
+      final file = entry.value;
+      try {
+        final bytes = await file.readAsBytes();
+        final fileName =
+            'evidence_${DateTime.now().millisecondsSinceEpoch}_$qId.jpg';
+        final storagePath = 'audit_evidence/$fileName';
+        await _supabase.storage.from('audit-evidence').uploadBinary(
+              storagePath,
+              bytes,
+              fileOptions:
+                  const FileOptions(contentType: 'image/jpeg', upsert: true),
+            );
+        _evidenceUrls[qId] =
+            _supabase.storage.from('audit-evidence').getPublicUrl(storagePath);
+      } catch (e) {
+        debugPrint('Upload evidence error for $qId: $e');
+      }
+    }
+  }
+
+  /// Selfie dari AuditSelfieScreen sekarang dikembalikan secara INSTAN
+  /// berupa path file lokal (bukan URL) agar tidak ada loading sama sekali
+  /// saat "Use Photo" ditekan. Upload baru dilakukan di sini, sesaat
+  /// sebelum insert audit_result — bukan sebelumnya.
+  Future<String?> _resolveSelfieUrlForSubmit() async {
+    final current = _selfieUrl;
+    if (current == null || current.trim().isEmpty) return null;
+    if (current.startsWith('http://') || current.startsWith('https://')) {
+      return current; // sudah URL valid (mis. hasil upload sebelumnya)
+    }
+    try {
+      final file = XFile(current);
+      final bytes = await file.readAsBytes();
+      final userId = _supabase.auth.currentUser?.id ?? 'unknown';
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final path = 'selfies/${widget.levelType}/${widget.idRef}/$userId-$ts.jpg';
+      await _supabase.storage.from('audit-selfie').uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: false),
+          );
+      final url = _supabase.storage.from('audit-selfie').getPublicUrl(path);
+      if (mounted) setState(() => _selfieUrl = url);
+      return url;
+    } catch (e) {
+      debugPrint('Error uploading selfie at submit: $e');
+      return null;
+    }
+  }
+
   Future<void> _submit() async {
     if (!_allAnswered) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -439,6 +532,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
       final userId = _supabase.auth.currentUser!.id;
       final score = double.parse(_score.toStringAsFixed(2));
 
+      // 0. Upload foto selfie lokal (jika belum berupa URL)
+      final resolvedSelfieUrl = await _resolveSelfieUrlForSubmit();
+
       // 1. Insert audit_result
       final resultRow = await _supabase
           .from('audit_result')
@@ -452,13 +548,16 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
             'catatan_audit': _finalNoteCtrl.text.trim().isEmpty
                 ? null
                 : _finalNoteCtrl.text.trim(),
-            'selfie_url': _selfieUrl,
+            'selfie_url': resolvedSelfieUrl,
             'is_finalized': false,
           })
           .select('id_result')
           .single();
 
       final idResult = resultRow['id_result'].toString();
+
+      // 1.5 Upload semua foto evidence yang sebelumnya hanya disimpan lokal
+      await _uploadPendingEvidence();
 
       // 2. Insert semua jawaban
       final answers = _answers.entries.map((e) {
@@ -884,8 +983,9 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        surfaceTintColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1D4ED8), size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1D72F3), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         actions: const [SizedBox(width: 48)],
@@ -895,18 +995,22 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
           children: [
             Text(
               _t('Audit Form', 'Formulir Audit', '审计表单'),
-              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1D4ED8)),
+              style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700, color: const Color(0xFF1D72F3)),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 3),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.location_on_rounded, color: Color(0xFF1D4ED8), size: 12),
-                const SizedBox(width: 3),
+                Icon(_locationLevelIcon, color: _locationLevelColor, size: 13),
+                const SizedBox(width: 4),
                 Flexible(
                   child: Text(
                     widget.locationName,
-                    style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF1D4ED8)),
+                    style: GoogleFonts.poppins(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: _locationLevelColor,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -916,7 +1020,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _primary))
+          ? _buildLoadingShimmer()
           : _questions.isEmpty
               ? Center(
                   child: Text(
@@ -1057,6 +1161,70 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     );
   }
 
+  // ── Skeleton shimmer saat data pertanyaan belum termuat.
+  // Muncul instan sejak frame pertama (tanpa spinner kosong di tengah). ──
+  Widget _buildLoadingShimmer() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      itemCount: 4,
+      itemBuilder: (_, __) => _buildShimmerQuestionCard(),
+    );
+  }
+
+  Widget _buildShimmerQuestionCard() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFE8F1FE),
+      highlightColor: const Color(0xFFF6FAFF),
+      period: const Duration(milliseconds: 1200),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 28, height: 28,
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    height: 14,
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 42,
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    height: 42,
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<Widget> _buildContent() {
     final List<Widget> widgets = [];
 
@@ -1186,7 +1354,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
     final answer = _answers[id];
     final isYes = answer == true;
     final isNo = answer == false;
-    final evidenceUrl = _evidenceUrls[id];
+    final evidenceFile = _evidenceFiles[id];
     final noteCtrl = _noteCtrls[id]!;
 
     return KeyedSubtree(
@@ -1335,7 +1503,7 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                     ]),
                     const SizedBox(height: 10),
                     // Upload foto
-                    if (evidenceUrl == null)
+                    if (evidenceFile == null)
                       GestureDetector(
                         onTap: () => _captureEvidence(id, _questionText(q)),
                         child: Container(
@@ -1359,20 +1527,32 @@ class _AuditFormScreenState extends State<AuditFormScreen> {
                     else
                       Stack(children: [
                         GestureDetector(
-                          onTap: () => _showEvidencePreview(evidenceUrl),
+                          onTap: () => _showEvidencePreview(evidenceFile),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(10),
-                            child: Image.network(
-                              evidenceUrl,
-                              width: double.infinity,
-                              height: 140,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                height: 140,
-                                color: Colors.grey.shade100,
-                                child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
-                              ),
-                            ),
+                            child: kIsWeb
+                                ? Image.network(
+                                    evidenceFile.path,
+                                    width: double.infinity,
+                                    height: 140,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      height: 140,
+                                      color: Colors.grey.shade100,
+                                      child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+                                    ),
+                                  )
+                                : Image.file(
+                                    File(evidenceFile.path),
+                                    width: double.infinity,
+                                    height: 140,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      height: 140,
+                                      color: Colors.grey.shade100,
+                                      child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+                                    ),
+                                  ),
                           ),
                         ),
                         Positioned(
@@ -1486,6 +1666,32 @@ class _SelfieEvidenceBanner extends StatelessWidget {
     return id;
   }
 
+  bool get _isLocalSelfiePath =>
+      !selfieUrl.startsWith('http://') && !selfieUrl.startsWith('https://');
+
+  Widget _buildSelfieThumbnail(Color teal) {
+    final fallback = Container(
+      width: 52, height: 52,
+      decoration: BoxDecoration(
+        color: teal.withValues(alpha:0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(Icons.broken_image_outlined, color: teal, size: 24),
+    );
+    if (!kIsWeb && _isLocalSelfiePath) {
+      return Image.file(
+        File(selfieUrl),
+        width: 52, height: 52, fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+    return Image.network(
+      selfieUrl,
+      width: 52, height: 52, fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => fallback,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const teal = Color(0xFF14B8A6);
@@ -1508,18 +1714,7 @@ class _SelfieEvidenceBanner extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                selfieUrl,
-                width: 52, height: 52, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 52, height: 52,
-                  decoration: BoxDecoration(
-                    color: teal.withValues(alpha:0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.broken_image_outlined, color: teal, size: 24),
-                ),
-              ),
+              child: _buildSelfieThumbnail(teal),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1541,7 +1736,7 @@ class _SelfieEvidenceBanner extends StatelessWidget {
                       'Selfie diambil sebelum audit dimulai.',
                       '审计开始前已拍摄自拍。',
                     ),
-                    style: GoogleFonts.poppins(fontSize: 11, color: const Color(0xFF0F766E)),
+                    style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF0F766E)),
                   ),
                 ],
               ),

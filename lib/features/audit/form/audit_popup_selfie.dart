@@ -1,6 +1,7 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import '../selfie/audit_selfie_screen.dart';
 
 Future<void> showAuditSelfiePopup(
@@ -93,6 +94,47 @@ class _AuditSelfiePopupContentState extends State<_AuditSelfiePopupContent> {
     }
   }
 
+  bool get _isLocalSelfiePath =>
+      !_selfieUrl.startsWith('http://') && !_selfieUrl.startsWith('https://');
+
+  Widget _buildSelfieImage() {
+    final fallback = SizedBox(
+      height: 200,
+      child: Center(
+        child: Icon(Icons.broken_image_outlined,
+            color: Colors.grey.shade400, size: 48),
+      ),
+    );
+    if (!kIsWeb && _isLocalSelfiePath) {
+      return Image.file(
+        File(_selfieUrl),
+        fit: BoxFit.contain,
+        width: double.infinity,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+    return Image.network(
+      _selfieUrl,
+      fit: BoxFit.contain,
+      width: double.infinity,
+      errorBuilder: (_, __, ___) => fallback,
+      loadingBuilder: (_, child, progress) {
+        if (progress == null) return child;
+        return SizedBox(
+          height: 200,
+          child: Center(
+            child: CircularProgressIndicator(
+              color: _teal,
+              value: progress.expectedTotalBytes != null
+                  ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                  : null,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -156,33 +198,7 @@ class _AuditSelfiePopupContentState extends State<_AuditSelfiePopupContent> {
               child: InteractiveViewer(
                 minScale: 1,
                 maxScale: 4,
-                child: Image.network(
-                  _selfieUrl,
-                  fit: BoxFit.contain,
-                  width: double.infinity,
-                  errorBuilder: (_, __, ___) => SizedBox(
-                    height: 200,
-                    child: Center(
-                      child: Icon(Icons.broken_image_outlined,
-                          color: Colors.grey.shade400, size: 48),
-                    ),
-                  ),
-                  loadingBuilder: (_, child, progress) {
-                    if (progress == null) return child;
-                    return SizedBox(
-                      height: 200,
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: _teal,
-                          value: progress.expectedTotalBytes != null
-                              ? progress.cumulativeBytesLoaded /
-                                  progress.expectedTotalBytes!
-                              : null,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                child: _buildSelfieImage(),
               ),
             ),
 
