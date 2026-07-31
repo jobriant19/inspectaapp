@@ -1140,62 +1140,114 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
 
   Widget _buildQrTab(String tName) {
     final qrData = _data['qrcode'] as String?;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
+    final itemName = _data['nama_$tName'] as String? ?? '';
+    final picMap = _data['User'] as Map?;
+    final picName = picMap?['nama'] as String?;
+    final picImage = picMap?['gambar_user'] as String?;
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
             if (qrData != null && qrData.isNotEmpty) ...[
               Container(
-                padding: const EdgeInsets.all(8),
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _levelColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _levelColor.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_rounded, size: 16, color: _levelColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.lang == 'EN'
+                            ? 'This QR code is used to scan and submit a 5R finding report at this specific location.'
+                            : widget.lang == 'ZH'
+                                ? '此二维码用于扫描并在该特定位置提交5R发现报告。'
+                                : 'Kode QR ini digunakan untuk discan guna membuat laporan temuan 5R pada lokasi spesifik ini.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _levelColor,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Image.asset(
+                'assets/images/logo1.PNG',
+                height: 36,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [_levelColor.withValues(alpha: 0.16), _levelColor.withValues(alpha: 0.02)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(26),
                 ),
                 child: Container(
-                  padding: const EdgeInsets.all(18),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: _levelColor.withValues(alpha: 0.25), width: 1.5),
                     boxShadow: [
-                      BoxShadow(color: _levelColor.withValues(alpha: 0.18), blurRadius: 20, offset: const Offset(0, 8)),
+                      BoxShadow(color: _levelColor.withValues(alpha: 0.18), blurRadius: 16, offset: const Offset(0, 6)),
                     ],
                   ),
-                  child: QrImageView(data: qrData, version: QrVersions.auto, size: 210),
-                ),
-              ),
-              const SizedBox(height: 22),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _levelColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _levelColor.withValues(alpha: 0.35)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.verified_rounded, size: 15, color: _levelColor),
-                    const SizedBox(width: 6),
-                    Text(
-                      t('qr_active_title'),
-                      style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w700, color: _levelColor),
-                    ),
-                  ],
+                  child: QrImageView(data: qrData, version: QrVersions.auto, size: 190),
                 ),
               ),
               const SizedBox(height: 10),
               Text(
-                t('qr_scan_hint'),
+                itemName,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                    fontSize: 12.5, color: Color(0xFF1D72F3), fontWeight: FontWeight.w700, height: 1.5),
+                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: _levelColor),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${t('pic')} : ',
+                    style: GoogleFonts.poppins(color: _levelColor, fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
+                  CircleAvatar(
+                    radius: 11,
+                    backgroundColor: _levelColor.withValues(alpha: 0.18),
+                    backgroundImage: (picImage != null && picImage.isNotEmpty) ? NetworkImage(picImage) : null,
+                    child: (picImage == null || picImage.isEmpty)
+                        ? Icon(Icons.person_rounded, color: _levelColor, size: 12)
+                        : null,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      (picName != null && picName.isNotEmpty) ? picName : t('pic_kosong'),
+                      style: GoogleFonts.poppins(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ] else ...[
               Container(

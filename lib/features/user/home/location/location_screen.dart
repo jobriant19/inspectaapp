@@ -82,8 +82,8 @@ class _AppTexts {
       'selesai_terakhir'          : 'Penyelesaian 5R Terakhir',
       'belum_ada_aktivitas'       : 'Belum ada aktivitas',
       'favorit'                   : 'Favorit',
-      'badge_temuan_saya'         : '📍 Temuan Terakhir Anda',
-      'badge_selesai_saya'        : '✅ Penyelesaian Terakhir Anda',
+      'badge_temuan_saya'         : 'Temuan Terakhir Anda',
+      'badge_selesai_saya'        : 'Penyelesaian Terakhir Anda',
       'aktivitas_terakhir_label'  : 'Lokasi Aktivitas Terakhir',
       'favorit_semua'             : 'Favorit & Semua',
       'tidak_ada_data'            : 'Tidak ada data',
@@ -134,8 +134,8 @@ class _AppTexts {
       'selesai_terakhir'          : 'Last 5R Resolved',
       'belum_ada_aktivitas'       : 'No activity yet',
       'favorit'                   : 'Favorites',
-      'badge_temuan_saya'         : '📍 Your Last Finding',
-      'badge_selesai_saya'        : '✅ Your Last Resolution',
+      'badge_temuan_saya'         : 'Your Last Finding',
+      'badge_selesai_saya'        : 'Your Last Solution',
       'aktivitas_terakhir_label'  : 'Recent Activity Location',
       'favorit_semua'             : 'Favorites & All',
       'tidak_ada_data'            : 'No data found',
@@ -186,8 +186,8 @@ class _AppTexts {
       'selesai_terakhir'          : '最近5R处理',
       'belum_ada_aktivitas'       : '暂无活动',
       'favorit'                   : '收藏',
-      'badge_temuan_saya'         : '📍 您的最近发现',
-      'badge_selesai_saya'        : '✅ 您的最近完成',
+      'badge_temuan_saya'         : '您的最近发现',
+      'badge_selesai_saya'        : '您的最近完成',
       'aktivitas_terakhir_label'  : '最近活动位置',
       'favorit_semua'             : '收藏 & 全部',
       'tidak_ada_data'            : '没有数据',
@@ -436,16 +436,9 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   Widget _starButton(String type, String id, Map<String, dynamic> raw) {
-    final bool isStarred = (raw['is_star'] ?? 0) == 1;
+    final bool isStarred = _isFavorit(type, id);
     return GestureDetector(
-      onTap: () async {
-        final idCol   = 'id_$type';
-        final curStar = (raw['is_star'] ?? 0) == 1;
-        final newStar = curStar ? 0 : 1;
-        raw['is_star'] = newStar;
-        setState(() {});
-        await _supabase.from(type).update({'is_star': newStar}).eq(idCol, id);
-      },
+      onTap: () => _toggleFavorit(type, id),
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
@@ -488,18 +481,18 @@ class _LocationScreenState extends State<LocationScreen>
       final results = await Future.wait([
         _supabase.from('lokasi').select(
             'id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, '
-            'is_star, id_pic, User!id_pic(nama), unit(id_unit), qrcode'),
+            'is_star, id_pic, User!id_pic(nama, gambar_user), unit(id_unit), qrcode'),
         _supabase.from('unit').select(
             'id_unit, nama_unit, gambar_unit, deskripsi_unit, '
-            'is_star, id_pic, User!id_pic(nama), subunit(id_subunit), '
+            'is_star, id_pic, User!id_pic(nama, gambar_user), subunit(id_subunit), '
             'id_lokasi, lokasi(nama_lokasi), qrcode'),
         _supabase.from('subunit').select(
             'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, '
-            'is_star, id_pic, User!id_pic(nama), area(id_area), '
+            'is_star, id_pic, User!id_pic(nama, gambar_user), area(id_area), '
             'id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode'),
         _supabase.from('area').select(
             'id_area, nama_area, gambar_area, deskripsi_area, '
-            'is_star, id_pic, User!id_pic(nama), '
+            'is_star, id_pic, User!id_pic(nama, gambar_user), '
             'id_subunit, id_unit, id_lokasi, '
             'subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), qrcode'),
       ]);
@@ -1886,16 +1879,16 @@ class _LocationScreenState extends State<LocationScreen>
 
     return GestureDetector(
       onTap: () {
-        if (_currentLevel == 3) return;
-        setState(() {
-          _navHistory.add({
-            'level': _currentLevel, 'id': id,
-            'name': name, 'data': item,
-          });
-          _currentLevel++;
-          _searchQuery = '';
-        });
-        _fetchData(parentId: id, parentData: item);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LocationDetailScreen(
+              level: _currentLevel,
+              data : item,
+              lang : widget.lang,
+            ),
+          ),
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
