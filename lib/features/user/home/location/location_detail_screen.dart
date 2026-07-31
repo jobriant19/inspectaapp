@@ -4,13 +4,13 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/utils/jabatan_helper.dart';
+import 'specific_location_indicator.dart';
 
 class _C {
   static const primary      = Color(0xFF0EA5E9);
   static const primaryLight = Color(0xFFE0F2FE);
   static const textDark     = Color(0xFF0C4A6E);
   static const textGrey     = Color(0xFF64748B);
-  static const border       = Color(0xFFBAE6FD);
 }
 
 const Color _activeBlue = Color(0xFF1D72F3);
@@ -24,11 +24,11 @@ const List<IconData> _levelIcons = [
 const List<String> _levelKeys = ['lokasi', 'unit', 'subunit', 'area'];
 
 const Map<String, String> _subSelectMap = {
-  'unit'   : 'id_unit, nama_unit, gambar_unit, deskripsi_unit, kategori, is_star, '
+  'unit'   : 'id_unit, nama_unit, gambar_unit, deskripsi_unit, is_star, '
              'id_pic, User!id_pic(nama), subunit(id_subunit), id_lokasi, lokasi(nama_lokasi), qrcode',
-  'subunit': 'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, kategori, is_star, '
+  'subunit': 'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, is_star, '
              'id_pic, User!id_pic(nama), area(id_area), id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode',
-  'area'   : 'id_area, nama_area, gambar_area, deskripsi_area, kategori, is_star, '
+  'area'   : 'id_area, nama_area, gambar_area, deskripsi_area, is_star, '
              'id_pic, User!id_pic(nama), id_subunit, id_unit, id_lokasi, '
              'subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), qrcode',
 };
@@ -50,6 +50,12 @@ class _DetailTexts {
       'qr_empty_title': 'QR Code Belum Tersedia',
       'anggota_kosong_title': 'Belum Ada Anggota',
       'anggota_kosong_subtitle': 'Saat ini belum ada anggota yang terdaftar di lokasi ini',
+      'pic_kosong': 'Belum ada PIC',
+      'reset_pencarian': 'Reset Pencarian',
+      'anggota_tidak_ditemukan_title': 'Anggota Tidak Ditemukan',
+      'anggota_tidak_ditemukan_subtitle': 'Coba gunakan kata kunci lain atau reset pencarian Anda.',
+      'pilih_kategori_subtitle': 'Data akan muncul di sini setelah Anda memilih salah satu kategori.',
+      'sub_kosong_subtitle': 'Belum ada data yang tersedia untuk kategori ini.',
     },
     'EN': {
       'info': 'Info', 'anggota': 'Members', 'cari_anggota': 'Search member...',
@@ -66,6 +72,12 @@ class _DetailTexts {
       'qr_empty_title': 'QR Code Not Available Yet',
       'anggota_kosong_title': 'No Members Yet',
       'anggota_kosong_subtitle': 'There are currently no members registered at this location',
+      'pic_kosong': 'No PIC yet',
+      'reset_pencarian': 'Reset Search',
+      'anggota_tidak_ditemukan_title': 'No Members Found',
+      'anggota_tidak_ditemukan_subtitle': 'Try using different keywords or reset your search.',
+      'pilih_kategori_subtitle': 'Data will appear here once you select a category.',
+      'sub_kosong_subtitle': 'No data available for this category yet.',
     },
     'ZH': {
       'info': '信息', 'anggota': '成员', 'cari_anggota': '搜索成员...',
@@ -82,6 +94,12 @@ class _DetailTexts {
       'qr_empty_title': '二维码尚未生成',
       'anggota_kosong_title': '暂无成员',
       'anggota_kosong_subtitle': '该位置目前没有注册成员',
+      'pic_kosong': '暂无负责人',
+      'reset_pencarian': '重置搜索',
+      'anggota_tidak_ditemukan_title': '未找到成员',
+      'anggota_tidak_ditemukan_subtitle': '请尝试其他关键词或重置搜索。',
+      'pilih_kategori_subtitle': '选择类别后，数据将显示在此处。',
+      'sub_kosong_subtitle': '该类别暂无可用数据。',
     },
   };
 
@@ -115,6 +133,12 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   String? _selectedSubType;
   final Map<String, Future<List<dynamic>>> _subItemsCache = {};
   static const double _headerHeight = 112.0;
+
+  // PAGINATION STATE
+  int _subItemsPage = 1;
+  static const int _subItemsPerPage = 5;
+  int _membersPage = 1;
+  static const int _membersPerPage = 8;
 
   String t(String key) => _DetailTexts.get(widget.lang, key);
 
@@ -203,6 +227,7 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
 
   void _onSubTypeTap(String type) {
     setState(() {
+      _subItemsPage = 1;
       if (_selectedSubType == type) {
         _selectedSubType = null;
       } else {
@@ -227,6 +252,8 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 1,
         elevation: 1,
         shadowColor: Colors.black.withValues(alpha: 0.08),
         centerTitle: true,
@@ -353,6 +380,12 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   }
 
   Widget _buildTopInfoContent(String tName) {
+    final picName = (_data['User'] != null) ? _data['User']['nama'] as String? : null;
+    final hasPic  = picName != null && picName.isNotEmpty;
+    final hasImage = _data['gambar_$tName'] != null;
+    final desc     = _data['deskripsi_$tName'] as String?;
+    final hasDesc  = desc != null && desc.trim().isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
@@ -364,61 +397,124 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
+              gradient: hasImage
+                  ? null
+                  : LinearGradient(
+                      colors: [_levelColor.withValues(alpha: 0.16), _levelColor.withValues(alpha: 0.04)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+              border: hasImage ? null : Border.all(color: _levelColor.withValues(alpha: 0.25), width: 1.5),
               boxShadow: [
                 BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))
               ],
-              image: _data['gambar_$tName'] != null
+              image: hasImage
                   ? DecorationImage(image: NetworkImage(_data['gambar_$tName']), fit: BoxFit.cover)
                   : null,
             ),
-            child: _data['gambar_$tName'] == null
+            child: !hasImage
                 ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.image_not_supported_outlined, size: 50, color: Colors.black12),
-                      const SizedBox(height: 8),
-                      Text(t('tidak_ada_gambar'), style: const TextStyle(color: Colors.black26, fontWeight: FontWeight.w600)),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(color: _levelColor.withValues(alpha: 0.22), blurRadius: 14, offset: const Offset(0, 5)),
+                          ],
+                        ),
+                        child: Icon(_levelIcon, size: 46, color: _levelColor),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(t('tidak_ada_gambar'),
+                          style: GoogleFonts.poppins(color: _levelColor, fontWeight: FontWeight.w700, fontSize: 12.5)),
                     ],
                   )
                 : null,
           ),
           const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _C.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _infoRow(
-                  icon: Icons.category_rounded, iconBg: const Color(0xFFFFF7ED), iconColor: Colors.orange,
-                  label: t('kategori'), value: _data['kategori'] ?? '-',
-                ),
-                const Divider(height: 20, color: Color(0xFFF1F5F9)),
-                _infoRow(
-                  icon: Icons.person_pin_rounded, iconBg: const Color(0xFFF0FDF4), iconColor: Colors.green,
-                  label: t('pic'), value: (_data['User'] != null) ? _data['User']['nama'] : '-',
-                ),
-              ],
-            ),
+
+          Row(
+            children: [
+              Icon(Icons.badge_rounded, size: 15, color: _levelColor),
+              const SizedBox(width: 6),
+              Text(t('pic'),
+                  style: GoogleFonts.poppins(color: _levelColor, fontSize: 13, fontWeight: FontWeight.w700)),
+            ],
           ),
+          const SizedBox(height: 10),
+          if (hasPic)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _levelColor.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _levelColor.withValues(alpha: 0.20)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: _levelColor.withValues(alpha: 0.18),
+                    child: Icon(Icons.person_rounded, color: _levelColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(picName,
+                        style: GoogleFonts.poppins(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFBBF24).withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: const Color(0xFFFBBF24).withValues(alpha: 0.15), shape: BoxShape.circle),
+                    child: const Icon(Icons.person_off_rounded, size: 16, color: Color(0xFFF59E0B)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(t('pic_kosong'),
+                        style: GoogleFonts.poppins(color: const Color(0xFFB45309), fontSize: 12, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
           const SizedBox(height: 20),
-          Text(t('deskripsi'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _C.textDark)),
-          const SizedBox(height: 8),
+
+          Row(
+            children: [
+              Icon(Icons.notes_rounded, size: 15, color: _levelColor),
+              const SizedBox(width: 6),
+              Text(t('deskripsi'),
+                  style: GoogleFonts.poppins(color: _levelColor, fontSize: 13, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 10),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _C.border),
+              color: _levelColor.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _levelColor.withValues(alpha: 0.20)),
             ),
             child: Text(
-              _data['deskripsi_$tName'] ?? t('tdk_ada'),
-              style: const TextStyle(fontSize: 14, height: 1.6, color: _C.textGrey),
+              hasDesc ? desc : t('tdk_ada'),
+              style: GoogleFonts.poppins(color: Colors.black, fontSize: 13, fontWeight: FontWeight.w600, height: 1.5),
             ),
           ),
           const SizedBox(height: 8),
@@ -478,7 +574,7 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                   ),
                   const SizedBox(width: 7),
                   Text(t('ringkasan_sublokasi'),
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _C.textDark)),
+                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF1D72F3))),
                 ],
               ),
               const SizedBox(height: 10),
@@ -542,15 +638,33 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   Widget _buildSubResultsArea() {
     if (_selectedSubType == null) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.touch_app_rounded, size: 36, color: Colors.grey.shade300),
-              const SizedBox(height: 10),
+              Image.asset(
+                'assets/images/team_illustration.png',
+                width: 150, height: 150,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 110, height: 110,
+                  decoration: BoxDecoration(
+                    color: _levelColor.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _levelColor.withValues(alpha: 0.3), width: 2),
+                  ),
+                  child: Icon(Icons.touch_app_rounded, size: 46, color: _levelColor.withValues(alpha: 0.55)),
+                ),
+              ),
+              const SizedBox(height: 16),
               Text(
                 t('pilih_kategori'),
-                style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w600, fontSize: 12.5),
+                style: GoogleFonts.poppins(color: _C.textDark, fontWeight: FontWeight.w700, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                t('pilih_kategori_subtitle'),
+                style: GoogleFonts.poppins(color: Colors.grey.shade500, fontWeight: FontWeight.w500, fontSize: 11.5, height: 1.5),
                 textAlign: TextAlign.center,
               ),
             ],
@@ -558,6 +672,9 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
         ),
       );
     }
+
+    final subColor = _levelColors[_levelKeys.indexOf(_selectedSubType!)];
+    final subIcon  = _levelIcons[_levelKeys.indexOf(_selectedSubType!)];
 
     return FutureBuilder<List<dynamic>>(
       future: _subItemsCache[_selectedSubType],
@@ -583,20 +700,57 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
         final items = snap.data ?? [];
         if (items.isEmpty) {
           return Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
             child: Center(
-              child: Text(t('sub_kosong'),
-                  style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w600)),
+              child: Column(
+                children: [
+                  Image.asset(
+                    'assets/images/team_illustration.png',
+                    width: 140, height: 140,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 100, height: 100,
+                      decoration: BoxDecoration(
+                        color: subColor.withValues(alpha: 0.10),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: subColor.withValues(alpha: 0.3), width: 2),
+                      ),
+                      child: Icon(subIcon, size: 42, color: subColor.withValues(alpha: 0.55)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(t('sub_kosong'),
+                      style: GoogleFonts.poppins(color: _C.textDark, fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  Text(t('sub_kosong_subtitle'),
+                      style: GoogleFonts.poppins(color: Colors.grey.shade500, fontWeight: FontWeight.w500, fontSize: 11.5, height: 1.5),
+                      textAlign: TextAlign.center),
+                ],
+              ),
             ),
           );
         }
 
+        final totalPages = (items.length / _subItemsPerPage).ceil();
+        final safePage    = _subItemsPage.clamp(1, totalPages);
+        final startIdx    = (safePage - 1) * _subItemsPerPage;
+        final endIdx      = (startIdx + _subItemsPerPage) > items.length ? items.length : startIdx + _subItemsPerPage;
+        final pageItems   = items.sublist(startIdx, endIdx);
+
         return Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
           child: Column(
-            children: items
-                .map((it) => _buildSubResultCard(Map<String, dynamic>.from(it), _selectedSubType!))
-                .toList(),
+            children: [
+              ...pageItems.map((it) => _buildSubResultCard(Map<String, dynamic>.from(it), _selectedSubType!)),
+              if (totalPages > 1) ...[
+                const SizedBox(height: 6),
+                SpecificLocationPageIndicator(
+                  currentPage: safePage,
+                  totalPages: totalPages,
+                  color: subColor,
+                  onPageChanged: (p) => setState(() => _subItemsPage = p),
+                ),
+              ],
+            ],
           ),
         );
       },
@@ -688,32 +842,6 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     );
   }
 
-  Widget _infoRow({
-    required IconData icon, required Color iconBg, required Color iconColor,
-    required String label, required String value,
-  }) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, color: iconColor, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 11, color: _C.textGrey, fontWeight: FontWeight.w500)),
-              const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: _C.textDark)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildAnggotaTab(String idValue) {
     return Column(
       children: [
@@ -735,7 +863,11 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
             ),
             child: TextField(
               controller: _searchMemberController,
-              onChanged: (v) => setState(() => _searchMember = v.toLowerCase()),
+              onChanged: (v) => setState(() {
+                _searchMember = v.toLowerCase();
+                _membersPage  = 1;
+              }),
+              textAlignVertical: TextAlignVertical.center,
               style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: _C.textDark),
               decoration: InputDecoration(
                 hintText: t('cari_anggota'),
@@ -746,13 +878,16 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                         icon: Icon(Icons.close_rounded, color: _levelColor, size: 18),
                         onPressed: () {
                           _searchMemberController.clear();
-                          setState(() => _searchMember = '');
+                          setState(() {
+                            _searchMember = '';
+                            _membersPage  = 1;
+                          });
                         },
                       )
                     : null,
                 border: InputBorder.none,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                contentPadding: EdgeInsets.zero,
               ),
             ),
           ),
@@ -791,16 +926,64 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
               if (filtered.isEmpty) {
                 if (_searchMember.isNotEmpty) {
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.group_off_rounded, size: 56, color: Colors.grey.shade200),
-                        const SizedBox(height: 10),
-                        Text(
-                          t('kosong'),
-                          style: GoogleFonts.poppins(color: _C.textGrey, fontWeight: FontWeight.w600, fontSize: 13),
-                        ),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/images/team_illustration.png',
+                            width: 150, height: 150,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 110, height: 110,
+                              decoration: BoxDecoration(
+                                color: _levelColor.withValues(alpha: 0.10),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.group_off_rounded, size: 48, color: _levelColor.withValues(alpha: 0.5)),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Text(
+                            t('anggota_tidak_ditemukan_title'),
+                            style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: _C.textDark),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            t('anggota_tidak_ditemukan_subtitle'),
+                            style: GoogleFonts.poppins(fontSize: 12.5, color: _C.textGrey, fontWeight: FontWeight.w500, height: 1.5),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          GestureDetector(
+                            onTap: () {
+                              _searchMemberController.clear();
+                              setState(() {
+                                _searchMember = '';
+                                _membersPage  = 1;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                              decoration: BoxDecoration(
+                                color: _levelColor.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(color: _levelColor.withValues(alpha: 0.35)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.restart_alt_rounded, size: 15, color: _levelColor),
+                                  const SizedBox(width: 6),
+                                  Text(t('reset_pencarian'),
+                                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _levelColor)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
@@ -846,84 +1029,107 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                 );
               }
 
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: filtered.length,
-                itemBuilder: (ctx, i) {
-                  final user = filtered[i];
-                  final name = user['nama']?.toString() ?? '';
-                  final imgUrl = user['gambar_user'] as String?;
-                  final idJabatan = user['id_jabatan'] as int?;
-                  final isVerificator = user['is_verificator'] as bool?;
-                  final jabatanRaw = user['jabatan'];
-                  final jabatanNama = jabatanRaw is Map ? jabatanRaw['nama_jabatan']?.toString() : null;
+              final totalPages = (filtered.length / _membersPerPage).ceil();
+              final safePage    = _membersPage.clamp(1, totalPages);
+              final startIdx    = (safePage - 1) * _membersPerPage;
+              final endIdx      = (startIdx + _membersPerPage) > filtered.length ? filtered.length : startIdx + _membersPerPage;
+              final pageItems   = filtered.sublist(startIdx, endIdx);
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _levelColor.withValues(alpha: 0.5), width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        if (imgUrl != null && imgUrl.isNotEmpty)
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: _levelColor.withValues(alpha: 0.15),
-                            backgroundImage: NetworkImage(imgUrl),
-                            onBackgroundImageError: (_, __) {},
-                          )
-                        else
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: _levelColor,
-                            child: Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : '?',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: _levelColor,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              _buildMemberJabatanBadge(
-                                idJabatan: idJabatan,
-                                jabatanNama: jabatanNama,
-                                isVerificator: isVerificator,
-                                lang: widget.lang,
+              return Column(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: pageItems.length,
+                      itemBuilder: (ctx, i) {
+                        final user = pageItems[i];
+                        final name = user['nama']?.toString() ?? '';
+                        final imgUrl = user['gambar_user'] as String?;
+                        final idJabatan = user['id_jabatan'] as int?;
+                        final isVerificator = user['is_verificator'] as bool?;
+                        final jabatanRaw = user['jabatan'];
+                        final jabatanNama = jabatanRaw is Map ? jabatanRaw['nama_jabatan']?.toString() : null;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: _levelColor.withValues(alpha: 0.5), width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                          child: Row(
+                            children: [
+                              if (imgUrl != null && imgUrl.isNotEmpty)
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: _levelColor.withValues(alpha: 0.15),
+                                  backgroundImage: NetworkImage(imgUrl),
+                                  onBackgroundImageError: (_, __) {},
+                                )
+                              else
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: _levelColor,
+                                  child: Text(
+                                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: _levelColor,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    _buildMemberJabatanBadge(
+                                      idJabatan: idJabatan,
+                                      jabatanNama: jabatanNama,
+                                      isVerificator: isVerificator,
+                                      lang: widget.lang,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
+                  ),
+                  if (totalPages > 1)
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                          16, 10, 16, 12 + MediaQuery.of(context).padding.bottom),
+                      child: SpecificLocationPageIndicator(
+                        currentPage: safePage,
+                        totalPages: totalPages,
+                        color: _levelColor,
+                        onPageChanged: (p) => setState(() => _membersPage = p),
+                      ),
+                    ),
+                ],
               );
             },
           ),

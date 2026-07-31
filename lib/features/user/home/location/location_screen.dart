@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'location_detail_screen.dart';
+import 'specific_location_indicator.dart';
 
 class _LastActivity {
   final DateTime? lastTemuan;
@@ -57,7 +58,7 @@ class _C {
   static const primary     = Color(0xFF0EA5E9);
   static const primaryDark = Color(0xFF0369A1);
   static const primaryLight= Color(0xFFE0F2FE);
-  static const bg          = Color(0xFFF0F9FF);
+  static const bg          = Color(0xFFF8FAFC);
   static const card        = Colors.white;
   static const textDark    = Color(0xFF0C4A6E);
   static const textGrey    = Color(0xFF64748B);
@@ -117,6 +118,8 @@ class _AppTexts {
       'my_subunit_badge'          : 'Subunit Saya',
       'my_area_badge'             : 'Area Saya',
       'my_responsibility'         : 'Tanggung Jawab Saya',
+      'reset_pencarian'           : 'Reset Pencarian',
+      'coba_kata_kunci_lain'      : 'Coba gunakan kata kunci lain atau reset pencarian Anda.',
     },
     'EN': {
       // LOCATION SCREEN
@@ -167,6 +170,8 @@ class _AppTexts {
       'my_subunit_badge'          : 'My Subunit',
       'my_area_badge'             : 'My Area',
       'my_responsibility'         : 'My Responsibility',
+      'reset_pencarian'           : 'Reset Search',
+      'coba_kata_kunci_lain'      : 'Try using different keywords or reset your search.',
     },
     'ZH': {
       // LOCATION SCREEN
@@ -217,6 +222,8 @@ class _AppTexts {
       'my_subunit_badge'          : '我的子单位',
       'my_area_badge'             : '我的区域',
       'my_responsibility'         : '我的责任',
+      'reset_pencarian'           : '重置搜索',
+      'coba_kata_kunci_lain'      : '请尝试其他关键词或重置搜索。',
     },
   };
 
@@ -284,6 +291,10 @@ class _LocationScreenState extends State<LocationScreen>
   String? _myLocationUnitId;
   String? _myLocationSubunitId;
   String? _myLocationAreaId;
+
+  // PAGINATION STATE
+  int _currentPage = 1;
+  static const int _perPage = 5;
 
   String t(String key) => _AppTexts.get(widget.lang, key);
 
@@ -477,18 +488,18 @@ class _LocationScreenState extends State<LocationScreen>
       final results = await Future.wait([
         _supabase.from('lokasi').select(
             'id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, '
-            'kategori, is_star, id_pic, User!id_pic(nama), unit(id_unit), qrcode'),
+            'is_star, id_pic, User!id_pic(nama), unit(id_unit), qrcode'),
         _supabase.from('unit').select(
             'id_unit, nama_unit, gambar_unit, deskripsi_unit, '
-            'kategori, is_star, id_pic, User!id_pic(nama), subunit(id_subunit), '
+            'is_star, id_pic, User!id_pic(nama), subunit(id_subunit), '
             'id_lokasi, lokasi(nama_lokasi), qrcode'),
         _supabase.from('subunit').select(
             'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, '
-            'kategori, is_star, id_pic, User!id_pic(nama), area(id_area), '
+            'is_star, id_pic, User!id_pic(nama), area(id_area), '
             'id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode'),
         _supabase.from('area').select(
             'id_area, nama_area, gambar_area, deskripsi_area, '
-            'kategori, is_star, id_pic, User!id_pic(nama), '
+            'is_star, id_pic, User!id_pic(nama), '
             'id_subunit, id_unit, id_lokasi, '
             'subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), qrcode'),
       ]);
@@ -505,6 +516,7 @@ class _LocationScreenState extends State<LocationScreen>
         setState(() {
           _currentData = data;
           _isLoading   = false;
+          _currentPage = 1;
           _onSearch(_searchQuery);
         });
         _updateSuggestItems();
@@ -515,14 +527,6 @@ class _LocationScreenState extends State<LocationScreen>
     } catch (e) {
       debugPrint('Prefetch all levels error: $e');
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _refreshAll() async {
-    await _prefetchAllLevels();
-    if (_navHistory.isNotEmpty) {
-      final prev = _navHistory.last;
-      await _fetchData(parentId: prev['id'], parentData: prev['data']);
     }
   }
 
@@ -751,6 +755,7 @@ class _LocationScreenState extends State<LocationScreen>
         _currentData       = data;
         _currentParentData = parentData;
         _isLoading         = false;
+        _currentPage       = 1;
         _onSearch(_searchQuery);
       });
       _updateSuggestItems();
@@ -779,6 +784,7 @@ class _LocationScreenState extends State<LocationScreen>
         _isGlobalSearch = false;
         _globalResults  = [];
         _activeFilter   = _getLevelName(_currentLevel);
+        _currentPage    = 1;
       });
       final tName = _getLevelName();
       setState(() {
@@ -855,6 +861,7 @@ class _LocationScreenState extends State<LocationScreen>
         _globalResults    = filtered;
         _isGlobalLoading  = false;
         _activeFilter     = newActiveFilter;
+        _currentPage      = 1;
       });
     }
   }
@@ -953,6 +960,7 @@ class _LocationScreenState extends State<LocationScreen>
       }
       if (_isLokasiSaya) data = _filterByMyLocation(data, _currentLevel);
       _currentData = data;
+      _currentPage = 1;
     });
     _onSearch(_searchQuery);
     _updateSuggestItems();
@@ -999,12 +1007,43 @@ class _LocationScreenState extends State<LocationScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset('assets/images/team_illustration.png', width: 160, height: 160,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.search_off_rounded, size: 64, color: _C.border)),
-              const SizedBox(height: 16),
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 120, height: 120,
+                    decoration: BoxDecoration(
+                      color: _C.primary.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.search_off_rounded, size: 52, color: _C.primary.withValues(alpha: 0.45)),
+                  )),
+              const SizedBox(height: 18),
               Text(t('tidak_ada_data'),
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _C.textDark),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.textDark),
                   textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(t('coba_kata_kunci_lain'),
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500, fontWeight: FontWeight.w600, height: 1.5),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 18),
+              GestureDetector(
+                onTap: _resetSearchAndFilter,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _C.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: _C.primary.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.restart_alt_rounded, size: 15, color: _C.primary),
+                      const SizedBox(width: 6),
+                      Text(t('reset_pencarian'),
+                          style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _C.primary)),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1027,6 +1066,15 @@ class _LocationScreenState extends State<LocationScreen>
       }
     }
 
+    final totalPages = (displayed.length / _perPage).ceil();
+    final safePage    = _currentPage.clamp(1, totalPages);
+    final startIdx    = (safePage - 1) * _perPage;
+    final endIdx      = (startIdx + _perPage) > displayed.length ? displayed.length : startIdx + _perPage;
+    final pageItems   = displayed.sublist(startIdx, endIdx);
+
+    const _levelTypeIdx = {'lokasi': 0, 'unit': 1, 'subunit': 2, 'area': 3};
+    final indicatorColor = _levelColors[_levelTypeIdx[_activeFilter] ?? 0];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1037,10 +1085,10 @@ class _LocationScreenState extends State<LocationScreen>
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            itemCount: displayed.length,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            itemCount: pageItems.length,
             itemBuilder: (_, i) {
-              final r        = displayed[i];
+              final r        = pageItems[i];
               final isFav    = _isFavorit(r.type, r.id);
               final clr      = _levelColors[r.level];
               final ico      = _levelIcons[r.level];
@@ -1226,6 +1274,17 @@ class _LocationScreenState extends State<LocationScreen>
             },
           ),
         ),
+        if (totalPages > 1)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+                16, 4, 16, 12 + MediaQuery.of(context).padding.bottom),
+            child: SpecificLocationPageIndicator(
+              currentPage: safePage,
+              totalPages: totalPages,
+              color: indicatorColor,
+              onPageChanged: (p) => setState(() => _currentPage = p),
+            ),
+          ),
       ],
     );
   }
@@ -1260,12 +1319,6 @@ class _LocationScreenState extends State<LocationScreen>
       shadowColor: Colors.black.withValues(alpha: 0.08),
       iconTheme: const IconThemeData(color: _barBlue),
       centerTitle: true,
-      actions: [
-        IconButton(
-          onPressed: _refreshAll,
-          icon: const Icon(Icons.refresh_rounded, color: _barBlue),
-        ),
-      ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
         child: Container(height: 1, color: _C.border),
@@ -1292,6 +1345,26 @@ class _LocationScreenState extends State<LocationScreen>
         ],
       ),
     );
+  }
+
+  void _resetSearchAndFilter() {
+    _searchController.clear();
+    final List<dynamic> data = List<dynamic>.from(_levelCache[0] ?? []);
+    setState(() {
+      _searchQuery       = '';
+      _isGlobalSearch     = false;
+      _globalResults      = [];
+      _isLokasiSaya       = false;
+      _navHistory         = [];
+      _currentLevel       = 0;
+      _currentParentData  = null;
+      _currentData        = data;
+      _activeFilter       = _getLevelName(0);
+      _currentPage        = 1;
+    });
+    _onSearch('');
+    _updateSuggestItems();
+    _prefetchAllActivities('lokasi', data);
   }
 
   Widget _buildSpecificSearchField() {
@@ -1437,7 +1510,10 @@ class _LocationScreenState extends State<LocationScreen>
                 if (active) return;
 
                 if (_isGlobalSearch) {
-                  setState(() => _activeFilter = key);
+                  setState(() {
+                    _activeFilter = key;
+                    _currentPage  = 1;
+                  });
                   return;
                 }
 
@@ -1455,6 +1531,7 @@ class _LocationScreenState extends State<LocationScreen>
                   _suggestTemuan     = null;
                   _suggestSelesai    = null;
                   _searchQuery       = '';
+                  _currentPage       = 1;
                 });
                 _onSearch('');
                 _updateSuggestItems();
@@ -1778,7 +1855,7 @@ class _LocationScreenState extends State<LocationScreen>
                   t('favorit_semua'),
                   style: const TextStyle(
                       fontSize: 10, color: _C.textGrey,
-                      fontWeight: FontWeight.w500),
+                      fontWeight: FontWeight.w600),
                 ),
               ),
               const Expanded(child: Divider(color: Color(0xFFBAE6FD))),
@@ -1804,6 +1881,8 @@ class _LocationScreenState extends State<LocationScreen>
     final name   = item['nama_$tName']?.toString() ?? '';
     final imgUrl = item['gambar_$tName'] as String?;
     final isFav  = _isFavorit(tName, id);
+    final levelClr = _levelColors[_currentLevel];
+    final levelIco = _levelIcons[_currentLevel];
 
     return GestureDetector(
       onTap: () {
@@ -1824,17 +1903,12 @@ class _LocationScreenState extends State<LocationScreen>
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isTemuan
-                ? const Color(0xFF0EA5E9).withValues(alpha: 0.5)
-                : const Color(0xFF10B981).withValues(alpha: 0.5),
+            color: levelClr.withValues(alpha: 0.5),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: (isTemuan
-                      ? const Color(0xFF0EA5E9)
-                      : const Color(0xFF10B981))
-                  .withValues(alpha: 0.1),
+              color: levelClr.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -1845,7 +1919,7 @@ class _LocationScreenState extends State<LocationScreen>
             Container(
               width: 58, height: 58,
               decoration: BoxDecoration(
-                color: _C.primaryLight,
+                color: levelClr.withValues(alpha: 0.12),
                 borderRadius:
                     const BorderRadius.horizontal(left: Radius.circular(14)),
                 image: imgUrl != null
@@ -1854,9 +1928,9 @@ class _LocationScreenState extends State<LocationScreen>
                     : null,
               ),
               child: imgUrl == null
-                  ? const Center(
-                      child: Icon(Icons.domain_rounded,
-                          color: _C.primary, size: 22))
+                  ? Center(
+                      child: Icon(levelIco,
+                          color: levelClr, size: 22))
                   : null,
             ),
             const SizedBox(width: 10),
@@ -1867,9 +1941,9 @@ class _LocationScreenState extends State<LocationScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(name,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13, fontWeight: FontWeight.w800,
-                            color: _C.textDark),
+                            color: levelClr),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 5),
@@ -1944,31 +2018,118 @@ class _LocationScreenState extends State<LocationScreen>
 
   Widget _buildList() {
     if (_isLokasiSaya && _filteredData.isEmpty) return _buildMyLocationEmptyState();
-    if (_filteredData.isEmpty) {
-      const levelKeys = ['tidak_ada_data', 'unit_empty', 'subunit_empty', 'area_empty'];
-      final msgKey = levelKeys[_currentLevel];
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset('assets/images/team_illustration.png', width: 160, height: 160,
-                  errorBuilder: (_, __, ___) =>
-                      Icon(Icons.location_off_rounded, size: 56, color: Colors.grey.shade300)),
-              const SizedBox(height: 12),
-              Text(t(msgKey),
-                  style: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w600),
-                  textAlign: TextAlign.center),
-            ],
+    if (_filteredData.isEmpty) return _buildLevelEmptyState();
+
+    final totalPages = (_filteredData.length / _perPage).ceil();
+    final safePage    = _currentPage.clamp(1, totalPages);
+    final startIdx    = (safePage - 1) * _perPage;
+    final endIdx      = (startIdx + _perPage) > _filteredData.length
+        ? _filteredData.length
+        : startIdx + _perPage;
+    final pageItems   = _filteredData.sublist(startIdx, endIdx);
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            itemCount: pageItems.length,
+            itemBuilder: (ctx, i) => _buildLocationCard(pageItems[i]),
           ),
         ),
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: _filteredData.length,
-      itemBuilder: (ctx, i) => _buildLocationCard(_filteredData[i]),
+        if (totalPages > 1)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+                16, 4, 16, 12 + MediaQuery.of(context).padding.bottom),
+            child: SpecificLocationPageIndicator(
+              currentPage: safePage,
+              totalPages: totalPages,
+              color: _levelColors[_currentLevel],
+              onPageChanged: (p) => setState(() => _currentPage = p),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLevelEmptyState() {
+    const levelKeys = ['tidak_ada_data', 'unit_empty', 'subunit_empty', 'area_empty'];
+    final msgKey = levelKeys[_currentLevel];
+    final color  = _levelColors[_currentLevel];
+    final icon   = _levelIcons[_currentLevel];
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              width: 170, height: 170,
+              errorBuilder: (_, __, ___) => Container(
+                width: 130, height: 130,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color.withValues(alpha: 0.30), width: 2),
+                ),
+                child: Icon(icon, size: 56, color: color.withValues(alpha: 0.55)),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: color.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 14, color: color),
+                  const SizedBox(width: 6),
+                  Text(t('level_${_getLevelName(_currentLevel)}'),
+                      style: GoogleFonts.poppins(
+                          fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(t(msgKey),
+                style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13.5),
+                textAlign: TextAlign.center),
+            if (_isLokasiSaya) ...[
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: _resetSearchAndFilter,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: color.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.restart_alt_rounded, size: 15, color: color),
+                      const SizedBox(width: 6),
+                      Text(t('reset_pencarian'),
+                          style: GoogleFonts.poppins(
+                              fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
