@@ -186,10 +186,12 @@ class _PmFormScreenState extends State<PmFormScreen> {
     final user = sb.auth.currentUser;
     if (user == null) return;
     try {
-      final res = await sb.from('User').select('bagian_kasie').eq('id_user', user.id).single();
-      if (mounted) setState(() => _selectedBagian = res['bagian_kasie'] as String?);
+      // Section diambil berdasarkan siapa yang menjadi PIC (id_pic) pada tabel section,
+      // bukan lagi dari kolom bagian_kasie/id_section di tabel User.
+      final res = await sb.from('section').select('nama_section_id').eq('id_pic', user.id).maybeSingle();
+      if (mounted) setState(() => _selectedBagian = res?['nama_section_id'] as String?);
     } catch (e) {
-      debugPrint('PM load bagian_kasie error: $e');
+      debugPrint('PM load section pic error: $e');
     }
   }
 
@@ -514,7 +516,7 @@ class _PmFormScreenState extends State<PmFormScreen> {
                     child: Row(children: [
                       Expanded(child: Text(
                         _displaySectionName(_selectedBagian),
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
+                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)))),
                       const Icon(CupertinoIcons.lock_fill, size: 13, color: Color(0xFF94A3B8)),
                     ]),
                   ),

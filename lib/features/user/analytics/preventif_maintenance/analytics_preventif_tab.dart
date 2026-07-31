@@ -213,10 +213,12 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
     try {
       final months = _getMonths();
 
-      dynamic kasieQuery = _db.from('User').select('id_user, nama, bagian_kasie').eq('id_jabatan', 3);
-      if (_filterBagian != null) kasieQuery = kasieQuery.eq('bagian_kasie', _filterBagian!);
-      final kasieRes = List<Map<String, dynamic>>.from(await kasieQuery);
-      if (kasieRes.isEmpty) {
+      dynamic sectionQuery = _db.from('section')
+          .select('id_section, nama_section_id, id_pic, pic:id_pic(id_user, nama)')
+          .not('id_pic', 'is', null);
+      if (_filterBagian != null) sectionQuery = sectionQuery.eq('nama_section_id', _filterBagian!);
+      final sectionRes = List<Map<String, dynamic>>.from(await sectionQuery);
+      if (sectionRes.isEmpty) {
         if (mounted) setState(() { _tableRows = []; _loadingTable = false; });
         return;
       }
@@ -251,10 +253,11 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
         }
       }
 
-      var rows = kasieRes.map((k) {
-        final kasieId   = k['id_user']?.toString() ?? '';
-        final kasieNama = k['nama']?.toString() ?? '-';
-        final bagian    = (k['bagian_kasie'] as String?)?.trim() ?? '';
+      var rows = sectionRes.map((sec) {
+        final pic       = sec['pic'] as Map<String, dynamic>?;
+        final kasieId   = pic?['id_user']?.toString() ?? '';
+        final kasieNama = pic?['nama']?.toString() ?? '-';
+        final bagian    = (sec['nama_section_id'] as String?)?.trim() ?? '';
         final statusMap = bagianMonthStatus[bagian] ?? {};
         final alasanMap = bagianMonthAlasan[bagian] ?? {};
         final bulanan   = <int, _PmStatus>{ for (int i = 0; i < months.length; i++) i: statusMap[i] ?? _PmStatus.none };
@@ -362,8 +365,8 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
                     child: const Icon(Icons.engineering_rounded, color: _PC.primary, size: 18)),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(kasieNama, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B))),
-                    Text(bagian, style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF64748B))),
+                    Text(kasieNama, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B))),
+                    Text(bagian, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFF64748B))),
                   ])),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: _PC.primaryLight, borderRadius: BorderRadius.circular(20)),
                     child: Text('${records.length} ${_t('records')}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: _PC.primary))),
@@ -480,7 +483,7 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
           const Icon(Icons.bar_chart_rounded, size: 16, color: _PC.primary),
           const SizedBox(width: 8),
           Expanded(child: Text('${_t('grafik')} ${_t('title')} – $rangeLabel',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _PC.primaryDark))),
+            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _PC.primaryDark))),
           AnimatedRotation(turns: _chartExpanded ? 0.5 : 0, duration: const Duration(milliseconds: 250),
             child: const Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: _PC.primary)),
         ]),
@@ -544,7 +547,7 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
               padding: const EdgeInsets.symmetric(vertical: rowVPad),
               child: SizedBox(height: barH, child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
                 SizedBox(width: labelW, child: Text(row.kasieNama,
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: isZero ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
+                  style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w600, color: isZero ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
                   overflow: TextOverflow.ellipsis, textAlign: TextAlign.right)),
                 const SizedBox(width: 8),
                 Expanded(child: CustomPaint(
@@ -599,7 +602,7 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
         child: Row(children: [
           Icon(icon, size: 14, color: active ? Colors.white : _PC.primary),
           const SizedBox(width: 6),
-          Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: active ? Colors.white : _PC.primary), overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(label, style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: active ? Colors.white : _PC.primary), overflow: TextOverflow.ellipsis)),
           const SizedBox(width: 4),
           Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: active ? Colors.white : _PC.primary),
         ]),
@@ -887,9 +890,8 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
           SizedBox(width: leftW, child: Column(children: [
             Container(height: rowH, color: _PC.primaryLight, padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Row(children: [
-                Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft, child: Text(_t('bagian'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec)))),
-                Expanded(flex: 6, child: Align(alignment: Alignment.centerLeft, child: Text(_t(
-                  'kasie'), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec)))),
+                Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft, child: Text(_t('bagian'), style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec)))),
+                Expanded(flex: 6, child: Align(alignment: Alignment.centerLeft, child: Text(_t('kasie'), style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: _PC.textSec)))),
               ])),
             ...rows.asMap().entries.map((e) {
               final idx = e.key; final row = e.value;
@@ -899,11 +901,11 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: Row(children: [
                   Expanded(flex: 5, child: Text(row.bagian.isEmpty ? '-' : _displaySectionName(row.bagian),
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: row.total > 0 ? _PC.textPrimary : const Color(0xFFCBD5E1)), overflow: TextOverflow.ellipsis)),
+                    style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700, color: row.total > 0 ? _PC.textPrimary : const Color(0xFFCBD5E1)), overflow: TextOverflow.ellipsis)),
                   Expanded(flex: 6, child: GestureDetector(
                     onTap: canSeeDetail ? () => _showKasieDetail(row.kasieNama, row.bagian) : null,
                     child: Text(row.kasieNama,
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                      style: GoogleFonts.poppins(fontSize: 10, fontWeight: FontWeight.w700,
                         color: row.total > 0 ? (canSeeDetail ? _PC.primary : _PC.textPrimary) : const Color(0xFFCBD5E1),
                         decoration: row.total > 0 && canSeeDetail ? TextDecoration.underline : TextDecoration.none),
                       overflow: TextOverflow.ellipsis))),
@@ -1015,7 +1017,7 @@ class _AnalyticsPreventifTabState extends State<AnalyticsPreventifTab> {
             Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: _PC.barColor.withValues(alpha:0.12), borderRadius: BorderRadius.circular(8)),
               child: const Icon(Icons.engineering_outlined, size: 14, color: _PC.barColor)),
             const SizedBox(width: 8),
-            Text('${_t('title')} – ${_t('kasie')}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _PC.barColor)),
+            Text('${_t('title')} – ${_t('kasie')}', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: _PC.barColor)),
           ]),
           const SizedBox(height: 8),
           _buildTable(),

@@ -416,7 +416,7 @@ class _PmEditScreenState extends State<PmEditScreen> {
                     child: Row(children: [
                       Expanded(child: Text(
                         _displaySectionName(_selectedBagian),
-                        style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B)))),
+                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)))),
                       const Icon(CupertinoIcons.lock_fill, size: 13, color: Color(0xFF94A3B8)),
                     ]),
                   ),
