@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
+
+import '../../admin/target/target/admin_target_pick_date.dart';
 
 class ActivityLogTab extends StatefulWidget {
   final String lang;
@@ -32,6 +35,12 @@ class _ActivityLogTabState extends State<ActivityLogTab>
   List<Map<String, dynamic>> _filteredLogs = [];
   int _totalPoin = 0;
   bool _isLoading = false;
+
+  // ── NEW: pagination state ──
+  int _currentPage = 1;
+  static const int _perPage = 7;
+
+  static const Color _accent = Color(0xFF0EA5E9);
 
   @override
   bool get wantKeepAlive => true;
@@ -93,6 +102,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
   void _applySearch(String query) {
     setState(() {
       _searchQuery = query;
+      _currentPage = 1; // NEW: reset ke halaman 1 setiap kali search berubah
       if (query.trim().isEmpty) {
         _filteredLogs = List.from(_allLogs);
       } else {
@@ -104,6 +114,12 @@ class _ActivityLogTabState extends State<ActivityLogTab>
         }).toList();
       }
     });
+  }
+
+  // ── NEW: reset pencarian saja (tanpa mengubah periode) ──
+  void _resetSearch() {
+    _searchCtrl.clear();
+    _applySearch('');
   }
 
   Color _getTipeColor(String tipe, bool isPositive) {
@@ -178,197 +194,196 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
   }
 
-  String _monthLabel(DateTime dt) {
-    final months = {
-      'EN': ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-      'ID': ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'],
-      'ZH': ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
-    };
-    final m = months[widget.lang] ?? months['ID']!;
-    return '${m[dt.month - 1]} ${dt.year}';
+  // ── NEW: kategori kebaruan waktu, dipakai untuk pewarnaan badge waktu ──
+  int _recencyLevel(dynamic value) {
+    if (value == null) return 3;
+    final dt = value is DateTime ? value : DateTime.tryParse(value.toString());
+    if (dt == null) return 3;
+    final diff = DateTime.now().difference(dt);
+    if (diff.inHours < 1) return 0; // baru saja / menit
+    if (diff.inDays < 1) return 1; // jam
+    if (diff.inDays < 7) return 2; // hari
+    return 3; // lebih lama, tanggal penuh
   }
 
-  void _showPeriodPicker() async {
+  // ── REPLACED: popup periode kini pakai kalender penuh ala admin_target_pick_date.dart ──
+  Future<void> _showPeriodPicker() async {
     DateTime tempFrom = _filterFrom;
-    DateTime tempTo =
-        DateTime(_filterTo.year, _filterTo.month, _filterTo.day);
+    DateTime tempTo = _filterTo;
 
-    final now = DateTime.now();
-    final years = List.generate(3, (i) => now.year - 1 + i);
-    final monthNames = {
-          'EN': ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-          'ID': ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'],
-          'ZH': ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
-        }[widget.lang] ??
-        ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
-
-    Widget buildMonthYearPicker(DateTime current,
-        ValueChanged<DateTime> onChange, StateSetter setSt) {
-      return Row(children: [
-        Expanded(
-          flex: 3,
-          child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F9FF),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFBAE6FD)),
+    Widget dateField({
+      required String label,
+      required IconData labelIcon,
+      required DateTime value,
+      required VoidCallback onTap,
+    }) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(labelIcon, size: 13, color: _accent),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                  fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: current.month - 1,
-                icon: const Icon(Icons.keyboard_arrow_down,
-                    size: 18, color: Color(0xFF0284C7)),
-                style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF0C4A6E),
-                    fontWeight: FontWeight.w600),
-                dropdownColor: Colors.white,
-                items: List.generate(
-                    12,
-                    (i) => DropdownMenuItem(
-                        value: i, child: Text(monthNames[i]))),
-                onChanged: (v) {
-                  if (v != null) {
-                    setSt(() => onChange(DateTime(current.year, v + 1)));
-                  }
-                },
+          ]),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              height: 48,
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F9FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _accent.withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.event_rounded, size: 17, color: _accent),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      DateFormat('EEE, d MMM yyyy').format(value),
+                      style: GoogleFonts.poppins(
+                          fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0C4A6E)),
+                    ),
+                  ),
+                  Icon(Icons.keyboard_arrow_right_rounded, size: 18, color: _accent),
+                ],
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          flex: 2,
-          child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F9FF),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFBAE6FD)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: current.year,
-                icon: const Icon(Icons.keyboard_arrow_down,
-                    size: 18, color: Color(0xFF0284C7)),
-                style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF0C4A6E),
-                    fontWeight: FontWeight.w600),
-                dropdownColor: Colors.white,
-                items: years
-                    .map((y) =>
-                        DropdownMenuItem(value: y, child: Text('$y')))
-                    .toList(),
-                onChanged: (v) {
-                  if (v != null) {
-                    setSt(() => onChange(DateTime(v, current.month)));
-                  }
-                },
-              ),
-            ),
-          ),
-        ),
-      ]);
+        ],
+      );
     }
 
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => Dialog(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: const Color(0xFFE0F2FE), width: 1.5),
+              border: Border.all(color: _accent.withValues(alpha: 0.2), width: 1.5),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  const Icon(Icons.date_range_rounded,
-                      color: Color(0xFF0284C7), size: 20),
-                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                        color: _accent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                    child: Icon(Icons.date_range_rounded, color: _accent, size: 18),
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
-                      child: Text(
-                    widget.lang == 'EN'
-                        ? 'Select Period'
-                        : widget.lang == 'ZH'
-                            ? '选择期间'
-                            : 'Pilih Periode',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: Color(0xFF0C4A6E)),
-                  )),
-                  IconButton(
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: () => Navigator.pop(ctx),
-                      padding: EdgeInsets.zero),
+                    child: Text(
+                      widget.lang == 'EN'
+                          ? 'Select Period'
+                          : widget.lang == 'ZH'
+                              ? '选择期间'
+                              : 'Pilih Periode',
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF0C4A6E)),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
+                      child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF64748B)),
+                    ),
+                  ),
                 ]),
-                const SizedBox(height: 16),
-                Text(
-                  widget.lang == 'EN'
+                const SizedBox(height: 18),
+
+                // ── Kolom "Dari" — satu field, klik = buka kalender penuh ──
+                dateField(
+                  label: widget.lang == 'EN'
                       ? 'From'
                       : widget.lang == 'ZH'
                           ? '从'
                           : 'Dari',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w600),
+                  labelIcon: Icons.play_circle_outline_rounded,
+                  value: tempFrom,
+                  onTap: () async {
+                    final picked = await showAdminTargetDatePicker(
+                      context: ctx,
+                      lang: widget.lang,
+                      initialDate: tempFrom,
+                    );
+                    if (picked != null) {
+                      setSt(() {
+                        tempFrom = picked;
+                        if (tempTo.isBefore(tempFrom)) tempTo = tempFrom;
+                      });
+                    }
+                  },
                 ),
-                const SizedBox(height: 6),
-                buildMonthYearPicker(
-                    tempFrom, (d) => tempFrom = d, setSt),
-                const SizedBox(height: 14),
-                Text(
-                  widget.lang == 'EN'
+                const SizedBox(height: 16),
+
+                // ── Kolom "Sampai" — satu field, klik = buka kalender penuh ──
+                dateField(
+                  label: widget.lang == 'EN'
                       ? 'To'
                       : widget.lang == 'ZH'
                           ? '到'
                           : 'Sampai',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w600),
+                  labelIcon: Icons.flag_circle_rounded,
+                  value: tempTo,
+                  onTap: () async {
+                    final picked = await showAdminTargetDatePicker(
+                      context: ctx,
+                      lang: widget.lang,
+                      initialDate: tempTo,
+                    );
+                    if (picked != null) {
+                      setSt(() {
+                        tempTo = picked;
+                        if (tempFrom.isAfter(tempTo)) tempFrom = tempTo;
+                      });
+                    }
+                  },
                 ),
-                const SizedBox(height: 6),
-                buildMonthYearPicker(
-                    tempTo, (d) => tempTo = d, setSt),
                 const SizedBox(height: 20),
+
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
                       setState(() {
-                        _filterFrom = DateTime(
-                            tempFrom.year, tempFrom.month, 1);
-                        _filterTo = DateTime(tempTo.year,
-                            tempTo.month + 1, 0, 23, 59, 59);
+                        _filterFrom = DateTime(tempFrom.year, tempFrom.month, tempFrom.day);
+                        _filterTo = DateTime(tempTo.year, tempTo.month, tempTo.day, 23, 59, 59);
+                        _currentPage = 1;
                       });
                       Navigator.pop(ctx);
                       _fetchLogs();
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0EA5E9),
+                      backgroundColor: _accent,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: Text(widget.lang == 'EN'
-                        ? 'Apply'
-                        : widget.lang == 'ZH'
-                            ? '应用'
-                            : 'Terapkan'),
+                    child: Text(
+                      widget.lang == 'EN'
+                          ? 'Apply'
+                          : widget.lang == 'ZH'
+                              ? '应用'
+                              : 'Terapkan',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
               ],
@@ -393,60 +408,120 @@ class _ActivityLogTabState extends State<ActivityLogTab>
 
     final fireColor = _getFireColor(_totalPoin);
     final periodLabel =
-        '${_monthLabel(_filterFrom)} – ${_monthLabel(DateTime(_filterTo.year, _filterTo.month))}';
+        '${DateFormat('d MMM').format(_filterFrom)} – ${DateFormat('d MMM yyyy').format(_filterTo)}';
+
+    // ── NEW: pagination ──
+    final totalPages =
+        _filteredLogs.isEmpty ? 1 : (_filteredLogs.length / _perPage).ceil();
+    final safePage = _currentPage.clamp(1, totalPages);
+    final startIdx = (safePage - 1) * _perPage;
+    final endIdx = (startIdx + _perPage) > _filteredLogs.length
+        ? _filteredLogs.length
+        : startIdx + _perPage;
+    final pagedLogs = _filteredLogs.isEmpty
+        ? <Map<String, dynamic>>[]
+        : _filteredLogs.sublist(startIdx, endIdx);
+
+    final bool isSearchEmptyResult =
+        _searchQuery.trim().isNotEmpty && _filteredLogs.isEmpty;
 
     return Column(children: [
-      // Summary Card
+      // ── UPDATED: Summary Card — lebih menarik & jelas ──
+      // ── UPDATED: Summary Card — kontras Total Points & jumlah log diperjelas ──
       Container(
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF1E3A8A), Color(0xFF0EA5E9)],
+            colors: [Color(0xFF0F172A), Color(0xFF0EA5E9)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1E3A8A).withValues(alpha:0.3),
+              color: const Color(0xFF0F172A).withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             )
           ],
         ),
         child: Row(children: [
-          Icon(Icons.local_fire_department_rounded,
-              color: fireColor, size: 32),
-          const SizedBox(width: 12),
-          Column(
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black.withValues(alpha: 0.22),
+              border: Border.all(color: fireColor.withValues(alpha: 0.7), width: 2),
+            ),
+            child: Icon(Icons.local_fire_department_rounded, color: fireColor, size: 28),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   widget.lang == 'EN'
-                      ? 'Total Points'
+                      ? 'TOTAL POINTS'
                       : widget.lang == 'ZH'
                           ? '总积分'
-                          : 'Total Poin',
-                  style:
-                      GoogleFonts.poppins(fontSize: 11, color: Colors.white70),
+                          : 'TOTAL POIN',
+                  style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: Colors.white.withValues(alpha: 0.75),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _isLoading ? '...' : '$_totalPoin',
+                  style: GoogleFonts.poppins(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      height: 1.0),
                 ),
                 Text(
-                  _isLoading
-                      ? '...'
-                      : '$_totalPoin ${widget.lang == 'EN' ? 'Points' : widget.lang == 'ZH' ? '积分' : 'Poin'}',
+                  widget.lang == 'EN'
+                      ? 'points earned'
+                      : widget.lang == 'ZH'
+                          ? '积分'
+                          : 'poin terkumpul',
                   style: GoogleFonts.poppins(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white),
+                      fontSize: 10.5,
+                      color: Colors.white.withValues(alpha: 0.65),
+                      fontWeight: FontWeight.w600),
                 ),
-              ]),
-          const Spacer(),
-          Text(
-            _isLoading ? '...' : '${_filteredLogs.length} log',
-            style:
-                GoogleFonts.poppins(fontSize: 12, color: Colors.white60),
+              ],
+            ),
+          ),
+          // ── Garis pemisah agar dua angka tidak menyatu ──
+          Container(
+            width: 1,
+            height: 46,
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            color: Colors.white.withValues(alpha: 0.22),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.receipt_long_rounded, color: Colors.white.withValues(alpha: 0.9), size: 18),
+              const SizedBox(height: 4),
+              Text(
+                _isLoading ? '...' : '${_filteredLogs.length}',
+                style: GoogleFonts.poppins(
+                    fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white),
+              ),
+              Text(
+                'log',
+                style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.65)),
+              ),
+            ],
           ),
         ]),
       ),
@@ -457,7 +532,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
         child: Row(children: [
           Expanded(
             child: Container(
-              height: 40,
+              height: 42,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -465,8 +540,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
                 border: Border.all(color: const Color(0xFFBAE6FD)),
               ),
               child: Row(children: [
-                const Icon(Icons.search,
-                    color: Color(0xFF0EA5E9), size: 18),
+                const Icon(Icons.search, color: Color(0xFF0EA5E9), size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
@@ -487,14 +561,20 @@ class _ActivityLogTabState extends State<ActivityLogTab>
                     ),
                   ),
                 ),
+                // ── NEW: tombol reset pencarian ──
                 if (_searchQuery.isNotEmpty)
                   GestureDetector(
-                    onTap: () {
-                      _searchCtrl.clear();
-                      _applySearch('');
-                    },
-                    child: const Icon(Icons.close,
-                        size: 16, color: Colors.grey),
+                    onTap: _resetSearch,
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 6),
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          size: 14, color: Color(0xFFDC2626)),
+                    ),
                   ),
               ]),
             ),
@@ -503,7 +583,7 @@ class _ActivityLogTabState extends State<ActivityLogTab>
           GestureDetector(
             onTap: _showPeriodPicker,
             child: Container(
-              height: 40,
+              height: 42,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: const Color(0xFF0EA5E9),
@@ -547,45 +627,151 @@ class _ActivityLogTabState extends State<ActivityLogTab>
                 ),
               )
             : _filteredLogs.isEmpty
-                ? Center(
-                    child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                ? (isSearchEmptyResult
+                    ? _buildSearchEmptyState()
+                    : _buildEmptyState())
+                : Column(
                     children: [
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF00C9E4).withValues(alpha:0.08),
+                      Expanded(
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          itemCount: pagedLogs.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) =>
+                              _buildActivityLogCard(pagedLogs[index]),
                         ),
-                        child: Icon(Icons.history_rounded,
-                            size: 36,
-                            color: const Color(0xFF00C9E4).withValues(alpha:0.5)),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        widget.t('empty_activity'),
-                        style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1E3A8A)),
-                      ),
+                      // ── NEW: bottom indicator, selalu full terlihat di semua HP Android ──
+                      if (totalPages > 1)
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            16, 4, 16, MediaQuery.of(context).viewPadding.bottom + 12,
+                          ),
+                          child: _ActivityPageIndicator(
+                            currentPage: safePage,
+                            totalPages: totalPages,
+                            onPageChanged: (p) => setState(() => _currentPage = p),
+                            color: _accent,
+                          ),
+                        )
+                      else
+                        const SizedBox(height: 12),
                     ],
-                  ))
-                : ListView.separated(
-                    padding:
-                        const EdgeInsets.fromLTRB(16, 8, 16, 20),
-                    itemCount: _filteredLogs.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: 8),
-                    itemBuilder: (context, index) =>
-                        _buildActivityLogCard(_filteredLogs[index]),
                   ),
       ),
     ]);
   }
 
-  // ACTIVITY LOG CARD
+  // ── UNCHANGED semantik: empty state ketika memang tidak ada log sama sekali di periode ini ──
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF00C9E4).withValues(alpha: 0.08),
+            ),
+            child: Icon(Icons.history_rounded,
+                size: 36, color: const Color(0xFF00C9E4).withValues(alpha: 0.5)),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            widget.t('empty_activity'),
+            style: GoogleFonts.poppins(
+                fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E3A8A)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── NEW: empty state khusus saat pencarian tidak ada hasil ──
+  Widget _buildSearchEmptyState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 140,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: _accent.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.search_off_rounded,
+                    size: 46, color: _accent.withValues(alpha: 0.4)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              widget.lang == 'EN'
+                  ? 'No matching activity'
+                  : widget.lang == 'ZH'
+                      ? '未找到匹配的活动'
+                      : 'Aktivitas Tidak Ditemukan',
+              style: GoogleFonts.poppins(
+                  fontSize: 15, fontWeight: FontWeight.w700, color: _accent),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.lang == 'EN'
+                  ? "Try adjusting your search keyword to find what you're looking for."
+                  : widget.lang == 'ZH'
+                      ? '尝试调整搜索关键词以查找您需要的内容。'
+                      : 'Coba ubah kata kunci pencarian untuk menemukan yang Anda cari.',
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                  height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 18),
+            GestureDetector(
+              onTap: _resetSearch,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: _accent.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.refresh_rounded, size: 15, color: _accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      widget.lang == 'EN'
+                          ? 'Clear search'
+                          : widget.lang == 'ZH'
+                              ? '清除搜索'
+                              : 'Hapus pencarian',
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, fontWeight: FontWeight.w700, color: _accent),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── UPDATED: ACTIVITY LOG CARD — badge waktu dibuat lebih jelas ──
   Widget _buildActivityLogCard(Map<String, dynamic> log) {
     final int poin = (log['poin'] as num).toInt();
     final bool isPositive = poin >= 0;
@@ -595,15 +781,37 @@ class _ActivityLogTabState extends State<ActivityLogTab>
     final Color color = _getTipeColor(tipe, isPositive);
     final IconData icon = _getTipeIcon(tipe, isPositive);
 
+    // ── NEW: warna & ikon badge waktu berdasarkan tingkat kebaruan ──
+    final int recency = _recencyLevel(log['created_at']);
+    late final Color timeColor;
+    late final IconData timeIcon;
+    switch (recency) {
+      case 0:
+        timeColor = const Color(0xFF0EA5E9);
+        timeIcon = Icons.bolt_rounded;
+        break;
+      case 1:
+        timeColor = const Color(0xFF0D9488);
+        timeIcon = Icons.access_time_filled_rounded;
+        break;
+      case 2:
+        timeColor = const Color(0xFF64748B);
+        timeIcon = Icons.schedule_rounded;
+        break;
+      default:
+        timeColor = const Color(0xFF475569);
+        timeIcon = Icons.event_rounded;
+    }
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha:0.15)),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha:0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 8,
               offset: const Offset(0, 3))
         ],
@@ -612,16 +820,14 @@ class _ActivityLogTabState extends State<ActivityLogTab>
         Container(
           width: 44,
           height: 44,
-          decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withValues(alpha:0.1)),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.1)),
           child: Icon(icon, color: color, size: 22),
         ),
         const SizedBox(width: 12),
         Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
                 desc,
                 maxLines: 2,
@@ -632,27 +838,167 @@ class _ActivityLogTabState extends State<ActivityLogTab>
                     color: const Color(0xFF0F172A),
                     height: 1.4),
               ),
-              const SizedBox(height: 3),
-              Text(tanggal,
-                  style: GoogleFonts.poppins(
-                      fontSize: 10.5, color: Colors.grey.shade400)),
-            ])),
+              const SizedBox(height: 6),
+              // ── NEW: badge waktu, jauh lebih jelas dibanding teks abu-abu polos ──
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: timeColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: timeColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(timeIcon, size: 11, color: timeColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      tanggal,
+                      style: GoogleFonts.poppins(
+                          fontSize: 10.5, fontWeight: FontWeight.w700, color: timeColor),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(width: 8),
         Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-              color: color.withValues(alpha:0.1),
-              borderRadius: BorderRadius.circular(20)),
+              color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
           child: Text(
             isPositive ? '+$poin' : '$poin',
-            style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: color),
+            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w800, color: color),
           ),
         ),
       ]),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// NEW: indikator halaman bawah (adaptasi dari admin_section_indicator.dart)
+// ══════════════════════════════════════════════════════════════
+class _ActivityPageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final ValueChanged<int> onPageChanged;
+  final Color color;
+
+  const _ActivityPageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.onPageChanged,
+    required this.color,
+  });
+
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+        boxShadow: [
+          BoxShadow(color: color.withValues(alpha: 0.14), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          _arrowButton(
+            icon: Icons.arrow_back_ios_new_rounded,
+            enabled: canPrev,
+            onTap: () {
+              if (!canPrev) return;
+              onPageChanged(currentPage - 1);
+            },
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Row(
+              children: [
+                for (final p in pageNumbers) ...[
+                  Expanded(child: _pageButton(p)),
+                  if (p != pageNumbers.last) const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _arrowButton(
+            icon: Icons.arrow_forward_ios_rounded,
+            enabled: canNext,
+            onTap: () {
+              if (!canNext) return;
+              onPageChanged(currentPage + 1);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pageButton(int page) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page == currentPage) return;
+        onPageChanged(page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? color : color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive ? null : Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(
+              color: isActive ? Colors.white : color, fontWeight: FontWeight.w800, fontSize: 13),
+        ),
+      ),
+    );
+  }
+
+  Widget _arrowButton({required IconData icon, required bool enabled, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? color.withValues(alpha: 0.16) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 15, color: enabled ? color : Colors.grey.shade400),
+      ),
     );
   }
 }

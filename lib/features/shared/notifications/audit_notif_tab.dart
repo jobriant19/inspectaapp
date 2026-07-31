@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
-
+import '../../admin/target/target/admin_target_pick_date.dart';
 import '../../audit/form/audit_evidence_camera_screen.dart';
 
 class AuditNotifTab extends StatefulWidget {
@@ -29,8 +30,13 @@ class _AuditNotifTabState extends State<AuditNotifTab>
   DateTime _filterFrom = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _filterTo = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
+  // NEW: state pagination — 7 card per halaman
+  int _currentPage = 1;
+  static const int _perPage = 7;
+
   static const _blue = Color(0xFF1D4ED8);
-  static const _blueLt = Color(0xFFEFF6FF);
+  // NEW: warna khusus tombol pilih periode & popup kalender
+  static const _periodBlue = Color(0xFF1D72F3);
 
   @override
   bool get wantKeepAlive => true;
@@ -207,6 +213,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
   void _applyFilter(String query) {
     setState(() {
       _searchQuery = query;
+      _currentPage = 1; // NEW: reset ke halaman 1 setiap kali search berubah
       final q = query.toLowerCase().trim();
       if (q.isEmpty) {
         _filtered = List.from(_allItems);
@@ -219,6 +226,12 @@ class _AuditNotifTabState extends State<AuditNotifTab>
         }).toList();
       }
     });
+  }
+
+  // NEW: reset pencarian saja (dipakai tombol reset di search bar & empty state)
+  void _resetSearch() {
+    _searchCtrl.clear();
+    _applyFilter('');
   }
 
   String _formatDate(dynamic v) {
@@ -245,27 +258,51 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     DateTime tempFrom = _filterFrom;
     DateTime tempTo = _filterTo;
 
-    Widget dateButton(String label, DateTime value, VoidCallback onTap) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: _blueLt,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _blue.withValues(alpha:0.3)),
-          ),
-          child: Row(children: [
-            Icon(Icons.calendar_today_rounded, size: 15, color: _blue),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(_fmtFilterDate(value),
-                  style: TextStyle(fontSize: 13, color: _blue, fontWeight: FontWeight.w700)),
+    Widget dateField({
+      required String label,
+      required IconData labelIcon,
+      required DateTime value,
+      required VoidCallback onTap,
+    }) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(labelIcon, size: 13, color: _periodBlue),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: const TextStyle(
+                  fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
             ),
-            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _blue),
           ]),
-        ),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              height: 48,
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: _periodBlue.withValues(alpha:0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _periodBlue.withValues(alpha:0.35)),
+              ),
+              child: Row(children: [
+                Icon(Icons.event_rounded, size: 17, color: _periodBlue),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    DateFormat('EEE, d MMM yyyy').format(value),
+                    style: GoogleFonts.poppins(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0C3A8C)),
+                  ),
+                ),
+                Icon(Icons.keyboard_arrow_right_rounded, size: 18, color: _periodBlue),
+              ]),
+            ),
+          ),
+        ],
       );
     }
 
@@ -279,56 +316,81 @@ class _AuditNotifTabState extends State<AuditNotifTab>
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _blue.withValues(alpha:0.2), width: 1.5),
+              border: Border.all(color: _periodBlue.withValues(alpha:0.2), width: 1.5),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Icon(Icons.date_range_rounded, color: _blue, size: 20),
-                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                        color: _periodBlue.withValues(alpha:0.1), borderRadius: BorderRadius.circular(10)),
+                    child: Icon(Icons.date_range_rounded, color: _periodBlue, size: 18),
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       _t('Pilih Periode', 'Select Period', '选择期间'),
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: _blue),
+                      style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold, fontSize: 15, color: const Color(0xFF0C3A8C)),
                     ),
                   ),
-                  IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx), padding: EdgeInsets.zero),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
+                      child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF64748B)),
+                    ),
+                  ),
                 ]),
+                const SizedBox(height: 18),
+
+                // Kolom "Dari" — klik untuk buka kalender penuh
+                dateField(
+                  label: _t('Dari', 'From', '从'),
+                  labelIcon: Icons.play_circle_outline_rounded,
+                  value: tempFrom,
+                  onTap: () async {
+                    final picked = await showAdminTargetDatePicker(
+                      context: ctx,
+                      lang: widget.lang,
+                      initialDate: tempFrom,
+                    );
+                    if (picked != null) {
+                      setSt(() {
+                        tempFrom = picked;
+                        if (tempTo.isBefore(tempFrom)) tempTo = tempFrom;
+                      });
+                    }
+                  },
+                ),
                 const SizedBox(height: 16),
-                Text(_t('Dari', 'From', '从'), style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                dateButton(_t('Dari', 'From', '从'), tempFrom, () async {
-                  final picked = await showDatePicker(
-                    context: ctx,
-                    initialDate: tempFrom,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(DateTime.now().year + 2),
-                    builder: (c, child) => Theme(
-                      data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _blue)),
-                      child: child!,
-                    ),
-                  );
-                  if (picked != null) setSt(() => tempFrom = picked);
-                }),
-                const SizedBox(height: 14),
-                Text(_t('Sampai', 'To', '到'), style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                dateButton(_t('Sampai', 'To', '到'), tempTo, () async {
-                  final picked = await showDatePicker(
-                    context: ctx,
-                    initialDate: tempTo,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(DateTime.now().year + 2),
-                    builder: (c, child) => Theme(
-                      data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _blue)),
-                      child: child!,
-                    ),
-                  );
-                  if (picked != null) setSt(() => tempTo = picked);
-                }),
+
+                // Kolom "Sampai" — klik untuk buka kalender penuh
+                dateField(
+                  label: _t('Sampai', 'To', '到'),
+                  labelIcon: Icons.flag_circle_rounded,
+                  value: tempTo,
+                  onTap: () async {
+                    final picked = await showAdminTargetDatePicker(
+                      context: ctx,
+                      lang: widget.lang,
+                      initialDate: tempTo,
+                    );
+                    if (picked != null) {
+                      setSt(() {
+                        tempTo = picked;
+                        if (tempFrom.isAfter(tempTo)) tempFrom = tempTo;
+                      });
+                    }
+                  },
+                ),
                 const SizedBox(height: 20),
+
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -341,11 +403,13 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                       _fetch();
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _blue,
+                      backgroundColor: _periodBlue,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: Text(_t('Terapkan', 'Apply', '应用')),
+                    child: Text(_t('Terapkan', 'Apply', '应用'),
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -360,6 +424,13 @@ class _AuditNotifTabState extends State<AuditNotifTab>
   Widget build(BuildContext context) {
     super.build(context);
     final periodLabel = '${_fmtFilterDate(_filterFrom)} – ${_fmtFilterDate(_filterTo)}';
+
+    // NEW: hitung pagination — 7 card per halaman
+    final totalPages = _filtered.isEmpty ? 1 : (_filtered.length / _perPage).ceil();
+    final safePage = _currentPage.clamp(1, totalPages);
+    final startIdx = (safePage - 1) * _perPage;
+    final endIdx = (startIdx + _perPage) > _filtered.length ? _filtered.length : startIdx + _perPage;
+    final pagedItems = _filtered.isEmpty ? <Map<String, dynamic>>[] : _filtered.sublist(startIdx, endIdx);
 
     return Column(
       children: [
@@ -395,7 +466,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                   ),
                   if (_searchQuery.isNotEmpty)
                     GestureDetector(
-                      onTap: () { _searchCtrl.clear(); _applyFilter(''); },
+                      onTap: _resetSearch,
                       child: const Icon(Icons.close, size: 16, color: Colors.grey),
                     ),
                 ]),
@@ -408,7 +479,7 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                 height: 40,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: _blue,
+                  color: _periodBlue,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -439,44 +510,139 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                   ),
                 )
               : _filtered.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 80, height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _blue.withValues(alpha:0.08),
+                  ? (_searchQuery.trim().isNotEmpty
+                      ? _buildSearchEmptyState()
+                      : _buildEmptyState())
+                  : Column(
+                      children: [
+                        Expanded(
+                          child: RefreshIndicator(
+                            onRefresh: _fetch,
+                            color: _blue,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                              itemCount: pagedItems.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 10),
+                              itemBuilder: (_, i) => _buildCard(pagedItems[i]),
                             ),
-                            child: Icon(Icons.fact_check_outlined, size: 36, color: _blue.withValues(alpha:0.4)),
                           ),
-                          const SizedBox(height: 16),
-                          Text(widget.t('empty_audit'),
-                              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF1E3A8A))),
-                          const SizedBox(height: 6),
+                        ),
+                        // NEW: bottom page indicator — 7 card per halaman
+                        if (totalPages > 1)
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 40),
-                            child: Text(widget.t('empty_audit_sub'),
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500)),
-                          ),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _fetch,
-                      color: _blue,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                        itemCount: _filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => _buildCard(_filtered[i]),
-                      ),
+                            padding: EdgeInsets.fromLTRB(
+                              16, 4, 16, MediaQuery.of(context).viewPadding.bottom + 12,
+                            ),
+                            child: _AuditPageIndicator(
+                              currentPage: safePage,
+                              totalPages: totalPages,
+                              onPageChanged: (p) => setState(() => _currentPage = p),
+                              color: _blue,
+                            ),
+                          )
+                        else
+                          const SizedBox(height: 12),
+                      ],
                     ),
         ),
       ],
+    );
+  }
+
+  // NEW: empty state umum — tidak ada data audit sama sekali di periode ini
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80, height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _blue.withValues(alpha:0.08),
+            ),
+            child: Icon(Icons.fact_check_outlined, size: 36, color: _blue.withValues(alpha:0.4)),
+          ),
+          const SizedBox(height: 16),
+          Text(widget.t('empty_audit'),
+              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1E3A8A))),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Text(widget.t('empty_audit_sub'),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // NEW: empty state khusus saat pencarian tidak menemukan hasil
+  Widget _buildSearchEmptyState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/team_illustration.png',
+              height: 140,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => Container(
+                width: 100, height: 100,
+                decoration: BoxDecoration(
+                  color: _blue.withValues(alpha:0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.search_off_rounded, size: 46, color: _blue.withValues(alpha:0.4)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _t('Audit Tidak Ditemukan', 'No matching audit', '未找到匹配的审计'),
+              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: _blue),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _t(
+                'Coba ubah kata kunci pencarian untuk menemukan yang Anda cari.',
+                "Try adjusting your search keyword to find what you're looking for.",
+                '尝试调整搜索关键词以查找您需要的内容。',
+              ),
+              style: GoogleFonts.poppins(
+                  fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.grey.shade500, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 18),
+            GestureDetector(
+              onTap: _resetSearch,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(
+                  color: _blue.withValues(alpha:0.1),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: _blue.withValues(alpha:0.35)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.refresh_rounded, size: 15, color: _blue),
+                    const SizedBox(width: 6),
+                    Text(
+                      _t('Hapus pencarian', 'Clear search', '清除搜索'),
+                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w700, color: _blue),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -2337,6 +2503,131 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// NEW: indikator halaman bawah — 7 card per halaman
+// ══════════════════════════════════════════════════════════════
+class _AuditPageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+  final ValueChanged<int> onPageChanged;
+  final Color color;
+
+  const _AuditPageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+    required this.onPageChanged,
+    required this.color,
+  });
+
+  static const int _maxVisibleButtons = 5;
+
+  List<int> _visiblePageNumbers() {
+    if (totalPages <= _maxVisibleButtons) {
+      return List.generate(totalPages, (i) => i + 1);
+    }
+    int start = currentPage - 2;
+    int end = currentPage + 2;
+    if (start < 1) {
+      start = 1;
+      end = _maxVisibleButtons;
+    } else if (end > totalPages) {
+      end = totalPages;
+      start = totalPages - (_maxVisibleButtons - 1);
+    }
+    return List.generate(end - start + 1, (i) => start + i);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canPrev = currentPage > 1;
+    final bool canNext = currentPage < totalPages;
+    final pageNumbers = _visiblePageNumbers();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+        boxShadow: [
+          BoxShadow(color: color.withValues(alpha: 0.14), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          _arrowButton(
+            icon: Icons.arrow_back_ios_new_rounded,
+            enabled: canPrev,
+            onTap: () {
+              if (!canPrev) return;
+              onPageChanged(currentPage - 1);
+            },
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Row(
+              children: [
+                for (final p in pageNumbers) ...[
+                  Expanded(child: _pageButton(p)),
+                  if (p != pageNumbers.last) const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _arrowButton(
+            icon: Icons.arrow_forward_ios_rounded,
+            enabled: canNext,
+            onTap: () {
+              if (!canNext) return;
+              onPageChanged(currentPage + 1);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pageButton(int page) {
+    final bool isActive = page == currentPage;
+    return GestureDetector(
+      onTap: () {
+        if (page == currentPage) return;
+        onPageChanged(page);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isActive ? color : color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: isActive ? null : Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Text(
+          '$page',
+          style: GoogleFonts.poppins(
+              color: isActive ? Colors.white : color, fontWeight: FontWeight.w800, fontSize: 13),
+        ),
+      ),
+    );
+  }
+
+  Widget _arrowButton({required IconData icon, required bool enabled, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: enabled ? color.withValues(alpha: 0.16) : Colors.grey.withValues(alpha: 0.08),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 15, color: enabled ? color : Colors.grey.shade400),
+      ),
     );
   }
 }
