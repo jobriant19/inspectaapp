@@ -4,6 +4,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../core/utils/jabatan_helper.dart';
+import '../../leaderboard/user_profile_modal.dart';
 import 'specific_location_indicator.dart';
 
 class _C {
@@ -201,6 +202,9 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   int _membersPage = 1;
   static const int _membersPerPage = 8;
 
+  static String? _cachedAppLogoUrl;
+  static bool _appLogoFetched = false;
+
   String t(String key) => _DetailTexts.get(widget.lang, key);
 
   Color get _levelColor => _levelColors[widget.level];
@@ -209,6 +213,7 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _prefetchAppLogo();
     _data = widget.data;
     final tName = _levelKeys[widget.level];
     final idValue = _data['id_$tName'].toString();
@@ -228,9 +233,26 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     }
   }
 
+  Future<void> _prefetchAppLogo() async {
+    if (_appLogoFetched) return; 
+    try {
+      final res = await Supabase.instance.client
+          .from('app_info')
+          .select('logo_url')
+          .order('id')
+          .limit(1)
+          .maybeSingle();
+      _cachedAppLogoUrl = res?['logo_url'] as String?;
+      _appLogoFetched = true;
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Prefetch app logo error: $e');
+    }
+  }
+
   Future<List<dynamic>> _fetchMembersData(String idValue) async {
     final s = Supabase.instance.client;
-    const q = 'nama, gambar_user, id_jabatan, is_verificator, jabatan(nama_jabatan)';
+    const q = 'id_user, nama, gambar_user, id_jabatan, is_verificator, jabatan(nama_jabatan)';
     if (widget.level == 0) {
       return await s.from('User').select(q).eq('id_lokasi', idValue);
     } else if (widget.level == 1) {
@@ -1176,6 +1198,7 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                       itemCount: pageItems.length,
                       itemBuilder: (ctx, i) {
                         final user = pageItems[i];
+                        final userId = user['id_user']?.toString();
                         final name = user['nama']?.toString() ?? '';
                         final imgUrl = user['gambar_user'] as String?;
                         final idJabatan = user['id_jabatan'] as int?;
@@ -1183,69 +1206,87 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                         final jabatanRaw = user['jabatan'];
                         final jabatanNama = jabatanRaw is Map ? jabatanRaw['nama_jabatan']?.toString() : null;
 
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _levelColor.withValues(alpha: 0.5), width: 1.5),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.04),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              if (imgUrl != null && imgUrl.isNotEmpty)
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: _levelColor.withValues(alpha: 0.15),
-                                  backgroundImage: NetworkImage(imgUrl),
-                                  onBackgroundImageError: (_, __) {},
-                                )
-                              else
-                                CircleAvatar(
-                                  radius: 20,
-                                  backgroundColor: _levelColor,
-                                  child: Text(
-                                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: Colors.white,
+                        return GestureDetector(
+                          onTap: userId == null
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => UserProfileModal(
+                                        userId: userId,
+                                        userName: name,
+                                        userAvatarUrl: (imgUrl != null && imgUrl.isNotEmpty) ? imgUrl : null,
+                                        userRank: 0,
+                                        lang: widget.lang,
+                                      ),
+                                    ),
+                                  );
+                                },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _levelColor.withValues(alpha: 0.5), width: 1.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                if (imgUrl != null && imgUrl.isNotEmpty)
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: _levelColor.withValues(alpha: 0.15),
+                                    backgroundImage: NetworkImage(imgUrl),
+                                    onBackgroundImageError: (_, __) {},
+                                  )
+                                else
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: _levelColor,
+                                    child: Text(
+                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: _levelColor,
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: _levelColor,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    _buildMemberJabatanBadge(
-                                      idJabatan: idJabatan,
-                                      jabatanNama: jabatanNama,
-                                      isVerificator: isVerificator,
-                                      lang: widget.lang,
-                                    ),
-                                  ],
+                                      const SizedBox(height: 4),
+                                      _buildMemberJabatanBadge(
+                                        idJabatan: idJabatan,
+                                        jabatanNama: jabatanNama,
+                                        isVerificator: isVerificator,
+                                        lang: widget.lang,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         );
                       },
@@ -1354,11 +1395,22 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            Image.asset(
-              'assets/images/logo1.PNG',
-              height: 36,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-            ),
+            (_cachedAppLogoUrl != null && _cachedAppLogoUrl!.isNotEmpty)
+                ? Image.network(
+                    _cachedAppLogoUrl!,
+                    height: 36,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Image.asset(
+                      'assets/images/logo1.PNG',
+                      height: 36,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  )
+                : Image.asset(
+                    'assets/images/logo1.PNG',
+                    height: 36,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(7),
