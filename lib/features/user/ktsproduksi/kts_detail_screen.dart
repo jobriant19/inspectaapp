@@ -150,12 +150,29 @@ class _KtsDetailScreenState extends State<KtsDetailScreen> {
     super.initState();
     _currentUserId = Supabase.instance.client.auth.currentUser?.id;
     if (widget.initialData != null) {
-      _data = widget.initialData;
+      _data = _normalizeInitialData(widget.initialData!);
       _isLoading = false;
       _loadDataSilently();
     } else {
       _loadData();
     }
+  }
+
+  Map<String, dynamic> _normalizeInitialData(Map<String, dynamic> raw) {
+    final normalized = Map<String, dynamic>.from(raw);
+
+    normalized['pelapor'] ??= raw['User_Creator'];
+    normalized['penanggung_jawab'] ??= raw['User_PIC'];
+
+    final penyelesaian = raw['penyelesaian'];
+    if (penyelesaian is Map<String, dynamic>) {
+      final normalizedPenyelesaian = Map<String, dynamic>.from(penyelesaian);
+      normalizedPenyelesaian['solver'] ??= penyelesaian['User_Solver'];
+      normalizedPenyelesaian['faktor_penyebab_kts'] ??= penyelesaian['faktor_penyebab'];
+      normalized['penyelesaian'] = normalizedPenyelesaian;
+    }
+
+    return normalized;
   }
 
   Future<void> _loadDataSilently() async {

@@ -668,6 +668,19 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     }
   }
 
+  int _typePriorityRank(Map<String, dynamic> item) {
+    final isVisitor = item['is_visitor'] == true;
+    final isEksekutif = item['is_eksekutif'] == true;
+    final isPro = item['is_pro'] == true;
+    final isKts = item['jenis_temuan'] == 'KTS Production';
+
+    if (isVisitor) return 0;
+    if (isEksekutif) return 1;
+    if (isPro) return 2;
+    if (isKts) return 3;
+    return 4;
+  }
+
   Future<_FindingsPage> _fetchFindings(int page) async {
     try {
       final bool isKtsMode = _appliedJenisTemuan == 'kts';
@@ -678,15 +691,17 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
           : 'penyelesaian!temuan_id_penyelesaian_fkey';
 
       var query = Supabase.instance.client.from('temuan').select('''
-        id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan,
+        id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, created_at, status_temuan,
         poin_temuan, target_waktu_selesai, jenis_temuan,
-        id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab,
+        id_lokasi, id_unit, id_subunit, id_area, id_penanggung_jawab, id_penyelesaian,
         lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area),
         kategoritemuan(nama_kategoritemuan),
         is_pro, is_visitor, is_eksekutif,
         no_order, jumlah_item, nama_item_manual,
         item_produksi:id_item(id_item, nama_item, gambar_item),
         subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan),
+        User_PIC:User!temuan_id_penanggung_jawab_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)),
+        User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)),
         $penyelesaianRelation(
           *,
           User_Solver:User!id_user(nama, gambar_user),
@@ -797,7 +812,10 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
             if (isKtsMode) {
               return query.order('jumlah_item', ascending: false, nullsFirst: false);
             }
-            return query.order('target_waktu_selesai', ascending: true, nullsFirst: false);
+            final deadlineQuery = query
+                .not('target_waktu_selesai', 'is', null)
+                .gte('target_waktu_selesai', DateTime.now().toIso8601String());
+            return deadlineQuery.order('target_waktu_selesai', ascending: true, nullsFirst: false);
           case 'terbaru':
           default:
             return query.order('created_at', ascending: false);
@@ -807,6 +825,18 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       final response = await orderedQuery.range(from, to).count(CountOption.exact);
 
       final items = List<Map<String, dynamic>>.from(response.data);
+
+      if (_appliedSortOrder == 'terbaru') {
+        items.sort((a, b) {
+          final aPriority = _typePriorityRank(a);
+          final bPriority = _typePriorityRank(b);
+          if (aPriority != bPriority) return aPriority.compareTo(bPriority);
+          final da = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
+          final db = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
+          return db.compareTo(da);
+        });
+      }
+
       return _FindingsPage(items: items, totalCount: response.count);
     } catch (error) {
       debugPrint("Terjadi kesalahan saat fetch findings: $error");
@@ -881,17 +911,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       ),
     );
   }
-
-  String _poinLabel() {
-    switch (widget.lang) {
-      case 'EN':
-        return 'Pts';
-      case 'ZH':
-        return '积分';
-      default:
-        return 'Poin';
-    }
-  }
   
   String _formatDate(dynamic value) {
     if (value == null) return '-';
@@ -943,13 +962,13 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     if (isEksekutif) inspectionTypes.add('eksekutif');
 
     if (inspectionTypes.contains('pro')) {
-      badges.add(_buildInspectionBadge('PROFESIONAL', const Color.fromARGB(255, 255, 244, 45), Colors.black));
+      badges.add(_buildInspectionBadge(_inspectionLabel('pro'), const Color.fromARGB(255, 255, 244, 45), Colors.black));
     }
     if (inspectionTypes.contains('visitor')) {
-      badges.add(_buildInspectionBadge('VISITOR', const Color(0xFF3B82F6), Colors.white));
+      badges.add(_buildInspectionBadge(_inspectionLabel('visitor'), const Color(0xFF3B82F6), Colors.white));
     }
     if (inspectionTypes.contains('eksekutif')) {
-      badges.add(_buildInspectionBadge('EKSEKUTIF', const Color(0xFFEF4444), Colors.white));
+      badges.add(_buildInspectionBadge(_inspectionLabel('eksekutif'), const Color(0xFFEF4444), Colors.white));
     }
 
     inspectionTypes.sort();
@@ -1234,15 +1253,6 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
                                         fontSize: 12,
                                       ),
                                     ),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      _poinLabel(),
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 9.5,
-                                      ),
-                                    ),
                                   ],
                                 ),
                               ),
@@ -1321,6 +1331,15 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
     );
   }
 
+  String _inspectionLabel(String key) {
+    const labels = {
+      'pro': {'ID': 'PROFESIONAL', 'EN': 'PROFESSIONAL', 'ZH': '专业'},
+      'visitor': {'ID': 'PENGUNJUNG', 'EN': 'VISITOR', 'ZH': '访客'},
+      'eksekutif': {'ID': 'EKSEKUTIF', 'EN': 'EXECUTIVE', 'ZH': '行政'},
+    };
+    return labels[key]?[widget.lang] ?? labels[key]!['ID']!;
+  }
+
   Widget _buildInspectionBadge(String text, Color bgColor, Color textColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
@@ -1330,11 +1349,11 @@ class _ExploreScreenState extends State<ExploreScreen> with SingleTickerProvider
       ),
       child: Text(
         text,
-        style: TextStyle(
+        style: GoogleFonts.poppins(
           color: textColor,
           fontSize: 9,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
         ),
       ),
     );

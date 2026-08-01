@@ -10,14 +10,20 @@ import 'card/kts_finding_card.dart';
 final _sb = Supabase.instance.client;
 
 const _kTemuanSelect =
-    'id_temuan, judul_temuan, gambar_temuan, created_at, status_temuan, '
+    'id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, created_at, status_temuan, '
     'poin_temuan, target_waktu_selesai, id_lokasi, id_unit, id_subunit, '
-    'id_area, id_penanggung_jawab, jenis_temuan, no_order, jumlah_item, '
+    'id_area, id_penanggung_jawab, id_penyelesaian, jenis_temuan, no_order, jumlah_item, '
     'nama_item_manual, lokasi(nama_lokasi), unit(nama_unit), '
-    'subunit(nama_subunit), area(nama_area), is_pro, is_visitor, '
+    'subunit(nama_subunit), area(nama_area), kategoritemuan(nama_kategoritemuan), is_pro, is_visitor, '
     'is_eksekutif, item_produksi:id_item(id_item, nama_item, gambar_item), '
     'subkategoritemuan:id_subkategoritemuan_uuid('
-    'id_subkategoritemuan, nama_subkategoritemuan)';
+    'id_subkategoritemuan, nama_subkategoritemuan), '
+    'User_PIC:User!temuan_id_penanggung_jawab_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)), '
+    'User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)), '
+    'penyelesaian!temuan_id_penyelesaian_fkey(*, '
+    'User_Solver:User!id_user(nama, gambar_user), '
+    'section:id_section(nama_section_id, nama_section_en, nama_section_zh), '
+    'faktor_penyebab:id_subkategoritemuan_penyebab(id_subkategoritemuan, nama_subkategoritemuan))';
 
 class HomeLatestActivity extends StatefulWidget {
   final String lang;
@@ -196,6 +202,24 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
     return result;
   }
 
+  bool _isFinishedStatus(Map<String, dynamic> item) {
+    final s = (item['status_temuan'] ?? '').toString().toLowerCase();
+    return ['selesai', 'done', 'completed', 'closed'].any((e) => s.contains(e));
+  }
+
+  int _typePriorityRank(Map<String, dynamic> item) {
+    final isVisitor = item['is_visitor'] == true;
+    final isEksekutif = item['is_eksekutif'] == true;
+    final isPro = item['is_pro'] == true;
+    final isKts = item['jenis_temuan'] == 'KTS Production';
+
+    if (isVisitor) return 0;
+    if (isEksekutif) return 1;
+    if (isPro) return 2;
+    if (isKts) return 3;
+    return 4;
+  }
+
   List<Map<String, dynamic>> _mergeAndSort(List<List<Map<String, dynamic>>> lists) {
     final seen = <String>{};
     final combined = <Map<String, dynamic>>[];
@@ -206,6 +230,17 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
       }
     }
     combined.sort((a, b) {
+      // 1. UNFINISHED
+      final aFinished = _isFinishedStatus(a);
+      final bFinished = _isFinishedStatus(b);
+      if (aFinished != bFinished) return aFinished ? 1 : -1;
+
+      // 2. VISITOR > EXECUTIVE > PROFESSIONAL > KTS > 5R 
+      final aPriority = _typePriorityRank(a);
+      final bPriority = _typePriorityRank(b);
+      if (aPriority != bPriority) return aPriority.compareTo(bPriority);
+
+      // 3. NEWEST
       final da = DateTime.tryParse(a['created_at']?.toString() ?? '') ?? DateTime(2000);
       final db = DateTime.tryParse(b['created_at']?.toString() ?? '') ?? DateTime(2000);
       return db.compareTo(da);

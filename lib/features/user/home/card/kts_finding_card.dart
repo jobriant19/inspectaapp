@@ -95,8 +95,6 @@ class KtsFindingCard extends StatelessWidget {
           const Icon(Icons.local_fire_department_rounded, size: 13, color: Colors.white),
           const SizedBox(width: 3),
           Text('$poin', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
-          const SizedBox(width: 2),
-          Text(_t('poin_label'), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 9.5)),
         ],
       ),
     );

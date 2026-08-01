@@ -45,6 +45,7 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
     super.initState();
     if (widget.initialData != null) {
       _items = widget.initialData!;
+      _fetchFindingsSilently();
     } else {
       _fetchFindings();
     }
@@ -64,12 +65,21 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
       final data = await Supabase.instance.client
           .from('temuan')
           .select(
-            'id_temuan, judul_temuan, gambar_temuan, created_at, '
+            'id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, created_at, '
             'status_temuan, poin_temuan, target_waktu_selesai, '
             'jenis_temuan, id_lokasi, id_unit, id_subunit, id_area, '
-            'id_penanggung_jawab, is_pro, is_visitor, is_eksekutif, '
+            'id_penanggung_jawab, id_penyelesaian, is_pro, is_visitor, is_eksekutif, '
+            'no_order, jumlah_item, nama_item_manual, '
             'lokasi(nama_lokasi), unit(nama_unit), '
-            'subunit(nama_subunit), area(nama_area)',
+            'subunit(nama_subunit), area(nama_area), kategoritemuan(nama_kategoritemuan), '
+            'item_produksi:id_item(id_item, nama_item, gambar_item, kode_item), '
+            'subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan), '
+            'User_PIC:User!temuan_id_penanggung_jawab_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)), '
+            'User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)), '
+            'penyelesaian!temuan_id_penyelesaian_fkey(*, '
+            'User_Solver:User!id_user(nama, gambar_user), '
+            'section:id_section(nama_section_id, nama_section_en, nama_section_zh), '
+            'faktor_penyebab:id_subkategoritemuan_penyebab(id_subkategoritemuan, nama_subkategoritemuan))',
           )
           .eq('id_penanggung_jawab', userId)
           .order('created_at', ascending: false);
@@ -82,6 +92,41 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
     } catch (e) {
       debugPrint('Error fetching findings: $e');
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchFindingsSilently() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      final data = await Supabase.instance.client
+          .from('temuan')
+          .select(
+            'id_temuan, judul_temuan, deskripsi_temuan, gambar_temuan, created_at, '
+            'status_temuan, poin_temuan, target_waktu_selesai, '
+            'jenis_temuan, id_lokasi, id_unit, id_subunit, id_area, '
+            'id_penanggung_jawab, id_penyelesaian, is_pro, is_visitor, is_eksekutif, '
+            'no_order, jumlah_item, nama_item_manual, '
+            'lokasi(nama_lokasi), unit(nama_unit), '
+            'subunit(nama_subunit), area(nama_area), kategoritemuan(nama_kategoritemuan), '
+            'item_produksi:id_item(id_item, nama_item, gambar_item, kode_item), '
+            'subkategoritemuan:id_subkategoritemuan_uuid(id_subkategoritemuan, nama_subkategoritemuan), '
+            'User_PIC:User!temuan_id_penanggung_jawab_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)), '
+            'User_Creator:User!temuan_id_user_fkey(nama, gambar_user, id_jabatan, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)), '
+            'penyelesaian!temuan_id_penyelesaian_fkey(*, '
+            'User_Solver:User!id_user(nama, gambar_user), '
+            'section:id_section(nama_section_id, nama_section_en, nama_section_zh), '
+            'faktor_penyebab:id_subkategoritemuan_penyebab(id_subkategoritemuan, nama_subkategoritemuan))',
+          )
+          .eq('id_penanggung_jawab', userId)
+          .order('created_at', ascending: false);
+      if (mounted) {
+        setState(() {
+          _items = List<Map<String, dynamic>>.from(data);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error refreshing findings silently: $e');
     }
   }
 
@@ -101,6 +146,19 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
   DateTime? _deadlineOf(Map<String, dynamic> e) =>
       DateTime.tryParse((e['target_waktu_selesai'] ?? '').toString());
 
+
+  int _typePriorityRank(Map<String, dynamic> item) {
+    final isVisitor = item['is_visitor'] == true;
+    final isEksekutif = item['is_eksekutif'] == true;
+    final isPro = item['is_pro'] == true;
+    final isKts = (item['jenis_temuan'] ?? '').toString().toLowerCase().contains('kts');
+
+    if (isVisitor) return 0;
+    if (isEksekutif) return 1;
+    if (isPro) return 2;
+    if (isKts) return 3;
+    return 4;
+  }
 
   void _clearSearchAndFilter() {
     _searchCtrl.clear();
@@ -147,6 +205,10 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
       case 'terbaru':
       default:
         result.sort((a, b) {
+          final aPriority = _typePriorityRank(a);
+          final bPriority = _typePriorityRank(b);
+          if (aPriority != bPriority) return aPriority.compareTo(bPriority);
+
           final da = DateTime.tryParse((a['created_at'] ?? '').toString()) ?? DateTime(2000);
           final db = DateTime.tryParse((b['created_at'] ?? '').toString()) ?? DateTime(2000);
           return db.compareTo(da);

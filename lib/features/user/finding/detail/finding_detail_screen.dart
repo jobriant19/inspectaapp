@@ -240,8 +240,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                     children: [
                       _buildTitleSection(data),
                       const SizedBox(height: 16),
-                      _buildInspectionBadges(data),
-                      const SizedBox(height: 16),
                       _buildPICSection(data),
                       const SizedBox(height: 16),
                       _buildDeadlineSection(data),
@@ -321,10 +319,67 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
+  String _inspectionLabel(String key) {
+    const labels = {
+      'pro': {'ID': 'PROFESIONAL', 'EN': 'PROFESSIONAL', 'ZH': '专业'},
+      'visitor': {'ID': 'VISITOR', 'EN': 'VISITOR', 'ZH': '访客'},
+      'eksekutif': {'ID': 'EKSEKUTIF', 'EN': 'EXECUTIVE', 'ZH': '行政'},
+    };
+    return labels[key]?[widget.lang] ?? labels[key]!['ID']!;
+  }
+
+  Widget _buildInspectionBadgeChip(String text, Color bgColor, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(7),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          color: textColor,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildInspectionBadgesCorner(Map<String, dynamic> data) {
+    final isPro = data['is_pro'] == true;
+    final isVisitor = data['is_visitor'] == true;
+    final isEksekutif = data['is_eksekutif'] == true;
+
+    final List<Widget> badges = [];
+    if (isVisitor) {
+      badges.add(_buildInspectionBadgeChip(
+          _inspectionLabel('visitor'), const Color(0xFF3B82F6), Colors.white));
+    }
+    if (isEksekutif) {
+      badges.add(_buildInspectionBadgeChip(
+          _inspectionLabel('eksekutif'), const Color(0xFFEF4444), Colors.white));
+    }
+    if (isPro) {
+      badges.add(_buildInspectionBadgeChip(_inspectionLabel('pro'),
+          const Color.fromARGB(255, 255, 244, 45), Colors.black));
+    }
+    return badges;
+  }
+
   SliverToBoxAdapter _buildImageHeader(Map<String, dynamic> data) {
     final imageUrl = data['gambar_temuan'] as String?;
     final idTemuan = data['id_temuan'];
     final bool hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    final inspectionBadges = _buildInspectionBadgesCorner(data);
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -359,6 +414,20 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                                   size: 50,
                                 ),
                               ),
+                        if (inspectionBadges.isNotEmpty)
+                          Positioned(
+                            right: 10,
+                            top: 10,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                for (int i = 0; i < inspectionBadges.length; i++) ...[
+                                  if (i > 0) const SizedBox(height: 6),
+                                  inspectionBadges[i],
+                                ],
+                              ],
+                            ),
+                          ),
                         if (hasImage)
                           Positioned(
                             right: 10,
@@ -476,12 +545,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
                               fontSize: 12)),
-                      const SizedBox(width: 2),
-                      Text(_poinLabelDetail(),
-                          style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 9.5)),
                     ],
                   ),
                 ),
@@ -591,17 +654,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     );
   }
 
-  String _poinLabelDetail() {
-    switch (widget.lang) {
-      case 'EN':
-        return 'Pts';
-      case 'ZH':
-        return '积分';
-      default:
-        return 'Poin';
-    }
-  }
-
   Map<String, dynamic> _locationBadgeInfoDetail(Map<String, dynamic> item) {
     if (item['area'] != null && item['area']['nama_area'] != null) {
       return {
@@ -663,42 +715,6 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildInspectionBadges(Map<String, dynamic> data) {
-    final isPro = data['is_pro'] == true;
-    final isVisitor = data['is_visitor'] == true;
-    final isEksekutif = data['is_eksekutif'] == true;
-
-    if (!isPro && !isVisitor && !isEksekutif) return const SizedBox.shrink();
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        if (isPro) _buildBadge(_texts['professional']!, Colors.amber.shade700),
-        if (isVisitor) _buildBadge(_texts['visitor']!, Colors.blue.shade700),
-        if (isEksekutif) _buildBadge(_texts['executive']!, Colors.red.shade700),
-      ],
-    );
-  }
-
-  Widget _buildBadge(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha:0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
-          fontSize: 12,
-        ),
       ),
     );
   }

@@ -79,23 +79,29 @@ class FindingCard extends StatelessWidget {
     return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
   }
 
+  String _inspectionLabel(String key) {
+    const labels = {
+      'pro': {'ID': 'PROFESIONAL', 'EN': 'PROFESSIONAL', 'ZH': '专业'},
+      'visitor': {'ID': 'PENGUNJUNG', 'EN': 'VISITOR', 'ZH': '访客'},
+      'eksekutif': {'ID': 'EKSEKUTIF', 'EN': 'EXECUTIVE', 'ZH': '行政'},
+    };
+    return labels[key]?[lang] ?? labels[key]!['ID']!;
+  }
+
   Widget _buildInspectionBadge(String text, Color bgColor, Color textColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
       decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(6)),
-      child: Text(text, style: TextStyle(color: textColor, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          color: textColor,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
+        ),
+      ),
     );
-  }
-
-  String _poinLabel() {
-    switch (lang) {
-      case 'EN':
-        return 'Pts';
-      case 'ZH':
-        return '积分';
-      default:
-        return 'Poin';
-    }
   }
 
   Widget _buildPoinBadge(int poin) {
@@ -118,8 +124,6 @@ class FindingCard extends StatelessWidget {
           const Icon(Icons.local_fire_department_rounded, size: 14, color: Colors.white),
           const SizedBox(width: 4),
           Text('$poin', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
-          const SizedBox(width: 3),
-          Text(_poinLabel(), style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 10)),
         ],
       ),
     );
@@ -159,9 +163,9 @@ class FindingCard extends StatelessWidget {
     if (isPro) inspectionTypes.add('pro');
     if (isVisitor) inspectionTypes.add('visitor');
     if (isEksekutif) inspectionTypes.add('eksekutif');
-    if (inspectionTypes.contains('pro')) badges.add(_buildInspectionBadge('PROFESIONAL', const Color.fromARGB(255, 255, 244, 45), Colors.black));
-    if (inspectionTypes.contains('visitor')) badges.add(_buildInspectionBadge('VISITOR', const Color(0xFF3B82F6), Colors.white));
-    if (inspectionTypes.contains('eksekutif')) badges.add(_buildInspectionBadge('EKSEKUTIF', const Color(0xFFEF4444), Colors.white));
+    if (inspectionTypes.contains('pro')) badges.add(_buildInspectionBadge(_inspectionLabel('pro'), const Color.fromARGB(255, 255, 244, 45), Colors.black));
+    if (inspectionTypes.contains('visitor')) badges.add(_buildInspectionBadge(_inspectionLabel('visitor'), const Color(0xFF3B82F6), Colors.white));
+    if (inspectionTypes.contains('eksekutif')) badges.add(_buildInspectionBadge(_inspectionLabel('eksekutif'), const Color(0xFFEF4444), Colors.white));
 
     inspectionTypes.sort();
     String combinationKey = inspectionTypes.join('+');
