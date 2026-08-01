@@ -203,20 +203,15 @@ class LeaderboardTableScreen extends StatelessWidget {
 
     return InkWell(
       onTap: item.idUser == null ? null : () {
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (context) => DraggableScrollableSheet(
-            initialChildSize: 0.65,
-            minChildSize: 0.4,
-            maxChildSize: 0.9,
-            builder: (_, controller) => UserProfileModal(
-              controller: controller,
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => UserProfileModal(
               userId: item.idUser!,
               userName: item.name,
               userAvatarUrl: item.avatarUrl,
               userRank: item.rank,
+              lang: lang,
             ),
           ),
         );

@@ -264,7 +264,7 @@ class RankingTableScreen {
   }) {
     final isTop3 = m.isTop3;
     return InkWell(
-      onTap: () => _showUserProfileModal(context, m),
+      onTap: () => _showUserProfileModal(context, m, lang),
       child: Container(
         decoration: BoxDecoration(
           color: m.isSelf
@@ -379,27 +379,22 @@ class RankingTableScreen {
     );
   }
 
-  static void _showUserProfileModal(BuildContext context, RankMember member) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.65,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          builder: (_, controller) {
-            return UserProfileModal(
-              controller: controller,
-              userId: member.id,
-              userName: member.name,
-              userAvatarUrl: member.avatarUrl,
-              userRank: member.rank,
-            );
-          },
-        );
-      },
+  static void _showUserProfileModal(
+    BuildContext context,
+    RankMember member,
+    String lang,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserProfileModal(
+          userId: member.id,
+          userName: member.name,
+          userAvatarUrl: member.avatarUrl,
+          userRank: member.rank,
+          lang: lang,
+        ),
+      ),
     );
   }
 }
