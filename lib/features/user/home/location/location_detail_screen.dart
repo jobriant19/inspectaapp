@@ -25,11 +25,11 @@ const List<String> _levelKeys = ['lokasi', 'unit', 'subunit', 'area'];
 
 const Map<String, String> _subSelectMap = {
   'unit'   : 'id_unit, nama_unit, gambar_unit, deskripsi_unit, is_star, '
-             'id_pic, User!id_pic(nama), subunit(id_subunit), id_lokasi, lokasi(nama_lokasi), qrcode',
+             'id_pic, User!id_pic(nama, gambar_user), subunit(id_subunit), id_lokasi, lokasi(nama_lokasi), qrcode',
   'subunit': 'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, is_star, '
-             'id_pic, User!id_pic(nama), area(id_area), id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode',
+             'id_pic, User!id_pic(nama, gambar_user), area(id_area), id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode',
   'area'   : 'id_area, nama_area, gambar_area, deskripsi_area, is_star, '
-             'id_pic, User!id_pic(nama), id_subunit, id_unit, id_lokasi, '
+             'id_pic, User!id_pic(nama, gambar_user), id_subunit, id_unit, id_lokasi, '
              'subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), qrcode',
 };
 
@@ -104,6 +104,67 @@ class _DetailTexts {
   };
 
   static String get(String lang, String key) => _data[lang]?[key] ?? _data['ID']?[key] ?? key;
+}
+
+class LocationFullscreenImageViewer extends StatelessWidget {
+  final String imageUrl;
+
+  const LocationFullscreenImageViewer({super.key, required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 1.0,
+                maxScale: 5.0,
+                panEnabled: true,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.image_not_supported_outlined,
+                    color: Colors.white54,
+                    size: 64,
+                  ),
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return const Center(
+                      child: CircularProgressIndicator(color: Colors.white54),
+                    );
+                  },
+                ),
+              ),
+            ),
+            Positioned(
+              top: 12,
+              right: 16,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.red,
+                    size: 24,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class LocationDetailScreen extends StatefulWidget {
@@ -391,48 +452,81 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            height: 200,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              gradient: hasImage
-                  ? null
-                  : LinearGradient(
-                      colors: [_levelColor.withValues(alpha: 0.16), _levelColor.withValues(alpha: 0.04)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-              border: hasImage ? null : Border.all(color: _levelColor.withValues(alpha: 0.25), width: 1.5),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))
-              ],
-              image: hasImage
-                  ? DecorationImage(image: NetworkImage(_data['gambar_$tName']), fit: BoxFit.cover)
-                  : null,
-            ),
-            child: !hasImage
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(color: _levelColor.withValues(alpha: 0.22), blurRadius: 14, offset: const Offset(0, 5)),
-                          ],
+          GestureDetector(
+            onTap: hasImage
+                ? () {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        opaque: false,
+                        barrierColor: Colors.black.withValues(alpha: 0.95),
+                        transitionDuration: const Duration(milliseconds: 200),
+                        reverseTransitionDuration: Duration.zero,
+                        pageBuilder: (_, __, ___) => LocationFullscreenImageViewer(
+                          imageUrl: _data['gambar_$tName'] as String,
                         ),
-                        child: Icon(_levelIcon, size: 46, color: _levelColor),
                       ),
-                      const SizedBox(height: 12),
-                      Text(t('tidak_ada_gambar'),
-                          style: GoogleFonts.poppins(color: _levelColor, fontWeight: FontWeight.w700, fontSize: 12.5)),
-                    ],
-                  )
+                    );
+                  }
                 : null,
+            child: Container(
+              height: 200,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                gradient: hasImage
+                    ? null
+                    : LinearGradient(
+                        colors: [_levelColor.withValues(alpha: 0.16), _levelColor.withValues(alpha: 0.04)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                border: hasImage ? null : Border.all(color: _levelColor.withValues(alpha: 0.25), width: 1.5),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))
+                ],
+                image: hasImage
+                    ? DecorationImage(image: NetworkImage(_data['gambar_$tName']), fit: BoxFit.cover)
+                    : null,
+              ),
+              child: hasImage
+                  ? Stack(
+                      children: [
+                        Positioned(
+                          right: 10,
+                          bottom: 10,
+                          child: Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(color: _levelColor.withValues(alpha: 0.22), blurRadius: 14, offset: const Offset(0, 5)),
+                            ],
+                          ),
+                          child: Icon(_levelIcon, size: 46, color: _levelColor),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(t('tidak_ada_gambar'),
+                            style: GoogleFonts.poppins(color: _levelColor, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                      ],
+                    ),
+            ),
           ),
           const SizedBox(height: 20),
 
@@ -765,6 +859,12 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     final imgUrl = item['gambar_$type'] as String?;
     final pic    = item['User'] as Map?;
 
+    final picName    = (pic?['nama'] as String?)?.trim().isNotEmpty == true
+        ? pic!['nama'] as String
+        : t('pic');
+    final picImgUrl  = pic?['gambar_user'] as String?;
+    final hasPicImg  = picImgUrl != null && picImgUrl.isNotEmpty;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -821,11 +921,44 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                           style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: color),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 4),
-                      Text(
-                        pic?['nama'] as String? ?? t('pic'),
-                        style: const TextStyle(fontSize: 10.5, color: _C.textGrey, fontWeight: FontWeight.w500),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: hasPicImg
+                                ? () {
+                                    Navigator.push(
+                                      context,
+                                      PageRouteBuilder(
+                                        opaque: false,
+                                        barrierColor: Colors.black.withValues(alpha: 0.95),
+                                        transitionDuration: const Duration(milliseconds: 200),
+                                        reverseTransitionDuration: Duration.zero,
+                                        pageBuilder: (_, __, ___) => LocationFullscreenImageViewer(
+                                          imageUrl: picImgUrl,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                : null,
+                            child: CircleAvatar(
+                              radius: 9,
+                              backgroundColor: color.withValues(alpha: 0.18),
+                              backgroundImage: hasPicImg ? NetworkImage(picImgUrl) : null,
+                              child: !hasPicImg
+                                  ? Icon(Icons.person_rounded, color: color, size: 11)
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              picName,
+                              style: GoogleFonts.poppins(fontSize: 10.5, color: Colors.black, fontWeight: FontWeight.w600),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1145,111 +1278,13 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     final picName = picMap?['nama'] as String?;
     final picImage = picMap?['gambar_user'] as String?;
 
-    return Align(
-      alignment: Alignment.topCenter,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            if (qrData != null && qrData.isNotEmpty) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: _levelColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _levelColor.withValues(alpha: 0.25)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.info_rounded, size: 16, color: _levelColor),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        widget.lang == 'EN'
-                            ? 'This QR code is used to scan and submit a 5R finding report at this specific location.'
-                            : widget.lang == 'ZH'
-                                ? '此二维码用于扫描并在该特定位置提交5R发现报告。'
-                                : 'Kode QR ini digunakan untuk discan guna membuat laporan temuan 5R pada lokasi spesifik ini.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: _levelColor,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Image.asset(
-                'assets/images/logo1.PNG',
-                height: 36,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [_levelColor.withValues(alpha: 0.16), _levelColor.withValues(alpha: 0.02)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(26),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _levelColor.withValues(alpha: 0.25), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(color: _levelColor.withValues(alpha: 0.18), blurRadius: 16, offset: const Offset(0, 6)),
-                    ],
-                  ),
-                  child: QrImageView(data: qrData, version: QrVersions.auto, size: 190),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                itemName,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: _levelColor),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${t('pic')} : ',
-                    style: GoogleFonts.poppins(color: _levelColor, fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
-                  CircleAvatar(
-                    radius: 11,
-                    backgroundColor: _levelColor.withValues(alpha: 0.18),
-                    backgroundImage: (picImage != null && picImage.isNotEmpty) ? NetworkImage(picImage) : null,
-                    child: (picImage == null || picImage.isEmpty)
-                        ? Icon(Icons.person_rounded, color: _levelColor, size: 12)
-                        : null,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      (picName != null && picName.isNotEmpty) ? picName : t('pic_kosong'),
-                      style: GoogleFonts.poppins(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ] else ...[
+    if (qrData == null || qrData.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Container(
                 width: 130,
                 height: 130,
@@ -1274,6 +1309,114 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                 textAlign: TextAlign.center,
               ),
             ],
+          ),
+        ),
+      );
+    }
+
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _levelColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _levelColor.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_rounded, size: 16, color: _levelColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.lang == 'EN'
+                          ? 'This QR code is used to scan and submit a 5R finding report at this specific location.'
+                          : widget.lang == 'ZH'
+                              ? '此二维码用于扫描并在该特定位置提交5R发现报告。'
+                              : 'Kode QR ini digunakan untuk discan guna membuat laporan temuan 5R pada lokasi spesifik ini.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _levelColor,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Image.asset(
+              'assets/images/logo1.PNG',
+              height: 36,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [_levelColor.withValues(alpha: 0.16), _levelColor.withValues(alpha: 0.02)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _levelColor.withValues(alpha: 0.25), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(color: _levelColor.withValues(alpha: 0.18), blurRadius: 16, offset: const Offset(0, 6)),
+                  ],
+                ),
+                child: QrImageView(data: qrData, version: QrVersions.auto, size: 190),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              itemName,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: _levelColor),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${t('pic')} : ',
+                  style: GoogleFonts.poppins(color: _levelColor, fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+                CircleAvatar(
+                  radius: 11,
+                  backgroundColor: _levelColor.withValues(alpha: 0.18),
+                  backgroundImage: (picImage != null && picImage.isNotEmpty) ? NetworkImage(picImage) : null,
+                  child: (picImage == null || picImage.isEmpty)
+                      ? Icon(Icons.person_rounded, color: _levelColor, size: 12)
+                      : null,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    (picName != null && picName.isNotEmpty) ? picName : t('pic_kosong'),
+                    style: GoogleFonts.poppins(color: Colors.black87, fontSize: 12, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
