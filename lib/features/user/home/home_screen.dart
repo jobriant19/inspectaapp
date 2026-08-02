@@ -100,6 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLatestLogLoading = true;
   bool _isExecutiveVerificator = false;
   bool _hasShownLoginDialog = false;
+bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
 
   // Point animation
   bool _isAnimatingPoin = false;
@@ -1182,7 +1183,6 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildBgBlob(top: -100, left: -50, size: 350, opacity: 0.25),
           _buildBgBlob(bottom: 50, right: -100, size: 400, opacity: 0.20),
           SafeArea(
-            // bottom: false agar konten bisa extend ke bawah
             bottom: false,
             child: Column(
               children: [
@@ -1198,7 +1198,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Background blob helper ──
   Widget _buildBgBlob({
     double? top, double? bottom, double? left, double? right,
     required double size, required double opacity,
@@ -1220,14 +1219,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(15, 8, 15, 4),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00C9E4).withValues(alpha:0.15),
+            color: const Color(0xFF1D72F3).withValues(alpha:0.15),
             blurRadius: 20, spreadRadius: -2, offset: const Offset(0, 8),
           ),
         ],
@@ -1258,10 +1255,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   errorBuilder: (_, __, ___) => Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C9E4).withValues(alpha:0.1),
+                      color: const Color(0xFF1D72F3).withValues(alpha:0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.shield, color: Color(0xFF00C9E4), size: 26),
+                    child: const Icon(Icons.shield, color: Color(0xFF1D72F3), size: 26),
                   ),
                 ),
           Row(
@@ -1279,36 +1276,38 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildNotifButton() {
     return GestureDetector(
       onTap: () async {
-        // Reset badge segera saat tombol diklik
+        if (_isOpeningNotif) return;
+        _isOpeningNotif = true;
+
         if (mounted) {
           setState(() => _notificationCount = 0);
         }
 
-        final prefetched = await _prefetchNotificationData();
-        if (!mounted) return;
+        try {
+          final prefetched = await _prefetchNotificationData();
+          if (!mounted) return;
 
-        await Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => NotificationScreen(
-              lang: _lang,
-              initialFindings: prefetched['findings'],
-              initialActivityLogs: prefetched['logs'],
+          await Navigator.push(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) => NotificationScreen(
+                lang: _lang,
+                initialFindings: prefetched['findings'],
+                initialActivityLogs: prefetched['logs'],
+              ),
+              transitionsBuilder: (_, anim, __, child) => SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.0, -1.0),
+                  end: Offset.zero,
+                ).animate(CurvedAnimation(parent: anim, curve: Curves.easeInOut)),
+                child: child,
+              ),
+              transitionDuration: const Duration(milliseconds: 300),
             ),
-            transitionsBuilder: (_, anim, __, child) => SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.0, -1.0),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(parent: anim, curve: Curves.easeInOut)),
-              child: child,
-            ),
-            transitionDuration: const Duration(milliseconds: 300),
-          ),
-        );
-        // Tidak memanggil _fetchNotificationCount() di sini
-        // agar badge tetap 0 setelah kembali dari NotificationScreen
-        // Badge akan muncul kembali hanya saat ada assigned findings baru
-        // yang masuk via realtime listener di _setupPointListener
+          );
+        } finally {
+          _isOpeningNotif = false;
+        }
       },
       child: Stack(
         clipBehavior: Clip.none,
@@ -1316,9 +1315,9 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: const Color(0xFF00C9E4).withValues(alpha:0.08),
+              color: const Color(0xFF1D72F3).withValues(alpha:0.08),
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF00C9E4).withValues(alpha:0.2)),
+              border: Border.all(color: const Color(0xFF1D72F3).withValues(alpha:0.2)),
             ),
             child: const Icon(Icons.mail_outlined, color: Color(0xFF1E3A8A), size: 22),
           ),
@@ -1387,12 +1386,12 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: const LinearGradient(
-            colors: [Color(0xFF00C9E4), Color(0xFF4ADE80)],
+            colors: [Color(0xFF1D72F3), Color(0xFF4ADE80)],
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF00C9E4).withValues(alpha:0.3),
+              color: const Color(0xFF1D72F3).withValues(alpha:0.3),
               blurRadius: 8, offset: const Offset(0, 2),
             ),
           ],
@@ -1402,7 +1401,7 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
           child: CircleAvatar(
             radius: 17,
-            backgroundColor: const Color(0xFF00C9E4),
+            backgroundColor: const Color(0xFF1D72F3),
             backgroundImage: _userImage != null ? CachedNetworkImageProvider(_userImage!) : null,
             child: _userImage == null ? const Icon(Icons.person, color: Colors.white, size: 18) : null,
           ),
@@ -1416,57 +1415,60 @@ class _HomeScreenState extends State<HomeScreen> {
     final double rawInset = mq.viewPadding.bottom > mq.padding.bottom
         ? mq.viewPadding.bottom
         : mq.padding.bottom;
-    final double safeBottom = rawInset > 0 ? rawInset + 6 : 16;
+    final double bottomInset = rawInset > 0 ? rawInset : 12;
+
+    const double barContentHeight = 65;
+    final double totalHeight = barContentHeight + bottomInset;
 
     return Container(
-      color: Colors.white,
-      child: Padding(
-        padding: EdgeInsets.only(bottom: safeBottom, left: 20, right: 20),
-        child: SizedBox(
-          height: 65,
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              // ── Bar navigasi ──
-              Container(
-                height: 65,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF00C9E4).withValues(alpha:0.15),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildNavItem(Icons.home_outlined, Icons.home_rounded, 0, getTxt('home')),
-                    _buildNavItem(Icons.explore_outlined, Icons.explore, 1, getTxt('explore')),
-                    const SizedBox(width: 56), // ruang tombol +
-                    _buildNavItem(Icons.pie_chart_outline, Icons.pie_chart, 2, getTxt('analytics')),
-                    _buildNavItem(Icons.emoji_events_outlined, Icons.emoji_events, 3, getTxt('ranking')),
-                  ],
-                ),
-              ),
-              // ── Tombol + di tengah, naik sedikit ──
-              Positioned(
-                top: 4,
+      height: totalHeight,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1D72F3).withValues(alpha:0.15),
+            blurRadius: 20,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: Stack(
+        alignment: Alignment.topCenter,
+        clipBehavior: Clip.none,
+        children: [
+          SizedBox(
+            height: barContentHeight,
+            width: double.infinity,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildNavItem(Icons.home_outlined, Icons.home_rounded, 0, getTxt('home')),
+                _buildNavItem(Icons.explore_outlined, Icons.explore, 1, getTxt('explore')),
+                const SizedBox(width: 56), // ruang tombol +
+                _buildNavItem(Icons.pie_chart_outline, Icons.pie_chart, 2, getTxt('analytics')),
+                _buildNavItem(Icons.emoji_events_outlined, Icons.emoji_events, 3, getTxt('ranking')),
+              ],
+            ),
+          ),
+          // ── Tombol + tetap center terhadap baris ikon (bukan terhadap total tinggi) ──
+          Positioned(
+            top: 0,
+            child: SizedBox(
+              height: barContentHeight,
+              child: Center(
                 child: GestureDetector(
                   onTap: _openLocationSheet,
                   child: Container(
                     height: 52,
                     width: 52,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00C9E4),
+                      color: const Color(0xFF1D72F3),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00C9E4).withValues(alpha:0.4),
+                          color: const Color(0xFF1D72F3).withValues(alpha:0.4),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -1476,9 +1478,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1524,14 +1526,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildNavItem(IconData outlineIcon, IconData filledIcon, int index, String label) {
-    final bool isActive = _currentIndex == index;
-    const Color activeColor = Color(0xFF00C9E4);
-    return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 64,
-        height: 65,
+  final bool isActive = _currentIndex == index;
+  const Color activeColor = Color(0xFF1D72F3);
+  return GestureDetector(
+    onTap: () => setState(() => _currentIndex = index),
+    behavior: HitTestBehavior.opaque,
+    child: SizedBox(
+      width: 64,
+      height: 65,
+      child: Transform.translate(
+        offset: const Offset(0, 6), // geser visual ke bawah, tidak memakan ruang layout
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -1563,8 +1567,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHomeContent() {
     return HomeContent(
