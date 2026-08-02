@@ -22,6 +22,7 @@ import 'location/location_bottom_screen.dart';
 import 'popup/home_mode_popup.dart';
 import 'popup/home_point_popup.dart';
 import 'popup/location_permission_popup.dart';
+import 'popup/login_block_popup.dart';
 
 // Supabase shorthand
 final _sb = Supabase.instance.client;
@@ -42,6 +43,8 @@ class HomeScreen extends StatefulWidget {
   final bool? initialIsVisitorMode;
   final bool? initialIsPreventiveMaintenanceVisible;
   final List<Map<String, dynamic>>? initialPendingAudits;
+  final bool? initialIsBlocked;
+  final bool? initialUnblockRequested;
 
   const HomeScreen({
     super.key,
@@ -60,6 +63,8 @@ class HomeScreen extends StatefulWidget {
     this.initialIsVisitorMode,
     this.initialIsPreventiveMaintenanceVisible,
     this.initialPendingAudits,
+    this.initialIsBlocked,
+    this.initialUnblockRequested,
   });
 
   @override
@@ -84,6 +89,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isAtAtmi = false;
   bool _isPreventiveMaintenanceVisible = true;
   List<Map<String, dynamic>>? _initialPendingAudits;
+
+  // ── Blokir akun (tidak login >= 5 hari) ──
+  bool _isBlocked = false;
+  // ignore: unused_field
+  bool _isUnblockRequested = false;
 
   // User data
   String _userName = '...';
@@ -609,6 +619,26 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
 
       if (status == 'already_logged_in_today' || status.isEmpty) {
         _fetchUserData(silent: true);
+        final bool isBlockedToday = result['is_blocked'] as bool? ?? false;
+        final bool isUnblockRequestedToday = result['unblock_requested'] as bool? ?? false;
+        if (mounted) {
+          setState(() {
+            _isBlocked = isBlockedToday;
+            _isUnblockRequested = isUnblockRequestedToday;
+          });
+        }
+        if (isBlockedToday && mounted) {
+          await showLoginBlockedDialog(
+            context,
+            lang: _lang,
+            userId: user.id,
+            alreadyRequested: isUnblockRequestedToday,
+            onRequested: () {
+              if (mounted) setState(() => _isUnblockRequested = true);
+            },
+          );
+          if (!mounted) return;
+        }
         await Future.delayed(const Duration(milliseconds: 600));
         if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
         return;
@@ -625,8 +655,31 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
       final int streakBonusPoints =
           (result['streak_bonus_points'] as num?)?.toInt() ?? 0;
       final String? streakBonusKode = result['streak_bonus_kode']?.toString();
+      final bool isBlockedNow = result['is_blocked'] as bool? ?? false;
+      final bool isUnblockRequestedNow = result['unblock_requested'] as bool? ?? false;
 
       if (!mounted) return;
+
+      // ── Jika akun terblokir: skip semua dialog poin/penalti, tampilkan pop up blokir (selalu muncul setiap kali dibuka selagi blokir) ──
+      if (isBlockedNow) {
+        setState(() {
+          _isBlocked = true;
+          _isUnblockRequested = isUnblockRequestedNow;
+        });
+        await showLoginBlockedDialog(
+          context,
+          lang: _lang,
+          userId: user.id,
+          alreadyRequested: isUnblockRequestedNow,
+          onRequested: () {
+            if (mounted) setState(() => _isUnblockRequested = true);
+          },
+        );
+        if (!mounted) return;
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
+        return;
+      }
 
       // ── Kasus: login pertama kali seumur hidup ──
       if (status == 'first_ever_login') {
@@ -879,7 +932,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
 
       final results = await Future.wait([
         _sb.from('User')
-            .select('nama, email, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, is_verificator, jabatan!User_id_jabatan_fkey(nama_jabatan)')
+            .select('nama, email, poin, gambar_user, id_jabatan, id_unit, id_lokasi, id_subunit, id_area, is_verificator, is_blocked, unblock_requested, jabatan!User_id_jabatan_fkey(nama_jabatan)')
             .eq('id_user', userAuth.id)
             .maybeSingle(),
         _sb.from('log_poin')
@@ -946,6 +999,8 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
         _userLokasiId = userRow['id_lokasi']?.toString();
         _userLocationName = locationData['name']!;
         _userLocationLevel = locationData['level'];
+        _isBlocked = userRow['is_blocked'] as bool? ?? false;
+        _isUnblockRequested = userRow['unblock_requested'] as bool? ?? false;
         if (latestLog != null) _latestLogPoin = latestLog;
         _monthlyActivityLogs = monthlyLogs;
         _isLatestLogLoading = false;
@@ -1201,6 +1256,22 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
     );
   }
 
+  // ── Helper: tampilkan pop up blokir saat button ditekan dalam kondisi blokir ──
+  void _handleBlockedTap() {
+    if (!mounted) return;
+    final user = _sb.auth.currentUser;
+    if (user == null) return;
+    showLoginBlockedDialog(
+      context,
+      lang: _lang,
+      userId: user.id,
+      alreadyRequested: _isUnblockRequested,
+      onRequested: () {
+        if (mounted) setState(() => _isUnblockRequested = true);
+      },
+    );
+  }
+
   // ── Build ──
   @override
   Widget build(BuildContext context) {
@@ -1211,6 +1282,8 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
       AnalyticsScreen(lang: _lang),
       RankingScreen(lang: _lang),
     ];
+
+    final int activePageIndex = _isBlocked ? 0 : _currentIndex;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
@@ -1225,7 +1298,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
               children: [
                 _buildHeader(),
                 const SizedBox(height: 5),
-                Expanded(child: pages[_currentIndex]),
+                Expanded(child: pages[activePageIndex]),
               ],
             ),
           ),
@@ -1313,6 +1386,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
   Widget _buildNotifButton() {
     return GestureDetector(
       onTap: () async {
+        if (_isBlocked) { _handleBlockedTap(); return; }
         if (_isOpeningNotif) return;
         _isOpeningNotif = true;
 
@@ -1404,6 +1478,8 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
               initialUserLocation: _userLocationName,
               initialUserLocationLevel: _userLocationLevel,
               initialIsVerificator: _isVerifRole,
+              isBlocked: _isBlocked,
+              onBlockedTap: _handleBlockedTap,
             ),
             transitionsBuilder: (_, anim, __, child) => SlideTransition(
               position: Tween<Offset>(
@@ -1525,6 +1601,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
   void _openLocationSheet() async {
     // Cegah double bottom sheet jika sudah ada yang terbuka
     if (!mounted) return;
+    if (_isBlocked) { _handleBlockedTap(); return; }
 
     // Cek lokasi fresh sebelum buat temuan baru
     final result = await LocationPermissionPopup.requestWithPopup(context, lang: _lang);
@@ -1566,7 +1643,10 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
   final bool isActive = _currentIndex == index;
   const Color activeColor = Color(0xFF1D72F3);
   return GestureDetector(
-    onTap: () => setState(() => _currentIndex = index),
+    onTap: () {
+      if (_isBlocked) { _handleBlockedTap(); return; }
+      setState(() => _currentIndex = index);
+    },
     behavior: HitTestBehavior.opaque,
     child: SizedBox(
       width: 64,
@@ -1616,6 +1696,8 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
       isVisitorMode: _isVisitorMode,
       isUserDataLoading: _isUserDataLoading,
       isAtAtmi: _isAtAtmi,
+      isBlocked: _isBlocked,
+      onBlockedTap: _handleBlockedTap,
       userName: _userName,
       userRole: _userRole,
       userLocationName: _userLocationName,

@@ -21,6 +21,8 @@ class AccountScreen extends StatefulWidget {
   final bool? initialIsVisitor;
   final int? initialUserJabatanId;
   final bool? initialIsVerificator;
+  final bool isBlocked;
+  final VoidCallback? onBlockedTap;
   
   const AccountScreen({
     super.key, 
@@ -33,6 +35,8 @@ class AccountScreen extends StatefulWidget {
     this.initialIsVisitor,
     this.initialUserJabatanId,
     this.initialIsVerificator,
+    this.isBlocked = false,
+    this.onBlockedTap,
   });
 
   @override
@@ -507,7 +511,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   _buildMenuTile(
                     Icons.translate,
                     getTxt('change_lang'),
-                    onTap: _showLanguagePicker,
+                    onTap: widget.isBlocked ? widget.onBlockedTap : _showLanguagePicker,
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -530,7 +534,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   _buildMenuTile(
                     Icons.info_outline,
                     getTxt('about'),
-                    onTap: () {
+                    onTap: widget.isBlocked ? widget.onBlockedTap : () {
                       Navigator.push(
                         context,
                         _slideRoute(AboutInspectaScreen(
@@ -547,7 +551,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   _buildMenuTile(
                     Icons.help_outline,
                     getTxt('help'),
-                    onTap: () {
+                    onTap: widget.isBlocked ? widget.onBlockedTap : () {
                       Navigator.push(
                         context,
                         _slideRoute(HelpCenterScreen(lang: _currentLang)),
@@ -557,7 +561,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   _buildMenuTile(
                     Icons.shield_outlined,
                     getTxt('privacy'),
-                    onTap: () {
+                    onTap: widget.isBlocked ? widget.onBlockedTap : () {
                       Navigator.push(
                         context,
                         _slideRoute(PrivacySecurityScreen(lang: _currentLang)),
@@ -567,7 +571,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   _buildMenuTile(
                     Icons.campaign_outlined,
                     getTxt('news'),
-                    onTap: () {
+                    onTap: widget.isBlocked ? widget.onBlockedTap : () {
                       Navigator.push(
                         context,
                         _slideRoute(NewsScreen(
@@ -796,7 +800,7 @@ class _AccountScreenState extends State<AccountScreen> {
     );
 
     return GestureDetector(
-      onTap: () {
+      onTap: widget.isBlocked ? widget.onBlockedTap : () {
         Navigator.push(
           context,
           PageRouteBuilder(
@@ -995,7 +999,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Widget _buildVisitorCard() {
     return GestureDetector(
-      onTap: () {
+      onTap: widget.isBlocked ? widget.onBlockedTap : () {
         Navigator.push(
           context,
           PageRouteBuilder(

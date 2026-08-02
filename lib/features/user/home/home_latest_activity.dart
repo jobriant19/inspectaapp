@@ -31,6 +31,8 @@ class HomeLatestActivity extends StatefulWidget {
   final VoidCallback onRefresh;
   final bool shouldRefreshFindings;
   final VoidCallback? onRefreshDone;
+  final bool isBlocked;
+  final VoidCallback? onBlockedTap;
 
   const HomeLatestActivity({
     super.key,
@@ -39,6 +41,8 @@ class HomeLatestActivity extends StatefulWidget {
     this.onRequestRefresh,
     this.shouldRefreshFindings = false,
     this.onRefreshDone,
+    this.isBlocked = false,
+    this.onBlockedTap,
   });
 
   @override
@@ -305,6 +309,7 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
                     data: item,
                     lang: widget.lang,
                     onTap: () async {
+                      if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -324,6 +329,7 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
                   data: item,
                   lang: widget.lang,
                   onTap: () async {
+                    if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -339,7 +345,10 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
             if (hasMore) ...[
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: widget.onRequestRefresh,
+                onTap: () {
+                  if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
+                  widget.onRequestRefresh?.call();
+                },
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 13),
@@ -395,14 +404,17 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
   Widget _buildTabChip(String tabKey, String label) {
     final isActive = _activeTabs.contains(tabKey);
     return GestureDetector(
-      onTap: () => setState(() {
-        if (isActive && _activeTabs.length > 1) {
-          _activeTabs.remove(tabKey);
-        } else if (!isActive) {
-          _activeTabs.add(tabKey);
-        }
-        _findingsFuture = _buildFindingsFuture();
-      }),
+      onTap: () {
+        if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
+        setState(() {
+          if (isActive && _activeTabs.length > 1) {
+            _activeTabs.remove(tabKey);
+          } else if (!isActive) {
+            _activeTabs.add(tabKey);
+          }
+          _findingsFuture = _buildFindingsFuture();
+        });
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
@@ -445,10 +457,13 @@ class HomeLatestActivityState extends State<HomeLatestActivity> {
   Widget _buildFilterButton(String key, String label, Color color) {
     final isActive = _activeTypeFilter == key;
     return GestureDetector(
-      onTap: () => setState(() {
-        _activeTypeFilter = isActive ? '' : key;
-        _findingsFuture = _buildFindingsFuture();
-      }),
+      onTap: () {
+        if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
+        setState(() {
+          _activeTypeFilter = isActive ? '' : key;
+          _findingsFuture = _buildFindingsFuture();
+        });
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 11),

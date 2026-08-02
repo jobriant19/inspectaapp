@@ -541,6 +541,7 @@ class _LoginScreenState extends State<LoginScreen> {
             .select(
                 'nama, poin, gambar_user, id_jabatan, id_unit, id_lokasi, '
                 'id_subunit, id_area, is_verificator, is_visitor, is_pro_mode, '
+                'is_blocked, unblock_requested, '
                 'jabatan(nama_jabatan)')
             .eq('id_user', userId)
             .single(),
@@ -686,6 +687,8 @@ class _LoginScreenState extends State<LoginScreen> {
               initialIsVisitorMode: userData['is_visitor'] as bool? ?? false,
               initialIsPreventiveMaintenanceVisible: initialIsPmVisible,
               initialPendingAudits: initialPendingAudits,
+              initialIsBlocked: userData['is_blocked'] as bool? ?? false,
+              initialUnblockRequested: userData['unblock_requested'] as bool? ?? false,
             ),
           ),
         );

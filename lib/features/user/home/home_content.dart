@@ -43,6 +43,8 @@ class HomeContent extends StatefulWidget {
   final bool isPreventiveMaintenanceVisible;
   final VoidCallback? onRefreshDone;
   final List<Map<String, dynamic>>? initialPendingAudits;
+  final bool isBlocked;
+  final VoidCallback? onBlockedTap;
 
   const HomeContent({
     super.key,
@@ -74,6 +76,8 @@ class HomeContent extends StatefulWidget {
     this.isPreventiveMaintenanceVisible = false,
     this.onRefreshDone,
     this.initialPendingAudits,
+    this.isBlocked = false,
+    this.onBlockedTap,
   });
 
   @override
@@ -277,6 +281,7 @@ class HomeContentState extends State<HomeContent> {
             iconBg: Colors.blue.withValues(alpha:0.1),
             label: _t('kts_produksi'),
             onTap: () async {
+              if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
               await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => KtsProduksiListScreen(lang: widget.lang)),
@@ -304,6 +309,8 @@ class HomeContentState extends State<HomeContent> {
             onRefresh: widget.onRefresh,
             shouldRefreshFindings: widget.shouldRefreshFindings,
             onRefreshDone: widget.onRefreshDone,
+            isBlocked: widget.isBlocked,
+            onBlockedTap: widget.onBlockedTap,
           ),
         ],
       ),
@@ -311,6 +318,7 @@ class HomeContentState extends State<HomeContent> {
   }
 
   void _push(Widget screen) {
+    if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
     Navigator.push(
       context,
       PageRouteBuilder(
@@ -330,6 +338,7 @@ class HomeContentState extends State<HomeContent> {
     final anyActive = widget.isProMode || widget.isVisitorMode;
     return GestureDetector(
       onTap: () async {
+        if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
         if (_isChooseModeSheetOpen) return;
         _isChooseModeSheetOpen = true;
         await showChooseModeSheet(
@@ -562,6 +571,7 @@ class HomeContentState extends State<HomeContent> {
     final levelIcon = _auditLevelIcons[level] ?? Icons.place_rounded;
     return GestureDetector(
       onTap: () async {
+        if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
         // AUDIT SELFIE
         final selfieUrl = await Navigator.push<String>(
           context,
@@ -690,22 +700,25 @@ class HomeContentState extends State<HomeContent> {
 
   Widget _buildExecVerifButton() {
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => VerificationIntroScreen(
-            lang: widget.lang,
-            userJabatanId: widget.userJabatanId,
-            onPointEarned: widget.onVerifPointEarned,
+      onTap: () {
+        if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => VerificationIntroScreen(
+              lang: widget.lang,
+              userJabatanId: widget.userJabatanId,
+              onPointEarned: widget.onVerifPointEarned,
+            ),
+            transitionsBuilder: (_, anim, __, child) => SlideTransition(
+              position: Tween<Offset>(begin: const Offset(1.0, 0.0), end: Offset.zero)
+                  .animate(CurvedAnimation(parent: anim, curve: Curves.easeInOut)),
+              child: child,
+            ),
+            transitionDuration: const Duration(milliseconds: 300),
           ),
-          transitionsBuilder: (_, anim, __, child) => SlideTransition(
-            position: Tween<Offset>(begin: const Offset(1.0, 0.0), end: Offset.zero)
-                .animate(CurvedAnimation(parent: anim, curve: Curves.easeInOut)),
-            child: child,
-          ),
-          transitionDuration: const Duration(milliseconds: 300),
-        ),
-      ),
+        );
+      },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -746,7 +759,10 @@ class HomeContentState extends State<HomeContent> {
   Widget _buildPreventiveMaintenanceButton() {
     const Color pmColor = Color(0xFF2563EB);
     return GestureDetector(
-      onTap: () => _push(PreventifMaintenanceScreen(lang: widget.lang)),
+      onTap: () {
+        if (widget.isBlocked) { widget.onBlockedTap?.call(); return; }
+        _push(PreventifMaintenanceScreen(lang: widget.lang));
+      },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

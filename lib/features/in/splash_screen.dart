@@ -120,7 +120,8 @@ class _SplashScreenState extends State<SplashScreen> {
             .from('User')
             .select(
                 'is_verificator, nama, poin, gambar_user, id_jabatan, id_unit, '
-                'id_lokasi, id_subunit, id_area, is_visitor, is_pro_mode, jabatan(nama_jabatan)')
+                'id_lokasi, id_subunit, id_area, is_visitor, is_pro_mode, '
+                'is_blocked, unblock_requested, jabatan(nama_jabatan)')
             .eq('id_user', userId)
             .single(),
         Supabase.instance.client
@@ -259,6 +260,8 @@ class _SplashScreenState extends State<SplashScreen> {
           initialIsVisitorMode: userData['is_visitor'] as bool? ?? false,
           initialIsPreventiveMaintenanceVisible: initialIsPmVisible,
           initialPendingAudits: initialPendingAudits,
+          initialIsBlocked: userData['is_blocked'] as bool? ?? false,
+          initialUnblockRequested: userData['unblock_requested'] as bool? ?? false,
         )),
       );
     } catch (e) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,6 +8,7 @@ import 'admin_add_user.dart';
 import 'admin_delete_user.dart';
 import 'admin_detail_user.dart';
 import 'admin_edit_user.dart';
+import 'admin_unblock_screen.dart';
 import 'filter/admin_user_filter.dart';
 import 'picker/admin_user_indicator.dart';
 
@@ -123,6 +125,7 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
 
   final Map<String, int> _monthlyPoints = {};
   Map<String, String> _sectionNameMap = {};
+  int _unblockBadgeCount = 0;
 
   static const _primary = Color(0xFF6366F1);
   static const _bg = Color(0xFFF8FAFC);
@@ -136,6 +139,39 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
     super.initState();
     _loadSectionNameMap();
     _loadData();
+    _loadUnblockBadgeCount();
+  }
+
+  Future<void> _loadUnblockBadgeCount() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastViewedStr = prefs.getString('admin_unblock_last_viewed_at');
+      final lastViewed = lastViewedStr != null ? DateTime.tryParse(lastViewedStr) : null;
+
+      final rows = await Supabase.instance.client
+          .from('User')
+          .select('unblock_requested_at')
+          .eq('unblock_requested', true);
+
+      int count = 0;
+      for (final row in rows) {
+        final raw = row['unblock_requested_at'];
+        if (raw == null) continue;
+        final requestedAt = DateTime.tryParse(raw.toString());
+        if (requestedAt == null) continue;
+        if (lastViewed == null || requestedAt.isAfter(lastViewed)) count++;
+      }
+      if (mounted) setState(() => _unblockBadgeCount = count);
+    } catch (e) {
+      debugPrint('Error loading unblock badge count: $e');
+    }
+  }
+
+  Future<void> _markUnblockRequestsViewed() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        'admin_unblock_last_viewed_at', DateTime.now().toUtc().toIso8601String());
+    _loadUnblockBadgeCount();
   }
 
   Future<void> _loadData() async {
@@ -334,6 +370,78 @@ class _AdminUserScreenState extends State<AdminUserScreen> {
             color: _appBarColor,
           ),
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminUnblockScreen(lang: widget.lang),
+                  ),
+                );
+                _markUnblockRequestsViewed();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFFDC2626).withValues(alpha: 0.35),
+                    width: 1.2,
+                  ),
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.lock_open_rounded, size: 16, color: Color(0xFFDC2626)),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Unblock',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_unblockBadgeCount > 0)
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDC2626),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                          child: Center(
+                            child: Text(
+                              _unblockBadgeCount > 9 ? '9+' : '$_unblockBadgeCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Container(
