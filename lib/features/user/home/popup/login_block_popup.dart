@@ -243,7 +243,7 @@ class _LoginBlockedDialogState extends State<_LoginBlockedDialog>
                         border: Border.all(color: red.withValues(alpha: 0.12)),
                       ),
                       child: Text(t['desc']!, textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w500,
+                          style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600,
                               color: const Color(0xFF7F1D1D), height: 1.6)),
                     ),
                     const SizedBox(height: 20),
@@ -282,11 +282,18 @@ class _LoginBlockedDialogState extends State<_LoginBlockedDialog>
                         ),
                       ),
                     const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: widget.onDismiss,
-                      child: Text(
-                        t['close']!,
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: TextButton(
+                        onPressed: widget.onDismiss,
+                        style: TextButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: Text(
+                          t['close']!,
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600),
+                        ),
                       ),
                     ),
                   ]),

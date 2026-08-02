@@ -123,7 +123,6 @@ class _AdminUnblockScreenState extends State<AdminUnblockScreen> {
         'block_popup_shown': false,
         'blocked_at': null,
         'unblock_requested_at': null,
-        'log_login': DateTime.now().toUtc().toIso8601String(),
         'current_streak': 1,
       }).eq('id_user', userId);
 

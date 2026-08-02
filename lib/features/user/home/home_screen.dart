@@ -94,6 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isBlocked = false;
   // ignore: unused_field
   bool _isUnblockRequested = false;
+  bool _blockedDialogShownInstantly = false;
 
   // User data
   String _userName = '...';
@@ -212,6 +213,17 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
     WidgetsBinding.instance.addObserver(_lifecycleObserver!);
 
     _applyInitialData();
+
+    // ★ BARU: jika sudah diketahui blokir dari data awal, tampilkan
+    // popup blokir SEKARANG JUGA (frame pertama) tanpa menunggu
+    // fetch/RPC apa pun — sehingga tidak ada loading maupun delay.
+    if (_isBlocked) {
+      _blockedDialogShownInstantly = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _handleBlockedTap();
+      });
+    }
+
     _fetchAppLogo();
 
     _checkVerificationStatus().then((_) async {
@@ -296,6 +308,9 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
       _isPreventiveMaintenanceVisible = widget.initialIsPreventiveMaintenanceVisible!;
     }
     if (widget.initialPendingAudits != null) _initialPendingAudits = widget.initialPendingAudits;
+
+    _isBlocked = widget.initialIsBlocked ?? false;
+    _isUnblockRequested = widget.initialUnblockRequested ?? false;
   }
 
   @override
@@ -617,7 +632,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
 
       final String status = result['status']?.toString() ?? '';
 
-      if (status == 'already_logged_in_today' || status.isEmpty) {
+      if (status == 'already_logged_in_today' || status == 'blocked' || status.isEmpty) {
         _fetchUserData(silent: true);
         final bool isBlockedToday = result['is_blocked'] as bool? ?? false;
         final bool isUnblockRequestedToday = result['unblock_requested'] as bool? ?? false;
@@ -627,7 +642,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
             _isUnblockRequested = isUnblockRequestedToday;
           });
         }
-        if (isBlockedToday && mounted) {
+        if (isBlockedToday && mounted && !_blockedDialogShownInstantly) {
           await showLoginBlockedDialog(
             context,
             lang: _lang,
@@ -639,6 +654,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
           );
           if (!mounted) return;
         }
+        _blockedDialogShownInstantly = false;
         await Future.delayed(const Duration(milliseconds: 600));
         if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
         return;
@@ -666,16 +682,19 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
           _isBlocked = true;
           _isUnblockRequested = isUnblockRequestedNow;
         });
-        await showLoginBlockedDialog(
-          context,
-          lang: _lang,
-          userId: user.id,
-          alreadyRequested: isUnblockRequestedNow,
-          onRequested: () {
-            if (mounted) setState(() => _isUnblockRequested = true);
-          },
-        );
-        if (!mounted) return;
+        if (!_blockedDialogShownInstantly) {
+          await showLoginBlockedDialog(
+            context,
+            lang: _lang,
+            userId: user.id,
+            alreadyRequested: isUnblockRequestedNow,
+            onRequested: () {
+              if (mounted) setState(() => _isUnblockRequested = true);
+            },
+          );
+          if (!mounted) return;
+        }
+        _blockedDialogShownInstantly = false;
         await Future.delayed(const Duration(milliseconds: 500));
         if (mounted) await HomeNewsPopup.showIfNeeded(context, lang: _lang);
         return;
