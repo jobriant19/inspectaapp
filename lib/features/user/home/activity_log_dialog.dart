@@ -75,11 +75,12 @@ class _ActivityLogDialogState extends State<ActivityLogDialog> {
 
       final data = await Supabase.instance.client
           .from('log_poin')
-          .select('poin, deskripsi, tipe_aktivitas, created_at')
+          .select('id, poin, deskripsi, tipe_aktivitas, created_at')
           .eq('id_user', userId)
           .gte('created_at', startOfMonth)
           .lt('created_at', startOfNextMonth)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .order('id', ascending: false);
 
       if (mounted) {
         setState(() {

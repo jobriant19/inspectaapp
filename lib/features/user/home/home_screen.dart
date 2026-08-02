@@ -167,6 +167,24 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
     }
   }
 
+  String _getStreakLabel(String kode) {
+    const map = {
+      'EN': {
+        'streak_7_hari': '7 Days', 'streak_1_bulan': '1 Month',
+        'streak_3_bulan': '3 Months', 'streak_6_bulan': '6 Months', 'streak_1_tahun': '1 Year',
+      },
+      'ID': {
+        'streak_7_hari': '7 Hari', 'streak_1_bulan': '1 Bulan',
+        'streak_3_bulan': '3 Bulan', 'streak_6_bulan': '6 Bulan', 'streak_1_tahun': '1 Tahun',
+      },
+      'ZH': {
+        'streak_7_hari': '7天', 'streak_1_bulan': '1个月',
+        'streak_3_bulan': '3个月', 'streak_6_bulan': '6个月', 'streak_1_tahun': '1年',
+      },
+    };
+    return map[_lang]?[kode] ?? kode;
+  }
+
   bool get _isVerifRole =>
       _userRole.toLowerCase().contains('verif') || _userRole == '验证者';
 
@@ -604,6 +622,9 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
       final bool isFirstToday =
           result['is_first_today'] as bool? ?? false;
       final String message = result['message']?.toString() ?? '';
+      final int streakBonusPoints =
+          (result['streak_bonus_points'] as num?)?.toInt() ?? 0;
+      final String? streakBonusKode = result['streak_bonus_kode']?.toString();
 
       if (!mounted) return;
 
@@ -628,28 +649,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
         return;
       }
 
-      // ── Tampilkan penalti dulu jika ada ──
-      if (penalty > 0) {
-        final int daysAbsent =
-            (result['days_absent'] as num?)?.toInt() ?? 0;
-        final String penaltyMsg = _lang == 'EN'
-            ? 'Penalty for not logging in $daysAbsent days: -$penalty points'
-            : _lang == 'ZH'
-                ? '未登录$daysAbsent天的罚分：-$penalty积分'
-                : 'Penalti tidak login $daysAbsent hari: -$penalty poin';
-        _fetchUserData(silent: true);
-        await showPenaltyDialog(
-          context,
-          points: -penalty,
-          description: penaltyMsg,
-          lang: _lang,
-          waitForDismiss: true,
-        );
-        if (!mounted) return;
-        _fetchUserData(silent: true);
-      }
-
-      // ── Tampilkan bonus pertama hari ini (PRIORITAS, sebelum harian) ──
+      // ── 1) Bonus pertama login hari ini ──
       if (isFirstToday && firstTodayBonus > 0) {
         if (!mounted) return;
         _fetchUserData(silent: true);
@@ -669,7 +669,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
         if (!mounted) return;
       }
 
-      // ── Tampilkan bonus login harian ──
+      // ── 2) Bonus login harian ──
       if (dailyBonus > 0) {
         if (!mounted) return;
         _fetchUserData(silent: true);
@@ -686,6 +686,41 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
             _fetchUserData(silent: true);
           },
         );
+        if (!mounted) return;
+      }
+
+      // ── 3) Bonus streak (muncul tepat setelah bonus harian) ──
+      if (streakBonusPoints > 0 && streakBonusKode != null) {
+        if (!mounted) return;
+        _fetchUserData(silent: true);
+        await showStreakBonusDialog(
+          context,
+          points: streakBonusPoints,
+          streakLabel: _getStreakLabel(streakBonusKode),
+          lang: _lang,
+        );
+        if (!mounted) return;
+      }
+
+      // ── 4) Penalti (PALING TERAKHIR) ──
+      if (penalty > 0) {
+        final int daysAbsent =
+            (result['days_absent'] as num?)?.toInt() ?? 0;
+        final String penaltyMsg = _lang == 'EN'
+            ? 'Penalty for not logging in $daysAbsent days: -$penalty points'
+            : _lang == 'ZH'
+                ? '未登录$daysAbsent天的罚分：-$penalty积分'
+                : 'Penalti tidak login $daysAbsent hari: -$penalty poin';
+        _fetchUserData(silent: true);
+        await showPenaltyDialog(
+          context,
+          points: -penalty,
+          description: penaltyMsg,
+          lang: _lang,
+          waitForDismiss: true,
+        );
+        if (!mounted) return;
+        _fetchUserData(silent: true);
       }
 
       // ── Tampilkan news popup setelah semua dialog selesai ──
@@ -757,7 +792,7 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
           .order('created_at', ascending: false),
       _sb
           .from('log_poin')
-          .select('poin, deskripsi, tipe_aktivitas, created_at')
+          .select('id, poin, deskripsi, tipe_aktivitas, created_at')
           .eq('id_user', user.id)
           .gte('created_at',
               DateTime(DateTime.now().year, DateTime.now().month, 1)
@@ -765,7 +800,8 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
           .lte('created_at',
               DateTime(DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59)
                   .toIso8601String())
-          .order('created_at', ascending: false),
+          .order('created_at', ascending: false)
+          .order('id', ascending: false),
     ]);
 
     return {
@@ -847,11 +883,12 @@ bool _isOpeningNotif = false; // guard: cegah notif screen kebuka dobel
             .eq('id_user', userAuth.id)
             .maybeSingle(),
         _sb.from('log_poin')
-            .select('poin, deskripsi, tipe_aktivitas, created_at')
+            .select('id, poin, deskripsi, tipe_aktivitas, created_at')
             .eq('id_user', userAuth.id)
             .gte('created_at', startOfMonth)
             .lt('created_at', startOfNextMonth)
-            .order('created_at', ascending: false),
+            .order('created_at', ascending: false)
+            .order('id', ascending: false),
       ]);
 
       final userRow = results[0] as Map<String, dynamic>?;

@@ -1278,3 +1278,176 @@ class _PulsingRingState extends State<_PulsingRing> with SingleTickerProviderSta
     );
   }
 }
+
+Future<void> showStreakBonusDialog(
+  BuildContext context, {
+  required int points,
+  required String streakLabel,
+  required String lang,
+}) async {
+  if (!context.mounted) return;
+  if (ModalRoute.of(context)?.isCurrent != true) return;
+
+  final completer = Completer<void>();
+
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    barrierColor: Colors.black.withValues(alpha: 0.6),
+    builder: (ctx) => _StreakBonusDialog(
+      points: points,
+      streakLabel: streakLabel,
+      lang: lang,
+      onDismiss: () {
+        if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+        if (!completer.isCompleted) completer.complete();
+      },
+    ),
+  ).then((_) {
+    if (!completer.isCompleted) completer.complete();
+  });
+
+  await completer.future;
+}
+
+class _StreakBonusDialog extends StatefulWidget {
+  final int points;
+  final String streakLabel;
+  final String lang;
+  final VoidCallback onDismiss;
+
+  const _StreakBonusDialog({
+    required this.points,
+    required this.streakLabel,
+    required this.lang,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_StreakBonusDialog> createState() => _StreakBonusDialogState();
+}
+
+class _StreakBonusDialogState extends State<_StreakBonusDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scaleAnim, _fadeAnim, _slideAnim;
+
+  static const Map<String, Map<String, String>> _txt = {
+    'ID': {'title': 'Streak Login Tercapai!', 'desc': 'Kamu konsisten login selama', 'ok': 'Keren!'},
+    'EN': {'title': 'Login Streak Achieved!', 'desc': 'You have logged in consistently for', 'ok': 'Awesome!'},
+    'ZH': {'title': '登录连胜达成！', 'desc': '您已连续登录', 'ok': '太棒了！'},
+  };
+
+  Map<String, String> get t => _txt[widget.lang] ?? _txt['ID']!;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 520));
+    _scaleAnim = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
+    _fadeAnim  = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slideAnim = Tween<double>(begin: 40, end: 0).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    const Color gold = Color(0xFFF59E0B);
+    const Color goldLight = Color(0xFFFFFBEB);
+    const Color goldMid = Color(0xFFFEF3C7);
+
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, child) => Opacity(
+        opacity: _fadeAnim.value,
+        child: Transform.translate(
+          offset: Offset(0, _slideAnim.value),
+          child: Transform.scale(scale: _scaleAnim.value, child: child),
+        ),
+      ),
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(color: gold.withValues(alpha: 0.2), width: 1.5),
+              boxShadow: [
+                BoxShadow(color: gold.withValues(alpha: 0.2), blurRadius: 40, spreadRadius: 4, offset: const Offset(0, 12)),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                  decoration: const BoxDecoration(
+                    color: goldMid,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                  ),
+                  child: Column(children: [
+                    Container(
+                      width: 72, height: 72,
+                      decoration: BoxDecoration(
+                        color: gold.withValues(alpha: 0.15), shape: BoxShape.circle,
+                        border: Border.all(color: gold.withValues(alpha: 0.35), width: 2),
+                      ),
+                      child: const Icon(Icons.workspace_premium_rounded, color: gold, size: 38),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(t['title']!,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(fontSize: 19, fontWeight: FontWeight.w800, color: const Color(0xFF92400E))),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      decoration: BoxDecoration(color: gold, borderRadius: BorderRadius.circular(50)),
+                      child: Text('+${widget.points} Poin',
+                          style: GoogleFonts.poppins(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.white)),
+                    ),
+                  ]),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                  child: Column(children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: goldLight, borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: gold.withValues(alpha: 0.15)),
+                      ),
+                      child: Text('${t['desc']!} ${widget.streakLabel}',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.w600,
+                              color: const Color(0xFF78350F), height: 1.6)),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity, height: 50,
+                      child: ElevatedButton(
+                        onPressed: widget.onDismiss,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: gold, foregroundColor: Colors.white, elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: Text(t['ok']!,
+                            style: GoogleFonts.poppins(fontWeight: FontWeight.w700, fontSize: 15)),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
