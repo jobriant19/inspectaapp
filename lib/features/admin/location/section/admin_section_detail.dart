@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/code/app_logo_cache.dart';
 import '../../../shared/code/qr_generator_screen.dart';
+import '../../../shared/code/qr_print_helper.dart';
 import '../../../user/finding/finding_pick_pic.dart';
 
 class _C {
@@ -32,6 +33,7 @@ class AdminSectionDetailScreen extends StatefulWidget {
 class _AdminSectionDetailScreenState extends State<AdminSectionDetailScreen> {
   late Map<String, dynamic> _item;
   bool _isRefreshing = false;
+  final GlobalKey _qrCardKey = GlobalKey();
 
   @override
   void initState() {
@@ -101,6 +103,10 @@ class _AdminSectionDetailScreenState extends State<AdminSectionDetailScreen> {
         if (mounted) setState(() => _isRefreshing = false);
       }
     }
+  }
+
+  Future<void> _printQrCard() async {
+    await QrPrintHelper.printQrCard(_qrCardKey, fileName: 'qr_section');
   }
 
   void _openFullImage(String url) {
@@ -408,83 +414,115 @@ class _AdminSectionDetailScreenState extends State<AdminSectionDetailScreen> {
                 ),
                 child: Column(
                   children: [
-                    (AppLogoCache.cachedUrl != null && AppLogoCache.cachedUrl!.isNotEmpty)
-                        ? Image.network(
-                            AppLogoCache.cachedUrl!,
-                            height: 40,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => Image.asset(
-                              'assets/images/logo1.PNG',
-                              height: 40,
-                              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    RepaintBoundary(
+                      key: _qrCardKey,
+                      child: Container(
+                        color: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(
+                          children: [
+                            (AppLogoCache.cachedUrl != null && AppLogoCache.cachedUrl!.isNotEmpty)
+                                ? Image.network(
+                                    AppLogoCache.cachedUrl!,
+                                    height: 64,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Image.asset(
+                                      'assets/images/logo1.PNG',
+                                      height: 64,
+                                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                    ),
+                                  )
+                                : Image.asset(
+                                    'assets/images/logo1.PNG',
+                                    height: 64,
+                                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                  ),
+                            const SizedBox(height: 16),
+                            QrImageView(data: qrcode, version: QrVersions.auto, size: 220),
+                            const SizedBox(height: 14),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.dashboard_customize_rounded, size: 16, color: _C.primary),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    _name,
+                                    textAlign: TextAlign.center,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
+                                      color: _C.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          )
-                        : Image.asset(
-                            'assets/images/logo1.PNG',
-                            height: 40,
-                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                          ),
-                    const SizedBox(height: 14),
-                    QrImageView(data: qrcode, version: QrVersions.auto, size: 220),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.dashboard_customize_rounded, size: 16, color: _C.primary),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            _name,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: _C.primary,
+                            const SizedBox(height: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _t('Person in Charge : ', 'Penanggung Jawab : ', '负责人 : '),
+                                  style: GoogleFonts.poppins(color: _C.primary, fontSize: 12.5, fontWeight: FontWeight.w700),
+                                ),
+                                CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor: _C.primary.withValues(alpha: 0.15),
+                                  backgroundImage: (picImage != null && picImage.isNotEmpty) ? NetworkImage(picImage) : null,
+                                  child: (picImage == null || picImage.isEmpty)
+                                      ? const Icon(Icons.person_rounded, color: _C.primary, size: 13)
+                                      : null,
+                                ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    (picName != null && picName.isNotEmpty) ? picName : _t('No PIC', 'Belum ada PIC', '无负责人'),
+                                    style: GoogleFonts.poppins(color: Colors.black87, fontSize: 12.5, fontWeight: FontWeight.w700),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _t('Person in Charge : ', 'Penanggung Jawab : ', '负责人 : '),
-                          style: GoogleFonts.poppins(color: _C.primary, fontSize: 12.5, fontWeight: FontWeight.w700),
-                        ),
-                        CircleAvatar(
-                          radius: 12,
-                          backgroundColor: _C.primary.withValues(alpha: 0.15),
-                          backgroundImage: (picImage != null && picImage.isNotEmpty) ? NetworkImage(picImage) : null,
-                          child: (picImage == null || picImage.isEmpty)
-                              ? const Icon(Icons.person_rounded, color: _C.primary, size: 13)
-                              : null,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            (picName != null && picName.isNotEmpty) ? picName : _t('No PIC', 'Belum ada PIC', '无负责人'),
-                            style: GoogleFonts.poppins(color: Colors.black87, fontSize: 12.5, fontWeight: FontWeight.w700),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: _openQrGenerator,
-                      icon: const Icon(Icons.refresh_rounded, size: 16),
-                      label: Text(_t('Regenerate QR', 'Buat Ulang QR', '重新生成二维码'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _C.primary,
-                        side: const BorderSide(color: _C.primary),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _openQrGenerator,
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            label: Text(_t('Regenerate', 'Buat Ulang', '重新生成'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _C.primary,
+                              side: const BorderSide(color: _C.primary),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _printQrCard,
+                            icon: const Icon(Icons.print_rounded, size: 16),
+                            label: Text(_t('Print', 'Cetak', '打印'), style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _C.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

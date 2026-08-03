@@ -315,18 +315,18 @@ class _QRGeneratorScreenState extends State<QRGeneratorScreen> {
     if (url != null && url.isNotEmpty) {
       return Image.network(
         url,
-        height: 40,
+        height: 64,
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) => Image.asset(
           'assets/images/logo1.PNG',
-          height: 40,
+          height: 64,
           errorBuilder: (_, __, ___) => const SizedBox.shrink(),
         ),
       );
     }
     return Image.asset(
       'assets/images/logo1.PNG',
-      height: 40,
+      height: 64,
       errorBuilder: (_, __, ___) => const SizedBox.shrink(),
     );
   }

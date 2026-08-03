@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/code/app_logo_cache.dart';
 import '../../../shared/code/qr_generator_screen.dart';
+import '../../../shared/code/qr_print_helper.dart';
 import '../../../user/finding/finding_pick_pic.dart';
 
 class _C {
@@ -41,6 +42,7 @@ class AdminAreaDetailScreen extends StatefulWidget {
 class _AdminAreaDetailScreenState extends State<AdminAreaDetailScreen> {
   late Map<String, dynamic> _item;
   bool _isRefreshing = false;
+  final GlobalKey _qrCardKey = GlobalKey();
   int? _favoriteCount;
 
   @override
@@ -112,6 +114,10 @@ class _AdminAreaDetailScreenState extends State<AdminAreaDetailScreen> {
         if (mounted) setState(() => _isRefreshing = false);
       }
     }
+  }
+
+  Future<void> _printQrCard() async {
+    await QrPrintHelper.printQrCard(_qrCardKey, fileName: 'qr_area');
   }
 
   void _openFullImage(String url) {
@@ -479,96 +485,131 @@ class _AdminAreaDetailScreenState extends State<AdminAreaDetailScreen> {
                   ],
                 ),
                 child: Column(
-                  children: [
-                    (AppLogoCache.cachedUrl != null && AppLogoCache.cachedUrl!.isNotEmpty)
-                        ? Image.network(
-                            AppLogoCache.cachedUrl!,
-                            height: 40,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => Image.asset(
-                              'assets/images/logo1.PNG',
-                              height: 40,
-                              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                            ),
-                          )
-                        : Image.asset(
-                            'assets/images/logo1.PNG',
-                            height: 40,
-                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    children: [
+                      RepaintBoundary(
+                        key: _qrCardKey,
+                        child: Container(
+                          color: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Column(
+                            children: [
+                              (AppLogoCache.cachedUrl != null && AppLogoCache.cachedUrl!.isNotEmpty)
+                                  ? Image.network(
+                                      AppLogoCache.cachedUrl!,
+                                      height: 64,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => Image.asset(
+                                        'assets/images/logo1.PNG',
+                                        height: 64,
+                                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                      ),
+                                    )
+                                  : Image.asset(
+                                      'assets/images/logo1.PNG',
+                                      height: 64,
+                                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                    ),
+                              const SizedBox(height: 16),
+                              QrImageView(data: qrcode, version: QrVersions.auto, size: 220),
+                              const SizedBox(height: 14),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(widget.icon, size: 16, color: const Color(0xFFBE185D)),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      name,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFFBE185D),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    widget.lang == 'EN' ? 'Person in Charge : ' : widget.lang == 'ZH' ? '负责人 : ' : 'Penanggung Jawab : ',
+                                    style: GoogleFonts.poppins(
+                                        color: const Color(0xFFBE185D), fontSize: 12.5, fontWeight: FontWeight.w700),
+                                  ),
+                                  CircleAvatar(
+                                    radius: 12,
+                                    backgroundColor: widget.primaryColor.withValues(alpha: 0.20),
+                                    backgroundImage: (picImage != null && picImage.isNotEmpty)
+                                        ? NetworkImage(picImage)
+                                        : null,
+                                    child: (picImage == null || picImage.isEmpty)
+                                        ? const Icon(Icons.person_rounded, color: Color(0xFFBE185D), size: 13)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      (picName != null && picName.isNotEmpty)
+                                          ? picName
+                                          : (widget.lang == 'EN' ? 'No PIC' : widget.lang == 'ZH' ? '无负责人' : 'Belum ada PIC'),
+                                      style: GoogleFonts.poppins(
+                                          color: Colors.black87, fontSize: 12.5, fontWeight: FontWeight.w700),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                    const SizedBox(height: 14),
-                    QrImageView(data: qrcode, version: QrVersions.auto, size: 220),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(widget.icon, size: 16, color: const Color(0xFFBE185D)),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            name,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFFBE185D),
-                            ),
-                          ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          widget.lang == 'EN' ? 'Person in Charge : ' : widget.lang == 'ZH' ? '负责人 : ' : 'Penanggung Jawab : ',
-                          style: GoogleFonts.poppins(
-                              color: const Color(0xFFBE185D), fontSize: 12.5, fontWeight: FontWeight.w700),
-                        ),
-                        CircleAvatar(
-                          radius: 12,
-                          backgroundColor: widget.primaryColor.withValues(alpha: 0.20),
-                          backgroundImage: (picImage != null && picImage.isNotEmpty)
-                              ? NetworkImage(picImage)
-                              : null,
-                          child: (picImage == null || picImage.isEmpty)
-                              ? const Icon(Icons.person_rounded, color: Color(0xFFBE185D), size: 13)
-                              : null,
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            (picName != null && picName.isNotEmpty)
-                                ? picName
-                                : (widget.lang == 'EN' ? 'No PIC' : widget.lang == 'ZH' ? '无负责人' : 'Belum ada PIC'),
-                            style: GoogleFonts.poppins(
-                                color: Colors.black87, fontSize: 12.5, fontWeight: FontWeight.w700),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: _openQrGenerator,
-                      icon: const Icon(Icons.refresh_rounded, size: 16),
-                      label: Text(
-                        widget.lang == 'EN' ? 'Regenerate QR' : widget.lang == 'ZH' ? '重新生成二维码' : 'Buat Ulang QR',
-                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                       ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFBE185D),
-                        side: BorderSide(color: widget.primaryColor),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _openQrGenerator,
+                              icon: const Icon(Icons.refresh_rounded, size: 16),
+                              label: Text(
+                                widget.lang == 'EN' ? 'Regenerate' : widget.lang == 'ZH' ? '重新生成' : 'Buat Ulang',
+                                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFBE185D),
+                                side: BorderSide(color: widget.primaryColor),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _printQrCard,
+                              icon: const Icon(Icons.print_rounded, size: 16),
+                              label: Text(
+                                widget.lang == 'EN' ? 'Print' : widget.lang == 'ZH' ? '打印' : 'Cetak',
+                                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFBE185D),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ),
             ] else ...[
               Container(
