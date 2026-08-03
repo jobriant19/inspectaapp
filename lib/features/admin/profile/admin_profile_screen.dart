@@ -886,6 +886,7 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
           ),
           backgroundColor: Colors.white,
           elevation: 1,
+          surfaceTintColor: Colors.white,
           actions: [
             if (!_isEditMode && !_isLoading)
               TextButton.icon(

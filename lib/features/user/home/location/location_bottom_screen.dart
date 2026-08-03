@@ -472,6 +472,7 @@ class _LocationBottomSheetState extends State<LocationBottomSheet> {
         ),
         backgroundColor: Colors.white,
         elevation: 1,
+        surfaceTintColor: Colors.white,
         shadowColor: Colors.black.withValues(alpha: 0.08),
         iconTheme: const IconThemeData(color: Color(0xFF1D72F3)),
         centerTitle: true,

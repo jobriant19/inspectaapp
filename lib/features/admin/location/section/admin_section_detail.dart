@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../shared/code/app_logo_cache.dart';
 import '../../../shared/code/qr_generator_screen.dart';
 import '../../../user/finding/finding_pick_pic.dart';
 
@@ -36,6 +37,9 @@ class _AdminSectionDetailScreenState extends State<AdminSectionDetailScreen> {
   void initState() {
     super.initState();
     _item = widget.item;
+    AppLogoCache.prefetch(onUpdated: () {
+      if (mounted) setState(() {});
+    });
   }
 
   String _t(String en, String id, String zh) {
@@ -65,6 +69,7 @@ class _AdminSectionDetailScreenState extends State<AdminSectionDetailScreen> {
   }
 
   Future<void> _openQrGenerator() async {
+    final picData = _item['User'] as Map<String, dynamic>?;
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -73,6 +78,8 @@ class _AdminSectionDetailScreenState extends State<AdminSectionDetailScreen> {
           levelName: 'section',
           levelId: _item['id_section'].toString(),
           itemName: _name,
+          picName: picData?['nama'] as String?,
+          picImage: picData?['gambar_user'] as String?,
         ),
       ),
     );
@@ -171,6 +178,7 @@ class _AdminSectionDetailScreenState extends State<AdminSectionDetailScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        surfaceTintColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _C.primary),
           onPressed: () => Navigator.pop(context),
@@ -359,6 +367,38 @@ class _AdminSectionDetailScreenState extends State<AdminSectionDetailScreen> {
             else if (qrcode != null && qrcode.isNotEmpty) ...[
               Container(
                 width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _C.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _C.primary.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_rounded, size: 18, color: _C.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _t(
+                          'This QR code can be scanned to instantly select this section when reporting a Cause on KTS Production or scheduling a Preventive Maintenance task.',
+                          'Kode QR ini dapat dipindai untuk langsung memilih section ini saat melaporkan Cause pada KTS Production maupun penjadwalan Preventive Maintenance.',
+                          '扫描此二维码可在报告KTS Production原因或安排预防性维护时直接选择此部门。',
+                        ),
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: _C.primary,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -368,7 +408,72 @@ class _AdminSectionDetailScreenState extends State<AdminSectionDetailScreen> {
                 ),
                 child: Column(
                   children: [
+                    (AppLogoCache.cachedUrl != null && AppLogoCache.cachedUrl!.isNotEmpty)
+                        ? Image.network(
+                            AppLogoCache.cachedUrl!,
+                            height: 40,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => Image.asset(
+                              'assets/images/logo1.PNG',
+                              height: 40,
+                              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                            ),
+                          )
+                        : Image.asset(
+                            'assets/images/logo1.PNG',
+                            height: 40,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          ),
+                    const SizedBox(height: 14),
                     QrImageView(data: qrcode, version: QrVersions.auto, size: 220),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.dashboard_customize_rounded, size: 16, color: _C.primary),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            _name,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: _C.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _t('Person in Charge : ', 'Penanggung Jawab : ', '负责人 : '),
+                          style: GoogleFonts.poppins(color: _C.primary, fontSize: 12.5, fontWeight: FontWeight.w700),
+                        ),
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundColor: _C.primary.withValues(alpha: 0.15),
+                          backgroundImage: (picImage != null && picImage.isNotEmpty) ? NetworkImage(picImage) : null,
+                          child: (picImage == null || picImage.isEmpty)
+                              ? const Icon(Icons.person_rounded, color: _C.primary, size: 13)
+                              : null,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            (picName != null && picName.isNotEmpty) ? picName : _t('No PIC', 'Belum ada PIC', '无负责人'),
+                            style: GoogleFonts.poppins(color: Colors.black87, fontSize: 12.5, fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
                       onPressed: _openQrGenerator,

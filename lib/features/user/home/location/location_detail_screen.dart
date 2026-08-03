@@ -196,7 +196,6 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   final Map<String, Future<List<dynamic>>> _subItemsCache = {};
   static const double _headerHeight = 112.0;
 
-  // PAGINATION STATE
   int _subItemsPage = 1;
   static const int _subItemsPerPage = 5;
   int _membersPage = 1;
@@ -1436,10 +1435,20 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            Text(
-              itemName,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: _levelColor),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_levelIcon, size: 16, color: _levelColor),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    itemName,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w800, color: _levelColor),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 6),
             Row(

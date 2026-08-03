@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../shared/code/app_logo_cache.dart';
 import '../../../shared/code/qr_generator_screen.dart';
 import '../../../user/finding/finding_pick_pic.dart';
 
@@ -41,6 +42,9 @@ class _AdminLocationDetailScreenState extends State<AdminLocationDetailScreen> {
     super.initState();
     _item = widget.item;
     _loadFavoriteCount();
+    AppLogoCache.prefetch(onUpdated: () {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _loadFavoriteCount() async {
@@ -70,6 +74,7 @@ class _AdminLocationDetailScreenState extends State<AdminLocationDetailScreen> {
   }
 
   Future<void> _openQrGenerator() async {
+    final picData = _item['User'] as Map<String, dynamic>?;
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -78,6 +83,8 @@ class _AdminLocationDetailScreenState extends State<AdminLocationDetailScreen> {
           levelName: widget.nameKey,
           levelId: _item['id_${widget.nameKey}'].toString(),
           itemName: widget.nameFn(_item),
+          picName: picData?['nama'] as String?,
+          picImage: picData?['gambar_user'] as String?,
         ),
       ),
     );
@@ -402,22 +409,43 @@ class _AdminLocationDetailScreenState extends State<AdminLocationDetailScreen> {
                             ),
                           ),
                           const SizedBox(height: 18),
-                          Image.asset(
-                            'assets/images/logo1.PNG',
-                            height: 40,
-                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                          ),
+                          (AppLogoCache.cachedUrl != null && AppLogoCache.cachedUrl!.isNotEmpty)
+                              ? Image.network(
+                                  AppLogoCache.cachedUrl!,
+                                  height: 40,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => Image.asset(
+                                    'assets/images/logo1.PNG',
+                                    height: 40,
+                                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                  ),
+                                )
+                              : Image.asset(
+                                  'assets/images/logo1.PNG',
+                                  height: 40,
+                                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                ),
                           const SizedBox(height: 14),
                           QrImageView(data: qrcode, version: QrVersions.auto, size: 220),
                           const SizedBox(height: 14),
-                          Text(
-                            name,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: widget.primaryColor,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(widget.icon, size: 16, color: widget.primaryColor),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  name,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                    color: widget.primaryColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 10),
                           Row(
