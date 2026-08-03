@@ -59,12 +59,16 @@ class QRScannerScreen extends StatefulWidget {
   final String lang;
   final bool isProMode;
   final bool isVisitorMode;
+  final bool sectionMode;
+  final String? overrideTitle;
 
   const QRScannerScreen({
     super.key,
     required this.lang,
     required this.isProMode,
     required this.isVisitorMode,
+    this.sectionMode = false,
+    this.overrideTitle,
   });
 
   @override
@@ -168,14 +172,23 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     final String? id = data['id']?.toString();
     final int? version = data['v'];
 
-    if (type == null || id == null || id.isEmpty ||
-        !['lokasi', 'unit', 'subunit', 'area'].contains(type)) {
+    final List<String> allowedTypes = widget.sectionMode
+        ? const ['section']
+        : const ['lokasi', 'unit', 'subunit', 'area'];
+
+    if (type == null || id == null || id.isEmpty || !allowedTypes.contains(type)) {
       _showError(getTxt('invalid_qr'));
       return;
     }
 
     setState(() => _isProcessing = true);
     await _cameraController?.stop();
+
+    if (widget.sectionMode) {
+      if (!mounted) return;
+      Navigator.pop(context, data);
+      return;
+    }
 
     unawaited(CameraWarmupService.instance.warmUp());
 
@@ -208,8 +221,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       context,
       MaterialPageRoute(builder: (_) => destination),
     ).then((_) {
-      // Nyalakan ulang scanner ketika kembali ke layar ini (baik karena user
-      // menekan back dari kamera, maupun karena lokasi tidak ditemukan).
       if (mounted) {
         setState(() => _isProcessing = false);
         _cameraController?.start();
@@ -237,7 +248,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Icon X merah
                 Container(
                   width: 64,
                   height: 64,
@@ -268,7 +278,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                   ),
                 ),
                 const SizedBox(height: 22),
-                // Tombol "Close" di tengah
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -377,7 +386,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
                                 child: Text(
-                                  getTxt('title').toUpperCase(),
+                                  (widget.overrideTitle ?? getTxt('title')).toUpperCase(),
                                   maxLines: 1,
                                   softWrap: false,
                                   overflow: TextOverflow.visible,

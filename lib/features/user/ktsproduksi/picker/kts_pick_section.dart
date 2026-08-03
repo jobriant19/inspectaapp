@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../shared/code/qr_scanner_screen.dart';
+
 const Color _kPrimaryLight = Color(0xFFEFF6FF);
 
 const Color _kAccentGreen = Color(0xFF16A34A);
@@ -258,6 +260,62 @@ class _KtsPickSectionDialogState extends State<_KtsPickSectionDialog> {
     }
   }
 
+  Future<void> _openQrScanner() async {
+    final result = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QRScannerScreen(
+          lang: widget.lang,
+          isProMode: false,
+          isVisitorMode: false,
+          sectionMode: true,
+          overrideTitle: _scanSectionTitle(widget.lang),
+        ),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    final scannedId = result['id']?.toString();
+    if (scannedId == null || scannedId.isEmpty) return;
+
+    try {
+      final data = await Supabase.instance.client
+          .from('section')
+          .select('*, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area)')
+          .eq('id_section', scannedId)
+          .maybeSingle();
+
+      if (data != null && mounted) {
+        Navigator.pop(context, Map<String, dynamic>.from(data));
+      }
+    } catch (e) {
+      debugPrint('Error mengambil data section dari QR: $e');
+    }
+  }
+
+  String _scanSectionTitle(String lang) {
+    switch (lang) {
+      case 'EN':
+        return 'Scan Section Cause';
+      case 'ZH':
+        return '扫描原因部门';
+      default:
+        return 'Pindai Section Penyebab';
+    }
+  }
+
+  String _filterLocationLabel(String lang) {
+    switch (lang) {
+      case 'EN':
+        return 'Filter Location';
+      case 'ZH':
+        return '位置筛选';
+      default:
+        return 'Filter Lokasi';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
@@ -301,7 +359,7 @@ class _KtsPickSectionDialogState extends State<_KtsPickSectionDialog> {
           const SizedBox(height: 12),
           Container(height: 1, color: const Color(0xFFF1F5F9)),
 
-          // SEARCH + FILTER
+          // SEARCH + SCAN QR SECTION
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
             child: Row(children: [
@@ -330,47 +388,70 @@ class _KtsPickSectionDialogState extends State<_KtsPickSectionDialog> {
               ),
               const SizedBox(width: 8),
               GestureDetector(
-                onTap: _openLocationFilterDialog,
+                onTap: _openQrScanner,
                 child: Container(
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: _activeFilterCount > 0 ? _kAccentGreen : Colors.white,
+                    color: _kAccentGreen,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: _activeFilterCount > 0 ? _kAccentGreen : _kAccentGreen.withValues(alpha: 0.35), width: 1.3),
-                    boxShadow: [BoxShadow(color: _kAccentGreen.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2))],
+                    boxShadow: [BoxShadow(color: _kAccentGreen.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))],
                   ),
-                  child: Icon(Icons.map, color: _activeFilterCount > 0 ? Colors.white : _kAccentGreen, size: 20),
+                  child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 20),
                 ),
               ),
             ]),
           ),
 
-          // COUNT + ACTIVE LOCATION CHIP
+          // COUNT (LEFT) + FILTER LOCATION (RIGHT) + ACTIVE LOCATION CHIP
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 2, 14, 10),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _kAccentGreenLight,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _kAccentGreenBorder),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(CupertinoIcons.square_grid_2x2_fill, size: 12, color: _kAccentGreen),
-                    const SizedBox(width: 6),
-                    Text(
-                      _countLabel(widget.lang),
-                      style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: _kAccentGreen),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _kAccentGreenLight,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _kAccentGreenBorder),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(CupertinoIcons.square_grid_2x2_fill, size: 12, color: _kAccentGreen),
+                        const SizedBox(width: 6),
+                        Text(
+                          _countLabel(widget.lang),
+                          style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: _kAccentGreen),
+                        ),
+                      ]),
                     ),
-                  ]),
+                    GestureDetector(
+                      onTap: _openLocationFilterDialog,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: _activeFilterCount > 0 ? _kAccentGreen : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: _activeFilterCount > 0 ? _kAccentGreen : _kAccentGreen.withValues(alpha: 0.35), width: 1.3),
+                          boxShadow: [BoxShadow(color: _kAccentGreen.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2))],
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.map, size: 16, color: _activeFilterCount > 0 ? Colors.white : _kAccentGreen),
+                          const SizedBox(width: 6),
+                          Text(
+                            _filterLocationLabel(widget.lang),
+                            style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: _activeFilterCount > 0 ? Colors.white : _kAccentGreen),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ],
                 ),
-                if (_activeFilterName != null)
+                if (_activeFilterName != null) ...[
+                  const SizedBox(height: 8),
                   GestureDetector(
                     onTap: _removeAllFilters,
                     child: Container(
@@ -392,6 +473,7 @@ class _KtsPickSectionDialogState extends State<_KtsPickSectionDialog> {
                       ]),
                     ),
                   ),
+                ],
               ],
             ),
           ),
