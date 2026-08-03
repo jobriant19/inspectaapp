@@ -8,7 +8,6 @@ import '../home/admin_home_screen.dart';
 import '../5R/admin_5r_screen.dart';
 import '../preventif/admin_preventif_screen.dart';
 import 'admin_kts_cause.dart';
-import 'admin_kts_kasie.dart';
 import 'admin_kts_members.dart';
 import 'admin_kts_recurring.dart';
 
@@ -42,7 +41,7 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
     _lang = widget.lang;
     _adminName = widget.adminName ?? 'Admin';
     _adminImage = widget.adminImage;
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -222,7 +221,6 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
                         children: [
                           AdminKtsMembersTab(lang: _lang),
                           AdminKtsCauseTab(lang: _lang),
-                          AdminKtsKasieTab(lang: _lang),
                           AdminKtsRecurringTab(lang: _lang),
                         ],
                       ),
@@ -485,10 +483,10 @@ class _AdminKtsScreenState extends State<AdminKtsScreen>
     const activeColor = Color(0xFFF59E0B);
 
     final tabLabels = _lang == 'EN'
-        ? ['Members', 'Cause', 'Kasie', 'Recurring KTS']
+        ? ['Members', 'Cause', 'Recurring KTS']
         : _lang == 'ZH'
-            ? ['成员', '原因', '部门主管', '重复KTS']
-            : ['Anggota', 'Penyebab', 'Kasie', 'KTS Berulang'];
+            ? ['成员', '原因', '重复KTS']
+            : ['Anggota', 'Penyebab', 'KTS Berulang'];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),

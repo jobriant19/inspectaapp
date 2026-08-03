@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../kts/admin_kts_cause.dart';
-import '../kts/admin_kts_kasie.dart';
 import '../kts/admin_kts_members.dart';
 import '../kts/admin_kts_recurring.dart';
 
-/// Konten tab KTS tanpa Scaffold/header/bottomnav.
-/// Header & bottom navbar sekarang dikelola oleh AdminShellScreen.
 class AdminKtsBody extends StatefulWidget {
   final String lang;
   const AdminKtsBody({super.key, required this.lang});
@@ -22,7 +19,7 @@ class _AdminKtsBodyState extends State<AdminKtsBody>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -82,7 +79,6 @@ class _AdminKtsBodyState extends State<AdminKtsBody>
             children: [
               AdminKtsMembersTab(lang: lang),
               AdminKtsCauseTab(lang: lang),
-              AdminKtsKasieTab(lang: lang),
               AdminKtsRecurringTab(lang: lang),
             ],
           ),
@@ -94,10 +90,10 @@ class _AdminKtsBodyState extends State<AdminKtsBody>
   Widget _buildTabBar(String lang) {
     const activeColor = Color(0xFFF59E0B);
     final tabLabels = lang == 'EN'
-        ? ['Members', 'Cause', 'Kasie', 'Recurring KTS']
+        ? ['Members', 'Cause', 'Recurring KTS']
         : lang == 'ZH'
-            ? ['成员', '原因', '部门主管', '重复KTS']
-            : ['Anggota', 'Penyebab', 'Kasie', 'KTS Berulang'];
+            ? ['成员', '原因', '重复KTS']
+            : ['Anggota', 'Penyebab', 'KTS Berulang'];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
