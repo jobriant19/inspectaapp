@@ -25,11 +25,11 @@ const List<IconData> _levelIcons = [
 const List<String> _levelKeys = ['lokasi', 'unit', 'subunit', 'area'];
 
 const Map<String, String> _subSelectMap = {
-  'unit'   : 'id_unit, nama_unit, gambar_unit, deskripsi_unit, is_star, '
+  'unit'   : 'id_unit, nama_unit, gambar_unit, deskripsi_unit, deskripsi_unit_en, deskripsi_unit_zh, is_star, '
              'id_pic, User!id_pic(nama, gambar_user), subunit(id_subunit), id_lokasi, lokasi(nama_lokasi), qrcode',
-  'subunit': 'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, is_star, '
+  'subunit': 'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, deskripsi_subunit_en, deskripsi_subunit_zh, is_star, '
              'id_pic, User!id_pic(nama, gambar_user), area(id_area), id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode',
-  'area'   : 'id_area, nama_area, gambar_area, deskripsi_area, is_star, '
+  'area'   : 'id_area, nama_area, gambar_area, deskripsi_area, deskripsi_area_en, deskripsi_area_zh, is_star, '
              'id_pic, User!id_pic(nama, gambar_user), id_subunit, id_unit, id_lokasi, '
              'subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), qrcode',
 };
@@ -208,6 +208,22 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
 
   Color get _levelColor => _levelColors[widget.level];
   IconData get _levelIcon => _levelIcons[widget.level];
+
+  String _localizedDesc(String tName) {
+    final base = _data['deskripsi_$tName'] as String?;
+    switch (widget.lang) {
+      case 'EN':
+        return (_data['deskripsi_${tName}_en'] as String?)?.trim().isNotEmpty == true
+            ? _data['deskripsi_${tName}_en'] as String
+            : (base ?? '');
+      case 'ZH':
+        return (_data['deskripsi_${tName}_zh'] as String?)?.trim().isNotEmpty == true
+            ? _data['deskripsi_${tName}_zh'] as String
+            : (base ?? '');
+      default:
+        return base ?? '';
+    }
+  }
 
   @override
   void initState() {
@@ -465,8 +481,8 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     final picName = (_data['User'] != null) ? _data['User']['nama'] as String? : null;
     final hasPic  = picName != null && picName.isNotEmpty;
     final hasImage = _data['gambar_$tName'] != null;
-    final desc     = _data['deskripsi_$tName'] as String?;
-    final hasDesc  = desc != null && desc.trim().isNotEmpty;
+    final desc     = _localizedDesc(tName);
+    final hasDesc  = desc.trim().isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -1397,17 +1413,17 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
             (_cachedAppLogoUrl != null && _cachedAppLogoUrl!.isNotEmpty)
                 ? Image.network(
                     _cachedAppLogoUrl!,
-                    height: 36,
+                    height: 64,
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => Image.asset(
                       'assets/images/logo1.PNG',
-                      height: 36,
+                      height: 64,
                       errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                     ),
                   )
                 : Image.asset(
                     'assets/images/logo1.PNG',
-                    height: 36,
+                    height: 64,
                     errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                   ),
             const SizedBox(height: 10),

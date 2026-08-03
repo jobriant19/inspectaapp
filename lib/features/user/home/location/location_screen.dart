@@ -480,18 +480,18 @@ class _LocationScreenState extends State<LocationScreen>
     try {
       final results = await Future.wait([
         _supabase.from('lokasi').select(
-            'id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, '
+            'id_lokasi, nama_lokasi, gambar_lokasi, deskripsi_lokasi, deskripsi_lokasi_en, deskripsi_lokasi_zh, '
             'is_star, id_pic, User!id_pic(nama, gambar_user), unit(id_unit), qrcode'),
         _supabase.from('unit').select(
-            'id_unit, nama_unit, gambar_unit, deskripsi_unit, '
+            'id_unit, nama_unit, gambar_unit, deskripsi_unit, deskripsi_unit_en, deskripsi_unit_zh, '
             'is_star, id_pic, User!id_pic(nama, gambar_user), subunit(id_subunit), '
             'id_lokasi, lokasi(nama_lokasi), qrcode'),
         _supabase.from('subunit').select(
-            'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, '
+            'id_subunit, nama_subunit, gambar_subunit, deskripsi_subunit, deskripsi_subunit_en, deskripsi_subunit_zh, '
             'is_star, id_pic, User!id_pic(nama, gambar_user), area(id_area), '
             'id_unit, id_lokasi, unit(nama_unit), lokasi(nama_lokasi), qrcode'),
         _supabase.from('area').select(
-            'id_area, nama_area, gambar_area, deskripsi_area, '
+            'id_area, nama_area, gambar_area, deskripsi_area, deskripsi_area_en, deskripsi_area_zh, '
             'is_star, id_pic, User!id_pic(nama, gambar_user), '
             'id_subunit, id_unit, id_lokasi, '
             'subunit(nama_subunit), unit(nama_unit), lokasi(nama_lokasi), qrcode'),
