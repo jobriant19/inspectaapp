@@ -261,6 +261,18 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     if (_selectedAssignee == null) {
       missing.add(MissingFieldItem(icon: Icons.person_outline, label: _texts['assignee']!));
     }
+    if (_isVisitorUser) {
+      if (_visitorNameCtrl.text.trim().isEmpty) {
+        missing.add(MissingFieldItem(icon: Icons.person_outline, label: _texts['visitor_name']!));
+      }
+      if (_visitorCompanyCtrl.text.trim().isEmpty) {
+        missing.add(MissingFieldItem(icon: Icons.business_outlined, label: _texts['visitor_company']!));
+      }
+    }
+    if (widget.isProMode &&
+        (_selectedEscalation == null || _selectedEscalation!.trim().isEmpty)) {
+      missing.add(MissingFieldItem(icon: Icons.escalator_warning_outlined, label: _texts['escalation']!));
+    }
 
     if (missing.isNotEmpty) {
       RequiredFieldAlert.show(context, lang: widget.lang, missingFields: missing);
@@ -276,6 +288,38 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
       final bool isExecutive =
           (_currentUserProfile?['id_jabatan'] == 1);
+
+      // ================================================
+      // Hitung poin 5R: base (dari konfigurasi_poin) + bonus
+      // kategori + bonus subkategori — TANPA function/trigger DB
+      // ================================================
+      final bool isVisitor5R = widget.isVisitorMode;
+      final bool isPro5R = widget.isProMode;
+      final int comboCount =
+          (isVisitor5R ? 1 : 0) + (isExecutive ? 1 : 0) + (isPro5R ? 1 : 0);
+
+      final String kodePoin = comboCount >= 3
+          ? '5R_COMBO3'
+          : comboCount == 2
+              ? '5R_COMBO2'
+              : isVisitor5R
+                  ? '5R_VISITOR'
+                  : isExecutive
+                      ? '5R_EXECUTIVE'
+                      : isPro5R
+                          ? '5R_PROFESSIONAL'
+                          : '5R_BASE';
+
+      // Poin kategori & subkategori TIDAK dihitung di sini —
+      // baru ditambahkan pada tahap penyelesaian (lihat finding_solution_screen.dart)
+      final konfigPoin = await supabase
+          .from('konfigurasi_poin')
+          .select('poin, deskripsi_template, deskripsi_template_en, deskripsi_template_zh')
+          .eq('kode', kodePoin)
+          .maybeSingle();
+
+      final int poinDasar = (konfigPoin?['poin'] as num?)?.toInt() ?? 10;
+      final int totalPoin5R = poinDasar;
 
       // 1. Upload image
       final imageBytes = await _imageXFile!.readAsBytes();
@@ -304,7 +348,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         'id_area': _selectedLocation?['id_area'],
         'id_kategoritemuan_uuid': _selectedCategory?['id_kategoritemuan_uuid'],
         'id_subkategoritemuan_uuid': _selectedCategory?['id_subkategoritemuan_uuid'],
-        'poin_temuan': _selectedCategory?['poin'] ?? 10,
+        'poin_temuan': totalPoin5R,
         'is_pro': widget.isProMode,
         'is_visitor': widget.isVisitorMode,
         'is_eksekutif': isExecutive,
@@ -340,6 +384,45 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
 
       // 3. Insert to temuan
       await supabase.from('temuan').insert(dataToInsert);
+
+      // 3.1 Catat log_poin (3 bahasa) & tambahkan poin ke User — langsung dari Dart
+      List<String> rolesId = [], rolesEn = [], rolesZh = [];
+      if (isVisitor5R) { rolesId.add('Visitor'); rolesEn.add('Visitor'); rolesZh.add('访客'); }
+      if (isExecutive) { rolesId.add('Eksekutif'); rolesEn.add('Executive'); rolesZh.add('高管'); }
+      if (isPro5R) { rolesId.add('Profesional'); rolesEn.add('Professional'); rolesZh.add('专业人员'); }
+      final roleId = rolesId.isEmpty ? 'Reguler' : rolesId.join(' & ');
+      final roleEn = rolesEn.isEmpty ? 'Regular' : rolesEn.join(' & ');
+      final roleZh = rolesZh.isEmpty ? '常规' : rolesZh.join(' & ');
+
+      String isiTemplate(String? tmpl, String fallback, String role) {
+        return (tmpl ?? fallback)
+            .replaceAll('{judul}', _titleCtrl.text.trim())
+            .replaceAll('{role}', role)
+            .replaceAll('{poin}', totalPoin5R.toString());
+      }
+
+      await supabase.from('log_poin').insert({
+        'id_user': user.id,
+        'poin': totalPoin5R,
+        'deskripsi': isiTemplate(konfigPoin?['deskripsi_template'],
+            'Temuan 5R "{judul}" ({role}) berhasil dibuat dan mendapatkan {poin} poin', roleId),
+        'deskripsi_en': isiTemplate(konfigPoin?['deskripsi_template_en'],
+            '5R Finding "{judul}" ({role}) created and earned {poin} poin', roleEn),
+        'deskripsi_zh': isiTemplate(konfigPoin?['deskripsi_template_zh'],
+            '5R发现 "{judul}"（{role}）创建成功，获得{poin}积分', roleZh),
+        'tipe_aktivitas': kodePoin,
+      });
+
+      final userRow = await supabase
+          .from('User')
+          .select('poin')
+          .eq('id_user', user.id)
+          .maybeSingle();
+      final currentPoin = (userRow?['poin'] as num?)?.toInt() ?? 0;
+      await supabase
+          .from('User')
+          .update({'poin': currentPoin + totalPoin5R})
+          .eq('id_user', user.id);
 
       // 4. Kirim FCM ke penanggung jawab jika bukan diri sendiri
       if (_selectedAssignee != null) {
@@ -599,11 +682,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   }
 
   void _showEscalationPicker() async {
-    final result = await showModalBottomSheet<String>(
+    final result = await showDialog<String>(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.5),
       builder: (ctx) => EscalationPickerBottomSheet(lang: widget.lang),
     );
     if (result != null) setState(() => _selectedEscalation = result);
@@ -809,12 +891,18 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   if (widget.isProMode) ...[
                     _buildProModeDivider(),
                     const SizedBox(height: 16),
-                    _buildSectionTitle(_texts['escalation']!, isOptional: true),
+                    _buildIconSectionTitle(
+                      Icons.escalator_warning_outlined,
+                      _texts['escalation']!,
+                      isRequired: true,
+                      color: const Color(0xFF16A34A),
+                    ),
                     _buildPickerCard(
                       icon: Icons.escalator_warning_outlined,
                       text: _selectedEscalation ?? _texts['select_level']!,
                       onTap: _showEscalationPicker,
                       hasValue: _selectedEscalation != null,
+                      showIcon: false,
                     ),
                     const SizedBox(height: 20),
                   ],
@@ -1073,27 +1161,33 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
               const SizedBox(width: 10),
               Text(
                 _texts['visitor_info']!,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                  color: Color(0xFF1E3A8A),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: const Color(0xFF00C9E4),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
+          _buildIconSectionTitle(
+            Icons.person_outline,
+            _texts['visitor_name']!,
+            isRequired: true,
+          ),
           _buildTextField(
             controller: _visitorNameCtrl,
             hint: _texts['visitor_name_hint']!,
-            icon: Icons.person_outline,
-            label: _texts['visitor_name']!,
           ),
           const SizedBox(height: 12),
+          _buildIconSectionTitle(
+            Icons.business_outlined,
+            _texts['visitor_company']!,
+            isRequired: true,
+          ),
           _buildTextField(
             controller: _visitorCompanyCtrl,
             hint: _texts['visitor_company_hint']!,
-            icon: Icons.business_outlined,
-            label: _texts['visitor_company']!,
           ),
         ],
       ),
@@ -1106,22 +1200,33 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         Expanded(child: Divider(color: Colors.grey.shade300)),
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF4ADE80), Color(0xFF16A34A)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF16A34A).withValues(alpha: 0.35),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.workspace_premium,
-                  color: Color(0xFF1E3A8A), size: 14),
-              const SizedBox(width: 4),
+              const Icon(Icons.workspace_premium_rounded,
+                  color: Colors.white, size: 14),
+              const SizedBox(width: 5),
               Text(
                 'PRO',
-                style: TextStyle(
-                  color: const Color(0xFF1E3A8A),
-                  fontWeight: FontWeight.bold,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
                   fontSize: 12,
                 ),
               ),
@@ -1194,47 +1299,19 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title,
-      {bool isRequired = false, bool isOptional = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          Text(title,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                  color: Color(0xFF1E3A8A))),
-          if (isRequired)
-            const Text(' *',
-                style: TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14)),
-          if (isOptional)
-            Text(' (${_texts['optional']})',
-                style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                    fontWeight: FontWeight.normal)),
-        ],
-      ),
-    );
-  }
-
   Widget _buildIconSectionTitle(IconData icon, String title,
-      {bool isRequired = false, bool isOptional = false}) {
+      {bool isRequired = false, bool isOptional = false, Color color = const Color(0xFF1D72F3)}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: const Color(0xFF1D72F3)),
+          Icon(icon, size: 18, color: color),
           const SizedBox(width: 6),
           Text(title,
               style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
-                  color: const Color(0xFF1D72F3))),
+                  color: color)),
           if (isRequired)
             const Text(' *',
                 style: TextStyle(
@@ -1262,10 +1339,15 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
+      style: GoogleFonts.poppins(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: Colors.black,
+      ),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+        hintStyle: GoogleFonts.poppins(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.normal),
         prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF1E3A8A), size: 20) : null,
         filled: true,
         fillColor: Colors.white,
@@ -1447,6 +1529,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     required String text,
     required VoidCallback onTap,
     bool hasValue = false,
+    bool showIcon = true,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -1458,7 +1541,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: hasValue
-                ? const Color(0xFF00C9E4).withValues(alpha:0.5)
+                ? const Color(0xFF16A34A).withValues(alpha:0.5)
                 : Colors.grey.shade200,
             width: hasValue ? 1.5 : 1,
           ),
@@ -1472,26 +1555,28 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon,
-                color: hasValue
-                    ? const Color(0xFF00C9E4)
-                    : const Color(0xFF1E3A8A),
-                size: 20),
-            const SizedBox(width: 12),
+            if (showIcon) ...[
+              Icon(icon,
+                  color: hasValue
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFF1E3A8A),
+                  size: 20),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: Text(
                 text,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: hasValue ? Colors.black87 : Colors.grey.shade500,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: hasValue ? Colors.black : Colors.grey.shade500,
                   fontWeight:
-                      hasValue ? FontWeight.w500 : FontWeight.normal,
+                      hasValue ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ),
             Icon(Icons.arrow_drop_down,
                 color: hasValue
-                    ? const Color(0xFF00C9E4)
+                    ? const Color(0xFF16A34A)
                     : Colors.grey.shade400),
           ],
         ),
@@ -1618,6 +1703,13 @@ class EscalationPickerBottomSheet extends StatelessWidget {
   final String lang;
   const EscalationPickerBottomSheet({super.key, required this.lang});
 
+  static const List<Map<String, dynamic>> _levelStyles = [
+    {'icon': Icons.info_outline_rounded, 'color': Color(0xFF3B82F6)},
+    {'icon': Icons.today_rounded, 'color': Color(0xFFF59E0B)},
+    {'icon': Icons.calendar_view_week_rounded, 'color': Color(0xFF8B5CF6)},
+    {'icon': Icons.calendar_month_rounded, 'color': Color(0xFFEF4444)},
+  ];
+
   @override
   Widget build(BuildContext context) {
     final Map<String, List<Map<String, String>>> levels = {
@@ -1661,50 +1753,138 @@ class EscalationPickerBottomSheet extends StatelessWidget {
 
     final currentLevels = levels[lang] ?? levels['EN']!;
 
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 30,
+              spreadRadius: 2,
+              offset: const Offset(0, 12),
             ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            lang == 'ID' ? 'Level Eskalasi' : 'Escalation Level',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          ...currentLevels.map((level) => ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E3A8A).withValues(alpha:0.08),
-                    borderRadius: BorderRadius.circular(8),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    lang == 'ID'
+                        ? 'Level Eskalasi'
+                        : lang == 'ZH'
+                            ? '升级级别'
+                            : 'Escalation Level',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF16A34A),
+                    ),
                   ),
-                  child: const Icon(Icons.trending_up,
-                      color: Color(0xFF1E3A8A), size: 18),
-                ),
-                title: Text(level['title']!,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(level['desc']!),
-                onTap: () => Navigator.pop(context, level['title']),
-              )),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => Navigator.pop(context, null),
-              child: Text(lang == 'ID' ? 'Reset' : 'Reset'),
+                  const SizedBox(height: 4),
+                  Text(
+                    lang == 'ID'
+                        ? 'Pilih level eskalasi untuk temuan ini'
+                        : lang == 'ZH'
+                            ? '为此发现选择升级级别'
+                            : 'Choose the escalation level for this finding',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  ...List.generate(currentLevels.length, (i) {
+                    final level = currentLevels[i];
+                    final style = _levelStyles[i % _levelStyles.length];
+                    final Color color = style['color'] as Color;
+                    final IconData icon = style['icon'] as IconData;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context, level['title']),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: color.withValues(alpha: 0.3),
+                                width: 1.3),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(icon, color: color, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      level['title']!,
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14,
+                                        color: color,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      level['desc']!,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11.5,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.chevron_right_rounded,
+                                  color: color, size: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-        ],
+            Positioned(
+              top: 16,
+              right: 16,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context, null),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEF4444),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close_rounded,
+                      color: Colors.white, size: 18),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -261,7 +261,7 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
         'gambar_temuan': imageUrl,
         'deskripsi_temuan': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
         'jenis_temuan': 'KTS Production',
-        'poin_temuan': 20,
+        'poin_temuan': 0,
         'status_temuan': 'Belum',
       };
 
@@ -276,7 +276,44 @@ class _KtsProduksiFormScreenState extends State<KtsProduksiFormScreen> {
           Navigator.pop(context, true);
         }
       } else {
-        await supabase.from('temuan').insert({...data, 'id_user': user.id});
+        final insertedTemuan = await supabase
+            .from('temuan')
+            .insert({...data, 'id_user': user.id})
+            .select('id_temuan')
+            .single();
+
+        // Ambil poin dari konfigurasi_poin & catat log_poin — tanpa function/trigger DB
+        final konfigKts = await supabase
+            .from('konfigurasi_poin')
+            .select('poin, deskripsi_template, deskripsi_template_en, deskripsi_template_zh')
+            .eq('kode', 'KTS_CREATE')
+            .maybeSingle();
+
+        final int poinKts = (konfigKts?['poin'] as num?)?.toInt() ?? 20;
+        final String judulKts = _judulCtrl.text.trim();
+
+        String isiTemplateKts(String? tmpl, String fallback) =>
+            (tmpl ?? fallback).replaceAll('{judul}', judulKts).replaceAll('{poin}', poinKts.toString());
+
+        await supabase.from('log_poin').insert({
+          'id_user': user.id,
+          'poin': poinKts,
+          'deskripsi': isiTemplateKts(konfigKts?['deskripsi_template'],
+              'Laporan KTS "{judul}" berhasil dibuat dan mendapatkan {poin} poin'),
+          'deskripsi_en': isiTemplateKts(konfigKts?['deskripsi_template_en'],
+              'KTS Report "{judul}" created and earned {poin} poin'),
+          'deskripsi_zh': isiTemplateKts(konfigKts?['deskripsi_template_zh'],
+              'KTS报告"{judul}"创建成功，获得{poin}积分'),
+          'tipe_aktivitas': 'KTS_CREATE',
+        });
+
+        final userRowKts = await supabase.from('User').select('poin').eq('id_user', user.id).maybeSingle();
+        final currentPoinKts = (userRowKts?['poin'] as num?)?.toInt() ?? 0;
+        await supabase.from('User').update({'poin': currentPoinKts + poinKts}).eq('id_user', user.id);
+
+        // Sinkronkan poin_temuan aktual (bukan hardcode 20) ke baris temuan
+        await supabase.from('temuan').update({'poin_temuan': poinKts}).eq('id_temuan', insertedTemuan['id_temuan']);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t['success']!), backgroundColor: CupertinoColors.activeGreen));
           await Future.delayed(const Duration(milliseconds: 500));

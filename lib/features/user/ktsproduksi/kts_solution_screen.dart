@@ -236,6 +236,14 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
           ? null
           : double.tryParse(_biayaCtrl.text.trim());
 
+      // Ambil poin penyelesaian KTS dari konfigurasi_poin (bukan hardcode 10)
+      final konfigKtsResolve = await supabase
+          .from('konfigurasi_poin')
+          .select('poin, deskripsi_template, deskripsi_template_en, deskripsi_template_zh')
+          .eq('kode', 'KTS_RESOLVE')
+          .maybeSingle();
+      final int poinKtsResolve = (konfigKtsResolve?['poin'] as num?)?.toInt() ?? 25;
+
       final insertRes = await supabase
           .from('penyelesaian')
           .insert({
@@ -244,7 +252,7 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
             'additional_cost': biayaValue,
             'tanggal_selesai': DateTime.now().toIso8601String(),
             'id_user': user.id,
-            'poin_penyelesaian': 10,
+            'poin_penyelesaian': poinKtsResolve,
             'penyebab': _penyebabCtrl.text.trim().isEmpty
                 ? (_selectedSubKategori != null ? _selectedSubKategori!['nama_subkategoritemuan'] : null)
                 : _penyebabCtrl.text.trim(),
@@ -261,6 +269,37 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
         'status_temuan': 'Selesai',
         'id_penyelesaian': newPenyelesaianId,
       }).eq('id_temuan', widget.ktsId);
+
+      // Catat log_poin (3 bahasa) & tambah poin User — menggantikan trigger DB lama
+      String judulKtsRes = 'Penyelesaian KTS';
+      try {
+        final temuanRow = await supabase
+            .from('temuan')
+            .select('judul_temuan')
+            .eq('id_temuan', widget.ktsId)
+            .maybeSingle();
+        judulKtsRes = temuanRow?['judul_temuan']?.toString() ?? judulKtsRes;
+      } catch (_) {}
+
+      String isiTemplateKtsRes(String? tmpl, String fallback) => (tmpl ?? fallback)
+          .replaceAll('{judul}', judulKtsRes)
+          .replaceAll('{poin}', poinKtsResolve.toString());
+
+      await supabase.from('log_poin').insert({
+        'id_user': user.id,
+        'poin': poinKtsResolve,
+        'deskripsi': isiTemplateKtsRes(konfigKtsResolve?['deskripsi_template'],
+            'Penyelesaian KTS "{judul}" berhasil dan mendapatkan {poin} poin'),
+        'deskripsi_en': isiTemplateKtsRes(konfigKtsResolve?['deskripsi_template_en'],
+            'Resolution of KTS "{judul}" completed and earned {poin} poin'),
+        'deskripsi_zh': isiTemplateKtsRes(konfigKtsResolve?['deskripsi_template_zh'],
+            'KTS "{judul}"问题解决成功，获得{poin}积分'),
+        'tipe_aktivitas': 'KTS_RESOLVE',
+      });
+
+      final userRowKtsRes = await supabase.from('User').select('poin').eq('id_user', user.id).maybeSingle();
+      final currentPoinKtsRes = (userRowKtsRes?['poin'] as num?)?.toInt() ?? 0;
+      await supabase.from('User').update({'poin': currentPoinKtsRes + poinKtsResolve}).eq('id_user', user.id);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

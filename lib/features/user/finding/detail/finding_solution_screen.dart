@@ -72,6 +72,21 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
     if (mounted) CameraWarmupService.instance.warmUp();
   }
 
+  // === TAMBAHAN BARU ===
+  void _openResolutionImageViewer({XFile? file, String? url}) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) =>
+            _ResolutionImageViewer(imageFile: file, imageUrl: url),
+      ),
+    );
+  }
+
   Future<void> _submitExtension() async {
     if (_extensionReasonController.text.trim().isEmpty) {
       _showErrorSnackbar(_texts['extension_err_reason']!);
@@ -422,13 +437,71 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
       final costText = _resolutionCostController.text.trim();
       final additionalCost = double.tryParse(costText);
 
-      final temuanData = await supabase
-          .from('temuan')
-          .select('poin_temuan')
-          .eq('id_temuan', idTemuan)
-          .maybeSingle();
+      final data = widget.findingData;
+      final String jenisTemuan = (data['jenis_temuan'] ?? '').toString();
 
-      final int poinPenyelesaian = (temuanData?['poin_temuan'] as num?)?.toInt() ?? 0;
+      int poinPenyelesaian;
+      String? kodePoinResolve;
+      Map<String, dynamic>? konfigResolve;
+
+      if (jenisTemuan == '5R') {
+        final bool isVisitorR = data['is_visitor'] == true;
+        final bool isEksekutifR = data['is_eksekutif'] == true;
+        final bool isProR = data['is_pro'] == true;
+        final int comboR =
+            (isVisitorR ? 1 : 0) + (isEksekutifR ? 1 : 0) + (isProR ? 1 : 0);
+
+        kodePoinResolve = comboR >= 3
+            ? '5R_RESOLVE_COMBO3'
+            : comboR == 2
+                ? '5R_RESOLVE_COMBO2'
+                : isVisitorR
+                    ? '5R_RESOLVE_VISITOR'
+                    : isEksekutifR
+                        ? '5R_RESOLVE_EXECUTIVE'
+                        : isProR
+                            ? '5R_RESOLVE_PROFESSIONAL'
+                            : '5R_RESOLVE_BASE';
+
+        konfigResolve = await supabase
+            .from('konfigurasi_poin')
+            .select('poin, deskripsi_template, deskripsi_template_en, deskripsi_template_zh')
+            .eq('kode', kodePoinResolve)
+            .maybeSingle();
+
+        poinPenyelesaian = (konfigResolve?['poin'] as num?)?.toInt() ?? 15;
+
+        // Bonus poin kategori & subkategori HANYA ditambahkan di tahap
+        // penyelesaian ini (bukan saat pembuatan temuan)
+        final idKategoriR = data['id_kategoritemuan_uuid'];
+        if (idKategoriR != null) {
+          final kR = await supabase
+              .from('kategoritemuan')
+              .select('poin_kategoritemuan')
+              .eq('id_kategoritemuan', idKategoriR)
+              .maybeSingle();
+          poinPenyelesaian += (kR?['poin_kategoritemuan'] as num?)?.toInt() ?? 0;
+        }
+
+        final idSubkategoriR = data['id_subkategoritemuan_uuid'];
+        if (idSubkategoriR != null) {
+          final skR = await supabase
+              .from('subkategoritemuan')
+              .select('poin_subkategoritemuan')
+              .eq('id_subkategoritemuan', idSubkategoriR)
+              .maybeSingle();
+          poinPenyelesaian += (skR?['poin_subkategoritemuan'] as num?)?.toInt() ?? 0;
+        }
+      } else {
+        // Non-5R (mis. KTS Production) — perilaku lama dipertahankan persis,
+        // hanya dieksekusi dari Dart karena trigger on_new_penyelesaian di-drop.
+        final temuanData = await supabase
+            .from('temuan')
+            .select('poin_temuan')
+            .eq('id_temuan', idTemuan)
+            .maybeSingle();
+        poinPenyelesaian = (temuanData?['poin_temuan'] as num?)?.toInt() ?? 0;
+      }
 
       final penyelesaianResponse = await supabase
           .from('penyelesaian')
@@ -449,6 +522,65 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
         'status_temuan': 'Selesai',
         'id_penyelesaian': penyelesaianId,
       }).eq('id_temuan', idTemuan);
+
+      // Catat log_poin (3 bahasa) & tambah poin User — menggantikan trigger DB yang di-drop
+      if (poinPenyelesaian > 0) {
+        String judulTemuan = data['judul_temuan']?.toString() ?? 'Penyelesaian temuan';
+        String deskripsiId, deskripsiEn, deskripsiZh, tipeAktivitas;
+
+        if (jenisTemuan == '5R' && kodePoinResolve != null) {
+          final bool isVisitorR = data['is_visitor'] == true;
+          final bool isEksekutifR = data['is_eksekutif'] == true;
+          final bool isProR = data['is_pro'] == true;
+
+          List<String> rId = [], rEn = [], rZh = [];
+          if (isVisitorR) { rId.add('Visitor'); rEn.add('Visitor'); rZh.add('访客'); }
+          if (isEksekutifR) { rId.add('Eksekutif'); rEn.add('Executive'); rZh.add('高管'); }
+          if (isProR) { rId.add('Profesional'); rEn.add('Professional'); rZh.add('专业人员'); }
+          final roleId = rId.isEmpty ? 'Reguler' : rId.join(' & ');
+          final roleEn = rEn.isEmpty ? 'Regular' : rEn.join(' & ');
+          final roleZh = rZh.isEmpty ? '常规' : rZh.join(' & ');
+
+          String isi(String? tmpl, String fallback, String role) => (tmpl ?? fallback)
+              .replaceAll('{judul}', judulTemuan)
+              .replaceAll('{role}', role)
+              .replaceAll('{poin}', poinPenyelesaian.toString());
+
+          deskripsiId = isi(konfigResolve?['deskripsi_template'],
+              'Penyelesaian temuan 5R "{judul}" ({role}) berhasil dan mendapatkan {poin} poin', roleId);
+          deskripsiEn = isi(konfigResolve?['deskripsi_template_en'],
+              'Resolution of 5R finding "{judul}" ({role}) completed and earned {poin} poin', roleEn);
+          deskripsiZh = isi(konfigResolve?['deskripsi_template_zh'],
+              '5R发现"{judul}"（{role}）问题解决成功，获得{poin}积分', roleZh);
+          tipeAktivitas = kodePoinResolve;
+        } else {
+          // Non-5R: replikasi persis teks & tipe_aktivitas dari function lama
+          deskripsiId = 'Penyelesaian: $judulTemuan';
+          deskripsiEn = deskripsiId;
+          deskripsiZh = deskripsiId;
+          tipeAktivitas = 'penyelesaian';
+        }
+
+        await supabase.from('log_poin').insert({
+          'id_user': user.id,
+          'poin': poinPenyelesaian,
+          'deskripsi': deskripsiId,
+          'deskripsi_en': deskripsiEn,
+          'deskripsi_zh': deskripsiZh,
+          'tipe_aktivitas': tipeAktivitas,
+        });
+
+        final userRow = await supabase
+            .from('User')
+            .select('poin')
+            .eq('id_user', user.id)
+            .maybeSingle();
+        final currentPoin = (userRow?['poin'] as num?)?.toInt() ?? 0;
+        await supabase
+            .from('User')
+            .update({'poin': currentPoin + poinPenyelesaian})
+            .eq('id_user', user.id);
+      }
 
       if (mounted && Navigator.canPop(context)) Navigator.pop(context);
 
@@ -785,13 +917,30 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
               else
                 Column(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: kIsWeb
-                          ? Image.network(_resolutionImageFile!.path,
-                              height: 200, width: double.infinity, fit: BoxFit.cover)
-                          : Image.file(File(_resolutionImageFile!.path),
-                              height: 200, width: double.infinity, fit: BoxFit.cover),
+                    GestureDetector(
+                      onTap: () => _openResolutionImageViewer(file: _resolutionImageFile),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Stack(
+                          children: [
+                            kIsWeb
+                                ? Image.network(_resolutionImageFile!.path, height: 200, width: double.infinity, fit: BoxFit.cover)
+                                : Image.file(File(_resolutionImageFile!.path), height: 200, width: double.infinity, fit: BoxFit.cover),
+                            Positioned(
+                              left: 12,
+                              bottom: 12,
+                              child: Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.55),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
@@ -848,7 +997,7 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
               TextField(
                 controller: _resolutionNotesController,
                 maxLines: 3,
-                style: GoogleFonts.poppins(fontSize: 14.5, color: const Color(0xFF0F172A)),
+                style: GoogleFonts.poppins(fontSize: 14.5, fontWeight: FontWeight.w600, color: Colors.black),
                 decoration: InputDecoration(
                   hintText: _texts['resolution_notes_hint'],
                   hintStyle: GoogleFonts.poppins(color: const Color(0xFF94A3B8), fontSize: 13),
@@ -977,10 +1126,28 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (imageUrl != null)
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                  child:
-                      Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity, height: 220),
+                GestureDetector(
+                  onTap: () => _openResolutionImageViewer(url: imageUrl),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    child: Stack(
+                      children: [
+                        Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity, height: 220),
+                        Positioned(
+                          right: 10,
+                          bottom: 10,
+                          child: Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -1427,5 +1594,63 @@ class _FindingSolutionScreenState extends State<FindingSolutionScreen> {
       },
     };
     _texts = translations[widget.lang] ?? translations['EN']!;
+  }
+}
+
+class _ResolutionImageViewer extends StatelessWidget {
+  final XFile? imageFile;
+  final String? imageUrl;
+  const _ResolutionImageViewer({this.imageFile, this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget content;
+    if (imageFile != null) {
+      content = kIsWeb
+          ? Image.network(imageFile!.path, fit: BoxFit.contain, width: double.infinity, height: double.infinity)
+          : Image.file(File(imageFile!.path), fit: BoxFit.contain, width: double.infinity, height: double.infinity);
+    } else if (imageUrl != null && imageUrl!.isNotEmpty) {
+      content = Image.network(
+        imageUrl!,
+        fit: BoxFit.contain,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) =>
+            const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+      );
+    } else {
+      content = const Icon(Icons.image_not_supported, color: Colors.white54, size: 60);
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 4,
+              child: Center(child: content),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
