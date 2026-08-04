@@ -5,7 +5,7 @@ import '../../../core/services/notification_service.dart';
 import '../../../core/services/push_notification_service.dart';
 import 'assigned_findings_tab.dart';
 import 'activity_log_tab.dart';
-import 'audit_notif_tab.dart';
+import 'audit/audit_notif_tab.dart';
 
 class NotificationScreen extends StatefulWidget {
   final String lang;
