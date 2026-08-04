@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/services/translation_service.dart';
+import '../../../../core/services/translation_service.dart';
 
 class AdminAboutScreen extends StatefulWidget {
   final String lang;
