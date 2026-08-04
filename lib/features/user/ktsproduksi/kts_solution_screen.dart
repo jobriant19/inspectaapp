@@ -148,6 +148,20 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
     KtsSolutionCameraWarmupService.instance.warmUp();
   }
 
+  void _openSolutionImageViewer(String? url) {
+    if (url == null || url.isEmpty) return;
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withValues(alpha: 0.95),
+        transitionDuration: const Duration(milliseconds: 200),
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (_, __, ___) => _KtsSolutionImageViewer(imageUrl: url),
+      ),
+    );
+  }
+
   Future<void> _showSectionPicker() async {
     final result = await showKtsPickSectionDialog(context, lang: widget.lang);
     if (result != null) {
@@ -236,7 +250,6 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
           ? null
           : double.tryParse(_biayaCtrl.text.trim());
 
-      // Ambil poin penyelesaian KTS dari konfigurasi_poin (bukan hardcode 10)
       final konfigKtsResolve = await supabase
           .from('konfigurasi_poin')
           .select('poin, deskripsi_template, deskripsi_template_en, deskripsi_template_zh')
@@ -270,7 +283,6 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
         'id_penyelesaian': newPenyelesaianId,
       }).eq('id_temuan', widget.ktsId);
 
-      // Catat log_poin (3 bahasa) & tambah poin User — menggantikan trigger DB lama
       String judulKtsRes = 'Penyelesaian KTS';
       try {
         final temuanRow = await supabase
@@ -380,7 +392,7 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Text(value,
-          style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF0F172A), height: 1.5)),
+          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black, height: 1.5)),
     );
   }
 
@@ -432,8 +444,6 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
     final String? penyebab = p['penyebab']?.toString();
     final String? bagian = p['bagian']?.toString();
 
-    // FIX: cause factor sekarang diambil dari relasi faktor_penyebab_kts
-    // (sesuai yang dipilih user lewat picker di form), bukan dari field 'penyebab'.
     final Map<String, dynamic>? faktorPenyebab =
         p['faktor_penyebab_kts'] as Map<String, dynamic>?;
     final String? faktorNama = faktorPenyebab?['nama_subkategoritemuan']?.toString();
@@ -449,9 +459,28 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (p['gambar_penyelesaian'] != null)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: Image.network(p['gambar_penyelesaian'], width: double.infinity, height: 200, fit: BoxFit.cover),
+            GestureDetector(
+              onTap: () => _openSolutionImageViewer(p['gambar_penyelesaian']?.toString()),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                child: Stack(
+                  children: [
+                    Image.network(p['gambar_penyelesaian'], width: double.infinity, height: 200, fit: BoxFit.cover),
+                    Positioned(
+                      right: 10,
+                      bottom: 10,
+                      child: Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -850,6 +879,54 @@ class _KtsSolutionScreenState extends State<KtsSolutionScreen> {
                 child: _isSaving
                     ? const CupertinoActivityIndicator(color: Colors.white)
                     : Text(_t('save_solution'), style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KtsSolutionImageViewer extends StatelessWidget {
+  final String imageUrl;
+  const _KtsSolutionImageViewer({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: InteractiveViewer(
+              minScale: 1.0,
+              maxScale: 4,
+              child: Center(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.image_not_supported, color: Colors.white54, size: 60),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
+                  ),
+                ),
               ),
             ),
           ),
