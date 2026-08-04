@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../admin/target/target/admin_target_pick_date.dart';
-import '../../../audit/form/audit_evidence_camera_screen.dart';
+import 'audit_notif_detail.dart';
 
 class AuditNotifTab extends StatefulWidget {
   final String lang;
@@ -652,7 +652,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     final scoreFinal = double.tryParse(item['nilai_final']?.toString() ?? '');
     final isFinalized = item['is_finalized'] == true;
     final displayScore = isFinalized ? scoreFinal : score;
-    final scoreColor = _scoreColor(displayScore);
     final locationName = item['_location_name']?.toString() ?? '-';
     final levelType = item['level_type']?.toString() ?? '';
     final date = _formatDate(item['tanggal_audit']);
@@ -661,8 +660,6 @@ class _AuditNotifTabState extends State<AuditNotifTab>
     final isPic = role == 'pic';
     final auditorData = item['Auditor'] as Map<String, dynamic>?;
     final auditorName = auditorData?['nama']?.toString() ?? '';
-    final idResult = item['id_result']?.toString() ?? '';
-    final userId = _supabase.auth.currentUser?.id ?? '';
 
     final noAnswers = answers.where((a) => a['jawaban'] == false).toList();
     final allNoConfirmed = noAnswers.isNotEmpty &&
@@ -671,95 +668,101 @@ class _AuditNotifTabState extends State<AuditNotifTab>
           return replies.any((r) => r['is_confirmed'] == true);
         });
 
-    final isFixed100 = noAnswers.isNotEmpty && allNoConfirmed;
-    final effectiveScore = isFixed100 ? 100.0 : displayScore;
-    final effectiveScoreColor = isFixed100 ? const Color(0xFFF59E0B) : _scoreColor(displayScore);
+    final effectiveScore = displayScore;
+    final effectiveScoreColor = _scoreColor(displayScore);
     final showScore = noAnswers.isEmpty || allNoConfirmed;
 
     final poinLogs = (item['_poin_logs'] as List<Map<String, dynamic>>?) ?? [];
-    final showPoinLogs = true;
-
     int totalPoin = 0;
-    if (showPoinLogs) {
-      for (final l in poinLogs) {
-        totalPoin += ((l['poin'] as num?)?.toInt() ?? 0);
-      }
+    for (final l in poinLogs) {
+      totalPoin += ((l['poin'] as num?)?.toInt() ?? 0);
     }
 
-    final expanded = ValueNotifier<bool>(false);
+    final locationColor = _levelColor(levelType);
+    final locationIcon = _levelIcon(levelType);
+    final roleColor = isPic ? const Color(0xFF10B981) : _blue;
+    final roleIcon = isPic ? Icons.engineering_rounded : Icons.fact_check_rounded;
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: expanded,
-      builder: (_, isExpanded, __) => Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: showScore
-                ? scoreColor.withValues(alpha:0.25)
-                : const Color(0xFFF59E0B).withValues(alpha:0.4),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha:0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 3)),
-          ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: showScore
+              ? effectiveScoreColor.withValues(alpha: 0.25)
+              : const Color(0xFFF59E0B).withValues(alpha: 0.4),
+          width: 1.2,
         ),
-        child: Column(
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3)),
+        ],
+      ),
+      child: GestureDetector(
+        onTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AuditNotifDetailScreen(
+                item: item,
+                lang: widget.lang,
+              ),
+            ),
+          );
+          _fetch();
+        },
+        child: Stack(
           children: [
-            // HEADER
-            GestureDetector(
-              onTap: () => expanded.value = !isExpanded,
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 92, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Container(
                     width: 54, height: 54,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: showScore
-                          ? effectiveScoreColor.withValues(alpha:0.12)
-                          : const Color(0xFFF59E0B).withValues(alpha:0.1),
+                          ? effectiveScoreColor.withValues(alpha: 0.12)
+                          : const Color(0xFFF59E0B).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: showScore
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  effectiveScore != null
-                                      ? '${effectiveScore.toStringAsFixed(0)}%'
-                                      : '-',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                      color: effectiveScoreColor),
-                                ),
-                                if (isFinalized || allNoConfirmed)
-                                  Text(_t('Final', 'Final', '最终'),
-                                      style: GoogleFonts.poppins(
-                                          fontSize: 8,
-                                          color: effectiveScoreColor)),
-                              ],
-                            ),
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                effectiveScore != null
+                                    ? '${effectiveScore.toStringAsFixed(0)}%'
+                                    : '-',
+                                style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: effectiveScoreColor),
+                              ),
+                              if (isFinalized || allNoConfirmed)
+                                Text(_t('Final', 'Final', '最终'),
+                                    style: GoogleFonts.poppins(
+                                        fontSize: 8, color: effectiveScoreColor)),
+                            ],
                           )
-                        : Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.pending_actions_rounded,
-                                    size: 20, color: Color(0xFFF59E0B)),
-                                Text(
-                                  _t('Proses', 'WIP', '进行中'),
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFFF59E0B)),
-                                ),
-                              ],
-                            ),
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.pending_actions_rounded,
+                                  size: 20, color: Color(0xFFF59E0B)),
+                              Text(
+                                _t('Proses', 'WIP', '进行中'),
+                                style: GoogleFonts.poppins(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFFF59E0B)),
+                              ),
+                            ],
                           ),
                   ),
                   const SizedBox(width: 12),
@@ -767,1743 +770,199 @@ class _AuditNotifTabState extends State<AuditNotifTab>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isPic
-                                  ? const Color(0xFF10B981).withValues(alpha:0.12)
-                                  : _blue.withValues(alpha:0.10),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              isPic ? _t('PIC', 'PIC', 'PIC') : _t('Auditor', 'Auditor', '审计员'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: isPic ? const Color(0xFF10B981) : _blue),
-                            ),
+                        // NEW: LOKASI SEBAGAI LABEL — icon + warna sesuai level
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: locationColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: locationColor.withValues(alpha: 0.4)),
                           ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(locationIcon, size: 13, color: locationColor),
+                              const SizedBox(width: 5),
+                              Flexible(
+                                child: Text(
+                                  locationName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: locationColor),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // NEW: TANGGAL LEBIH MENARIK
+                        Row(children: [
+                          Icon(Icons.schedule_rounded, size: 12, color: Colors.black),
                           const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: _blue.withValues(alpha:0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(levelType.toUpperCase(),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    color: _blue)),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(locationName,
-                                style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF1E3A8A)),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
-                          ),
-                        ]),
-                        const SizedBox(height: 3),
-                        Row(children: [
                           Text(date,
                               style: GoogleFonts.poppins(
-                                  fontSize: 10, color: Colors.grey.shade400)),
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black)),
                           if (isPic && auditorName.isNotEmpty) ...[
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 '· ${_t('oleh', 'by', '由')} $auditorName',
                                 style: GoogleFonts.poppins(
-                                    fontSize: 10, color: Colors.grey.shade500),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade500),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
-                          // Badge poin hanya jika showPoinLogs dan ada poin
-                          if (totalPoin != 0 && showPoinLogs) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: totalPoin > 0
-                                    ? const Color(0xFF10B981).withValues(alpha:0.12)
-                                    : const Color(0xFFEF4444).withValues(alpha:0.12),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                totalPoin > 0 ? '+$totalPoin poin' : '$totalPoin poin',
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: totalPoin > 0
-                                        ? const Color(0xFF10B981)
-                                        : const Color(0xFFEF4444)),
-                              ),
-                            ),
-                          ],
-                          if (!showScore) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF59E0B).withValues(alpha:0.15),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                    color: const Color(0xFFF59E0B).withValues(alpha:0.4)),
-                              ),
-                              child: Text(
-                                _t('Perlu Perbaikan', 'Needs Fix', '需要修复'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFFF59E0B)),
-                              ),
-                            ),
-                          ],
                         ]),
+                        if (!showScore) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.warning_amber_rounded,
+                                    size: 11, color: Color(0xFFF59E0B)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _t('Perlu Perbaikan', 'Needs Fix', '需要修复'),
+                                  style: GoogleFonts.poppins(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFFF59E0B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: _blue,
-                    size: 22,
-                  ),
-                ]),
+                ],
               ),
             ),
-
-            // EXPAND DETAIL
-            if (isExpanded) ...[
-              const Divider(height: 1, color: Color(0xFFF1F5F9)),
-
-              // POINT LOG
-              if (poinLogs.isNotEmpty && showPoinLogs)
-                Container(
-                  margin: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-                      const Color(0xFF10B981).withValues(alpha:0.08),
-                      _blue.withValues(alpha:0.05),
-                    ]),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF10B981).withValues(alpha:0.3)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        const Icon(Icons.emoji_events_rounded,
-                            color: Color(0xFF10B981), size: 15),
-                        const SizedBox(width: 6),
+            // NEW: LABEL AUDITOR/PIC — pojok kanan atas, poin di bawahnya
+            Positioned(
+              top: 14,
+              right: 14,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: roleColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: roleColor.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(roleIcon, size: 12, color: roleColor),
+                        const SizedBox(width: 4),
                         Text(
-                          isPic
-                              ? _t('Bonus Poin PIC', 'PIC Bonus Points', 'PIC奖励积分')
-                              : _t('Poin Diperoleh', 'Points Earned', '获得积分'),
+                          isPic ? _t('PIC', 'PIC', 'PIC') : _t('Auditor', 'Auditor', '审计员'),
                           style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF10B981)),
-                        ),
-                      ]),
-                      const SizedBox(height: 8),
-                      ...poinLogs.map((log) {
-                        final p = (log['poin'] as num?)?.toInt() ?? 0;
-                        final isPos = p >= 0;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 5),
-                          child: Row(children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: isPos
-                                    ? const Color(0xFF10B981).withValues(alpha:0.12)
-                                    : const Color(0xFFEF4444).withValues(alpha:0.12),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(isPos ? '+$p' : '$p',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      color: isPos
-                                          ? const Color(0xFF10B981)
-                                          : const Color(0xFFEF4444))),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(log['deskripsi']?.toString() ?? '',
-                                  style: GoogleFonts.poppins(
-                                      fontSize: 11,
-                                      color: const Color(0xFF1E3A8A)),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                          ]),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-
-              // ANSWER IS NO + THREAD REPLY
-              if (noAnswers.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-                  child: Row(children: [
-                    const Icon(Icons.warning_amber_rounded,
-                        size: 14, color: Color(0xFFEF4444)),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${noAnswers.length} ${_t('pertanyaan perlu perbaikan', 'questions need fix', '个问题需要修复')}',
-                      style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFFEF4444)),
-                    ),
-                  ]),
-                ),
-                ...noAnswers.map((ans) =>
-                    _buildAnswerThreadFull(ans, idResult, isPic, userId)),
-              ],
-
-              // ALL SUMMARY ANSWER
-              if (answers.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-                  child: Row(children: [
-                    Icon(Icons.list_alt_rounded, size: 14, color: _blue),
-                    const SizedBox(width: 6),
-                    Text(
-                      _t('Ringkasan Jawaban', 'Answer Summary', '回答摘要'),
-                      style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: _blue),
-                    ),
-                  ]),
-                ),
-                _buildAnswerSummary(answers),
-              ],
-
-              const SizedBox(height: 14),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnswerThreadFull(
-      Map<String, dynamic> ans,
-      String idResult,
-      bool isPic,
-      String userId) {
-    final q = ans['Question'] as Map<String, dynamic>?;
-    final replies = (ans['Replies'] as List?)
-            ?.map((r) => Map<String, dynamic>.from(r as Map))
-            .toList() ??
-        [];
-    final gambar = ans['gambar_jawaban']?.toString() ?? '';
-    final catatan = ans['catatan']?.toString() ?? '';
-    final idAnswer = ans['id_answer']?.toString() ?? '';
-
-    // IS PIC REPLY CONRIRMED BY AUDITOR ?
-    final confirmedReplies = replies.where((r) => r['is_confirmed'] == true).toList();
-    final isFullyConfirmed = confirmedReplies.isNotEmpty;
-
-    String questionText;
-    if (widget.lang == 'EN') {
-      questionText = q?['pertanyaan_en']?.toString() ??
-          q?['pertanyaan']?.toString() ?? '-';
-    } else if (widget.lang == 'ZH') {
-      questionText = q?['pertanyaan_zh']?.toString() ??
-          q?['pertanyaan']?.toString() ?? '-';
-    } else {
-      questionText = q?['pertanyaan']?.toString() ?? '-';
-    }
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isFullyConfirmed
-            ? const Color(0xFF10B981).withValues(alpha:0.05)
-            : const Color(0xFFFFF7ED),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isFullyConfirmed
-              ? const Color(0xFF10B981).withValues(alpha:0.3)
-              : const Color(0xFFEF4444).withValues(alpha:0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // QUESTION
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 20, height: 20,
-                decoration: BoxDecoration(
-                  color: isFullyConfirmed
-                      ? const Color(0xFF10B981).withValues(alpha:0.1)
-                      : const Color(0xFFEF4444).withValues(alpha:0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isFullyConfirmed ? Icons.check_rounded : Icons.close_rounded,
-                  size: 12,
-                  color: isFullyConfirmed
-                      ? const Color(0xFF10B981)
-                      : const Color(0xFFEF4444),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(questionText,
-                    style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E3A8A))),
-              ),
-            ],
-          ),
-
-          // AUDITOR EVIDENCE IMAGE
-          if (gambar.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(gambar,
-                  height: 120, width: double.infinity, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-            ),
-          ],
-          if (catatan.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              _t('Catatan', 'Notes', '备注'),
-              style: GoogleFonts.poppins(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF94A3B8)),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha:0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(catatan,
-                  style: GoogleFonts.poppins(
-                      fontSize: 11, color: const Color(0xFF64748B))),
-            ),
-          ],
-
-          // REPLIES LIST
-          if (replies.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            const SizedBox(height: 8),
-            ...replies.map((reply) {
-              final confirmed = reply['is_confirmed'] == true;
-              final picData = reply['PIC'] as Map<String, dynamic>?;
-              final picName = picData?['nama']?.toString() ?? '-';
-              final replyGambar = reply['gambar_reply']?.toString() ?? '';
-              final replyCatatan = reply['catatan_reply']?.toString() ?? '';
-              final idReply = reply['id_reply']?.toString() ?? '';
-              final replyOwnerId = reply['id_pic']?.toString();
-              final isOwnReply = replyOwnerId != null && replyOwnerId == userId;
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: confirmed
-                      ? const Color(0xFF10B981).withValues(alpha:0.07)
-                      : const Color(0xFF6366F1).withValues(alpha:0.06),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: confirmed
-                        ? const Color(0xFF10B981).withValues(alpha:0.3)
-                        : const Color(0xFF6366F1).withValues(alpha:0.2),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Icon(
-                        confirmed ? Icons.verified_rounded : Icons.reply_rounded,
-                        size: 13,
-                        color: confirmed
-                            ? const Color(0xFF10B981)
-                            : const Color(0xFF6366F1),
-                      ),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          confirmed
-                              ? '$picName ✓ ${_t('Dikonfirmasi', 'Confirmed', '已确认')}'
-                              : picName,
-                          style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: confirmed
-                                  ? const Color(0xFF10B981)
-                                  : const Color(0xFF6366F1)),
-                        ),
-                      ),
-                      if (isPic && !confirmed && isOwnReply) ...[
-                        GestureDetector(
-                          onTap: () => _showEditReplySheet(
-                              idReply, idAnswer, idResult, userId, reply),
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              color: _blue.withValues(alpha:0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Icon(Icons.edit_rounded,
-                                size: 13, color: _blue),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: () => _deleteReply(idReply),
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444).withValues(alpha:0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Icon(Icons.delete_outline_rounded,
-                                size: 13, color: Color(0xFFEF4444)),
-                          ),
+                              fontSize: 10, fontWeight: FontWeight.w700, color: roleColor),
                         ),
                       ],
-                    ]),
-
-                    if (replyCatatan.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(replyCatatan,
-                          style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              color: const Color(0xFF1E3A8A))),
-                    ],
-                    if (replyGambar.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(replyGambar,
-                            height: 100,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                const SizedBox.shrink()),
+                    ),
+                  ),
+                  if (totalPoin != 0) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: totalPoin > 0
+                              ? const [Color(0xFF0D9488), Color(0xFF2DD4BF)]
+                              : const [Color(0xFFDC2626), Color(0xFFF87171)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                              color: (totalPoin > 0
+                                      ? const Color(0xFF0D9488)
+                                      : const Color(0xFFDC2626))
+                                  .withValues(alpha: 0.35),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3)),
+                        ],
                       ),
-                    ],
-
-                    if (!isPic && !confirmed && !isOwnReply) ...[
-                      const SizedBox(height: 8),
-                      Row(children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () =>
-                                _confirmReply(idReply, idAnswer, idResult),
-                            icon: const Icon(Icons.check_circle_rounded, size: 14),
-                            label: Text(
-                              _t('Konfirmasi', 'Confirm', '确认'),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.local_fire_department_rounded,
+                              size: 13, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text('$totalPoin',
                               style: GoogleFonts.poppins(
-                                  fontSize: 11, fontWeight: FontWeight.w600),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF10B981),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _showAuditorReplySheet(
-                                idReply, idAnswer, idResult, userId),
-                            icon: const Icon(Icons.reply_rounded, size: 14),
-                            label: Text(
-                              _t('Balas', 'Reply', '回复'),
-                              style: GoogleFonts.poppins(
-                                  fontSize: 11, fontWeight: FontWeight.w600),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: _blue,
-                              side: BorderSide(color: _blue),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                            ),
-                          ),
-                        ),
-                      ]),
-                    ],
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11.5)),
+                        ],
+                      ),
+                    ),
                   ],
-                ),
-              );
-            }),
-          ],
-
-          // REPLY BUTTON ONLY FOR PIC NOT YET CONFIRMED
-          if (isPic && !isFullyConfirmed) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () =>
-                    _showReplyBottomSheet(ans, idResult, true, userId),
-                icon: const Icon(Icons.reply_rounded, size: 14),
-                label: Text(
-                  replies.isEmpty
-                      ? _t('Balas Temuan', 'Reply Finding', '回复发现')
-                      : _t('Tambah Balasan', 'Add Reply', '添加回复'),
-                  style: GoogleFonts.poppins(
-                      fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF6366F1),
-                  side: const BorderSide(color: Color(0xFF6366F1)),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                ),
+                ],
               ),
             ),
-          ],
-
-          // AUDIT INFO WAITING FOR PIC REPLY
-          if (!isPic && replies.isEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withValues(alpha:0.06),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: const Color(0xFFF59E0B).withValues(alpha:0.25)),
-              ),
-              child: Row(children: [
-                const Icon(Icons.hourglass_top_rounded,
-                    size: 13, color: Color(0xFFF59E0B)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    _t(
-                      'Menunggu balasan PIC…',
-                      'Waiting for PIC reply…',
-                      '等待PIC回复…',
-                    ),
-                    style: GoogleFonts.poppins(
-                        fontSize: 11, color: const Color(0xFFF59E0B)),
-                  ),
-                ),
-              ]),
+            // NEW: PANAH — pojok kanan bawah saja
+            Positioned(
+              bottom: 10,
+              right: 10,
+              child: Icon(Icons.chevron_right_rounded, color: _blue, size: 20),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  /// PIC REPLY BOTTOM SHEET IMAGE + NOTES REQUIRED
-  Future<void> _showReplyBottomSheet(
-      Map<String, dynamic> ans,
-      String idResult,
-      bool isPic,
-      String userId) async {
-    final noteCtrl = TextEditingController();
-    String? photoUrl;
-    bool submitting = false;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha:0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.reply_rounded,
-                        color: Color(0xFF6366F1), size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _t('Balas Temuan', 'Reply Finding', '回复发现'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A)),
-                        ),
-                        Text(
-                          _t(
-                            'Sertakan bukti foto dan penjelasan tindakan perbaikan.',
-                            'Include photo evidence and corrective action description.',
-                            '请附上照片证据和纠正措施说明。',
-                          ),
-                          style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              color: const Color(0xFF64748B)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E3A8A)),
-                    children: const [
-                      TextSpan(text: 'Foto Bukti Perbaikan'),
-                      TextSpan(
-                          text: ' *',
-                          style: TextStyle(color: Color(0xFFEF4444))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: () async {
-                    final url = await Navigator.push<String>(
-                      ctx,
-                      MaterialPageRoute(
-                        builder: (_) => AuditEvidenceCameraScreen(
-                          lang: widget.lang,
-                          questionText: '',
-                        ),
-                      ),
-                    );
-                    if (url != null) setSt(() => photoUrl = url);
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: photoUrl == null
-                            ? const Color(0xFFEF4444).withValues(alpha:0.4)
-                            : const Color(0xFF6366F1).withValues(alpha:0.5),
-                      ),
-                    ),
-                    child: photoUrl == null
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Column(children: [
-                              const Icon(Icons.add_a_photo_rounded,
-                                  color: Color(0xFF6366F1), size: 22),
-                              const SizedBox(height: 4),
-                              Text(
-                                _t('Ambil / Upload Foto *',
-                                    'Take / Upload Photo *', '拍照/上传照片 *'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF6366F1)),
-                              ),
-                              Text(
-                                _t('Wajib diisi', 'Required', '必填'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 10,
-                                    color: const Color(0xFFEF4444)),
-                              ),
-                            ]),
-                          )
-                        : Stack(children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(photoUrl!,
-                                  height: 140,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover),
-                            ),
-                            Positioned(
-                              top: 6, right: 6,
-                              child: GestureDetector(
-                                onTap: () => setSt(() => photoUrl = null),
-                                child: Container(
-                                  padding: const EdgeInsets.all(5),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha:0.5),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.close_rounded,
-                                      color: Colors.white, size: 14),
-                                ),
-                              ),
-                            ),
-                          ]),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E3A8A)),
-                    children: const [
-                      TextSpan(text: 'Keterangan Tindakan Perbaikan'),
-                      TextSpan(
-                          text: ' *',
-                          style: TextStyle(color: Color(0xFFEF4444))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: noteCtrl,
-                  maxLines: 3,
-                  style: GoogleFonts.poppins(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: _t(
-                      'Jelaskan tindakan perbaikan yang telah dilakukan…',
-                      'Describe corrective action taken…',
-                      '描述已采取的纠正措施…',
-                    ),
-                    hintStyle: GoogleFonts.poppins(
-                        fontSize: 12, color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xFFE2E8F0))),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xFFE2E8F0))),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                            color: Color(0xFF6366F1), width: 1.5)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: submitting
-                        ? null
-                        : () async {
-                            if (photoUrl == null) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(_t(
-                                    'Upload foto bukti perbaikan terlebih dahulu.',
-                                    'Please upload fix evidence photo.',
-                                    '请先上传修复证据照片。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            if (noteCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(_t(
-                                    'Keterangan tindakan perbaikan wajib diisi.',
-                                    'Corrective action description is required.',
-                                    '请填写纠正措施说明。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            setSt(() => submitting = true);
-                            try {
-                              await _supabase.from('audit_answer_reply').insert({
-                                'id_answer': ans['id_answer'],
-                                'id_pic': userId,
-                                'catatan_reply': noteCtrl.text.trim(),
-                                'gambar_reply': photoUrl,
-                                'is_confirmed': false,
-                              });
-
-                              // AUDITOR NOTIF IF PIC DONE REPLY
-                              final picUserData = await _supabase
-                                  .from('User')
-                                  .select('nama')
-                                  .eq('id_user', userId)
-                                  .maybeSingle();
-                              final picName =
-                                  picUserData?['nama']?.toString() ?? '-';
-                              await _notifyAuditor(idResult, picName);
-
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              _fetch();
-                            } catch (e) {
-                              setSt(() => submitting = false);
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')));
-                              }
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6366F1),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: submitting
-                        ? const SizedBox(
-                            width: 20, height: 20,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : Text(
-                            _t('Kirim Balasan', 'Send Reply', '发送回复'),
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
   }
 
-  /// REPLY EDIT FOR PIC NOT YET CONFIRMED 
-  Future<void> _showEditReplySheet(
-      String idReply,
-      String idAnswer,
-      String idResult,
-      String userId,
-      Map<String, dynamic> existingReply) async {
-    final noteCtrl = TextEditingController(
-        text: existingReply['catatan_reply']?.toString() ?? '');
-    String? photoUrl = existingReply['gambar_reply']?.toString();
-    if (photoUrl != null && photoUrl.isEmpty) photoUrl = null;
-    bool submitting = false;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding:
-              EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _blue.withValues(alpha:0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.edit_rounded, color: _blue, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _t('Edit Balasan', 'Edit Reply', '编辑回复'),
-                      style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1E3A8A)),
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E3A8A)),
-                    children: const [
-                      TextSpan(text: 'Foto Bukti Perbaikan'),
-                      TextSpan(
-                          text: ' *',
-                          style: TextStyle(color: Color(0xFFEF4444))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: () async {
-                    final url = await Navigator.push<String>(
-                      ctx,
-                      MaterialPageRoute(
-                        builder: (_) => AuditEvidenceCameraScreen(
-                          lang: widget.lang,
-                          questionText: '',
-                        ),
-                      ),
-                    );
-                    if (url != null) setSt(() => photoUrl = url);
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: photoUrl == null
-                            ? const Color(0xFFEF4444).withValues(alpha:0.4)
-                            : const Color(0xFF6366F1).withValues(alpha:0.5),
-                      ),
-                    ),
-                    child: photoUrl == null
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Column(children: [
-                              const Icon(Icons.add_a_photo_rounded,
-                                  color: Color(0xFF6366F1), size: 22),
-                              const SizedBox(height: 4),
-                              Text(
-                                _t('Ambil / Upload Foto *',
-                                    'Take / Upload Photo *', '拍照/上传照片 *'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF6366F1)),
-                              ),
-                            ]),
-                          )
-                        : Stack(children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(photoUrl!,
-                                  height: 140,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover),
-                            ),
-                            Positioned(
-                              top: 6, right: 6,
-                              child: GestureDetector(
-                                onTap: () => setSt(() => photoUrl = null),
-                                child: Container(
-                                  padding: const EdgeInsets.all(5),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha:0.5),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.close_rounded,
-                                      color: Colors.white, size: 14),
-                                ),
-                              ),
-                            ),
-                          ]),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E3A8A)),
-                    children: const [
-                      TextSpan(text: 'Keterangan Tindakan Perbaikan'),
-                      TextSpan(
-                          text: ' *',
-                          style: TextStyle(color: Color(0xFFEF4444))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: noteCtrl,
-                  maxLines: 3,
-                  style: GoogleFonts.poppins(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: _t(
-                      'Jelaskan tindakan perbaikan…',
-                      'Describe corrective action…',
-                      '描述纠正措施…',
-                    ),
-                    hintStyle: GoogleFonts.poppins(
-                        fontSize: 12, color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xFFE2E8F0))),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: Color(0xFFE2E8F0))),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                            color: Color(0xFF6366F1), width: 1.5)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: submitting
-                        ? null
-                        : () async {
-                            if (photoUrl == null) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(_t(
-                                    'Upload foto bukti perbaikan terlebih dahulu.',
-                                    'Please upload fix evidence photo.',
-                                    '请先上传修复证据照片。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            if (noteCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(_t(
-                                    'Keterangan tindakan perbaikan wajib diisi.',
-                                    'Corrective action description is required.',
-                                    '请填写纠正措施说明。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            setSt(() => submitting = true);
-                            try {
-                              await _supabase
-                                  .from('audit_answer_reply')
-                                  .update({
-                                'catatan_reply': noteCtrl.text.trim(),
-                                'gambar_reply': photoUrl,
-                              }).eq('id_reply', idReply);
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              _fetch();
-                            } catch (e) {
-                              setSt(() => submitting = false);
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')));
-                              }
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: submitting
-                        ? const SizedBox(
-                            width: 20, height: 20,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : Text(
-                            _t('Simpan Perubahan', 'Save Changes', '保存更改'),
-                            style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// DELETE REPLY FOR PIC NOT YET CONFIRMED
-  Future<void> _deleteReply(String idReply) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          _t('Hapus Balasan', 'Delete Reply', '删除回复'),
-          style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF1E3A8A)),
-        ),
-        content: Text(
-          _t('Balasan ini akan dihapus. Lanjutkan?',
-              'This reply will be deleted. Continue?', '此回复将被删除。是否继续？'),
-          style: GoogleFonts.poppins(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(_t('Batal', 'Cancel', '取消'),
-                style: const TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(_t('Hapus', 'Delete', '删除'),
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-    try {
-      await _supabase
-          .from('audit_answer_reply')
-          .delete()
-          .eq('id_reply', idReply);
-      _fetch();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: const Color(0xFFEF4444),
-        ));
-      }
+  // NEW: helper warna & icon per level lokasi (konsisten dengan add_finding_flow_screen.dart)
+  Color _levelColor(String levelType) {
+    switch (levelType) {
+      case 'lokasi':
+        return const Color(0xFF10B981);
+      case 'unit':
+        return const Color(0xFF6366F1);
+      case 'subunit':
+        return const Color(0xFFFBBF24);
+      case 'area':
+        return const Color(0xFFF472B6);
+      default:
+        return const Color(0xFF64748B);
     }
   }
 
-  /// AUDITOR REPLY BOTTOM SHEET FOR PIC REPLY NOT YET CONFIRMED
-  Future<void> _showAuditorReplySheet(
-      String idReply,
-      String idAnswer,
-      String idResult,
-      String userId) async {
-    final noteCtrl = TextEditingController();
-    String? photoUrl;
-    bool submitting = false;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSt) => Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _blue.withValues(alpha:0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.reply_rounded, color: _blue, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _t('Balas Perbaikan', 'Reply to Fix', '回复修复'),
-                          style: GoogleFonts.poppins(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E3A8A)),
-                        ),
-                        Text(
-                          _t(
-                            'Jelaskan jika perbaikan belum sesuai — PIC akan menerima balasan ini dan bisa memperbaiki lagi.',
-                            'Explain if the fix is not sufficient yet — PIC will receive this and can fix it again.',
-                            '说明修复是否仍不充分——PIC将收到此回复并可以再次修复。',
-                          ),
-                          style: GoogleFonts.poppins(
-                              fontSize: 11, color: const Color(0xFF64748B)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ]),
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: () async {
-                    final url = await Navigator.push<String>(
-                      ctx,
-                      MaterialPageRoute(
-                        builder: (_) => AuditEvidenceCameraScreen(
-                          lang: widget.lang,
-                          questionText: '',
-                        ),
-                      ),
-                    );
-                    if (url != null) setSt(() => photoUrl = url);
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _blue.withValues(alpha:0.3)),
-                    ),
-                    child: photoUrl == null
-                        ? Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Column(children: [
-                              Icon(Icons.add_a_photo_rounded, color: _blue, size: 22),
-                              const SizedBox(height: 4),
-                              Text(
-                                _t('Upload Foto (opsional)',
-                                    'Upload Photo (optional)', '上传照片（可选）'),
-                                style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _blue),
-                              ),
-                            ]),
-                          )
-                        : Stack(children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(photoUrl!,
-                                  height: 140,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover),
-                            ),
-                            Positioned(
-                              top: 6, right: 6,
-                              child: GestureDetector(
-                                onTap: () => setSt(() => photoUrl = null),
-                                child: Container(
-                                  padding: const EdgeInsets.all(5),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha:0.5),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.close_rounded,
-                                      color: Colors.white, size: 14),
-                                ),
-                              ),
-                            ),
-                          ]),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: noteCtrl,
-                  maxLines: 3,
-                  style: GoogleFonts.poppins(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: _t(
-                      'Jelaskan kekurangan perbaikan ini (wajib)…',
-                      'Describe what is still lacking (required)…',
-                      '说明此修复仍存在的问题（必填）…',
-                    ),
-                    hintStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    isDense: true,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: _blue, width: 1.5)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: submitting
-                        ? null
-                        : () async {
-                            if (noteCtrl.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                content: Text(_t(
-                                    'Catatan wajib diisi.',
-                                    'Note is required.',
-                                    '备注为必填项。')),
-                                backgroundColor: const Color(0xFFEF4444),
-                              ));
-                              return;
-                            }
-                            setSt(() => submitting = true);
-                            try {
-                              await _supabase.from('audit_answer_reply').insert({
-                                'id_answer': idAnswer,
-                                'id_pic': userId,
-                                'catatan_reply': noteCtrl.text.trim(),
-                                'gambar_reply': photoUrl,
-                                'is_confirmed': false,
-                              });
-
-                              // ── Notif ke PIC: Auditor membalas (bukan confirm) ──
-                              final auditorUserData = await _supabase
-                                  .from('User')
-                                  .select('nama')
-                                  .eq('id_user', userId)
-                                  .maybeSingle();
-                              final auditorName =
-                                  auditorUserData?['nama']?.toString() ?? '-';
-                              await _notifyPicFromAuditor(
-                                idResult: idResult,
-                                auditorName: auditorName,
-                                isConfirm: false,
-                              );
-
-                              if (ctx.mounted) Navigator.pop(ctx);
-                              _fetch();
-                            } catch (e) {
-                              setSt(() => submitting = false);
-                              if (ctx.mounted) {
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(content: Text('Error: $e')));
-                              }
-                            }
-                          },
-                    icon: submitting
-                        ? const SizedBox(
-                            width: 16, height: 16,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.send_rounded, size: 16),
-                    label: Text(
-                      submitting ? '' : _t('Kirim Balasan', 'Send Reply', '发送回复'),
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// SEND PUSH NOTIF TO AUDITOR WHEN PIC REPLY
-  Future<void> _notifyAuditor(String idResult, String picName) async {
-    try {
-      final resultRow = await _supabase
-          .from('audit_result')
-          .select('id_auditor, level_type, id_ref')
-          .eq('id_result', idResult)
-          .maybeSingle();
-
-      if (resultRow == null) return;
-
-      final auditorId = resultRow['id_auditor']?.toString();
-      if (auditorId == null) return;
-
-      final auditorData = await _supabase
-          .from('User')
-          .select('fcm_token')
-          .eq('id_user', auditorId)
-          .maybeSingle();
-
-      final fcmToken = auditorData?['fcm_token']?.toString();
-      if (fcmToken == null || fcmToken.trim().isEmpty) return;
-
-      // GET LOCATION NAME
-      final levelType = resultRow['level_type']?.toString() ?? '';
-      final idRef = resultRow['id_ref']?.toString() ?? '';
-      String locationName = '-';
-      if (levelType.isNotEmpty && idRef.isNotEmpty) {
-        try {
-          final nameCol = 'nama_$levelType';
-          final idCol = 'id_$levelType';
-          final locRow = await _supabase
-              .from(levelType)
-              .select(nameCol)
-              .eq(idCol, idRef)
-              .maybeSingle();
-          locationName = locRow?[nameCol]?.toString() ?? '-';
-        } catch (_) {}
-      }
-
-      final notifTitle = _t(
-        '🔧 PIC Membalas Temuan',
-        '🔧 PIC Replied to Finding',
-        '🔧 PIC已回复发现',
-      );
-      final notifBody = _t(
-        '$picName telah mengirim bukti perbaikan untuk $locationName. Silakan tinjau dan konfirmasi.',
-        '$picName has submitted corrective action evidence for $locationName. Please review and confirm.',
-        '$picName 已提交 $locationName 的整改证据，请审阅并确认。',
-      );
-
-      await _supabase.functions.invoke(
-        'send-fcm-v1',
-        body: {
-          'token': fcmToken.trim(),
-          'title': notifTitle,
-          'body': notifBody,
-          'data': {
-            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-            'route': 'audit_notif',
-            'id_result': idResult,
-          },
-        },
-      );
-    } catch (e) {
-      debugPrint('_notifyAuditor error: $e');
+  IconData _levelIcon(String levelType) {
+    switch (levelType) {
+      case 'lokasi':
+        return Icons.location_city_rounded;
+      case 'unit':
+        return Icons.business_rounded;
+      case 'subunit':
+        return Icons.layers_rounded;
+      case 'area':
+        return Icons.place_rounded;
+      default:
+        return Icons.location_off_rounded;
     }
-  }
-
-  /// SEND PUSH NOTIF TO PIC WHEN AUDITOR HAS BEEN CONFIRM OR REPLY 
-  Future<void> _notifyPicFromAuditor({
-    required String idResult,
-    required String auditorName,
-    required bool isConfirm,
-  }) async {
-    try {
-      final resultRow = await _supabase
-          .from('audit_result')
-          .select('level_type, id_ref')
-          .eq('id_result', idResult)
-          .maybeSingle();
-
-      if (resultRow == null) return;
-
-      final levelType = resultRow['level_type']?.toString() ?? '';
-      final idRef = resultRow['id_ref']?.toString() ?? '';
-      if (levelType.isEmpty || idRef.isEmpty) return;
-
-      final nameCol = 'nama_$levelType';
-      final idCol = 'id_$levelType';
-
-      final locRow = await _supabase
-          .from(levelType)
-          .select('id_pic, $nameCol')
-          .eq(idCol, idRef)
-          .maybeSingle();
-
-      final picId = locRow?['id_pic']?.toString();
-      final locationName = locRow?[nameCol]?.toString() ?? '-';
-      if (picId == null) return;
-
-      final picData = await _supabase
-          .from('User')
-          .select('fcm_token')
-          .eq('id_user', picId)
-          .maybeSingle();
-
-      final fcmToken = picData?['fcm_token']?.toString();
-      if (fcmToken == null || fcmToken.trim().isEmpty) return;
-
-      final String notifTitle;
-      final String notifBody;
-
-      if (isConfirm) {
-        notifTitle = _t(
-          '✅ Perbaikan Dikonfirmasi!',
-          '✅ Fix Confirmed!',
-          '✅ 整改已确认！',
-        );
-        notifBody = _t(
-          'Auditor $auditorName telah mengkonfirmasi perbaikan Anda untuk $locationName. Poin bonus telah ditambahkan!',
-          'Auditor $auditorName has confirmed your fix for $locationName. Bonus points have been added!',
-          '审计员 $auditorName 已确认您对 $locationName 的整改。已添加奖励积分！',
-        );
-      } else {
-        notifTitle = _t(
-          '💬 Auditor Membalas Temuan',
-          '💬 Auditor Replied to Finding',
-          '💬 审计员已回复发现',
-        );
-        notifBody = _t(
-          'Auditor $auditorName memberikan catatan tambahan untuk $locationName. Silakan tinjau dan perbaiki kembali.',
-          'Auditor $auditorName added notes for $locationName. Please review and fix again.',
-          '审计员 $auditorName 对 $locationName 添加了备注，请审阅并再次整改。',
-        );
-      }
-
-      await _supabase.functions.invoke(
-        'send-fcm-v1',
-        body: {
-          'token': fcmToken.trim(),
-          'title': notifTitle,
-          'body': notifBody,
-          'data': {
-            'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-            'route': 'audit_notif',
-            'id_result': idResult,
-          },
-        },
-      );
-    } catch (e) {
-      debugPrint('_notifyPicFromAuditor error: $e');
-    }
-  }
-
-  Future<void> _confirmReply(
-      String idReply, String idAnswer, String idResult) async {
-    try {
-      // UPDATE REPLY → is_confirmed: true
-      await _supabase
-          .from('audit_answer_reply')
-          .update({
-            'is_confirmed': true,
-            'confirmed_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id_reply', idReply);
-
-      // CHECK RESULT FINALIZED
-      final resultRow = await _supabase
-          .from('audit_result')
-          .select('is_finalized, level_type, id_ref, id_auditor')
-          .eq('id_result', idResult)
-          .maybeSingle();
-
-      if (resultRow == null || resultRow['is_finalized'] == true) {
-        _fetch();
-        return;
-      }
-
-      // GET ALL ANSWER NO & CHECK ARE ALL CONFIRMED
-      final allAnswers = await _supabase
-          .from('audit_answer')
-          .select('id_answer, jawaban, Replies:audit_answer_reply(is_confirmed)')
-          .eq('id_result', idResult);
-
-      final noAnswers = (allAnswers as List)
-          .where((a) => a['jawaban'] == false)
-          .toList();
-
-      final allNoConfirmed = noAnswers.isNotEmpty &&
-          noAnswers.every((a) {
-            final replies = (a['Replies'] as List?) ?? [];
-            return replies.any((r) => r['is_confirmed'] == true);
-          });
-
-      if (!allNoConfirmed) {
-        _fetch();
-        return;
-      }
-
-      // ALL NO ANSWER CONFIRMED → SEND AUDIT_BONUS_PIC TO PIC
-      final levelType = resultRow['level_type'].toString();
-      final idRef = resultRow['id_ref'].toString();
-      final nameCol = 'nama_$levelType';
-      final idCol = 'id_$levelType';
-
-      final locRow = await _supabase
-          .from(levelType)
-          .select('id_pic, $nameCol')
-          .eq(idCol, idRef)
-          .maybeSingle();
-
-      final picId = locRow?['id_pic']?.toString();
-      final lokasiName = locRow?[nameCol]?.toString() ?? '-';
-
-      if (picId != null) {
-        final cfgRow = await _supabase
-            .from('konfigurasi_poin')
-            .select('poin, deskripsi_template')
-            .eq('kode', 'AUDIT_BONUS_PIC')
-            .eq('is_aktif', true)
-            .maybeSingle();
-
-        if (cfgRow != null) {
-          final deskripsi = (cfgRow['deskripsi_template'] as String)
-              .replaceAll('{lokasi}', lokasiName);
-
-          await _supabase.from('log_poin').insert({
-            'id_user': picId,
-            'poin': cfgRow['poin'] as int,
-            'deskripsi': deskripsi,
-            'tipe_aktivitas': 'audit_bonus_pic',
-            'id_result': idResult,
-          });
-        }
-      }
-
-      // NOTIF TO PIC FOR SUCCESS CONFIRM + ACCEPT BONUS
-      final auditorId = resultRow['id_auditor']?.toString() ?? '';
-      if (auditorId.isNotEmpty) {
-        final auditorUserData = await _supabase
-            .from('User')
-            .select('nama')
-            .eq('id_user', auditorId)
-            .maybeSingle();
-        final auditorName = auditorUserData?['nama']?.toString() ?? '-';
-        await _notifyPicFromAuditor(
-          idResult: idResult,
-          auditorName: auditorName,
-          isConfirm: true,
-        );
-      }
-
-      await _supabase
-          .from('audit_result')
-          .update({'is_finalized': true})
-          .eq('id_result', idResult);
-
-      _fetch();
-    } catch (e) {
-      debugPrint('_confirmReply error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: const Color(0xFFEF4444),
-        ));
-      }
-    }
-  }
-
-  /// ALL ANSWER SUMMARY 
-  Widget _buildAnswerSummary(List<Map<String, dynamic>> answers) {
-    final Map<String, List<Map<String, dynamic>>> byTema = {};
-    for (final ans in answers) {
-      final q = ans['Question'] as Map<String, dynamic>?;
-      final tema = q?['Tema'] as Map<String, dynamic>?;
-      String temaKey;
-      if (widget.lang == 'EN') {
-        temaKey = tema?['nama_tema_en']?.toString() ?? _t('Lainnya', 'Other', '其他');
-      } else if (widget.lang == 'ZH') {
-        temaKey = tema?['nama_tema_zh']?.toString() ?? _t('Lainnya', 'Other', '其他');
-      } else {
-        temaKey = tema?['nama_tema_id']?.toString() ?? _t('Lainnya', 'Other', '其他');
-      }
-      byTema.putIfAbsent(temaKey, () => []).add(ans);
-    }
-
-    return Column(
-      children: byTema.entries.map((entry) {
-        final temaName = entry.key;
-        final temaAnswers = entry.value;
-        final yes = temaAnswers.where((a) => a['jawaban'] == true).length;
-        final total = temaAnswers.length;
-        final is100 = yes == total;
-        Color temaColor = is100 ? const Color(0xFF10B981) : const Color(0xFFEF4444);
-
-        return Container(
-          margin: const EdgeInsets.fromLTRB(14, 6, 14, 0),
-          decoration: BoxDecoration(
-            color: is100
-                ? const Color(0xFF10B981).withValues(alpha:0.04)
-                : const Color(0xFFFFF7ED),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: temaColor.withValues(alpha:0.2)),
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                child: Row(children: [
-                  Icon(
-                      is100 ? Icons.check_circle_rounded : Icons.topic_outlined,
-                      size: 13, color: temaColor),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(temaName,
-                        style: GoogleFonts.poppins(
-                            fontSize: 11, fontWeight: FontWeight.w700, color: temaColor)),
-                  ),
-                  Text('$yes/$total',
-                      style: GoogleFonts.poppins(
-                          fontSize: 11, fontWeight: FontWeight.w700, color: temaColor)),
-                ]),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
   }
 }
 
