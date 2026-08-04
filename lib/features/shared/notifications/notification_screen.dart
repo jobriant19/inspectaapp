@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/push_notification_service.dart';
 import 'assigned_findings_tab.dart';
@@ -238,12 +237,12 @@ class _NotificationScreenState extends State<NotificationScreen>
                         isScrollable: false,
                         tabAlignment: TabAlignment.fill,
                         indicator: BoxDecoration(
-                          color: const Color(0xFF0EA5E9),
+                          color: const Color(0xFF1D72F3),
                           borderRadius: BorderRadius.circular(9),
                         ),
                         indicatorSize: TabBarIndicatorSize.tab,
                         labelColor: Colors.white,
-                        unselectedLabelColor: const Color(0xFF0EA5E9),
+                        unselectedLabelColor: const Color(0xFF1D72F3),
                         labelStyle: GoogleFonts.poppins(
                             fontSize: 11, fontWeight: FontWeight.w700),
                         unselectedLabelStyle: GoogleFonts.poppins(

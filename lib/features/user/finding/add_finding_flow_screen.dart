@@ -46,21 +46,21 @@ class AddFindingFlowScreen extends StatefulWidget {
 class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   XFile? _imageXFile;
   bool _isSaving = false;
-  bool _isVisitorUser = false; // Track if logged-in user is visitor
+  bool _isVisitorUser = false;
 
-  // Camera state
+  // CAMERA STATE
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
   bool _isCameraInitialized = false;
 
-  // Form controllers
+  // FPRM CONTROLLERS
   final _titleCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final _visitorNameCtrl = TextEditingController();
   final _visitorCompanyCtrl = TextEditingController();
 
-  // Form data
+  // FORM STATE
   Map<String, dynamic>? _selectedLocation;
   Map<String, dynamic>? _selectedCategory;
   Map<String, dynamic>? _selectedAssignee;
@@ -78,7 +78,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     super.initState();
     _setupTranslations();
     _imageXFile = widget.initialImageXFile;
-    // ── Pre-fill lokasi dari CameraFindingScreen ──
     if (widget.preSelectedLocationName != null &&
         widget.preSelectedLocationName!.trim().isNotEmpty) {
       _selectedLocation = {
@@ -97,7 +96,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     _refreshLocationBreadcrumb();
   }
 
-  /// Load current user profile (for default PIC and location filtering)
   Future<void> _loadCurrentUserProfile() async {
     try {
       final user = Supabase.instance.client.auth.currentUser;
@@ -112,7 +110,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           _currentUserProfile = profile;
           _isVisitorUser = profile['is_visitor'] == true;
           _isLoadingUserProfile = false;
-          // Set default PIC to current logged-in user
           if (_selectedAssignee == null) {
             _selectedAssignee = {
               'id_user': profile['id_user'],
@@ -131,8 +128,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     }
   }
 
-  /// Bangun nama lokasi lengkap (Lokasi / Unit / Subunit / Area)
-  /// berdasarkan ID yang sudah dipilih sebelumnya di CameraFindingScreen.
   Future<void> _refreshLocationBreadcrumb() async {
     final idLokasi  = _selectedLocation?['id_lokasi']?.toString();
     final idUnit    = _selectedLocation?['id_unit']?.toString();
@@ -234,9 +229,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     }
   }
 
-  // ================================================
-  // Save Logic - FIXED column name issue
-  // ================================================
   Future<void> _saveFinding({bool createNewAfter = false}) async {
     final List<MissingFieldItem> missing = [];
 
@@ -289,10 +281,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       final bool isExecutive =
           (_currentUserProfile?['id_jabatan'] == 1);
 
-      // ================================================
-      // Hitung poin 5R: base (dari konfigurasi_poin) + bonus
-      // kategori + bonus subkategori — TANPA function/trigger DB
-      // ================================================
       final bool isVisitor5R = widget.isVisitorMode;
       final bool isPro5R = widget.isProMode;
       final int comboCount =
@@ -310,8 +298,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                           ? '5R_PROFESSIONAL'
                           : '5R_BASE';
 
-      // Poin kategori & subkategori TIDAK dihitung di sini —
-      // baru ditambahkan pada tahap penyelesaian (lihat finding_solution_screen.dart)
       final konfigPoin = await supabase
           .from('konfigurasi_poin')
           .select('poin, deskripsi_template, deskripsi_template_en, deskripsi_template_zh')
@@ -321,7 +307,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       final int poinDasar = (konfigPoin?['poin'] as num?)?.toInt() ?? 10;
       final int totalPoin5R = poinDasar;
 
-      // 1. Upload image
+      // UPLOAD IMAGE
       final imageBytes = await _imageXFile!.readAsBytes();
       final fileName =
           '${user.id}/${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -333,7 +319,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       final imageUrl =
           supabase.storage.from('temuan_images').getPublicUrl(fileName);
 
-      // 2. Prepare data - only include columns that exist in schema
       final Map<String, dynamic> dataToInsert = {
         'id_user': user.id,
         'judul_temuan': _titleCtrl.text.trim(),
@@ -360,18 +345,18 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         dataToInsert['id_penanggung_jawab'] = _selectedAssignee!['id_user'];
       }
 
-      // Due date
+      // DEADLINE
       if (_selectedDueDate != null) {
         dataToInsert['target_waktu_selesai'] =
             _selectedDueDate!.toIso8601String();
       }
 
-      // Escalation (Pro only)
+      // ESCALATION (PROFESSIONAL MODE)
       if (widget.isProMode && _selectedEscalation != null) {
         dataToInsert['eskalasi'] = _selectedEscalation;
       }
 
-      // Visitor fields
+      // VISITOR FIELDS
       if (_isVisitorUser) {
         if (_visitorNameCtrl.text.trim().isNotEmpty) {
           dataToInsert['nama_visitor'] = _visitorNameCtrl.text.trim();
@@ -382,10 +367,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         }
       }
 
-      // 3. Insert to temuan
+      // INSERT TEMUAN
       await supabase.from('temuan').insert(dataToInsert);
 
-      // 3.1 Catat log_poin (3 bahasa) & tambahkan poin ke User — langsung dari Dart
+      // INSERT LOG POIN & USER POIN FROM DART
       List<String> rolesId = [], rolesEn = [], rolesZh = [];
       if (isVisitor5R) { rolesId.add('Visitor'); rolesEn.add('Visitor'); rolesZh.add('访客'); }
       if (isExecutive) { rolesId.add('Eksekutif'); rolesEn.add('Executive'); rolesZh.add('高管'); }
@@ -424,7 +409,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           .update({'poin': currentPoin + totalPoin5R})
           .eq('id_user', user.id);
 
-      // 4. Kirim FCM ke penanggung jawab jika bukan diri sendiri
+      // SENT FCM TO ASSIGNEE IF NOT SELF
       if (_selectedAssignee != null) {
         final assigneeId = _selectedAssignee!['id_user']?.toString();
         final currentUserId = user.id;
@@ -472,9 +457,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
       if (createNewAfter) {
         Navigator.pop(context, 'new');
       } else {
-        // Panggil callback refresh HomeScreen SEBELUM pop
         widget.onFindingSaved?.call();
-        // Pop kembali ke CameraFindingScreen
         Navigator.pop(context, true);
       }
 
@@ -630,9 +613,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     );
   }
 
-  // ================================================
-  // Picker Methods
-  // ================================================
   void _showLocationPicker() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -646,7 +626,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         userUnitId: _currentUserProfile?['id_unit']?.toString(),
         userSubunitId: _currentUserProfile?['id_subunit']?.toString(),
         userAreaId: _currentUserProfile?['id_area']?.toString(),
-        // ── Teruskan pre-selection ──
         preSelectedLokasiId: _selectedLocation?['id_lokasi']?.toString(),
         preSelectedUnitId: _selectedLocation?['id_unit']?.toString(),
         preSelectedSubunitId: _selectedLocation?['id_subunit']?.toString(),
@@ -660,8 +639,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           _selectedAssignee!['id_user'] != _currentUserProfile?['id_user']) {
         setState(() => _selectedAssignee = null);
       }
-      // result dari FullLocationPickerBottomSheet sudah berisi 'nama' (join dari _selectItem)
-      // tapi belum mengandung level di atasnya, jadi refresh breadcrumb penuh:
       await _refreshLocationBreadcrumb();
     }
   }
@@ -680,6 +657,17 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     );
     if (result != null) setState(() => _selectedAssignee = result);
   }
+  
+  Map<String, dynamic>? _escalationStyle(String? title) {
+    if (title == null) return null;
+    for (final titles in EscalationPickerBottomSheet.levelTitlesByLang.values) {
+      final idx = titles.indexOf(title);
+      if (idx != -1) {
+        return EscalationPickerBottomSheet.levelStyles[idx];
+      }
+    }
+    return null;
+  }
 
   void _showEscalationPicker() async {
     final result = await showDialog<String>(
@@ -691,9 +679,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     if (result != null) setState(() => _selectedEscalation = result);
   }
 
-  // ================================================
-  // Build
-  // ================================================
   @override
   Widget build(BuildContext context) {
     return _imageXFile != null ? _buildFormUI() : _buildCameraUI();
@@ -736,10 +721,8 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   color: Colors.white, size: 26),
               onPressed: () {
                 if (_imageXFile != null) {
-                  // Ada foto sebelumnya → kembali ke form
                   setState(() => _imageXFile = widget.initialImageXFile);
                 } else {
-                  // Belum ada foto → pop keluar dari screen ini
                   Navigator.pop(context);
                 }
               },
@@ -829,25 +812,25 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Location Card
+                  // LOCATION CARD
                   _buildIconSectionTitle(Icons.map_rounded, _texts['location']!, isRequired: true),
                   _buildLocationPickerCard(),
                   const SizedBox(height: 20),
 
-                  // Image Section
+                  // FINDING IMAGE
                   if (_imageXFile != null) ...[
                     _buildIconSectionTitle(Icons.photo_camera_rounded, _texts['photo']!, isRequired: true),
                     _buildImageCard(),
                     const SizedBox(height: 20),
                   ],
 
-                  // Visitor Fields - shown right after photo if user is visitor
+                  // VISITOR FIELDS
                   if (_isVisitorUser) ...[
                     _buildVisitorSection(),
                     const SizedBox(height: 20),
                   ],
 
-                  // Title
+                  // TITLE
                   _buildIconSectionTitle(Icons.edit_note_rounded, _texts['form_title']!, isRequired: true),
                   _buildTextField(
                     controller: _titleCtrl,
@@ -855,7 +838,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Notes
+                  // NOTES
                   _buildIconSectionTitle(Icons.sticky_note_2_outlined, _texts['notes']!, isRequired: true),
                   _buildTextField(
                     controller: _notesCtrl,
@@ -864,12 +847,12 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Category
+                  // CATEGORY
                   _buildIconSectionTitle(Icons.category_outlined, _texts['category']!, isRequired: true),
                   _buildCategoryPickerCard(),
                   const SizedBox(height: 20),
 
-                  // Due Date
+                  // DEADLINE
                   _buildIconSectionTitle(Icons.calendar_today_outlined, _texts['due_date']!, isRequired: true),
                   FindingDeadlinePickerCard(
                     lang: widget.lang,
@@ -878,7 +861,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Assignee - ALWAYS VISIBLE (not just Pro mode)
+                  // ASSIGNEE
                   _buildIconSectionTitle(Icons.person_outline, _texts['assignee']!, isRequired: true),
                   FindingPicPickerCard(
                     lang: widget.lang,
@@ -887,7 +870,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Pro Mode fields
+                  // PROFESSIONAL MODE - ESCALATION
                   if (widget.isProMode) ...[
                     _buildProModeDivider(),
                     const SizedBox(height: 16),
@@ -898,23 +881,23 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                       color: const Color(0xFF16A34A),
                     ),
                     _buildPickerCard(
-                      icon: Icons.escalator_warning_outlined,
+                      icon: _escalationStyle(_selectedEscalation)?['icon'] as IconData? ??
+                          Icons.escalator_warning_outlined,
                       text: _selectedEscalation ?? _texts['select_level']!,
                       onTap: _showEscalationPicker,
                       hasValue: _selectedEscalation != null,
-                      showIcon: false,
+                      showIcon: _selectedEscalation != null,
+                      activeColor: _escalationStyle(_selectedEscalation)?['color'] as Color?,
                     ),
                     const SizedBox(height: 20),
                   ],
 
-                  // Action Buttons
-                  // Action Buttons — selalu tampil, loading pakai overlay
+                  // ACTION BUTTONS
               _buildActionButtons(),
               SizedBox(height: _bottomSafeSpacing(context)),
             ],
           ),
         ),
-            // ── Loading Overlay ──
           if (_isSaving) _buildBeamLoadingOverlay(),
         ],
       ),
@@ -943,13 +926,11 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── Animasi cahaya senter biru ──
               SizedBox(
                 width: 100, height: 100,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Ring luar
                     TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0.7, end: 1.15),
                       duration: const Duration(milliseconds: 1000),
@@ -968,7 +949,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                         ),
                       ),
                     ),
-                    // Ring tengah
                     TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0.85, end: 1.05),
                       duration: const Duration(milliseconds: 700),
@@ -983,7 +963,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                         ),
                       ),
                     ),
-                    // Progress circular di tengah
                     const SizedBox(
                       width: 46, height: 46,
                       child: CircularProgressIndicator(
@@ -991,7 +970,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                         strokeWidth: 3.5,
                       ),
                     ),
-                    // Ikon di tengah
                     const Icon(Icons.save_outlined, color: Color(0xFF00C9E4), size: 18),
                   ],
                 ),
@@ -1053,7 +1031,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                       fit: BoxFit.cover,
                     ),
             ),
-            // Dark gradient overlay at bottom
             Positioned(
               bottom: 0,
               left: 0,
@@ -1072,7 +1049,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
                 ),
               ),
             ),
-            // Retake button — kembali ke kamera internal, tidak push CameraFindingScreen baru
             Positioned(
               bottom: 10,
               right: 10,
@@ -1369,8 +1345,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   Widget _buildLocationPickerCard() {
     final bool hasValue = _selectedLocation != null;
 
-    // Tentukan level lokasi yang dipilih (Lokasi/Unit/Sub-Unit/Area)
-    // agar icon & warna konsisten dengan popup Select Location.
     int levelIndex = 0;
     IconData levelIcon = Icons.location_city_rounded;
     if (hasValue) {
@@ -1390,10 +1364,10 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     }
 
     const List<Color> levelColors = [
-      Color(0xFF10B981), // Lokasi
-      Color(0xFF6366F1), // Unit
-      Color(0xFFFBBF24), // Sub-Unit
-      Color(0xFFF472B6), // Area
+      Color(0xFF10B981),
+      Color(0xFF6366F1),
+      Color(0xFFFBBF24),
+      Color(0xFFF472B6),
     ];
 
     final Color activeColor =
@@ -1477,7 +1451,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
         ),
         child: Row(
           children: [
-            // Icon hanya muncul jika sudah ada kategori terpilih
             if (hasValue) ...[
               Icon(icon, color: iconColor, size: 20),
               const SizedBox(width: 12),
@@ -1530,7 +1503,9 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     required VoidCallback onTap,
     bool hasValue = false,
     bool showIcon = true,
+    Color? activeColor,
   }) {
+    final Color color = activeColor ?? const Color(0xFF16A34A);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1541,7 +1516,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: hasValue
-                ? const Color(0xFF16A34A).withValues(alpha:0.5)
+                ? color.withValues(alpha:0.5)
                 : Colors.grey.shade200,
             width: hasValue ? 1.5 : 1,
           ),
@@ -1558,7 +1533,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
             if (showIcon) ...[
               Icon(icon,
                   color: hasValue
-                      ? const Color(0xFF16A34A)
+                      ? color
                       : const Color(0xFF1E3A8A),
                   size: 20),
               const SizedBox(width: 12),
@@ -1576,7 +1551,7 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
             ),
             Icon(Icons.arrow_drop_down,
                 color: hasValue
-                    ? const Color(0xFF16A34A)
+                    ? color
                     : Colors.grey.shade400),
           ],
         ),
@@ -1584,9 +1559,6 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
     );
   }
 
-  // ================================================
-  // Translations
-  // ================================================
   void _setupTranslations() {
     const Map<String, Map<String, String>> translationData = {
       'EN': {
@@ -1696,58 +1668,43 @@ class _AddFindingFlowScreenState extends State<AddFindingFlowScreen> {
   }
 }
 
-// ==================================================================
-// BOTTOM SHEET: ESCALATION PICKER
-// ==================================================================
 class EscalationPickerBottomSheet extends StatelessWidget {
   final String lang;
   const EscalationPickerBottomSheet({super.key, required this.lang});
 
-  static const List<Map<String, dynamic>> _levelStyles = [
+  static const List<Map<String, dynamic>> levelStyles = [
     {'icon': Icons.info_outline_rounded, 'color': Color(0xFF3B82F6)},
     {'icon': Icons.today_rounded, 'color': Color(0xFFF59E0B)},
     {'icon': Icons.calendar_view_week_rounded, 'color': Color(0xFF8B5CF6)},
     {'icon': Icons.calendar_month_rounded, 'color': Color(0xFFEF4444)},
   ];
 
+  static const Map<String, List<String>> levelTitlesByLang = {
+    'ID': ['Level Umum', 'Level Harian', 'Level Mingguan', 'Level Bulanan'],
+    'EN': ['General Level', 'Daily Level', 'Weekly Level', 'Monthly Level'],
+    'ZH': ['一般级别', '每日级别', '每周级别', '每月级别'],
+  };
+
   @override
   Widget build(BuildContext context) {
     final Map<String, List<Map<String, String>>> levels = {
       'ID': [
-        {'title': 'Level Umum', 'desc': 'Eskalasi temuan umum'},
-        {
-          'title': 'Level Harian',
-          'desc': 'Eskalasi ke level anggota dan ketua'
-        },
-        {
-          'title': 'Level Mingguan',
-          'desc': 'Eskalasi ke level ketua lokasi atau divisi'
-        },
-        {
-          'title': 'Level Bulanan',
-          'desc': 'Eskalasi ke level ketua dan manajemen'
-        },
+        {'title': levelTitlesByLang['ID']![0], 'desc': 'Eskalasi temuan umum'},
+        {'title': levelTitlesByLang['ID']![1], 'desc': 'Eskalasi ke level anggota dan ketua'},
+        {'title': levelTitlesByLang['ID']![2], 'desc': 'Eskalasi ke level ketua lokasi atau divisi'},
+        {'title': levelTitlesByLang['ID']![3], 'desc': 'Eskalasi ke level ketua dan manajemen'},
       ],
       'EN': [
-        {'title': 'General Level', 'desc': 'General finding escalation'},
-        {
-          'title': 'Daily Level',
-          'desc': 'Escalate to member and leader level'
-        },
-        {
-          'title': 'Weekly Level',
-          'desc': 'Escalate to location or division head level'
-        },
-        {
-          'title': 'Monthly Level',
-          'desc': 'Escalate to leader and management level'
-        },
+        {'title': levelTitlesByLang['EN']![0], 'desc': 'General finding escalation'},
+        {'title': levelTitlesByLang['EN']![1], 'desc': 'Escalate to member and leader level'},
+        {'title': levelTitlesByLang['EN']![2], 'desc': 'Escalate to location or division head level'},
+        {'title': levelTitlesByLang['EN']![3], 'desc': 'Escalate to leader and management level'},
       ],
       'ZH': [
-        {'title': '一般级别', 'desc': '一般发现升级'},
-        {'title': '每日级别', 'desc': '升级至成员和领导级别'},
-        {'title': '每周级别', 'desc': '升级至地点或部门负责人级别'},
-        {'title': '每月级别', 'desc': '升级至领导和管理层级别'},
+        {'title': levelTitlesByLang['ZH']![0], 'desc': '一般发现升级'},
+        {'title': levelTitlesByLang['ZH']![1], 'desc': '升级至成员和领导级别'},
+        {'title': levelTitlesByLang['ZH']![2], 'desc': '升级至地点或部门负责人级别'},
+        {'title': levelTitlesByLang['ZH']![3], 'desc': '升级至领导和管理层级别'},
       ],
     };
 
@@ -1804,7 +1761,7 @@ class EscalationPickerBottomSheet extends StatelessWidget {
                   const SizedBox(height: 18),
                   ...List.generate(currentLevels.length, (i) {
                     final level = currentLevels[i];
-                    final style = _levelStyles[i % _levelStyles.length];
+                    final style = levelStyles[i % levelStyles.length];
                     final Color color = style['color'] as Color;
                     final IconData icon = style['icon'] as IconData;
                     return Padding(
@@ -1874,12 +1831,13 @@ class EscalationPickerBottomSheet extends StatelessWidget {
                 child: Container(
                   width: 32,
                   height: 32,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFEF4444),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.12),
                     shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
                   ),
                   child: const Icon(Icons.close_rounded,
-                      color: Colors.white, size: 18),
+                      color: Color(0xFFEF4444), size: 18),
                 ),
               ),
             ),

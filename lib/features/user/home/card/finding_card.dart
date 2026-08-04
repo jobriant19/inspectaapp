@@ -194,94 +194,114 @@ class FindingCard extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 92, height: 92,
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withValues(alpha:0.15), width: 1.5)),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12.5),
-                  child: imageUrl.isNotEmpty
-                      ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.grey))
-                      : const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 88, height: 88,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.black.withValues(alpha:0.15), width: 1.5)),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12.5),
+                      child: imageUrl.isNotEmpty
+                          ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_rounded, color: Colors.grey))
+                          : const Icon(Icons.image_outlined, color: Colors.grey, size: 28),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, height: 1.3, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)))),
-                        const SizedBox(width: 8),
-                        // FINDING TYPE LABEL
-                        () {
-                          final jenis = (data['jenis_temuan'] ?? '').toString();
-                          final isKts = jenis == 'KTS Production';
-                          final labelText = isKts ? 'KTS' : '5R';
-                          final labelColor = isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: labelColor.withValues(alpha:0.15),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: labelColor, width: 1.2),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, height: 1.3, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)))),
+                            const SizedBox(width: 8),
+                            // FINDING TYPE LABEL + POIN BADGE
+                            Wrap(
+                              alignment: WrapAlignment.end,
+                              runAlignment: WrapAlignment.end,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                () {
+                                  final jenis = (data['jenis_temuan'] ?? '').toString();
+                                  final isKts = jenis == 'KTS Production';
+                                  final labelText = isKts ? 'KTS' : '5R';
+                                  final labelColor = isKts ? const Color(0xFFFBBF24) : const Color(0xFF38BDF8);
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: labelColor.withValues(alpha:0.15),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: labelColor, width: 1.2),
+                                    ),
+                                    child: Text(
+                                      labelText,
+                                      style: GoogleFonts.poppins(
+                                        color: labelColor,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  );
+                                }(),
+                                if (poin > 0) _buildPoinBadge(poin),
+                              ],
                             ),
-                            child: Text(
-                              labelText,
-                              style: GoogleFonts.poppins(
-                                color: labelColor,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 11,
-                              ),
-                            ),
-                          );
-                        }(),
-                        const SizedBox(width: 6),
-                        if (poin > 0) _buildPoinBadge(poin),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        if (badges.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 6.0), child: Wrap(spacing: 6, runSpacing: 4, children: badges)),
+                        // LOCATION BADGE
+                        Row(children: [
+                          Flexible(child: _buildLocationBadge(data)),
+                        ]),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    if (badges.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 6.0), child: Wrap(spacing: 6, runSpacing: 4, children: badges)),
-                    // LOCATION BADGE
-                    Row(children: [
-                      Flexible(child: _buildLocationBadge(data)),
-                    ]),
-                    const SizedBox(height: 8),
-                    // TIME BADGE
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
-                      ),
-                      child: Row(children: [
-                        const Icon(Icons.calendar_month_rounded, size: 15, color: Color(0xFF64748B)),
-                        const SizedBox(width: 6),
-                        Text(tanggal, style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF475569), fontWeight: FontWeight.w600)),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: statusBg,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: statusColor.withValues(alpha: 0.35)),
-                          ),
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(statusIcon, size: 14, color: statusColor),
-                            const SizedBox(width: 5),
-                            Text(statusText, style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w700, color: statusColor)),
-                          ]),
-                        ),
-                      ]),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // TIME BADGE
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
                 ),
+                child: Row(children: [
+                  const Icon(Icons.calendar_month_rounded, size: 15, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      tanggal,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: GoogleFonts.poppins(fontSize: 12, color: const Color(0xFF475569), fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusBg,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(statusIcon, size: 14, color: statusColor),
+                      const SizedBox(width: 5),
+                      Text(statusText, style: GoogleFonts.poppins(fontSize: 11.5, fontWeight: FontWeight.w700, color: statusColor)),
+                    ]),
+                  ),
+                ]),
               ),
             ],
           ),

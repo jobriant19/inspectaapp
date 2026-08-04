@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../user/finding/detail/extension_requests_screen.dart';
 import '../../user/finding/detail/finding_detail_screen.dart';
 import '../../user/home/card/finding_card.dart';
 import '../../user/home/card/kts_finding_card.dart';
@@ -34,6 +35,23 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
   int _currentPage = 1;
   static const int _perPage = 5;
 
+  int _pendingExtensionCount = 0;
+
+  Future<void> _fetchPendingExtensionCount() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      final data = await Supabase.instance.client
+          .from('perpanjang')
+          .select('id_perpanjang')
+          .eq('id_user_penerima', userId)
+          .eq('status', 'pending');
+      if (mounted) setState(() => _pendingExtensionCount = (data as List).length);
+    } catch (e) {
+      debugPrint('Error fetching pending extension count: $e');
+    }
+  }
+
   static const Color _primary = Color(0xFF0284C7);
   static const Color _red = Color(0xFFDC2626);
 
@@ -49,6 +67,7 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
     } else {
       _fetchFindings();
     }
+    _fetchPendingExtensionCount();
   }
 
   @override
@@ -288,6 +307,73 @@ class _AssignedFindingsTabState extends State<AssignedFindingsTab>
               ),
             ),
           ]),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: GestureDetector(
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ExtensionRequestsScreen(lang: widget.lang),
+                ),
+              );
+              _fetchPendingExtensionCount();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1D72F3), Color(0xFF0EA5E9)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1D72F3).withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.schedule_send_rounded, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.lang == 'ID'
+                          ? 'Perpanjangan Deadline'
+                          : widget.lang == 'ZH'
+                              ? '截止日期延期'
+                              : 'Deadline Extensions',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                          fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$_pendingExtensionCount',
+                      style: GoogleFonts.poppins(
+                          fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 13),
+                ],
+              ),
+            ),
+          ),
         ),
 
         Padding(

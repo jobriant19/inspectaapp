@@ -176,19 +176,31 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
     }
   }
 
+  String _localeFor(String lang) {
+    switch (lang) {
+      case 'EN':
+        return 'en_US';
+      case 'ZH':
+        return 'zh_CN';
+      default:
+        return 'id_ID';
+    }
+  }
+
   String _formatDateTime(
     String? dateStr, {
     String format = 'dd MMM yyyy, HH:mm',
   }) {
     if (dateStr == null || dateStr.isEmpty) return '-';
+    final locale = _localeFor(widget.lang);
     try {
       final dt = DateTime.parse(dateStr).toLocal();
-      return DateFormat(format, 'id_ID').format(dt);
+      return DateFormat(format, locale).format(dt);
     } catch (e) {
       try {
         final parsableDateStr = dateStr.replaceFirst(' ', 'T');
         final dt = DateTime.parse(parsableDateStr).toLocal();
-        return DateFormat(format, 'id_ID').format(dt);
+        return DateFormat(format, locale).format(dt);
       } catch (e2) {
         return dateStr.substring(0, 19).replaceAll('T', ' ');
       }
@@ -730,6 +742,10 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
             '-';
     final createdAt = data['created_at'] as String?;
 
+    final bool isVisitorFinding = data['is_visitor'] == true;
+    final String? visitorName = data['nama_visitor'] as String?;
+    final String? visitorCompany = data['perusahaan_visitor'] as String?;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -752,31 +768,85 @@ class _FindingDetailScreenState extends State<FindingDetailScreen> {
               color: const Color(0xFF0EA5E9)),
           const SizedBox(height: 12),
           // REPORTER
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: const Color(0xFFE0F2FE),
-                backgroundImage: creatorAvatarUrl != null
-                    ? NetworkImage(creatorAvatarUrl)
-                    : null,
-                child: creatorAvatarUrl == null
-                    ? const Icon(Icons.person,
-                        color: Color(0xFF0EA5E9))
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  creatorName,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                      color: Color(0xFF0F172A)),
+          if (isVisitorFinding)
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE0F2FE),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.badge_outlined,
+                      color: Color(0xFF0EA5E9), size: 22),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (visitorName != null && visitorName.trim().isNotEmpty)
+                            ? visitorName
+                            : '-',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      if (visitorCompany != null && visitorCompany.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.business_outlined,
+                                size: 13, color: Color(0xFF0EA5E9)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                visitorCompany,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF0EA5E9),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: const Color(0xFFE0F2FE),
+                  backgroundImage: creatorAvatarUrl != null
+                      ? NetworkImage(creatorAvatarUrl)
+                      : null,
+                  child: creatorAvatarUrl == null
+                      ? const Icon(Icons.person,
+                          color: Color(0xFF0EA5E9))
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    creatorName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: Color(0xFF0F172A)),
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 16),
           Container(height: 1, color: const Color(0xFFF1F5F9)),
           const SizedBox(height: 16),
