@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../shared/code/qr_scanner_screen.dart';
 import '../home/alert/required_field_alert.dart';
 
 class _PC {
@@ -33,13 +35,17 @@ class _PmFormScreenState extends State<PmFormScreen> {
   Map<String, String> _sectionDisplayMap = {};
   DateTime _bulanPm = DateTime(DateTime.now().year, DateTime.now().month, 1);
 
+  String? _userId;
+  String? _userOriginSectionId;
+  bool _isProMode = false;
+
   bool get _isLate {
     final now = DateTime.now();
     final selected = DateTime(_bulanPm.year, _bulanPm.month, 1);
     final current  = DateTime(now.year, now.month, 1);
-    if (selected.isBefore(current)) return true;       // bulan pengajuan sudah lewat
-    if (selected.isAtSameMomentAs(current)) return now.day > 10; // bulan ini, cek tgl 10
-    return false; // bulan depan (seharusnya tidak bisa dipilih)
+    if (selected.isBefore(current)) return true;
+    if (selected.isAtSameMomentAs(current)) return now.day > 10;
+    return false;
   }
 
   PlatformFile? _pickedFile;
@@ -156,7 +162,11 @@ class _PmFormScreenState extends State<PmFormScreen> {
   void initState() {
     super.initState();
     _loadSectionDisplayMap();
-    if (!_isEdit) _loadUserBagian();
+    if (!_isEdit) {
+      _loadUserBagian();
+    } else {
+      _loadUserContext();
+    }
     if (_isEdit) {
       final d = widget.existingData!;
       _judulCtrl.text   = d['judul_pm'] ?? '';
@@ -181,17 +191,65 @@ class _PmFormScreenState extends State<PmFormScreen> {
     super.dispose();
   }
 
-  Future<void> _loadUserBagian() async {
+  Future<void> _loadUserContext() async {
     final sb   = Supabase.instance.client;
     final user = sb.auth.currentUser;
     if (user == null) return;
+    _userId = user.id;
     try {
-      // Section diambil berdasarkan siapa yang menjadi PIC (id_pic) pada tabel section,
-      // bukan lagi dari kolom bagian_kasie/id_section di tabel User.
-      final res = await sb.from('section').select('nama_section_id').eq('id_pic', user.id).maybeSingle();
-      if (mounted) setState(() => _selectedBagian = res?['nama_section_id'] as String?);
+      final userRow = await sb
+          .from('User')
+          .select('id_section, is_pro_mode')
+          .eq('id_user', user.id)
+          .maybeSingle();
+      _userOriginSectionId = userRow?['id_section']?.toString();
+      _isProMode = (userRow?['is_pro_mode'] as bool?) ?? false;
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('PM load user context error: $e');
+    }
+  }
+
+  Future<void> _loadUserBagian() async {
+    await _loadUserContext();
+    final sb = Supabase.instance.client;
+    if (_userId == null) return;
+    try {
+      final picRes = await sb
+          .from('section')
+          .select('nama_section_id')
+          .eq('id_pic', _userId!)
+          .maybeSingle();
+      if (picRes != null) {
+        if (mounted) setState(() => _selectedBagian = picRes['nama_section_id'] as String?);
+        return;
+      }
+
+      if (_userOriginSectionId != null) {
+        final originRes = await sb
+            .from('section')
+            .select('nama_section_id')
+            .eq('id_section', _userOriginSectionId!)
+            .maybeSingle();
+        if (originRes != null && mounted) {
+          setState(() => _selectedBagian = originRes['nama_section_id'] as String?);
+        }
+      }
     } catch (e) {
       debugPrint('PM load section pic error: $e');
+    }
+  }
+
+  Future<void> _showSectionPicker() async {
+    final result = await showPmPickSectionDialog(
+      context,
+      lang: widget.lang,
+      isProMode: _isProMode,
+      userId: _userId,
+      userOriginSectionId: _userOriginSectionId,
+    );
+    if (result != null && mounted) {
+      setState(() => _selectedBagian = result['nama_section_id']?.toString());
     }
   }
 
@@ -402,7 +460,6 @@ class _PmFormScreenState extends State<PmFormScreen> {
       final user = sb.auth.currentUser;
       if (user == null) throw Exception('Not logged in');
 
-      // CEK DUPLIKAT: SUDAH LAPOR DI BULAN INI?
       if (!_isEdit) {
         final dup = await sb.from('preventif_maintenance')
             .select('id_pm')
@@ -506,19 +563,26 @@ class _PmFormScreenState extends State<PmFormScreen> {
 
                 _sectionCard(children: [
                   _label(t['bagian']!, icon: Icons.apartment_outlined),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _PC.border, width: 1)),
-                    child: Row(children: [
-                      Expanded(child: Text(
-                        _displaySectionName(_selectedBagian),
-                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)))),
-                      const Icon(CupertinoIcons.lock_fill, size: 13, color: Color(0xFF94A3B8)),
-                    ]),
+                  GestureDetector(
+                    onTap: _showSectionPicker,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _selectedBagian != null ? _PC.primary : _PC.border,
+                          width: _selectedBagian != null ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(children: [
+                        Expanded(child: Text(
+                          _displaySectionName(_selectedBagian),
+                          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF1E293B)))),
+                        const Icon(CupertinoIcons.chevron_right, size: 15, color: _PC.primary),
+                      ]),
+                    ),
                   ),
                 ]),
                 const SizedBox(height: 16),
@@ -790,4 +854,360 @@ class _PmFormScreenState extends State<PmFormScreen> {
               borderSide: const BorderSide(color: _PC.primary, width: 1.5)),
           contentPadding: const EdgeInsets.symmetric(
               horizontal: 16, vertical: 16)));
+}
+
+Future<Map<String, dynamic>?> showPmPickSectionDialog(
+  BuildContext context, {
+  required String lang,
+  required bool isProMode,
+  required String? userId,
+  required String? userOriginSectionId,
+}) {
+  return showDialog<Map<String, dynamic>>(
+    context: context,
+    builder: (ctx) => _PmPickSectionDialog(
+      lang: lang,
+      isProMode: isProMode,
+      userId: userId,
+      userOriginSectionId: userOriginSectionId,
+    ),
+  );
+}
+
+class _PmPickSectionDialog extends StatefulWidget {
+  final String lang;
+  final bool isProMode;
+  final String? userId;
+  final String? userOriginSectionId;
+
+  const _PmPickSectionDialog({
+    required this.lang,
+    required this.isProMode,
+    required this.userId,
+    required this.userOriginSectionId,
+  });
+
+  @override
+  State<_PmPickSectionDialog> createState() => _PmPickSectionDialogState();
+}
+
+class _PmPickSectionDialogState extends State<_PmPickSectionDialog> {
+  static const Color _accent       = Color(0xFF1D4ED8);
+  static const Color _accentLight  = Color(0xFFEFF6FF);
+  static const Color _accentBorder = Color(0xFFBFDBFE);
+
+  List<Map<String, dynamic>> _allSections = [];
+  List<Map<String, dynamic>> _filteredSections = [];
+  bool _isLoading = false;
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(_onSearch);
+    _loadSections();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  String _title(String lang) {
+    switch (lang) {
+      case 'EN': return 'Select Section';
+      case 'ZH': return '选择部门';
+      default: return 'Pilih Bagian';
+    }
+  }
+
+  String _searchHint(String lang) {
+    switch (lang) {
+      case 'EN': return 'Search section...';
+      case 'ZH': return '搜索部门...';
+      default: return 'Cari bagian...';
+    }
+  }
+
+  String _emptyText(String lang) {
+    switch (lang) {
+      case 'EN': return 'No sections found';
+      case 'ZH': return '未找到部门';
+      default: return 'Tidak ada bagian';
+    }
+  }
+
+  String _countLabel(String lang) {
+    final n = _filteredSections.length;
+    switch (lang) {
+      case 'EN': return '$n sections';
+      case 'ZH': return '$n 个部门';
+      default: return '$n bagian';
+    }
+  }
+
+  String _scanTitle(String lang) {
+    switch (lang) {
+      case 'EN': return 'Scan Section';
+      case 'ZH': return '扫描部门';
+      default: return 'Pindai Section';
+    }
+  }
+
+  String _nameOf(Map<String, dynamic> s) {
+    if (widget.lang == 'EN') return s['nama_section_en']?.toString() ?? s['nama_section_id']?.toString() ?? '-';
+    if (widget.lang == 'ZH') return s['nama_section_zh']?.toString() ?? s['nama_section_id']?.toString() ?? '-';
+    return s['nama_section_id']?.toString() ?? '-';
+  }
+
+  Future<void> _loadSections() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await Supabase.instance.client
+          .from('section')
+          .select('*, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area)')
+          .order('urutan', ascending: true);
+
+      List<Map<String, dynamic>> sections = List<Map<String, dynamic>>.from(data);
+
+      if (!widget.isProMode) {
+        sections = sections.where((s) {
+          final idSection = s['id_section']?.toString();
+          final idPic = s['id_pic']?.toString();
+          final isPic = widget.userId != null && idPic == widget.userId;
+          final isOrigin = widget.userOriginSectionId != null && idSection == widget.userOriginSectionId;
+          return isPic || isOrigin;
+        }).toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _allSections = sections;
+          _filteredSections = _applySearch(sections);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error load section (PM): $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> _applySearch(List<Map<String, dynamic>> src) {
+    final q = _searchCtrl.text.toLowerCase();
+    if (q.isEmpty) return src;
+    return src.where((s) => _nameOf(s).toLowerCase().contains(q)).toList();
+  }
+
+  void _onSearch() => setState(() => _filteredSections = _applySearch(_allSections));
+
+  Future<void> _openQrScanner() async {
+    final result = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QRScannerScreen(
+          lang: widget.lang,
+          isProMode: widget.isProMode,
+          isVisitorMode: false,
+          sectionMode: true,
+          overrideTitle: _scanTitle(widget.lang),
+        ),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+    final scannedId = result['id']?.toString();
+    if (scannedId == null || scannedId.isEmpty) return;
+
+    try {
+      final data = await Supabase.instance.client
+          .from('section')
+          .select('*, lokasi(nama_lokasi), unit(nama_unit), subunit(nama_subunit), area(nama_area)')
+          .eq('id_section', scannedId)
+          .maybeSingle();
+      if (data != null && mounted) {
+        Navigator.pop(context, Map<String, dynamic>.from(data));
+      }
+    } catch (e) {
+      debugPrint('Error mengambil data section dari QR (PM): $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        width: 340,
+        height: screenHeight * 0.72,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _accentLight, width: 1.5),
+        ),
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: _accentLight, borderRadius: BorderRadius.circular(10)),
+                child: const Icon(CupertinoIcons.square_grid_2x2_fill, color: _accent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _title(widget.lang),
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w800, fontSize: 16, color: _accent),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(20)),
+                  child: const Icon(CupertinoIcons.xmark, color: Color(0xFF64748B), size: 18),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          Container(height: 1, color: const Color(0xFFF1F5F9)),
+
+          // SEARCH + SCAN QR
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
+            child: Row(children: [
+              Expanded(
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _accent.withValues(alpha: 0.4), width: 1.3),
+                    boxShadow: [BoxShadow(color: _accent.withValues(alpha: 0.1), blurRadius: 6, offset: const Offset(0, 2))],
+                  ),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF0F172A), fontWeight: FontWeight.w500),
+                    decoration: InputDecoration(
+                      hintText: _searchHint(widget.lang),
+                      hintStyle: const TextStyle(fontSize: 12.5, color: Color(0xFFBDBDBD)),
+                      prefixIcon: const Icon(CupertinoIcons.search, color: _accent, size: 19),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _openQrScanner,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _accent,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [BoxShadow(color: _accent.withValues(alpha: 0.25), blurRadius: 6, offset: const Offset(0, 2))],
+                  ),
+                  child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 20),
+                ),
+              ),
+            ]),
+          ),
+
+          // COUNT
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 2, 14, 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _accentLight,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _accentBorder),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(CupertinoIcons.square_grid_2x2_fill, size: 12, color: _accent),
+                  const SizedBox(width: 6),
+                  Text(
+                    _countLabel(widget.lang),
+                    style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: _accent),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: _accentBorder),
+
+          Expanded(
+            child: _isLoading
+                ? _pmSectionShimmerList()
+                : _filteredSections.isEmpty
+                    ? Center(
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(CupertinoIcons.square_grid_2x2, size: 44, color: Color(0xFFE2E8F0)),
+                          const SizedBox(height: 10),
+                          Text(_emptyText(widget.lang), style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
+                        ]),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(top: 6, bottom: 12),
+                        itemCount: _filteredSections.length,
+                        itemBuilder: (_, i) {
+                          final s = _filteredSections[i];
+                          final name = _nameOf(s);
+                          return InkWell(
+                            onTap: () => Navigator.pop(context, s),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _accentBorder),
+                              ),
+                              child: Row(children: [
+                                Container(
+                                  width: 40, height: 40,
+                                  decoration: BoxDecoration(color: _accentLight, borderRadius: BorderRadius.circular(10)),
+                                  child: const Icon(CupertinoIcons.square_grid_2x2_fill, color: _accent, size: 18),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(name, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF0F172A))),
+                                ),
+                                const Icon(CupertinoIcons.chevron_right, size: 14, color: Color(0xFFCBD5E1)),
+                              ]),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+Widget _pmSectionShimmerList() {
+  return Shimmer.fromColors(
+    baseColor: Colors.grey.shade200,
+    highlightColor: Colors.grey.shade100,
+    child: ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      itemCount: 6,
+      itemBuilder: (_, __) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        height: 60,
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+  );
 }
